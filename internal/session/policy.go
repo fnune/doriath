@@ -98,7 +98,7 @@ func (s *Session) proposeHost(e proxy.Event) {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindRule,
 		Summary: fmt.Sprintf("Allow %s for profile %s?", e.Host, s.req.Profile.Name),
-		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow.", who, e.Host),
+		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow.", who, e.Host) + uploadWarning(e.Host),
 		Scope:   "rule egress " + e.Host,
 	}
 	s.manager.Propose(req, ruleTTL, func(d approval.Decision) {
@@ -119,4 +119,25 @@ func (s *Session) proposeHost(e proxy.Event) {
 func publicAddr(ip netip.Addr) bool {
 	ip = ip.Unmap()
 	return ip.IsGlobalUnicast() && !ip.IsPrivate()
+}
+
+// openUploadHosts accept data from anyone: object storage, paste and file
+// drops, request bins and chat webhooks. Allowing one gives the agent a
+// place to send what it reads.
+var openUploadHosts = []string{
+	"amazonaws.com", "storage.googleapis.com", "blob.core.windows.net", "r2.cloudflarestorage.com",
+	"digitaloceanspaces.com", "backblazeb2.com",
+	"pastebin.com", "paste.ee", "hastebin.com", "transfer.sh", "file.io", "0x0.st", "termbin.com",
+	"webhook.site", "requestbin.com", "pipedream.net", "beeceptor.com", "ngrok.io", "ngrok-free.app",
+	"hooks.slack.com", "discord.com", "discordapp.com", "api.telegram.org",
+}
+
+func uploadWarning(host string) string {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, h := range openUploadHosts {
+		if host == h || strings.HasSuffix(host, "."+h) {
+			return " Careful: anyone can upload to " + h + ", so allowing it lets the agent send data out."
+		}
+	}
+	return ""
 }

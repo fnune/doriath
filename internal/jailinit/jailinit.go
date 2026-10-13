@@ -114,6 +114,12 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
+	// init runs as the agent's UID and names callers to the proxy, so the
+	// agent must not read or write its memory through /proc. The flag is
+	// not inherited across execve, so the agent's own programs stay normal.
+	if err := unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0); err != nil {
+		return 1, fmt.Errorf("init: protect its memory: %w", err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	for i, l := range ls {

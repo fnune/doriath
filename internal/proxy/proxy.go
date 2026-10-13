@@ -224,8 +224,21 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		_ = upstream.Close()
 		return
 	}
+	client := prefixed(conn, buf.Reader)
+	name, hello := peekServerName(client)
+	if name != "" && !strings.EqualFold(strings.TrimSuffix(name, "."), host) {
+		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: fmt.Sprintf("TLS server name %s does not match the tunnel's host", name)})
+		_ = client.Close()
+		_ = upstream.Close()
+		return
+	}
+	if _, err := upstream.Write(hello); err != nil {
+		_ = client.Close()
+		_ = upstream.Close()
+		return
+	}
 	s.firstSeen(host, "tunnel")
-	pipe(prefixed(conn, buf.Reader), upstream)
+	pipe(client, upstream)
 }
 
 func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, id Identity) {

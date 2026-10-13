@@ -196,7 +196,13 @@ type Limits struct {
 	CPU    string
 }
 
-const DefaultTaskLimit = 8192
+const (
+	DefaultTaskLimit = 8192
+	// DefaultMemoryLimit leaves a quarter of the RAM to the desktop, so a
+	// runaway build is killed inside its own scope, not by the kernel at
+	// random across the session.
+	DefaultMemoryLimit = "75%"
+)
 
 // Hardening is on by default. Each switch loosens the agent jail for tools
 // that need it.

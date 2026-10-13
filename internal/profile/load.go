@@ -212,7 +212,7 @@ type builder struct {
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, limits: Limits{Tasks: DefaultTaskLimit}}
+	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
 }
 
 func (b *builder) apply(l layer) {
@@ -362,7 +362,7 @@ func appendNew(list []string, s string) []string {
 }
 
 var (
-	limitValue = regexp.MustCompile(`^[0-9]+[KMGT]?$`)
+	limitValue = regexp.MustCompile(`^([0-9]+[KMGT]?|[0-9]{1,2}%|100%|infinity)$`)
 	cpuValue   = regexp.MustCompile(`^[0-9]+%$`)
 )
 
@@ -405,6 +405,10 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		if m.Ref != "" && mode != ModeClone {
 			errs = append(errs, fmt.Errorf("mount %s: ref only applies to clone mounts", m.Path))
+			continue
+		}
+		if mode != ModeReadOnly && UnderTrustedRoot(path+"/") {
+			errs = append(errs, fmt.Errorf("mount %s: must be read-only, because credentials and egress programs trust programs under it by name", m.Path))
 			continue
 		}
 		if m.Live && mode != ModeReadWrite {
@@ -538,7 +542,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		errs = append(errs, fmt.Errorf("limits tasks %d: must be zero (no limit) or more", b.limits.Tasks))
 	}
 	if b.limits.Memory != "" && !limitValue.MatchString(b.limits.Memory) {
-		errs = append(errs, fmt.Errorf("limits memory %q: want a size such as 8G", b.limits.Memory))
+		errs = append(errs, fmt.Errorf("limits memory %q: want a size such as 8G, a share of the RAM such as 50%%, or infinity", b.limits.Memory))
 	}
 	if b.limits.CPU != "" && !cpuValue.MatchString(b.limits.CPU) {
 		errs = append(errs, fmt.Errorf("limits cpu %q: want a percentage such as 200%%", b.limits.CPU))

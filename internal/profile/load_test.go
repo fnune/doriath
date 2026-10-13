@@ -125,6 +125,8 @@ func TestLoadRejects(t *testing.T) {
 		"undefined signing":  {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
 		"secret both":        {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "not both"},
 		"secret relative":    {profile: "[secrets.x]\nfile = \"rel\"", want: "must be absolute"},
+		"writable nix store": {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"rw\"", want: "must be read-only"},
+		"writable opt":       {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"rw\"", want: "must be read-only"},
 		"bad memory limit":   {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
 		"bad cpu limit":      {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
 		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},
@@ -241,7 +243,7 @@ func TestPathPrepend(t *testing.T) {
 func TestLimits(t *testing.T) {
 	empty := fstest.MapFS{}
 	p, err := loader(fstest.MapFS{"p.toml": file("")}, empty).Load("p")
-	if err != nil || p.Limits != (Limits{Tasks: DefaultTaskLimit}) {
+	if err != nil || p.Limits != (Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}) {
 		t.Fatalf("default limits = %+v, %v", p.Limits, err)
 	}
 	p, err = loader(fstest.MapFS{"p.toml": file("[limits]\ntasks = 0\nmemory = \"8G\"\ncpu = \"200%\"")}, empty).Load("p")

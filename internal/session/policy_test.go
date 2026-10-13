@@ -33,3 +33,17 @@ func TestLearningModeAllowsAndRecords(t *testing.T) {
 		t.Fatalf("learned by program = %v", by)
 	}
 }
+
+func TestUploadWarning(t *testing.T) {
+	for host, warn := range map[string]bool{
+		"my-bucket.s3.amazonaws.com": true,
+		"webhook.site":               true,
+		"hooks.slack.com":            true,
+		"registry.npmjs.org":         false,
+		"notamazonaws.com":           false,
+	} {
+		if got := uploadWarning(host) != ""; got != warn {
+			t.Errorf("%s: warning %v, want %v", host, got, warn)
+		}
+	}
+}

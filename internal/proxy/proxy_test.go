@@ -443,6 +443,26 @@ func TestSNIMustMatchTunnel(t *testing.T) {
 	}
 }
 
+func TestSNIMustMatchOpaqueTunnel(t *testing.T) {
+	h := newHarness(t)
+	conn, err := net.Dial("tcp", h.proxyURL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprint(conn, "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n")
+	if _, err := http.ReadResponse(bufio.NewReader(conn), nil); err != nil {
+		t.Fatal(err)
+	}
+	tc := tls.Client(conn, &tls.Config{ServerName: "github.com", RootCAs: h.upCA.Pool()})
+	if err := tc.Handshake(); err == nil {
+		t.Fatal("a tunnel to example.com must not carry a handshake for github.com")
+	}
+	if !h.events.has("denied", "example.com") {
+		t.Fatal("the mismatch was not recorded")
+	}
+}
+
 func TestPlainHTTP(t *testing.T) {
 	h := newHarness(t)
 	c := h.client()

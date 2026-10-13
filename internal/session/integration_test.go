@@ -400,7 +400,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 	}
 	var lines []string
 	for _, l := range strings.Split(out, "\n") {
-		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "girdle: session") {
+		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "girdle: ") {
 			lines = append(lines, l)
 		}
 	}
@@ -604,6 +604,8 @@ func TestHardening(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
 unshare -U true 2>/dev/null && echo "FAIL user namespace"
+grep -q "girdle.* init" /proc/2/cmdline 2>/dev/null || tr '\0' ' ' < /proc/2/cmdline | grep -q init || echo "FAIL pid 2 is not girdle init"
+cat /proc/2/environ >/dev/null 2>&1 && echo "FAIL init's memory and environment are readable"
 bwrap --unshare-all --ro-bind / / true 2>/dev/null && echo "FAIL nested bwrap"
 touch /mnt/x 2>/dev/null && echo "FAIL write outside the writable paths"
 touch "$PWD/landlock-ok" || echo "FAIL worktree write"

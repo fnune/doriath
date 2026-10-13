@@ -166,7 +166,11 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	for _, note := range append(spec.Notes, programNotes(s.req.Profile)...) {
+	notes := slices.Concat(spec.Notes, programNotes(s.req.Profile))
+	if s.deps.SystemdRun == "" {
+		notes = append(notes, "systemd-run is not available, so this session runs without the profile's task and memory limits")
+	}
+	for _, note := range notes {
 		fmt.Fprintln(s.deps.Stderr, "girdle: "+note)
 	}
 	return s.exec(ctx, spec)
