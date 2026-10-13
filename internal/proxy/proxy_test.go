@@ -49,6 +49,19 @@ func (u *upstream) last(t *testing.T) (*http.Request, []byte) {
 	return u.requests[len(u.requests)-1], u.bodies[len(u.bodies)-1]
 }
 
+func (u *upstream) find(t *testing.T, path string) *http.Request {
+	t.Helper()
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for _, r := range u.requests {
+		if r.URL.Path == path {
+			return r
+		}
+	}
+	t.Fatalf("upstream saw no request for %s", path)
+	return nil
+}
+
 func (u *upstream) count() int {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -472,5 +485,59 @@ func TestGraphQLBodyRule(t *testing.T) {
 	}
 	if body(t, resp); resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized body: %d", resp.StatusCode)
+	}
+}
+
+func TestAbsoluteHTTPSRequests(t *testing.T) {
+	h := newHarness(t)
+	send := func(rawURL string, header string) *http.Response {
+		t.Helper()
+		conn, err := net.Dial("tcp", h.proxyURL.Host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = conn.Close() })
+		u, _ := url.Parse(rawURL)
+		fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\n%sConnection: close\r\n\r\n", rawURL, u.Host, header)
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	if resp := send("https://example.com/abs", ""); resp.StatusCode != 200 {
+		t.Fatalf("allowed: %d", resp.StatusCode)
+	}
+	if resp := send("https://evil.example/", ""); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("denied host: %d", resp.StatusCode)
+	}
+	if resp := send("https://api.github.com/user", "Authorization: token x\r\n"); resp.StatusCode != 200 {
+		t.Fatalf("intercepted: %d", resp.StatusCode)
+	}
+	got := h.upstream.find(t, "/user")
+	if got.Header.Get("Authorization") != "Bearer real-token" {
+		t.Fatalf("credential not injected: %q", got.Header.Get("Authorization"))
+	}
+	resp := send("https://api.github.com/repos/a/b/pulls/1/merge", "")
+	if resp.Request = nil; resp.StatusCode != 200 {
+		t.Fatalf("GET on a PUT-only rule must pass: %d", resp.StatusCode)
+	}
+}
+
+func TestHalfCloseStillGetsResponse(t *testing.T) {
+	h := newHarness(t)
+	conn, err := net.Dial("tcp", h.proxyURL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprint(conn, "GET https://example.com/half HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	_ = conn.(*net.TCPConn).CloseWrite()
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != 200 || !strings.Contains(b, "/half") {
+		t.Fatalf("status %d: %s", resp.StatusCode, b)
 	}
 }

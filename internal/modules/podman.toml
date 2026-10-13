@@ -11,6 +11,7 @@ allow = [
   "registry-1.docker.io",
   "auth.docker.io",
   "production.cloudflare.docker.com",
+  "production.cloudfront.docker.com",
   "ghcr.io",
   "quay.io",
   "cdn01.quay.io",

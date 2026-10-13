@@ -63,7 +63,11 @@ type Spec struct {
 	// the session's shared namespace.
 	SkipNetNS bool
 	// InfoFD is a file descriptor for bubblewrap's JSON status, or 0.
-	InfoFD   int
+	InfoFD int
+	// SetIDs maps the jail's user and group to UID and GID explicitly, for a
+	// bubblewrap that starts as root inside another user namespace.
+	SetIDs   bool
+	GID      int
 	Hostname string
 	UID      int
 	Home     string
@@ -90,6 +94,8 @@ type Options struct {
 	SkipUserNS bool
 	SkipNetNS  bool
 	InfoFD     int
+	SetIDs     bool
+	GID        int
 	// JailDirWritable lets a helper such as the podman service create its
 	// socket in the girdle directory.
 	JailDirWritable bool
@@ -108,6 +114,8 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		SkipUserNS: opts.SkipUserNS,
 		SkipNetNS:  opts.SkipNetNS,
 		InfoFD:     opts.InfoFD,
+		SetIDs:     opts.SetIDs,
+		GID:        opts.GID,
 		Hostname:   "girdle-" + p.Name,
 		UID:        opts.UID,
 		Home:       opts.Home,
@@ -228,6 +236,9 @@ func (s Spec) Args() []string {
 	}
 	if !s.SkipNetNS {
 		args = append(args, "--unshare-net")
+	}
+	if s.SetIDs {
+		args = append(args, "--uid", strconv.Itoa(s.UID), "--gid", strconv.Itoa(s.GID))
 	}
 	if s.InfoFD > 0 {
 		args = append(args, "--info-fd", strconv.Itoa(s.InfoFD))

@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,10 +14,6 @@ import (
 )
 
 type tlsCertificate = tls.Certificate
-
-type proxyRoots struct{ Pool *x509.CertPool }
-
-func (r proxyRoots) pool() *x509.CertPool { return r.Pool }
 
 // Methods on the broker socket, which the jail can reach. They can ask for
 // decisions but never make them.

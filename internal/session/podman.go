@@ -43,7 +43,7 @@ func SubIDs(data []byte, name string, uid int) (IDRange, error) {
 	return IDRange{}, fmt.Errorf("no subordinate id range for %s: add one with usermod --add-subuids and --add-subgids", name)
 }
 
-func ContainersConf(tmpDir string) []byte {
+func ContainersConf(tmpDir, proxyURL string) []byte {
 	return []byte(fmt.Sprintf(`# Written by girdle for one session.
 [containers]
 # Containers share the session's network namespace: they reach the internet
@@ -51,13 +51,24 @@ func ContainersConf(tmpDir string) []byte {
 netns = "host"
 cgroups = "disabled"
 http_proxy = true
+# Some tools, such as busybox wget, only read the lowercase variables.
+env = ["http_proxy=%[2]s", "https_proxy=%[2]s", "no_proxy=localhost,127.0.0.1,::1"]
 
 [engine]
 cgroup_manager = "cgroupfs"
 events_logger = "file"
-image_copy_tmp_dir = %s
-`, quote(tmpDir)))
+image_copy_tmp_dir = %[1]s
+`, quote(tmpDir), proxyURL))
 }
+
+// Policy accepts any image, which is podman's own default. Signature checks
+// belong in a profile that needs them.
+const policyJSON = `{"default": [{"type": "insecureAcceptAnything"}]}
+`
+
+const registriesConf = `unqualified-search-registries = ["docker.io"]
+short-name-mode = "permissive"
+`
 
 func StorageConf(graphRoot string) []byte {
 	return []byte(fmt.Sprintf(`# Written by girdle for one session.
@@ -81,6 +92,10 @@ func (s *Session) startPodman(ctx context.Context) error {
 	if s.deps.Unshare == "" || s.deps.Podman == "" {
 		return errors.New("the podman module needs util-linux unshare and podman on PATH")
 	}
+	podmanBin, err := filepath.EvalSymlinks(s.deps.Podman)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", s.deps.Podman, err)
+	}
 	u, err := user.Current()
 	if err != nil {
 		return err
@@ -101,20 +116,27 @@ func (s *Session) startPodman(ctx context.Context) error {
 			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
-	if err := writeFile(s.jailPath("containers.conf"), ContainersConf(filepath.Join(root, "tmp")), 0o644); err != nil {
+	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", jail.ProxyPort)
+	if err := writeFile(s.jailPath("containers.conf"), ContainersConf(filepath.Join(root, "tmp"), proxyURL), 0o644); err != nil {
 		return err
 	}
 	if err := writeFile(s.jailPath("storage.conf"), StorageConf(filepath.Join(root, "storage")), 0o644); err != nil {
 		return err
 	}
+	if err := writeFile(s.jailPath("policy.json"), []byte(policyJSON), 0o644); err != nil {
+		return err
+	}
+	if err := writeFile(s.jailPath("registries.conf"), []byte(registriesConf), 0o644); err != nil {
+		return err
+	}
+	userConf := filepath.Join(s.deps.Paths.Home, ".config", "containers")
 
 	p := s.req.Profile
 	argv := []string{jail.ExePath, "init"}
 	for _, f := range s.forwards() {
 		argv = append(argv, "--forward", f)
 	}
-	argv = append(argv, "--", s.deps.Podman, "system", "service", "--time=0", "unix://"+jail.InJail(PodmanSocket))
-	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", jail.ProxyPort)
+	argv = append(argv, "--", podmanBin, "system", "service", "--time=0", "unix://"+jail.InJail(PodmanSocket))
 	spec, err := jail.Plan(p, s.layout(), jail.Options{
 		UID:     0,
 		Home:    s.deps.Paths.Home,
@@ -122,12 +144,17 @@ func (s *Session) startPodman(ctx context.Context) error {
 		Command: argv,
 		HostEnv: envMap(s.deps.Environ),
 		ExtraEnv: map[string]string{
-			"HTTP_PROXY":              proxyURL,
-			"HTTPS_PROXY":             proxyURL,
-			"NO_PROXY":                "localhost,127.0.0.1,::1",
-			"SSL_CERT_FILE":           jail.InJail("ca-bundle.pem"),
-			"CONTAINERS_CONF":         jail.InJail("containers.conf"),
-			"CONTAINERS_STORAGE_CONF": jail.InJail("storage.conf"),
+			"HTTP_PROXY":                 proxyURL,
+			"HTTPS_PROXY":                proxyURL,
+			"NO_PROXY":                   "localhost,127.0.0.1,::1",
+			"SSL_CERT_FILE":              jail.InJail("ca-bundle.pem"),
+			"CONTAINERS_CONF":            jail.InJail("containers.conf"),
+			"CONTAINERS_STORAGE_CONF":    jail.InJail("storage.conf"),
+			"CONTAINERS_REGISTRIES_CONF": jail.InJail("registries.conf"),
+		},
+		ExtraBinds: []jail.Bind{
+			{Source: root, Dest: root},
+			{Source: s.jailPath("policy.json"), Dest: filepath.Join(userConf, "policy.json"), ReadOnly: true},
 		},
 		SkipUserNS:      true,
 		InfoFD:          3,
@@ -146,7 +173,8 @@ func (s *Session) startPodman(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	logFile, err := os.OpenFile(filepath.Join(s.dir, "podman.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logPath := filepath.Join(s.cacheRoot(), "podman.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -178,9 +206,9 @@ func (s *Session) startPodman(ctx context.Context) error {
 	info, err := readInfo(infoR, 10*time.Second)
 	_ = infoR.Close()
 	if err != nil {
-		return fmt.Errorf("podman service did not start: %w (see %s)", err, filepath.Join(s.dir, "podman.log"))
+		return fmt.Errorf("podman service did not start: %w (see %s)", err, logPath)
 	}
-	s.netns = fmt.Sprintf("/proc/%d/ns/net", info.ChildPID)
+	s.netnsPID = info.ChildPID
 
 	deadline := time.Now().Add(15 * time.Second)
 	for {
@@ -190,15 +218,15 @@ func (s *Session) startPodman(ctx context.Context) error {
 		select {
 		case err := <-waited:
 			waited <- err
-			return fmt.Errorf("podman service exited: %v (see %s)", err, filepath.Join(s.dir, "podman.log"))
+			return fmt.Errorf("podman service exited: %v (see %s)", err, logPath)
 		default:
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("podman socket did not appear (see %s)", filepath.Join(s.dir, "podman.log"))
+			return fmt.Errorf("podman socket did not appear (see %s)", logPath)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	s.log.Write("podman-start", map[string]any{"netns": s.netns})
+	s.log.Write("podman-start", map[string]any{"pid": s.netnsPID})
 	return nil
 }
 
@@ -230,4 +258,29 @@ func readInfo(r io.Reader, timeout time.Duration) (bwrapInfo, error) {
 	case <-time.After(timeout):
 		return bwrapInfo{}, errors.New("timed out waiting for bubblewrap")
 	}
+}
+
+// RemoveAsMapped deletes a directory that holds files owned by subordinate
+// ids, such as container storage, by running rm inside the same mapping.
+func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+	subuid, err := readSubIDs("/etc/subuid", u.Username, os.Getuid())
+	if err != nil {
+		return err
+	}
+	subgid, err := readSubIDs("/etc/subgid", u.Username, os.Getuid())
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, unshare, "--user", "--map-root-user",
+		fmt.Sprintf("--map-users=1:%d:%d", subuid.Start, min(subuid.Count, 65536)),
+		fmt.Sprintf("--map-groups=1:%d:%d", subgid.Start, min(subgid.Count, 65536)),
+		"--", "rm", "-rf", "--", dir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("remove %s: %v: %s", dir, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }

@@ -125,11 +125,42 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.connect(w, r)
 		return
 	}
-	if r.URL.Scheme != "http" || r.URL.Host == "" {
-		deny(w, http.StatusBadRequest, "girdle: this is a forward proxy; send absolute http:// URLs or CONNECT")
+	switch {
+	case r.URL.Host == "":
+		deny(w, http.StatusBadRequest, "girdle: this is a forward proxy; send absolute URLs or CONNECT")
+	case r.URL.Scheme == "http":
+		s.plain(w, r)
+	case r.URL.Scheme == "https":
+		s.absoluteHTTPS(w, r)
+	default:
+		deny(w, http.StatusBadRequest, fmt.Sprintf("girdle: unsupported scheme %q", r.URL.Scheme))
+	}
+}
+
+// absoluteHTTPS serves clients that send "GET https://host/path" to the
+// proxy instead of a CONNECT, as busybox wget does. The proxy makes the TLS
+// connection itself, so the same rules apply as for a tunnel.
+func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
+	host := strings.ToLower(r.URL.Hostname())
+	if port := r.URL.Port(); port != "" && port != "443" {
+		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 443 is proxied for HTTPS"})
+		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
 		return
 	}
-	s.plain(w, r)
+	if !s.policy.AllowsHost(host) {
+		s.record(Event{Kind: "denied", Host: host, Reason: "host not in the profile"})
+		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+		return
+	}
+	r.Host = host
+	r.Header.Del("Proxy-Authorization")
+	if rules, ok := s.policy.Intercepted(host); ok {
+		s.firstSeen(host, "intercept")
+		s.intercepted(w, r, host, rules)
+		return
+	}
+	s.firstSeen(host, "https")
+	s.forward(w, r, "https", host)
 }
 
 func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
@@ -316,8 +347,18 @@ func (s *Server) forward(w http.ResponseWriter, r *http.Request, scheme, host st
 			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: upstream %s failed: %v", host, err))
 		},
 	}
-	rp.ServeHTTP(w, r)
+	// Some clients half-close their side after sending the request, which
+	// net/http reports as a cancelled context. The response is still wanted,
+	// so the upstream request must outlive that signal.
+	rp.ServeHTTP(noCloseNotify{w}, r.WithContext(context.WithoutCancel(r.Context())))
 }
+
+// noCloseNotify hides http.CloseNotifier, which ReverseProxy would otherwise
+// use to cancel the upstream request on a half-close. Unwrap keeps flushing
+// and hijacking reachable through http.ResponseController.
+type noCloseNotify struct{ http.ResponseWriter }
+
+func (w noCloseNotify) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (s *Server) authorization(ctx context.Context, c profile.Credential) (string, error) {
 	v, err := s.secrets.Get(ctx, s.policy.SecretName(c.Secret))

@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base32"
 	"encoding/json"
 	"errors"
@@ -75,8 +76,9 @@ type Deps struct {
 	Unshare string
 	Nsenter string
 	Podman  string
-	// UpstreamRoots verifies upstream servers in tests. Nil in production.
-	UpstreamRoots proxyRoots
+	// UpstreamRoots verifies upstream servers in tests. Nil means the system
+	// roots.
+	UpstreamRoots *x509.CertPool
 }
 
 type Request struct {
@@ -105,8 +107,9 @@ type Session struct {
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
-	// netns is the shared network namespace when a podman service holds it.
-	netns string
+	// netnsPID is a process in the podman service's namespaces. When set,
+	// the agent joins its user and network namespaces.
+	netnsPID int
 	// nsenter joins netns. Empty when the agent gets its own namespace.
 	nsenter string
 }
@@ -248,7 +251,7 @@ func (s *Session) startProxy(ctx context.Context) error {
 		Session:       s.id,
 		Profile:       p.Name,
 		ApprovalTTL:   approvalTTL,
-		UpstreamRoots: s.deps.UpstreamRoots.pool(),
+		UpstreamRoots: s.deps.UpstreamRoots,
 	}, p, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.log)
 	l, err := s.listen(ProxySocket)
 	if err != nil {
@@ -430,7 +433,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	// In a shared namespace the podman service's init already holds the
 	// forwards.
 	var forwards []string
-	if s.netns == "" {
+	if s.netnsPID == 0 {
 		forwards = s.forwards()
 	}
 	command := s.req.Command
@@ -448,7 +451,9 @@ func (s *Session) plan() (jail.Spec, error) {
 	argv = append(argv, command...)
 
 	return jail.Plan(p, s.layout(), jail.Options{
-		SkipNetNS:  s.netns != "",
+		SkipNetNS:  s.netnsPID != 0,
+		SetIDs:     s.netnsPID != 0,
+		GID:        os.Getgid(),
 		UID:        os.Getuid(),
 		Home:       home,
 		Cwd:        s.req.Cwd,
@@ -461,11 +466,14 @@ func (s *Session) plan() (jail.Spec, error) {
 
 func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	cmd := exec.Command(s.deps.Bwrap, spec.Args()...)
-	if s.netns != "" {
+	if s.netnsPID != 0 {
 		if s.deps.Nsenter == "" {
 			return 1, errors.New("joining the podman network namespace needs util-linux nsenter")
 		}
-		cmd = exec.Command(s.deps.Nsenter, append([]string{"--net=" + s.netns, "--", s.deps.Bwrap}, spec.Args()...)...)
+		// Joining a network namespace needs CAP_SYS_ADMIN in the namespace's
+		// owner, which the agent only has after joining that user namespace.
+		target := strconv.Itoa(s.netnsPID)
+		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, spec.Args()...)...)
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.deps.Stdin, s.deps.Stdout, s.deps.Stderr
 	cmd.Env = []string{}
