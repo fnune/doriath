@@ -30,28 +30,9 @@ func cmdExec(args []string) (int, error) {
 	if len(command) == 0 {
 		command = []string{"bash"}
 	}
-	p, err := paths()
+	dir, entry, err := runningEntry(*id)
 	if err != nil {
 		return 1, err
-	}
-	sessions, err := liveSessions(p)
-	if err != nil {
-		return 1, err
-	}
-	dir, err := pickSession(sessions, *id, p.Sessions())
-	if err != nil {
-		return 1, err
-	}
-	data, err := os.ReadFile(filepath.Join(dir, session.EntryFile))
-	if err != nil {
-		return 1, fmt.Errorf("the session is still starting, or was started by an older girdle: %w", err)
-	}
-	var entry session.Entry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		return 1, fmt.Errorf("read %s: %w", session.EntryFile, err)
-	}
-	if syscall.Kill(entry.PID, 0) != nil {
-		return 1, errors.New("the session's jail has ended")
 	}
 	filter, err := os.Open(filepath.Join(dir, "seccomp.bpf"))
 	if err != nil {
@@ -92,6 +73,35 @@ func cmdExec(args []string) (int, error) {
 		return 1, err
 	}
 	return 0, nil
+}
+
+// runningEntry finds a running session, the only one or the one named, and
+// how to join its jail.
+func runningEntry(id string) (string, session.Entry, error) {
+	p, err := paths()
+	if err != nil {
+		return "", session.Entry{}, err
+	}
+	sessions, err := liveSessions(p)
+	if err != nil {
+		return "", session.Entry{}, err
+	}
+	dir, err := pickSession(sessions, id, p.Sessions())
+	if err != nil {
+		return "", session.Entry{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, session.EntryFile))
+	if err != nil {
+		return "", session.Entry{}, fmt.Errorf("the session is still starting, or was started by an older girdle: %w", err)
+	}
+	var entry session.Entry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return "", session.Entry{}, fmt.Errorf("read %s: %w", session.EntryFile, err)
+	}
+	if syscall.Kill(entry.PID, 0) != nil {
+		return "", session.Entry{}, errors.New("the session's jail has ended")
+	}
+	return dir, entry, nil
 }
 
 func pickSession(sessions []liveSession, id, root string) (string, error) {

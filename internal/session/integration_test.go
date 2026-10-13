@@ -912,3 +912,54 @@ except Exception as e:
 		t.Errorf("the denial does not say which programs may reach the host:\n%s", audit)
 	}
 }
+
+func TestForwardReachesAPortInsideTheJail(t *testing.T) {
+	e := newEnv(t)
+	release := filepath.Join(e.work, "release")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostPort := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
+	var body string
+	code, out := e.run(e.profile(""), `
+echo "from inside the jail" > served
+python3 -m http.server --bind 127.0.0.1 8765 >/dev/null 2>&1 &
+while [ ! -e "$PWD/release" ]; do sleep 0.05; done
+echo done
+`, func() {
+		defer func() { _ = os.WriteFile(release, nil, 0o600) }()
+		entry := filepath.Join(e.paths.Sessions(), e.lastID, session.EntryFile)
+		for range 200 {
+			if _, err := os.Stat(entry); err == nil {
+				break
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+		fwd := exec.Command(girdleBin, "forward", "--session", e.lastID, fmt.Sprintf("%d:8765", hostPort))
+		fwd.Env = []string{"HOME=" + e.home, "XDG_RUNTIME_DIR=" + filepath.Dir(e.paths.Runtime), "PATH=" + os.Getenv("PATH")}
+		if err := fwd.Start(); err != nil {
+			t.Error(err)
+			return
+		}
+		defer func() { _ = fwd.Process.Kill(); _ = fwd.Wait() }()
+		for range 100 {
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/served", hostPort))
+			if err == nil {
+				data, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				if body = string(data); strings.Contains(body, "inside") {
+					return
+				}
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") {
+		t.Fatalf("session code %d:\n%s", code, out)
+	}
+	if !strings.Contains(body, "from inside the jail") {
+		t.Fatalf("forwarded port served %q", body)
+	}
+}

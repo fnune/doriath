@@ -34,6 +34,7 @@ const usage = `girdle runs a coding agent in a jail that shows it only what its 
 Usage:
   girdle run [--profile NAME] [--clone-from SESSION] [--learn] [--] COMMAND [ARGS...]
   girdle exec [--session ID] [--] [COMMAND [ARGS...]]
+  girdle forward [--session ID] PORT[:JAIL_PORT]
   girdle approvals [list]
   girdle approvals allow ID [--for once|session|DURATION]
   girdle approvals deny ID [--reason TEXT]
@@ -70,6 +71,10 @@ func run(args []string) int {
 		code, err = cmdRun(args[1:])
 	case "exec":
 		code, err = cmdExec(args[1:])
+	case "forward":
+		err = cmdForward(args[1:])
+	case "__relay":
+		err = cmdRelay(args[1:])
 	case "init":
 		code, err = cmdInit(args[1:])
 	case "sandbox-exec":
