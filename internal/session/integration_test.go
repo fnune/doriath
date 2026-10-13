@@ -867,6 +867,7 @@ echo done
 			time.Sleep(25 * time.Millisecond)
 		}
 		cmd := exec.Command(girdleBin, "exec", "--session", e.lastID, "--", "sh", "-c", `
+for i in $(seq 100); do [ -e /tmp/marker ] && break; sleep 0.05; done
 cat /tmp/marker
 grep -q '^CapEff:[[:space:]]*0*$' /proc/self/status || echo "FAIL capabilities kept"
 unshare -U true 2>/dev/null && echo "FAIL user namespace"

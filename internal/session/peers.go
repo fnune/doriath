@@ -61,3 +61,23 @@ func parentPID(pid int) int {
 	ppid, _ := strconv.Atoi(fields[1])
 	return ppid
 }
+
+// initRunning reports whether the reaper's child already runs girdle's
+// binary. bubblewrap starts the jail's command only after it has built the
+// jail, so from then on the namespaces are complete.
+func (h *hostPeers) initRunning(reaper int) bool {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || parentPID(pid) != reaper {
+			continue
+		}
+		if h.TrustsHeader(pid) {
+			return true
+		}
+	}
+	return false
+}

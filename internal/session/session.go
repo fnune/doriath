@@ -862,6 +862,14 @@ type Entry struct {
 }
 
 func (s *Session) writeEntry(pid int, spec jail.Spec) {
+	// girdle exec joins these namespaces, so they must be complete first.
+	for deadline := time.Now().Add(entryWait); !s.peers.initRunning(pid); {
+		if time.Now().After(deadline) {
+			s.log.Write("entry-error", map[string]string{"error": "the jail's init did not start"})
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	e := s.entry
 	e.PID, e.UID, e.GID = pid, spec.UID, spec.GID
 	for _, k := range slices.Sorted(maps.Keys(spec.Env)) {
@@ -908,3 +916,5 @@ func programNotes(p *profile.Profile) []string {
 }
 
 var userBusEnv = []string{"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"}
+
+const entryWait = 30 * time.Second
