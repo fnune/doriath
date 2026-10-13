@@ -1,0 +1,79 @@
+package jailinit
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"net"
+	"path/filepath"
+	"testing"
+)
+
+func TestParseForward(t *testing.T) {
+	f, err := ParseForward("3128=/run/girdle/proxy.sock")
+	if err != nil || f.Port != 3128 || f.Socket != "/run/girdle/proxy.sock" {
+		t.Fatalf("got %+v, %v", f, err)
+	}
+	for _, bad := range []string{"3128", "x=/a", "0=/a", "70000=/a", "80=rel"} {
+		if _, err := ParseForward(bad); err == nil {
+			t.Errorf("%q: want error", bad)
+		}
+	}
+	if f.String() != "3128=/run/girdle/proxy.sock" {
+		t.Errorf("String = %q", f.String())
+	}
+}
+
+func TestBridgeForwardsBothWays(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "up.sock")
+	up, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer up.Close()
+	go func() {
+		for {
+			c, err := up.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				line, _ := bufio.NewReader(c).ReadString('\n')
+				fmt.Fprintf(c, "echo %s", line)
+			}()
+		}
+	}()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go Bridge(context.Background(), l, sock)
+
+	c, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	fmt.Fprint(c, "hello\n")
+	got, err := bufio.NewReader(c).ReadString('\n')
+	if err != nil || got != "echo hello\n" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+}
+
+func TestRunExitCodes(t *testing.T) {
+	code, err := Run(nil, []string{"sh", "-c", "exit 7"})
+	if err != nil || code != 7 {
+		t.Fatalf("code %d, %v", code, err)
+	}
+	code, err = Run(nil, []string{"sh", "-c", "kill -TERM $$"})
+	if err != nil || code != 128+15 {
+		t.Fatalf("signalled: code %d, %v", code, err)
+	}
+	if code, _ := Run(nil, []string{"definitely-not-a-command-girdle"}); code != 127 {
+		t.Fatalf("missing command: code %d", code)
+	}
+}

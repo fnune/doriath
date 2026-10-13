@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -61,10 +62,23 @@ const (
 )
 
 type Rule struct {
-	Method  string
-	Path    PathPattern
-	Action  Action
-	Summary string
+	Method string
+	Path   PathPattern
+	// BodyContains narrows the rule to requests whose body contains one of
+	// these strings, for example a GraphQL mutation name.
+	BodyContains []string
+	Action       Action
+	Summary      string
+}
+
+// NeedsBody reports whether any rule for this host looks at request bodies.
+func (h HTTPHost) NeedsBody(method, path string) bool {
+	for _, r := range h.Rules {
+		if len(r.BodyContains) > 0 && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+			return true
+		}
+	}
+	return false
 }
 
 // HTTPHost is a host whose TLS traffic the proxy terminates, so that it can
@@ -132,15 +146,27 @@ func (p *Profile) AllowsHost(host string) bool {
 	return false
 }
 
-// Decide returns the action and the rule summary for one request to an
-// intercepted host. The first matching rule wins.
-func (h HTTPHost) Decide(method, path string) (Action, string) {
+// Decide returns the matching rule for one request to an intercepted host.
+// The first matching rule wins. body is nil when no rule needs it.
+func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
-			return r.Action, r.Summary
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchBody(body) {
+			return r, true
 		}
 	}
-	return h.Default, ""
+	return Rule{Action: h.Default}, false
+}
+
+func (r Rule) matchBody(body []byte) bool {
+	if len(r.BodyContains) == 0 {
+		return true
+	}
+	for _, s := range r.BodyContains {
+		if bytes.Contains(body, []byte(s)) {
+			return true
+		}
+	}
+	return false
 }
 
 // HostPattern is an exact host name, or "*." followed by a domain, which

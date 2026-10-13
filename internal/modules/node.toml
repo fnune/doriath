@@ -1,0 +1,14 @@
+[[caches]]
+path = "~/.npm"
+
+[[caches]]
+path = "~/.cache/pnpm"
+
+[[caches]]
+path = "~/.local/share/pnpm"
+
+[[caches]]
+path = "~/.cache/node-gyp"
+
+[egress]
+allow = ["registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"]

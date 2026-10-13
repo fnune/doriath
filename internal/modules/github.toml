@@ -1,0 +1,84 @@
+# GitHub with a token the agent never sees. The proxy adds it to requests for
+# these hosts. Routine work goes through, and actions that publish or
+# destroy wait for approval. Map the "github" secret to your token in the
+# profile: secrets = { github = "<name in config.toml>" }.
+
+[egress]
+allow = ["*.githubusercontent.com"]
+
+[[http]]
+host = "github.com"
+credential = { secret = "github", scheme = "basic", username = "x-access-token" }
+
+[[http]]
+host = "api.github.com"
+credential = { secret = "github", scheme = "bearer" }
+
+[[http.rules]]
+method = "PUT"
+path = "/repos/*/*/pulls/*/merge"
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"]
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/releases"
+action = "approve"
+summary = "Create a GitHub release"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repos/*/*/releases/**"
+action = "approve"
+summary = "Change a GitHub release"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["createRelease", "updateRelease", "deleteRelease", "deleteRef", "deleteRepository", "updateRepository"]
+action = "approve"
+summary = "Change a release, branch or repository setting"
+
+[[http.rules]]
+method = "DELETE"
+path = "/repos/**"
+action = "approve"
+summary = "Delete something in a GitHub repository"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repos/*/*"
+action = "approve"
+summary = "Change repository settings"
+
+[[http.rules]]
+method = "*"
+path = "/repos/*/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repos/*/*/actions/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repos/*/*/collaborators/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repos/*/*/keys/**"
+action = "deny"
+
+[[http]]
+host = "uploads.github.com"
+credential = { secret = "github", scheme = "bearer" }
+default = "approve"

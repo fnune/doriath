@@ -1,0 +1,27 @@
+# What almost every session needs: the user's nix profile, jj config and a
+# terminal environment. Nothing here grants network access.
+
+[[mounts]]
+path = "~/.nix-profile"
+optional = true
+
+[[mounts]]
+path = "~/.local/state/nix"
+optional = true
+
+[[mounts]]
+path = "~/.local/state/home-manager"
+optional = true
+
+[[mounts]]
+path = "~/.config/jj"
+optional = true
+
+[env]
+pass = [
+  "PATH", "TERM", "COLORTERM", "TERM_PROGRAM", "TERMINFO", "TERMINFO_DIRS",
+  "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "TZ", "LOCALE_ARCHIVE",
+  "USER", "LOGNAME", "SHELL", "EDITOR", "VISUAL", "PAGER",
+  "NO_COLOR", "FORCE_COLOR", "CLICOLOR",
+  "XDG_DATA_DIRS", "XDG_CONFIG_DIRS", "NIX_PATH", "NIX_PROFILES",
+]

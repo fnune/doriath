@@ -84,11 +84,11 @@ action = "deny"
 	if len(host.Rules) != 2 || host.Rules[0].Method != "PUT" {
 		t.Errorf("profile rules must come before module rules, got %+v", host.Rules)
 	}
-	if a, s := host.Decide("POST", "/repos/fnune/project/releases"); a != ActionApprove || s != "Create a release" {
-		t.Errorf("Decide = %v %q", a, s)
+	if r, ok := host.Decide("POST", "/repos/fnune/project/releases", nil); !ok || r.Action != ActionApprove || r.Summary != "Create a release" {
+		t.Errorf("Decide = %+v %v", r, ok)
 	}
-	if a, _ := host.Decide("GET", "/repos/fnune/project"); a != ActionAllow {
-		t.Errorf("default action = %v", a)
+	if r, ok := host.Decide("GET", "/repos/fnune/project", nil); ok || r.Action != ActionAllow {
+		t.Errorf("default action = %+v", r)
 	}
 	if p.Claude.ApprovalTimeout != defaultApprovalTimeout {
 		t.Errorf("timeout = %v", p.Claude.ApprovalTimeout)
@@ -203,5 +203,36 @@ func TestApprovalTimeout(t *testing.T) {
 	p, err := loader(fstest.MapFS{"p.toml": file("[claude]\napproval_timeout = \"90s\"")}, fstest.MapFS{}).Load("p")
 	if err != nil || p.Claude.ApprovalTimeout != 90*time.Second {
 		t.Fatalf("got %v, %v", p, err)
+	}
+}
+
+func TestBodyRules(t *testing.T) {
+	profiles := fstest.MapFS{"p.toml": file(`
+[[http]]
+host = "api.github.com"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["mergePullRequest", "enablePullRequestAutoMerge"]
+action = "approve"
+summary = "Merge a pull request"
+`)}
+	p, err := loader(profiles, fstest.MapFS{}).Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, _ := p.Intercepted("api.github.com")
+	if !h.NeedsBody("POST", "/graphql") || h.NeedsBody("GET", "/graphql") || h.NeedsBody("POST", "/user") {
+		t.Error("NeedsBody")
+	}
+	if r, ok := h.Decide("POST", "/graphql", []byte(`{"query":"mutation { mergePullRequest(input:{}) { x } }"}`)); !ok || r.Action != ActionApprove {
+		t.Errorf("merge mutation: %+v %v", r, ok)
+	}
+	if _, ok := h.Decide("POST", "/graphql", []byte(`{"query":"query { viewer { login } }"}`)); ok {
+		t.Error("a read query must not match")
+	}
+	if _, err := loader(fstest.MapFS{"p.toml": file("[[http]]\nhost = \"a.com\"\n[[http.rules]]\npath = \"/\"\naction = \"deny\"\nbody_contains = [\"\"]")}, fstest.MapFS{}).Load("p"); err == nil {
+		t.Error("empty body_contains entry must be rejected")
 	}
 }

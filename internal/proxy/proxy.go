@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -217,7 +218,25 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		deny(w, http.StatusMisdirectedRequest, "girdle: the Host header must match the tunneled host")
 		return
 	}
-	action, summary := rules.Decide(r.Method, r.URL.Path)
+	var body []byte
+	if rules.NeedsBody(r.Method, r.URL.Path) {
+		var tooLarge bool
+		var err error
+		body, tooLarge, err = readBody(r, maxInspectedBody)
+		if err != nil {
+			deny(w, http.StatusBadRequest, "girdle: cannot read the request body")
+			return
+		}
+		if tooLarge {
+			// Refused rather than passed through, so that padding cannot
+			// hide a mutation from a rule.
+			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "request body too large to inspect"})
+			deny(w, http.StatusRequestEntityTooLarge, "girdle: request body too large to inspect")
+			return
+		}
+	}
+	rule, matched := rules.Decide(r.Method, r.URL.Path, body)
+	action, summary := rule.Action, rule.Summary
 	switch action {
 	case profile.ActionDeny:
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: summary})
@@ -233,7 +252,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: fmt.Sprintf("%s https://%s%s", r.Method, host, r.URL.RequestURI()),
-			Scope:   scope(rules, r.Method, r.URL.Path, host),
+			Scope:   scope(rule, matched, r.Method, r.URL.Path, host),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason := "denied"
@@ -318,13 +337,35 @@ func (s *Server) authorization(ctx context.Context, c profile.Credential) (strin
 
 // scope identifies what an approval covers. Requests that match the same rule
 // share a scope, so "allow for this session" covers them all.
-func scope(rules profile.HTTPHost, method, path, host string) string {
-	for _, r := range rules.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
-			return fmt.Sprintf("http %s %s %s", r.Method, string(rules.Host), string(r.Path))
-		}
+func scope(r profile.Rule, matched bool, method, path, host string) string {
+	if !matched {
+		return fmt.Sprintf("http %s %s %s", method, host, path)
 	}
-	return fmt.Sprintf("http %s %s %s", method, host, path)
+	s := fmt.Sprintf("http %s %s %s", r.Method, host, string(r.Path))
+	if len(r.BodyContains) > 0 {
+		s += " " + strings.Join(r.BodyContains, ",")
+	}
+	return s
+}
+
+const maxInspectedBody = 1 << 20
+
+// readBody reads up to limit bytes and puts the body back for forwarding.
+func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
+	if r.Body == nil {
+		return nil, false, nil
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > limit {
+		return nil, true, nil
+	}
+	_ = r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(data))
+	r.ContentLength = int64(len(data))
+	return data, false, nil
 }
 
 func (s *Server) firstSeen(host, kind string) {

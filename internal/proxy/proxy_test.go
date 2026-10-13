@@ -143,6 +143,12 @@ path = "/repos/*/*/releases"
 action = "approve"
 summary = "Create a GitHub release"
 
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["mergePullRequest"]
+action = "deny"
+
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token" }
@@ -435,5 +441,36 @@ func TestMissingSecretFailsClosed(t *testing.T) {
 	srv.intercepted(rec, req, "api.github.com", host)
 	if rec.Code != http.StatusBadGateway || h.upstream.count() != 0 {
 		t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
+	}
+}
+
+func TestGraphQLBodyRule(t *testing.T) {
+	h := newHarness(t)
+	c := h.client()
+	resp, err := c.Post("https://api.github.com/graphql", "application/json", strings.NewReader(`{"query":"mutation{mergePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("merge mutation: %d %s", resp.StatusCode, b)
+	}
+	resp, err = c.Post("https://api.github.com/graphql", "application/json", strings.NewReader(`{"query":"{viewer{login}}"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != 200 || !strings.Contains(b, "/graphql 27") {
+		t.Fatalf("read query: %d %s", resp.StatusCode, b)
+	}
+	_, upBody := h.upstream.last(t)
+	if string(upBody) != `{"query":"{viewer{login}}"}` {
+		t.Fatalf("inspected body must still reach upstream intact: %q", upBody)
+	}
+	big := strings.Repeat("a", maxInspectedBody+10)
+	resp, err = c.Post("https://api.github.com/graphql", "application/json", strings.NewReader(big))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized body: %d", resp.StatusCode)
 	}
 }

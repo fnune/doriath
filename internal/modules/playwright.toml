@@ -1,0 +1,11 @@
+[[caches]]
+path = "~/.cache/ms-playwright"
+
+[egress]
+allow = [
+  "cdn.playwright.dev",
+  "playwright.download.prss.microsoft.com",
+  "playwright.azureedge.net",
+  "playwright-akamai.azureedge.net",
+  "playwright-verizon.azureedge.net",
+]

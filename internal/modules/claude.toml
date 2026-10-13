@@ -1,0 +1,16 @@
+# Claude Code. Connectors are off and Chrome tools that act on pages ask
+# first. The Chrome bridge host is not allowed, so claude-in-chrome stays off
+# unless a profile adds it.
+
+[env]
+set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1" }
+
+[egress]
+allow = ["api.anthropic.com", "console.anthropic.com", "claude.ai"]
+
+[claude]
+disable_connectors = true
+ask = [
+  "mcp__claude-in-chrome__javascript_tool",
+  "mcp__claude-in-chrome__file_upload",
+]

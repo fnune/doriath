@@ -438,7 +438,12 @@ func buildRule(r ruleLayer) (Rule, error) {
 	if err != nil {
 		return Rule{}, err
 	}
-	return Rule{Method: method, Path: path, Action: action, Summary: r.Summary}, nil
+	for _, b := range r.BodyContains {
+		if b == "" {
+			return Rule{}, fmt.Errorf("body_contains entries must not be empty")
+		}
+	}
+	return Rule{Method: method, Path: path, BodyContains: r.BodyContains, Action: action, Summary: r.Summary}, nil
 }
 
 func parseAction(s string) (Action, error) {

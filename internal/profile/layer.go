@@ -62,10 +62,11 @@ type credentialLayer struct {
 }
 
 type ruleLayer struct {
-	Method  string `toml:"method"`
-	Path    string `toml:"path"`
-	Action  string `toml:"action"`
-	Summary string `toml:"summary"`
+	Method       string   `toml:"method"`
+	Path         string   `toml:"path"`
+	BodyContains []string `toml:"body_contains"`
+	Action       string   `toml:"action"`
+	Summary      string   `toml:"summary"`
 }
 
 type signingLayer struct {

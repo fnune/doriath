@@ -1,0 +1,15 @@
+# nix through the system daemon. The daemon runs outside the jail, so builds
+# it runs are not limited by the egress allowlist. Remove this module from
+# profiles that must not reach the network that way.
+
+[[caches]]
+path = "~/.cache/nix"
+
+[egress]
+allow = [
+  "cache.nixos.org",
+  "channels.nixos.org",
+  "releases.nixos.org",
+  "tarballs.nixos.org",
+  "codeload.github.com",
+]

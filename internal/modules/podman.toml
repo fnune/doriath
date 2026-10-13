@@ -1,0 +1,19 @@
+# A podman service for this session, in its own user namespace. Containers
+# share the session's network: they reach the internet only through the
+# proxy, and the agent reaches their ports on localhost.
+
+[podman]
+enabled = true
+
+[egress]
+allow = [
+  "docker.io",
+  "registry-1.docker.io",
+  "auth.docker.io",
+  "production.cloudflare.docker.com",
+  "ghcr.io",
+  "quay.io",
+  "cdn01.quay.io",
+  "cdn02.quay.io",
+  "cdn03.quay.io",
+]
