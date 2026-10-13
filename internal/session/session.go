@@ -304,6 +304,9 @@ func (s *Session) startProxy() error {
 	if err := writeFile(s.jailPath("truststore.p12"), store, 0o644); err != nil {
 		return err
 	}
+	if err := writeFile(s.jailPath("bazelrc"), BazelRC(jail.InJail("truststore.p12")), 0o644); err != nil {
+		return err
+	}
 	srv := proxy.New(proxy.Config{
 		Session:       s.id,
 		Profile:       p.Name,
@@ -510,6 +513,9 @@ func (s *Session) plan() (jail.Spec, error) {
 		extra = append(extra, st.Binds(osHost{})...)
 	}
 	extra = append(extra, s.cloneBinds()...)
+	if b, ok := s.bazelrc(home); ok {
+		extra = append(extra, b)
+	}
 	argv := []string{jail.ExePath, "init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
@@ -900,4 +906,16 @@ func javaToolOptions(profile string) string {
 		return profile + " " + opts
 	}
 	return opts
+}
+
+// bazelrc gives the jail's home a .bazelrc that points Bazel's server at the
+// session trust store, unless the profile mounts a .bazelrc of its own.
+func (s *Session) bazelrc(home string) (jail.Bind, bool) {
+	dest := filepath.Join(home, ".bazelrc")
+	for _, m := range s.req.Profile.Mounts {
+		if m.Path == dest {
+			return jail.Bind{}, false
+		}
+	}
+	return jail.Bind{Source: s.jailPath("bazelrc"), Dest: dest, ReadOnly: true}, true
 }
