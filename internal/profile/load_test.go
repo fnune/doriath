@@ -109,6 +109,7 @@ func TestLoadRejects(t *testing.T) {
 		want    string
 	}{
 		"unknown key":        {profile: `mountz = []`, want: "unknown keys: mountz"},
+		"key in mixed case":  {profile: "[[http]]\nhost = \"a.com\"\n[[http.Rules]]\nmethod = \"GET\"\npath = \"/\"\naction = \"deny\"", want: "write it in lower case"},
 		"bad mode":           {profile: "[[mounts]]\npath = \"/x\"\nmode = \"rwx\"", want: `mode "rwx"`},
 		"relative path":      {profile: "[[mounts]]\npath = \"x\"", want: "must be absolute"},
 		"bad host":           {profile: "[egress]\nallow = [\"https://x.com\"]", want: "host pattern"},

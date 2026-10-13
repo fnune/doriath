@@ -117,7 +117,7 @@ func (s *Session) proposeHost(e proxy.Event) {
 }
 
 func publicAddr(ip netip.Addr) bool {
-	ip = ip.Unmap()
+	ip = translatedIPv4(ip)
 	return ip.IsGlobalUnicast() && !ip.IsPrivate()
 }
 

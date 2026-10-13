@@ -45,6 +45,9 @@ func normalizeImage(ref string) (imageRef, bool) {
 	if domain == "docker.io" && !strings.Contains(rest, "/") {
 		rest = "library/" + rest
 	}
+	if !validReference(domain, rest, tag, digest, hasDigest) {
+		return imageRef{}, false
+	}
 	r := imageRef{repo: domain + "/" + rest, tag: tag, digest: digest}
 	if !hasDigest && tag == "" {
 		r.tag = "latest"
@@ -107,4 +110,28 @@ func tagged(ref string) (imageRef, bool) {
 		return imageRef{}, false
 	}
 	return r, true
+}
+
+// The parts of an image reference, after Docker's reference grammar. A
+// reference outside it has no repository the allowlist could speak for.
+var (
+	referenceDomain = regexp.MustCompile(`^(localhost|[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(:[0-9]+)?$`)
+	referencePath   = regexp.MustCompile(`^[a-z0-9]+(([._]|__|-+)[a-z0-9]+)*$`)
+	referenceTag    = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
+	referenceDigest = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*([-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,}$`)
+)
+
+func validReference(domain, path, tag, digest string, hasDigest bool) bool {
+	if !referenceDomain.MatchString(domain) {
+		return false
+	}
+	for _, part := range strings.Split(path, "/") {
+		if !referencePath.MatchString(part) {
+			return false
+		}
+	}
+	if tag != "" && !referenceTag.MatchString(tag) {
+		return false
+	}
+	return !hasDigest || referenceDigest.MatchString(digest)
 }

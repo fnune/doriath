@@ -71,6 +71,7 @@ func (g *guardDialer) DialContext(ctx context.Context, network, address string) 
 }
 
 func (g *guardDialer) refuse(host string, a netip.Addr) string {
+	a = translatedIPv4(a)
 	switch {
 	case a.IsLoopback():
 		return "a loopback address; use [egress] ports for host services"
@@ -82,4 +83,17 @@ func (g *guardDialer) refuse(host string, a netip.Addr) string {
 		return "a private address; name the host exactly in the profile to allow it"
 	}
 	return ""
+}
+
+// nat64 is the well-known NAT64 prefix. A gateway translates its addresses
+// to the IPv4 address in the last 32 bits, so they are judged by that one.
+var nat64 = netip.MustParsePrefix("64:ff9b::/96")
+
+func translatedIPv4(a netip.Addr) netip.Addr {
+	a = a.Unmap()
+	if !nat64.Contains(a) {
+		return a
+	}
+	b := a.As16()
+	return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]})
 }

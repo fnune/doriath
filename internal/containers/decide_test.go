@@ -151,7 +151,7 @@ func TestDecide(t *testing.T) {
 
 		{"docker pull allowed", "POST", "/images/create", "fromImage=alpine&tag=3.20", "", ""},
 		{"docker pull refused", "POST", "/images/create", "fromImage=quay.io/evil/miner&tag=latest", "", "quay.io/evil/miner:latest"},
-		{"docker pull digest tag", "POST", "/images/create", "fromImage=quay.io/evil/miner&tag=sha256:abc", "", "quay.io/evil/miner@sha256:abc"},
+		{"docker pull digest tag", "POST", "/images/create", "fromImage=quay.io/evil/miner&tag=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "quay.io/evil/miner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		{"docker pull case", "POST", "/images/create", "FromImage=quay.io/evil/miner", "", "[podman] images"},
 		{"docker import file", "POST", "/images/create", "fromSrc=/home/u/.ssh/id_ed25519", "", "importing"},
 		{"docker import body", "POST", "/images/create", "fromSrc=-&repo=x", "", ""},
@@ -351,8 +351,8 @@ func TestNormalizeImage(t *testing.T) {
 		{"index.docker.io/foo/bar:1", "docker.io/foo/bar:1", "docker.io/foo/bar"},
 		{"localhost/app", "localhost/app:latest", "localhost/app"},
 		{"localhost:5000/app:2", "localhost:5000/app:2", "localhost:5000/app"},
-		{"ghcr.io/a/b@sha256:abc", "ghcr.io/a/b@sha256:abc", "ghcr.io/a/b"},
-		{"ghcr.io/a/b:1@sha256:abc", "ghcr.io/a/b:1@sha256:abc", "ghcr.io/a/b"},
+		{"ghcr.io/a/b@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ghcr.io/a/b@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ghcr.io/a/b"},
+		{"ghcr.io/a/b:1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ghcr.io/a/b:1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ghcr.io/a/b"},
 		{"postgres:16", "docker.io/library/postgres:16", "docker.io/library/postgres"},
 		{"mcr.microsoft.com/playwright:v1.50.0", "mcr.microsoft.com/playwright:v1.50.0", "mcr.microsoft.com/playwright"},
 	}

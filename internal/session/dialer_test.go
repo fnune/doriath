@@ -41,6 +41,7 @@ func TestGuardDialer(t *testing.T) {
 		"meta.example.com":      {"169.254.169.254"},
 		"home.example.com":      {"127.0.0.1"},
 		"mixed.example.com":     {"127.0.0.1", "93.184.216.35"},
+		"nat64.example.com":     {"64:ff9b::a9fe:a9fe"},
 	}
 	for addr, want := range map[string]string{
 		"public.example.com:443":    "93.184.216.34:443",
@@ -51,6 +52,8 @@ func TestGuardDialer(t *testing.T) {
 		"home.example.com:443":      "",
 		"169.254.169.254:80":        "",
 		"[::1]:443":                 "",
+		"nat64.example.com:443":     "",
+		"[64:ff9b::7f00:1]:443":     "",
 	} {
 		next := &recordingDialer{}
 		g := newGuardDialer(next, resolver, p)
