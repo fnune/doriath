@@ -82,11 +82,11 @@ func run(args []string) int {
 	case "hook":
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":
-		err = cmdApprovals(args[1:])
+		err = cmdApprovals(args[1:], os.Stdin, os.Stdout)
 	case "sessions":
-		err = cmdSessions()
+		err = cmdSessions(os.Stdout)
 	case "clean":
-		err = cmdClean(args[1:])
+		err = cmdClean(args[1:], os.Stdout)
 	case "status":
 		err = cmdStatus(args[1:], os.Stdout)
 	case "statusline":
@@ -98,9 +98,9 @@ func run(args []string) int {
 	case "__complete":
 		cmdComplete(args[1:], os.Stdout)
 	case "profiles":
-		err = cmdProfiles(args[1:])
+		err = cmdProfiles(args[1:], os.Stdin, os.Stdout)
 	case "doctor":
-		code = cmdDoctor(args[1:])
+		code = cmdDoctor(args[1:], os.Stdout)
 	case "version", "--version":
 		fmt.Println("girdle", version)
 	case "help", "-h", "--help":
@@ -108,6 +108,9 @@ func run(args []string) int {
 	default:
 		fmt.Fprintf(os.Stderr, "girdle: unknown command %q\n\n%s", args[0], usage)
 		return 2
+	}
+	if errors.Is(err, errQuiet) {
+		return 1
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "girdle:", err)
@@ -117,6 +120,9 @@ func run(args []string) int {
 	}
 	return code
 }
+
+// errQuiet fails a command that has nothing to say, such as profiles which -q.
+var errQuiet = errors.New("quiet failure")
 
 func paths() (config.Paths, error) { return config.DefaultPaths(os.Getenv) }
 

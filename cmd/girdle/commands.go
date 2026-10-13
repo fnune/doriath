@@ -220,7 +220,7 @@ func pending(ctx context.Context, p config.Paths) ([]pendingRequest, error) {
 	return out, nil
 }
 
-func cmdApprovals(args []string) error {
+func cmdApprovals(args []string, stdin io.Reader, stdout io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
@@ -236,7 +236,7 @@ func cmdApprovals(args []string) error {
 		if err != nil {
 			return err
 		}
-		printPending(os.Stdout, reqs, time.Now())
+		printPending(stdout, reqs, time.Now())
 		return nil
 	case "allow", "deny":
 		flags := flag.NewFlagSet(sub, flag.ContinueOnError)
@@ -258,7 +258,7 @@ func cmdApprovals(args []string) error {
 		}
 		return decide(ctx, p, id, d)
 	case "watch":
-		return watch(ctx, p, os.Stdin, os.Stdout)
+		return watch(ctx, p, stdin, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }
@@ -356,7 +356,7 @@ func watch(ctx context.Context, p config.Paths, in io.Reader, out io.Writer) err
 	}
 }
 
-func cmdSessions() error {
+func cmdSessions(w io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
@@ -366,10 +366,10 @@ func cmdSessions() error {
 		return err
 	}
 	if len(sessions) == 0 {
-		fmt.Println("No running sessions.")
+		fmt.Fprintln(w, "No running sessions.")
 		return nil
 	}
-	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tPROFILE\tSTARTED\tDIRECTORY\tCOMMAND")
 	for _, s := range sessions {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", s.info.ID, s.info.Profile, s.info.Started.Format("15:04"), s.info.Cwd, strings.Join(s.info.Command, " "))
@@ -377,7 +377,7 @@ func cmdSessions() error {
 	return tw.Flush()
 }
 
-func cmdProfiles(args []string) error {
+func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
@@ -389,21 +389,21 @@ func cmdProfiles(args []string) error {
 			return err
 		}
 		if len(names) == 0 {
-			fmt.Printf("No profiles in %s.\n", p.Profiles())
+			fmt.Fprintf(stdout, "No profiles in %s.\n", p.Profiles())
 			return nil
 		}
 		for _, n := range names {
 			prof, err := l.Load(n)
 			if err != nil {
-				fmt.Printf("%s\t(error: %v)\n", n, err)
+				fmt.Fprintf(stdout, "%s\t(error: %v)\n", n, err)
 				continue
 			}
-			fmt.Printf("%s\t%s\n", n, prof.Description)
+			fmt.Fprintf(stdout, "%s\t%s\n", n, prof.Description)
 		}
 		return nil
 	}
 	if args[0] == "which" {
-		return profilesWhich(l, args[1:])
+		return profilesWhich(l, args[1:], stdout)
 	}
 	if args[0] == "allow" && len(args) >= 3 {
 		if _, err := l.Load(args[1]); err != nil {
@@ -414,25 +414,25 @@ func cmdProfiles(args []string) error {
 				return err
 			}
 		}
-		fmt.Printf("Added %d hosts to %s.\n", len(args)-2, filepath.Join(p.Profiles(), profile.LocalFile(args[1])))
+		fmt.Fprintf(stdout, "Added %d hosts to %s.\n", len(args)-2, filepath.Join(p.Profiles(), profile.LocalFile(args[1])))
 		return nil
 	}
 	if args[0] == "edit" && len(args) == 2 {
-		return profilesEdit(l, p.Profiles(), args[1], os.Stdin)
+		return profilesEdit(l, p.Profiles(), args[1], stdin, stdout)
 	}
 	if args[0] == "show" && len(args) == 2 {
 		prof, err := l.Load(args[1])
 		if err != nil {
 			return err
 		}
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(prof)
 	}
 	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME | which [-q] [DIR]]")
 }
 
-func cmdDoctor(args []string) int {
+func cmdDoctor(args []string, w io.Writer) int {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fetch := flags.Bool("secrets", false, "also fetch every secret once, which can prompt for an unlock")
 	if err := flags.Parse(args); err != nil {
@@ -442,12 +442,12 @@ func cmdDoctor(args []string) int {
 	check := func(name string, err error) {
 		if err != nil {
 			failed = true
-			fmt.Printf("problem  %s: %v\n", name, err)
+			fmt.Fprintf(w, "problem  %s: %v\n", name, err)
 			return
 		}
-		fmt.Printf("ok       %s\n", name)
+		fmt.Fprintf(w, "ok       %s\n", name)
 	}
-	note := func(name, msg string) { fmt.Printf("note     %s: %s\n", name, msg) }
+	note := func(name, msg string) { fmt.Fprintf(w, "note     %s: %s\n", name, msg) }
 
 	p, err := paths()
 	check("directories", err)
@@ -560,7 +560,7 @@ func cmdDoctor(args []string) int {
 	return 0
 }
 
-func cmdClean(args []string) error {
+func cmdClean(args []string, w io.Writer) error {
 	if len(args) != 1 {
 		return errors.New("clean: usage: girdle clean PROFILE")
 	}
@@ -595,11 +595,11 @@ func cmdClean(args []string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("remove %s: %w", dir, err)
 	}
-	fmt.Printf("Removed the caches of profile %s.\n", name)
+	fmt.Fprintf(w, "Removed the caches of profile %s.\n", name)
 	return nil
 }
 
-func profilesWhich(l *profile.Loader, args []string) error {
+func profilesWhich(l *profile.Loader, args []string, w io.Writer) error {
 	flags := flag.NewFlagSet("which", flag.ContinueOnError)
 	quiet := flags.Bool("q", false, "print nothing, only set the exit status")
 	if err := flags.Parse(args); err != nil {
@@ -615,12 +615,12 @@ func profilesWhich(l *profile.Loader, args []string) error {
 	p, err := l.Find(dir)
 	if err != nil {
 		if *quiet {
-			os.Exit(1)
+			return errQuiet
 		}
 		return err
 	}
 	if !*quiet {
-		fmt.Println(p.Name)
+		fmt.Fprintln(w, p.Name)
 	}
 	return nil
 }
@@ -699,7 +699,7 @@ path = "~/Development/my-project"
 mode = "clone"
 `
 
-func profilesEdit(l *profile.Loader, dir, name string, in io.Reader) error {
+func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer) error {
 	path := filepath.Join(dir, name+".toml")
 	info, err := os.Lstat(path)
 	switch {
@@ -733,10 +733,10 @@ func profilesEdit(l *profile.Loader, dir, name string, in io.Reader) error {
 		}
 		_, err := l.Load(name)
 		if err == nil {
-			fmt.Printf("Profile %s is valid.\n", name)
+			fmt.Fprintf(w, "Profile %s is valid.\n", name)
 			return nil
 		}
-		fmt.Printf("Profile %s has a problem:\n  %v\nEdit again? [Y/n] ", name, err)
+		fmt.Fprintf(w, "Profile %s has a problem:\n  %v\nEdit again? [Y/n] ", name, err)
 		if !answers.Scan() || strings.HasPrefix(strings.ToLower(strings.TrimSpace(answers.Text())), "n") {
 			return fmt.Errorf("profile %s is not valid", name)
 		}
