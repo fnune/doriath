@@ -38,6 +38,9 @@ func TestEveryModuleLoads(t *testing.T) {
 	if merge.Action != profile.ActionApprove {
 		t.Errorf("merges must need approval, got %v", merge.Action)
 	}
+	if alias, _ := gh.Decide("PUT", "/repositories/123/pulls/1/merge", nil); alias.Action != profile.ActionApprove {
+		t.Errorf("the /repositories alias must need approval too, got %v", alias.Action)
+	}
 	view, _ := gh.Decide("GET", "/repos/a/b/releases/1", nil)
 	if view.Action != profile.ActionAllow {
 		t.Errorf("reading releases must pass, got %v", view.Action)

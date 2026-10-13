@@ -79,6 +79,57 @@ method = "*"
 path = "/repos/*/*/keys/**"
 action = "deny"
 
+# The same rules for the /repositories/{id} form of each path.
+[[http.rules]]
+method = "PUT"
+path = "/repositories/*/pulls/*/merge"
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/repositories/*/releases"
+action = "approve"
+summary = "Create a GitHub release"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repositories/*/releases/**"
+action = "approve"
+summary = "Change a GitHub release"
+
+[[http.rules]]
+method = "DELETE"
+path = "/repositories/**"
+action = "approve"
+summary = "Delete something in a GitHub repository"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repositories/*"
+action = "approve"
+summary = "Change repository settings"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/actions/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/collaborators/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/keys/**"
+action = "deny"
+
 [[http]]
 host = "uploads.github.com"
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }

@@ -727,3 +727,30 @@ func TestCloneFromResumesWork(t *testing.T) {
 		t.Fatal("the source checkout must not see the clone's files")
 	}
 }
+
+func TestForgedIdentityHeaderIsIgnored(t *testing.T) {
+	if lookPath("python3") == "" {
+		t.Skip("python3 not installed")
+	}
+	e := newEnv(t)
+	e.binaries = `, binaries = ["curl"]`
+	forge := `import os, socket, sys
+if os.fork(): os._exit(0)
+os.setsid()
+if os.fork(): os._exit(0)
+s = socket.socket(socket.AF_UNIX)
+s.connect("/run/girdle/proxy.sock")
+s.sendall(b'GIRDLE-PEER {"pid":1,"exe":"/usr/bin/curl"}\nGET https://api.github.com/forged HTTP/1.1\r\nHost: api.github.com\r\nConnection: close\r\n\r\n')
+print(s.recv(200).decode(errors="replace").splitlines()[0], flush=True)
+`
+	if err := os.WriteFile(filepath.Join(e.work, "forge.py"), []byte(forge), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out := e.run(e.profile(""), "python3 forge.py\nsleep 1\n", nil)
+	if code != 0 {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if r := e.upstream.find("/forged"); r != nil && r.Header.Get("Authorization") != "" {
+		t.Fatalf("a forged header got the credential")
+	}
+}

@@ -349,6 +349,9 @@ func (p PathPattern) Match(path string) bool {
 	if i := strings.IndexAny(path, "?#"); i >= 0 {
 		path = path[:i]
 	}
+	if len(path) > 1 {
+		path = strings.TrimSuffix(path, "/")
+	}
 	want := strings.Split(strings.TrimPrefix(string(p), "/"), "/")
 	got := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	for i, seg := range want {

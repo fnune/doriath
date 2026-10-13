@@ -120,6 +120,12 @@ func formatRecord(r auditRecord) string {
 			what = m + " " + what + str(d, "path")
 		}
 		line := head + str(d, "kind") + " " + what
+		if status, ok := d["status"].(float64); ok {
+			line += fmt.Sprintf(" -> %d", int(status))
+		}
+		if exe := str(d, "exe"); exe != "" {
+			line += " by " + exe
+		}
 		if reason := str(d, "reason"); reason != "" {
 			line += " (" + reason + ")"
 		}

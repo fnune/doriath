@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -39,10 +40,17 @@ func Actions(req approval.Request) []string {
 		return []string{actionAllowSession, "Allow for this session", actionAddProfile, "Add to profile", actionDeny, "Ignore"}
 	}
 	a := []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
-	if req.URL != "" {
+	if safeURL(req.URL) {
 		a = append(a, actionOpen, "Open link")
 	}
 	return a
+}
+
+// safeURL allows only web links, which the person sees in the body before
+// opening them.
+func safeURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
 }
 
 // DecisionFor maps a pressed button to a decision. Opening the link is not a
@@ -63,8 +71,18 @@ func DecisionFor(action string) (approval.Decision, bool) {
 
 func Body(req approval.Request, now time.Time) string {
 	var b strings.Builder
+	if req.Kind == approval.KindTool {
+		agent := req.Agent
+		if agent == "" {
+			agent = "the agent"
+		}
+		fmt.Fprintf(&b, "<i>Written by %s, not by girdle.</i>\n", html.EscapeString(agent))
+	}
 	if req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
+	}
+	if safeURL(req.URL) {
+		fmt.Fprintf(&b, "Link: %s\n", html.EscapeString(req.URL))
 	}
 	if req.Scope != "" {
 		fmt.Fprintf(&b, "Allow for this session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
@@ -160,7 +178,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}
 	d.mu.Lock()
 	d.handlers[id] = func(action string) {
-		if action == actionOpen && req.URL != "" {
+		if action == actionOpen && safeURL(req.URL) {
 			_ = d.opener.Open(req.URL)
 			return
 		}
@@ -190,6 +208,7 @@ func Urgency(req approval.Request) byte {
 // Inform shows a message without buttons, for events that need attention
 // but no decision.
 func (d *Desktop) Inform(title, body string) error {
+	title = "Agent: " + title
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("girdle")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
 		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err

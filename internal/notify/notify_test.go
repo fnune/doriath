@@ -40,6 +40,13 @@ func TestActionsAndBody(t *testing.T) {
 	if a := Actions(req); len(a) != 8 || a[6] != "open" {
 		t.Errorf("actions with URL = %v", a)
 	}
+	for _, bad := range []string{"file:///etc/passwd", "javascript:alert(1)", "x-scheme:foo", "https:///nohost"} {
+		req.URL = bad
+		if a := Actions(req); len(a) != 6 {
+			t.Errorf("%s must not get an open button", bad)
+		}
+	}
+	req.URL = "https://example.com"
 	body := Body(req, time.Unix(40, 0))
 	if !strings.Contains(body, "POST &lt;x&gt; &amp; y") || !strings.Contains(body, "Expires in 1m0s") {
 		t.Errorf("body = %q", body)
@@ -68,5 +75,12 @@ func TestDesktop(t *testing.T) {
 func TestUrgency(t *testing.T) {
 	if Urgency(approval.Request{Kind: approval.KindHTTP}) != urgencyHi || Urgency(approval.Request{Kind: approval.KindRule}) != urgencyNormal {
 		t.Fatal("held requests are urgent, drafted rules are not")
+	}
+}
+
+func TestToolRequestsAreLabeled(t *testing.T) {
+	body := Body(approval.Request{Kind: approval.KindTool, Agent: "claude"}, time.Now())
+	if !strings.Contains(body, "Written by claude, not by girdle") {
+		t.Errorf("body = %q", body)
 	}
 }

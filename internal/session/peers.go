@@ -12,19 +12,33 @@ import (
 // using the host's /proc.
 type hostPeers struct {
 	init atomic.Int64
+	// exe is girdle's own binary, which the jail's init runs.
+	exe string
 }
 
 func (h *hostPeers) setInit(pid int) { h.init.Store(int64(pid)) }
 
 // TrustsHeader accepts identity headers only from the agent jail's init.
-// bubblewrap reports the pid of its first child, which is either init itself
-// or bubblewrap's pid-namespace reaper, whose child init is.
+// bubblewrap reports the pid of its pid-namespace reaper, whose only child is
+// girdle's init: init is a subreaper, so orphans never reparent to the
+// reaper. The executable check rules out anything else that could appear
+// there.
 func (h *hostPeers) TrustsHeader(pid int) bool {
-	init := int(h.init.Load())
-	if init == 0 || pid <= 0 {
+	reaper := int(h.init.Load())
+	if reaper == 0 || pid <= 0 || pid == reaper || parentPID(pid) != reaper {
 		return false
 	}
-	return pid == init || parentPID(pid) == init
+	if h.exe == "" {
+		return false
+	}
+	// Inside the jail, init's binary has a different path than on the host,
+	// so compare the files themselves.
+	running, err := os.Stat(filepath.Join("/proc", strconv.Itoa(pid), "exe"))
+	if err != nil {
+		return false
+	}
+	own, err := os.Stat(h.exe)
+	return err == nil && os.SameFile(running, own)
 }
 
 func (h *hostPeers) Exe(pid int) string {

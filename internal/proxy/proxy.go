@@ -58,6 +58,7 @@ type Event struct {
 	Method string `json:"method,omitempty"`
 	Path   string `json:"path,omitempty"`
 	Action string `json:"action,omitempty"`
+	Status int    `json:"status,omitempty"`
 	Reason string `json:"reason,omitempty"`
 }
 
@@ -262,12 +263,22 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		deny(w, http.StatusMisdirectedRequest, "girdle: the Host header must match the tunneled host")
 		return
 	}
+	if r.Method != strings.ToUpper(r.Method) {
+		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "method is not upper case"})
+		deny(w, http.StatusBadRequest, "girdle: HTTP methods must be upper case")
+		return
+	}
 	if !canonicalPath(r.URL) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "path is not in canonical form"})
 		deny(w, http.StatusBadRequest, "girdle: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
 		return
 	}
 	var body []byte
+	if rules.NeedsBody(r.Method, r.URL.Path) && !identityEncoding(r.Header.Get("Content-Encoding")) {
+		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "compressed body on an inspected request"})
+		deny(w, http.StatusUnsupportedMediaType, "girdle: send this request uncompressed, so its body can be checked")
+		return
+	}
 	if rules.NeedsBody(r.Method, r.URL.Path) {
 		var tooLarge bool
 		var err error
@@ -300,7 +311,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Profile: s.cfg.Profile,
 			Kind:    approval.KindHTTP,
 			Summary: summary,
-			Details: fmt.Sprintf("%s https://%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context())),
+			Details: fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body)),
 			Scope:   scope(rule, matched, r.Method, r.URL.Path, host),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
@@ -330,7 +341,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		}
 		r.Header.Set("Authorization", header)
 	}
-	s.forward(w, r, "https", host)
+	s.forwardAudited(w, r, host)
 }
 
 func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +366,21 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	s.forward(w, r, "http", r.URL.Host)
 }
 
+// forwardAudited records every request to an intercepted host with its
+// outcome, because these are the requests that carry a credential.
+func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string) {
+	exe := IdentityFrom(r.Context()).Exe
+	s.forwardWith(w, r, "https", host, func(resp *http.Response) error {
+		s.record(Event{Kind: "request", Host: host, Method: r.Method, Path: r.URL.Path, Exe: exe, Status: resp.StatusCode})
+		return nil
+	})
+}
+
 func (s *Server) forward(w http.ResponseWriter, r *http.Request, scheme, host string) {
+	s.forwardWith(w, r, scheme, host, nil)
+}
+
+func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, host string, onResponse func(*http.Response) error) {
 	rp := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = scheme
@@ -364,8 +389,9 @@ func (s *Server) forward(w http.ResponseWriter, r *http.Request, scheme, host st
 			pr.Out.Header.Del("Proxy-Authorization")
 			pr.Out.Header.Del("Proxy-Connection")
 		},
-		Transport:     s.transport,
-		FlushInterval: -1,
+		Transport:      s.transport,
+		FlushInterval:  -1,
+		ModifyResponse: onResponse,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
 			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: upstream %s failed: %v", host, err))
@@ -410,7 +436,44 @@ func scope(r profile.Rule, matched bool, method, path, host string) string {
 	if len(r.BodyContains) > 0 {
 		s += " " + strings.Join(r.BodyContains, ",")
 	}
+	if repo := repoPrefix(path); repo != "" {
+		s += " in " + repo
+	}
 	return s
+}
+
+// repoPrefix narrows an approval to one repository, so allowing a merge for
+// the session does not allow merges everywhere the token reaches.
+func repoPrefix(p string) string {
+	segs := strings.Split(strings.TrimPrefix(p, "/"), "/")
+	switch {
+	case len(segs) >= 3 && strings.EqualFold(segs[0], "repos"):
+		return strings.ToLower("/" + strings.Join(segs[:3], "/"))
+	case len(segs) >= 2 && strings.EqualFold(segs[0], "repositories"):
+		return strings.ToLower("/" + strings.Join(segs[:2], "/"))
+	}
+	return ""
+}
+
+const excerptLimit = 400
+
+// bodyExcerpt shows the person what an inspected request would send. For
+// GraphQL that is the decoded query, not its JSON wrapping.
+func bodyExcerpt(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	text := string(body)
+	var gql struct {
+		Query string `json:"query"`
+	}
+	if json.Unmarshal(body, &gql) == nil && gql.Query != "" {
+		text = gql.Query
+	}
+	if len(text) > excerptLimit {
+		text = text[:excerptLimit] + "…"
+	}
+	return "\n" + text
 }
 
 const maxInspectedBody = 1 << 20
@@ -506,7 +569,7 @@ func pipe(a, b net.Conn) {
 // the rules, such as doubled slashes, dot segments or encoded separators.
 func canonicalPath(u *url.URL) bool {
 	raw := strings.ToLower(u.EscapedPath())
-	if strings.Contains(raw, "%2f") || strings.Contains(raw, "%5c") || strings.Contains(u.Path, "\\") {
+	if strings.Contains(raw, "%2f") || strings.Contains(raw, "%5c") || strings.Contains(u.Path, "\\") || strings.Contains(u.Path, ";") {
 		return false
 	}
 	p := u.Path
@@ -515,4 +578,9 @@ func canonicalPath(u *url.URL) bool {
 	}
 	clean := path.Clean(p)
 	return p == clean || p == clean+"/"
+}
+
+func identityEncoding(enc string) bool {
+	enc = strings.TrimSpace(strings.ToLower(enc))
+	return enc == "" || enc == "identity"
 }

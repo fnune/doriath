@@ -272,6 +272,9 @@ func TestInterceptInjectsCredential(t *testing.T) {
 	if !h.events.has("intercept", "api.github.com") {
 		t.Fatal("first intercept not recorded")
 	}
+	if !h.events.has("request", "api.github.com") {
+		t.Fatal("each credentialed request must be recorded")
+	}
 }
 
 func TestBasicCredentialForGit(t *testing.T) {
@@ -329,7 +332,7 @@ func TestRuleApprove(t *testing.T) {
 	req := h.approver.requests[0]
 	h.approver.verdict = approval.VerdictDeny
 	h.approver.mu.Unlock()
-	if req.Summary != "Create a GitHub release" || req.Scope != "http POST api.github.com /repos/*/*/releases" || req.Session != "s1" {
+	if req.Summary != "Create a GitHub release" || req.Scope != "http POST api.github.com /repos/*/*/releases in /repos/fnune/project" || req.Session != "s1" {
 		t.Fatalf("approval request = %+v", req)
 	}
 	resp := post()
@@ -690,5 +693,34 @@ func TestEscapedMutationIsCaught(t *testing.T) {
 	}
 	if body(t, resp); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("a different case got past the rule: %d", resp.StatusCode)
+	}
+}
+
+func TestMethodCaseAndCompressedBodies(t *testing.T) {
+	h := newHarness(t)
+	req, _ := http.NewRequest(strings.ToLower(http.MethodPut), "https://api.github.com/repos/a/b/pulls/1/merge", nil)
+	resp, err := h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("a lower-case method got through: %d", resp.StatusCode)
+	}
+	req, _ = http.NewRequest(http.MethodPost, "https://api.github.com/graphql", strings.NewReader("compressed"))
+	req.Header.Set("Content-Encoding", "gzip")
+	resp, err = h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Fatalf("a compressed inspected body got through: %d", resp.StatusCode)
+	}
+	req, _ = http.NewRequest(http.MethodPut, "https://api.github.com/repos/a/b/pulls/1/merge/", nil)
+	resp, err = h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("a trailing slash got past the rule: %d", resp.StatusCode)
 	}
 }

@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // Forward is one localhost port inside the jail and the socket behind it.
@@ -122,6 +124,12 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	if err != nil {
 		return 127, fmt.Errorf("init: %w", err)
 	}
+	// Orphaned processes come to this init and not to bubblewrap's reaper,
+	// so that the reaper's only child is girdle, which the proxy relies on to
+	// tell girdle's identity headers from anything else.
+	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); err != nil {
+		return 1, fmt.Errorf("init: become a subreaper: %w", err)
+	}
 	cmd := exec.Command(path, argv[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
@@ -135,21 +143,35 @@ func Run(forwards []Forward, argv []string) (int, error) {
 			_ = cmd.Process.Signal(s)
 		}
 	}()
-	err = cmd.Wait()
+	ws, err := reapUntil(cmd.Process.Pid)
 	signal.Stop(sigs)
 	close(sigs)
 	for _, l := range ls {
 		_ = l.Close()
 	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		if ws, ok := exit.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-			return 128 + int(ws.Signal()), nil
-		}
-		return exit.ExitCode(), nil
-	}
 	if err != nil {
 		return 1, fmt.Errorf("init: %w", err)
 	}
-	return 0, nil
+	if ws.Signaled() {
+		return 128 + int(ws.Signal()), nil
+	}
+	return ws.ExitStatus(), nil
+}
+
+// reapUntil waits for any child, so that orphans reparented to this
+// subreaper do not linger as zombies, and returns when pid exits.
+func reapUntil(pid int) (syscall.WaitStatus, error) {
+	for {
+		var ws syscall.WaitStatus
+		got, err := syscall.Wait4(-1, &ws, 0, nil)
+		if errors.Is(err, syscall.EINTR) {
+			continue
+		}
+		if err != nil {
+			return ws, err
+		}
+		if got == pid {
+			return ws, nil
+		}
+	}
 }

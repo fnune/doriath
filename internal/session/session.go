@@ -62,12 +62,17 @@ type Deps struct {
 	Notifier approval.Notifier
 	Informer Informer
 	Clock    approval.Clock
-	Dialer   proxy.Dialer
-	Getenv   func(string) string
-	Environ  []string
-	Stdin    io.Reader
-	Stdout   io.Writer
-	Stderr   io.Writer
+	// Dialer reaches upstream hosts. With a Resolver set, it is wrapped so
+	// the proxy cannot reach loopback, link-local or unnamed private
+	// addresses. LocalDialer reaches the forwarded host ports.
+	Dialer      proxy.Dialer
+	Resolver    Resolver
+	LocalDialer proxy.Dialer
+	Getenv      func(string) string
+	Environ     []string
+	Stdin       io.Reader
+	Stdout      io.Writer
+	Stderr      io.Writer
 	// Bwrap is the bubblewrap binary.
 	Bwrap string
 	// Exe is girdle's own binary, which runs as init inside the jail.
@@ -130,7 +135,11 @@ func New(deps Deps, req Request) (*Session, error) {
 		return nil, err
 	}
 	dir := filepath.Join(deps.Paths.Sessions(), id)
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: &hostPeers{}}, nil
+	exe, err := filepath.EvalSymlinks(deps.Exe)
+	if err != nil {
+		exe = deps.Exe
+	}
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: &hostPeers{exe: exe}}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -268,7 +277,7 @@ func (s *Session) startProxy() error {
 		Profile:       p.Name,
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
-	}, s.policy, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.egress)
+	}, s.policy, s.manager, s.deps.Secrets, issuer, s.upstreamDialer(), s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {
 		return err
@@ -298,7 +307,7 @@ func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
 			}
 			go func() {
 				defer conn.Close()
-				up, err := s.deps.Dialer.DialContext(ctx, "tcp", target)
+				up, err := s.localDialer().DialContext(ctx, "tcp", target)
 				if err != nil {
 					s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(f.Port), Reason: err.Error()})
 					return
@@ -314,7 +323,7 @@ func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
 // httpForward reaches a host dev server as HTTP only. Anything that is not
 // HTTP fails to parse, and websocket upgrades still work for hot reload.
 func (s *Session) httpForward(target string, port int) http.Handler {
-	transport := &http.Transport{DialContext: s.deps.Dialer.DialContext, MaxIdleConnsPerHost: 8, IdleConnTimeout: 90 * time.Second}
+	transport := &http.Transport{DialContext: s.localDialer().DialContext, MaxIdleConnsPerHost: 8, IdleConnTimeout: 90 * time.Second}
 	rp := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = "http"
@@ -699,4 +708,18 @@ func (s *Session) seccompFile() (*os.File, error) {
 		return nil, fmt.Errorf("open seccomp filter: %w", err)
 	}
 	return f, nil
+}
+
+func (s *Session) upstreamDialer() proxy.Dialer {
+	if s.deps.Resolver == nil {
+		return s.deps.Dialer
+	}
+	return newGuardDialer(s.deps.Dialer, s.deps.Resolver, s.req.Profile)
+}
+
+func (s *Session) localDialer() proxy.Dialer {
+	if s.deps.LocalDialer != nil {
+		return s.deps.LocalDialer
+	}
+	return s.deps.Dialer
 }
