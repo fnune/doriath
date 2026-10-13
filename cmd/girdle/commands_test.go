@@ -140,6 +140,27 @@ func TestProfilesAllow(t *testing.T) {
 	}
 }
 
+func TestProfilesEdit(t *testing.T) {
+	p := testPaths(t)
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "true")
+	var out bytes.Buffer
+	if err := cmdProfiles([]string{"edit", "fresh"}, strings.NewReader(""), &out); err != nil {
+		t.Fatalf("the template is not a valid profile: %v\n%s", err, out.String())
+	}
+	if info, err := os.Stat(filepath.Join(p.Profiles(), "fresh.toml")); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("new profile: %v, %v", info, err)
+	}
+
+	writeProfile(t, p, "broken", `modules = ["base"]`)
+	t.Setenv("EDITOR", `sed -i 's/base/bsae/'`)
+	out.Reset()
+	err := cmdProfiles([]string{"edit", "broken"}, strings.NewReader("n\n"), &out)
+	if err == nil || !strings.Contains(out.String(), "Edit again?") {
+		t.Fatalf("an invalid edit must ask and then fail: %v\n%s", err, out.String())
+	}
+}
+
 func approvals(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
