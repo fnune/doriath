@@ -105,6 +105,18 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	if _, err := s.git(ctx, "-C", c.dir, "checkout", "--quiet", "--detach", base); err != nil {
 		return repoClone{}, err
 	}
+	// git clone makes a branch for the source's HEAD. Without it, every
+	// branch in the clone is one the agent made, so landing brings back only
+	// the agent's work.
+	heads, err := s.git(ctx, "-C", c.dir, "for-each-ref", "--format=%(refname)", "refs/heads/")
+	if err != nil {
+		return repoClone{}, err
+	}
+	for _, ref := range strings.Fields(heads) {
+		if _, err := s.git(ctx, "-C", c.dir, "update-ref", "-d", ref); err != nil {
+			return repoClone{}, err
+		}
+	}
 	if err := writeFile(baseFile, []byte(base+"\n"), 0o600); err != nil {
 		return repoClone{}, err
 	}

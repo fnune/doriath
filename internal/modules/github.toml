@@ -1,64 +1,48 @@
 # GitHub with a token the agent never sees, and that only gh and git get:
-# any other program reaches these hosts without it. The proxy adds it to requests for
-# these hosts. Routine work goes through, and actions that publish or
-# destroy wait for approval. Map the "github" secret to your token in the
-# profile: secrets = { github = "<name in config.toml>" }.
+# any other program reaches these hosts without it. The proxy adds it to
+# requests for these hosts. Reads and routine work on pull requests, issues
+# and CI runs go through. Everything else waits for approval, and changes to
+# webhooks, secrets, collaborators and deploy keys are refused. Map the
+# "github" secret to your token in the profile:
+# secrets = { github = "<name in config.toml>" }.
 
 [egress]
 allow = ["*.githubusercontent.com"]
 
+# git over HTTPS. Fetches pass, and each push waits for approval, which you
+# can grant for the session per repository.
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git"] }
+default = "approve"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/*/*/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/*/*/git-receive-pack"
+action = "approve"
+summary = "Push to a GitHub repository"
 
 [[http]]
 host = "api.github.com"
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
+default = "approve"
 
-[[http.rules]]
-method = "PUT"
-path = "/repos/*/*/pulls/*/merge"
-action = "approve"
-summary = "Merge a pull request"
-
-[[http.rules]]
-method = "POST"
-path = "/graphql"
-body_contains = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"]
-action = "approve"
-summary = "Merge a pull request"
-
-[[http.rules]]
-method = "POST"
-path = "/repos/*/*/releases"
-action = "approve"
-summary = "Create a GitHub release"
-
-[[http.rules]]
-method = "PATCH"
-path = "/repos/*/*/releases/**"
-action = "approve"
-summary = "Change a GitHub release"
-
-[[http.rules]]
-method = "POST"
-path = "/graphql"
-body_contains = ["createRelease", "updateRelease", "deleteRelease", "deleteRef", "deleteRepository", "updateRepository"]
-action = "approve"
-summary = "Change a release, branch or repository setting"
-
-[[http.rules]]
-method = "DELETE"
-path = "/repos/**"
-action = "approve"
-summary = "Delete something in a GitHub repository"
-
-[[http.rules]]
-method = "PATCH"
-path = "/repos/*/*"
-action = "approve"
-summary = "Change repository settings"
-
+# Refused outright, in both path forms.
 [[http.rules]]
 method = "*"
 path = "/repos/*/*/hooks/**"
@@ -71,6 +55,11 @@ action = "deny"
 
 [[http.rules]]
 method = "*"
+path = "/repos/*/*/environments/*/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
 path = "/repos/*/*/collaborators/**"
 action = "deny"
 
@@ -78,37 +67,6 @@ action = "deny"
 method = "*"
 path = "/repos/*/*/keys/**"
 action = "deny"
-
-# The same rules for the /repositories/{id} form of each path.
-[[http.rules]]
-method = "PUT"
-path = "/repositories/*/pulls/*/merge"
-action = "approve"
-summary = "Merge a pull request"
-
-[[http.rules]]
-method = "POST"
-path = "/repositories/*/releases"
-action = "approve"
-summary = "Create a GitHub release"
-
-[[http.rules]]
-method = "PATCH"
-path = "/repositories/*/releases/**"
-action = "approve"
-summary = "Change a GitHub release"
-
-[[http.rules]]
-method = "DELETE"
-path = "/repositories/**"
-action = "approve"
-summary = "Delete something in a GitHub repository"
-
-[[http.rules]]
-method = "PATCH"
-path = "/repositories/*"
-action = "approve"
-summary = "Change repository settings"
 
 [[http.rules]]
 method = "*"
@@ -122,6 +80,11 @@ action = "deny"
 
 [[http.rules]]
 method = "*"
+path = "/repositories/*/environments/*/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
 path = "/repositories/*/collaborators/**"
 action = "deny"
 
@@ -129,6 +92,126 @@ action = "deny"
 method = "*"
 path = "/repositories/*/keys/**"
 action = "deny"
+
+# Held with a summary that says what the request does. Anything else that is
+# not allowed below is held too, with its method and path as the summary.
+[[http.rules]]
+method = "PUT"
+path = "/repos/*/*/pulls/*/merge"
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/releases"
+action = "approve"
+summary = "Create a GitHub release"
+
+# Reads.
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+# Pull requests.
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls"
+action = "allow"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repos/*/*/pulls/*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/comments/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/reviews/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/requested_reviewers"
+action = "allow"
+
+# Issues and comments.
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/issues"
+action = "allow"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repos/*/*/issues/*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/issues/*/comments"
+action = "allow"
+
+[[http.rules]]
+method = "PATCH"
+path = "/repos/*/*/issues/comments/*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/issues/*/labels"
+action = "allow"
+
+# CI runs.
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/actions/runs/*/rerun"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/actions/runs/*/rerun-failed-jobs"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/actions/runs/*/cancel"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/actions/jobs/*/rerun"
+action = "allow"
+
+# GraphQL carries reads and writes on one path, so path rules cannot tell
+# them apart. Until the proxy reads the operation type, writes known to be
+# dangerous wait for approval and the rest pass.
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"]
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+body_contains = ["createCommitOnBranch", "updateRef", "createRef", "deleteRef", "BranchProtectionRule", "createRelease", "updateRelease", "deleteRelease", "deleteRepository", "updateRepository", "createRepository", "DeployKey"]
+action = "approve"
+summary = "Change a branch, release or repository setting"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+action = "allow"
 
 [[http]]
 host = "uploads.github.com"

@@ -167,7 +167,7 @@ type Limits struct {
 	CPU    string
 }
 
-const DefaultTaskLimit = 4096
+const DefaultTaskLimit = 8192
 
 // Hardening is on by default. Each switch loosens the agent jail for tools
 // that need it.

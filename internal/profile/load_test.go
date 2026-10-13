@@ -90,8 +90,8 @@ action = "deny"
 	if r, ok := host.Decide("POST", "/repos/fnune/project/releases", nil); !ok || r.Action != ActionApprove || r.Summary != "Create a release" {
 		t.Errorf("Decide = %+v %v", r, ok)
 	}
-	if r, ok := host.Decide("GET", "/repos/fnune/project", nil); ok || r.Action != ActionAllow {
-		t.Errorf("default action = %+v", r)
+	if r, ok := host.Decide("GET", "/repos/fnune/project", nil); ok || r.Action != ActionApprove {
+		t.Errorf("a credentialed host must hold unnamed requests, got %+v", r)
 	}
 	if p.Claude.ApprovalTimeout != defaultApprovalTimeout {
 		t.Errorf("timeout = %v", p.Claude.ApprovalTimeout)

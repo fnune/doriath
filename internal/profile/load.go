@@ -500,6 +500,11 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 			return HTTPHost{}, fmt.Errorf("http %s credential: %w", h.Host, err)
 		}
 		out.Credential = &cred
+		// A request that carries the person's credential and that no rule
+		// names waits for them, rather than going out in their name.
+		if h.Default == "" {
+			out.Default = ActionApprove
+		}
 	}
 	for _, r := range h.Rules {
 		rule, err := buildRule(r)

@@ -41,9 +41,28 @@ func TestEveryModuleLoads(t *testing.T) {
 	if alias, _ := gh.Decide("PUT", "/repositories/123/pulls/1/merge", nil); alias.Action != profile.ActionApprove {
 		t.Errorf("the /repositories alias must need approval too, got %v", alias.Action)
 	}
-	view, _ := gh.Decide("GET", "/repos/a/b/releases/1", nil)
-	if view.Action != profile.ActionAllow {
-		t.Errorf("reading releases must pass, got %v", view.Action)
+	for _, req := range []struct{ method, path, body, want string }{
+		{"GET", "/repos/a/b/releases/1", "", "allow"},
+		{"POST", "/repos/a/b/pulls", "", "allow"},
+		{"POST", "/repos/a/b/actions/runs/1/rerun-failed-jobs", "", "allow"},
+		{"PUT", "/repos/a/b/contents/README.md", "", "approve"},
+		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve"},
+		{"POST", "/user/keys", "", "approve"},
+		{"POST", "/gists", "", "approve"},
+		{"PUT", "/repos/a/b/environments/prod/secrets/X", "", "deny"},
+		{"POST", "/graphql", `{"query":"query { viewer { login } }"}`, "allow"},
+		{"POST", "/graphql", `{"query":"mutation { createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve"},
+	} {
+		if got, _ := gh.Decide(req.method, req.path, []byte(req.body)); string(got.Action) != req.want {
+			t.Errorf("%s %s = %v, want %s", req.method, req.path, got.Action, req.want)
+		}
+	}
+	git, _ := p.Intercepted("github.com")
+	if fetch, _ := git.Decide("POST", "/a/b/git-upload-pack", nil); fetch.Action != profile.ActionAllow {
+		t.Errorf("fetch = %v, want allow", fetch.Action)
+	}
+	if push, _ := git.Decide("POST", "/a/b/git-receive-pack", nil); push.Action != profile.ActionApprove {
+		t.Errorf("push = %v, want approve", push.Action)
 	}
 	if !p.Claude.DisableConnectors || !p.Podman {
 		t.Error("claude and podman modules not applied")

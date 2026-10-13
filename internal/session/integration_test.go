@@ -196,6 +196,9 @@ allow = ["example.com"]
 [[http]]
 host = "api.github.com"
 credential = { secret = "github", scheme = "bearer"%s }
+# These tests exercise rules and injection, not the approve default that a
+# credential otherwise brings.
+default = "allow"
 
 [[http.rules]]
 method = "POST"
@@ -687,9 +690,13 @@ func TestCloneMode(t *testing.T) {
 	}
 	gitIn("add", "README")
 	gitIn("commit", "-q", "-m", "first")
+	// The person is on a branch of their own, ahead of the ref the clone
+	// starts from. Landing must not report it as the agent's work.
+	gitIn("switch", "-q", "-c", "wip")
+	gitIn("commit", "-q", "--allow-empty", "-m", "wip")
 	base := gitIn("rev-parse", "HEAD")
 
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\n", repo))
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\nref = \"main\"\n", repo))
 	code, out := e.run(p, fmt.Sprintf(`
 cd %q
 test "$(cat README)" = original || echo "FAIL clone content"
@@ -711,6 +718,9 @@ echo done
 	refs := gitIn("for-each-ref", "--format=%(refname)", "refs/girdle/")
 	if !strings.Contains(refs, "/feature") {
 		t.Fatalf("no landed branch: %q\noutput:\n%s", refs, out)
+	}
+	if strings.Contains(refs, "/wip") {
+		t.Errorf("the person's own branch landed: %q", refs)
 	}
 	if !strings.Contains(out, "feature has 1 new commit(s)") {
 		t.Errorf("no landing summary in:\n%s", out)
