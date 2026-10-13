@@ -92,10 +92,14 @@ type HTTPHost struct {
 
 type Claude struct {
 	DisableConnectors bool
-	DeniedMCPServers  []string
-	Ask               []string
-	Deny              []string
-	ApprovalTimeout   time.Duration
+	// MCPServers, when set, keeps only these MCP servers from ~/.claude.json
+	// in the jail's copy. Nil keeps them all.
+	MCPServers       []string
+	StatusLine       bool
+	DeniedMCPServers []string
+	Ask              []string
+	Deny             []string
+	ApprovalTimeout  time.Duration
 }
 
 type Profile struct {

@@ -104,6 +104,7 @@ type Session struct {
 	dir     string
 	jailDir string
 	log     *audit.Log
+	egress  *egressLog
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
@@ -153,6 +154,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.logFile = f
 	s.log = audit.New(f, s.deps.Clock.Now, s.id, p.Name)
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
+	s.egress = newEgressLog(s.log)
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
 
 	for _, d := range []string{s.cacheRoot(), s.tmp()} {
@@ -250,7 +252,7 @@ func (s *Session) startProxy() error {
 		Profile:       p.Name,
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
-	}, p, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.log)
+	}, p, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {
 		return err
@@ -277,7 +279,7 @@ func (s *Session) startForward(ctx context.Context, port int) error {
 				defer conn.Close()
 				up, err := s.deps.Dialer.DialContext(ctx, "tcp", target)
 				if err != nil {
-					s.log.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Reason: err.Error()})
+					s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Reason: err.Error()})
 					return
 				}
 				defer up.Close()
@@ -345,6 +347,10 @@ func (s *Session) prepareClaude() error {
 	}
 	if len(data) == 0 {
 		data = []byte("{}\n")
+	}
+	data, err = claude.FilterMCPServers(data, s.req.Profile.Claude.MCPServers)
+	if err != nil {
+		return err
 	}
 	if err := writeFile(filepath.Join(private, "claude.json"), data, 0o600); err != nil {
 		return err
@@ -488,7 +494,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	case err != nil:
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
-	s.log.Write("session-end", map[string]int{"exit": code})
+	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
 	return code, nil
 }
 

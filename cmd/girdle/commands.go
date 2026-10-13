@@ -23,6 +23,7 @@ import (
 	"github.com/fnune/girdle/internal/config"
 	"github.com/fnune/girdle/internal/control"
 	"github.com/fnune/girdle/internal/jailinit"
+	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/session"
 )
 
@@ -72,6 +73,19 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	ctx := context.Background()
 	switch args[1] {
+	case "session-start":
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		st, err := sessionStatus(ctx, "")
+		if err != nil {
+			return err
+		}
+		out, err := claude.SessionStart(describeStatus(st))
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(out)
+		return err
 	case "permission-request":
 		req, err := claude.ParsePermissionRequest(input)
 		if err != nil {
@@ -370,6 +384,9 @@ func cmdProfiles(args []string) error {
 		}
 		return nil
 	}
+	if args[0] == "which" {
+		return profilesWhich(l, args[1:])
+	}
 	if args[0] == "show" && len(args) == 2 {
 		prof, err := l.Load(args[1])
 		if err != nil {
@@ -476,5 +493,34 @@ func cmdClean(args []string) error {
 		return fmt.Errorf("remove %s: %w", dir, err)
 	}
 	fmt.Printf("Removed the caches of profile %s.\n", name)
+	return nil
+}
+
+// profilesWhich prints the profile that girdle run would pick, for shell
+// shims that run an agent through girdle when a profile matches. With -q it
+// prints nothing and only sets the exit status.
+func profilesWhich(l *profile.Loader, args []string) error {
+	flags := flag.NewFlagSet("which", flag.ContinueOnError)
+	quiet := flags.Bool("q", false, "print nothing, only set the exit status")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	dir := flags.Arg(0)
+	if dir == "" {
+		var err error
+		if dir, err = os.Getwd(); err != nil {
+			return err
+		}
+	}
+	p, err := l.Find(dir)
+	if err != nil {
+		if *quiet {
+			os.Exit(1)
+		}
+		return err
+	}
+	if !*quiet {
+		fmt.Println(p.Name)
+	}
 	return nil
 }

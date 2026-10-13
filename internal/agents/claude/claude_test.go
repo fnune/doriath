@@ -168,3 +168,29 @@ func TestPermissionDecision(t *testing.T) {
 		t.Fatalf("got %s", out)
 	}
 }
+
+func TestFilterMCPServers(t *testing.T) {
+	in := []byte(`{"numStartups":3,"mcpServers":{"notion":{"type":"http"},"bazel":{"command":"bazel-mcp"}},"projects":{"/w":{"mcpServers":{"notion":{}},"allowedTools":[]}}}`)
+	out, err := FilterMCPServers(in, []string{"bazel"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		NumStartups int                        `json:"numStartups"`
+		MCPServers  map[string]json.RawMessage `json:"mcpServers"`
+		Projects    map[string]struct {
+			MCPServers   map[string]json.RawMessage `json:"mcpServers"`
+			AllowedTools []string                   `json:"allowedTools"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.NumStartups != 3 || len(got.MCPServers) != 1 || got.MCPServers["bazel"] == nil || len(got.Projects["/w"].MCPServers) != 0 || got.Projects["/w"].AllowedTools == nil {
+		t.Fatalf("got %s", out)
+	}
+	same, _ := FilterMCPServers(in, nil)
+	if string(same) != string(in) {
+		t.Fatal("a nil list must keep the document as is")
+	}
+}

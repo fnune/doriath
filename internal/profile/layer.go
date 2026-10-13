@@ -78,11 +78,13 @@ type podmanLayer struct {
 }
 
 type claudeLayer struct {
-	DisableConnectors *bool    `toml:"disable_connectors"`
-	DeniedMCPServers  []string `toml:"denied_mcp_servers"`
-	Ask               []string `toml:"ask"`
-	Deny              []string `toml:"deny"`
-	ApprovalTimeout   string   `toml:"approval_timeout"`
+	DisableConnectors *bool     `toml:"disable_connectors"`
+	MCPServers        *[]string `toml:"mcp_servers"`
+	StatusLine        *bool     `toml:"statusline"`
+	DeniedMCPServers  []string  `toml:"denied_mcp_servers"`
+	Ask               []string  `toml:"ask"`
+	Deny              []string  `toml:"deny"`
+	ApprovalTimeout   string    `toml:"approval_timeout"`
 }
 
 func decodeLayer(origin string, data []byte) (layer, error) {

@@ -166,6 +166,8 @@ type builder struct {
 	podman  bool
 	claude  claudeLayer
 	disable bool
+	mcp     *[]string
+	status  bool
 	secrets map[string]string
 }
 
@@ -214,6 +216,13 @@ func (b *builder) apply(l layer) {
 	if c := l.Claude; c != nil {
 		if c.DisableConnectors != nil {
 			b.disable = *c.DisableConnectors
+		}
+		if c.MCPServers != nil {
+			servers := append([]string{}, *c.MCPServers...)
+			b.mcp = &servers
+		}
+		if c.StatusLine != nil {
+			b.status = *c.StatusLine
 		}
 		for _, s := range c.DeniedMCPServers {
 			b.claude.DeniedMCPServers = appendNew(b.claude.DeniedMCPServers, s)
@@ -457,6 +466,7 @@ func parseAction(s string) (Action, error) {
 func (b *builder) buildClaude() (Claude, error) {
 	c := Claude{
 		DisableConnectors: b.disable,
+		StatusLine:        b.status,
 		DeniedMCPServers:  b.claude.DeniedMCPServers,
 		Ask:               b.claude.Ask,
 		Deny:              b.claude.Deny,
@@ -468,6 +478,9 @@ func (b *builder) buildClaude() (Claude, error) {
 			return c, fmt.Errorf("claude approval_timeout %q: want a positive duration like 90s", b.claude.ApprovalTimeout)
 		}
 		c.ApprovalTimeout = d
+	}
+	if b.mcp != nil {
+		c.MCPServers = append([]string{}, *b.mcp...)
 	}
 	return c, nil
 }

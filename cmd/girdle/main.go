@@ -39,13 +39,15 @@ Usage:
   girdle approvals watch
   girdle sessions
   girdle clean PROFILE
-  girdle profiles [list | show NAME]
+  girdle status [SESSION]
+  girdle profiles [list | show NAME | which [-q] [DIR]]
   girdle doctor
   girdle version
 
 Inside a jail:
   girdle init [--forward PORT=SOCKET]... -- COMMAND [ARGS...]
-  girdle hook claude permission-request|notification
+  girdle hook claude session-start|permission-request|notification
+  girdle statusline
 `
 
 func main() {
@@ -72,6 +74,10 @@ func run(args []string) int {
 		err = cmdSessions()
 	case "clean":
 		err = cmdClean(args[1:])
+	case "status":
+		err = cmdStatus(args[1:], os.Stdout)
+	case "statusline":
+		err = cmdStatusline(os.Stdout)
 	case "profiles":
 		err = cmdProfiles(args[1:])
 	case "doctor":

@@ -531,3 +531,26 @@ echo done
 		t.Fatalf("code %d", code)
 	}
 }
+
+func TestStatusInsideJail(t *testing.T) {
+	e := newEnv(t)
+	code, out := e.run(e.profile(""), `
+curl -s https://example.org/ >/dev/null 2>&1
+curl -s https://example.org/ >/dev/null 2>&1
+/run/girdle-bin/girdle status
+/run/girdle-bin/girdle statusline
+/run/girdle-bin/girdle hook claude session-start </dev/null
+`, nil)
+	if code != 0 {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "girdle it · 2 hosts · 1 blocked", `"hookEventName":"SessionStart"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	audit, _ := os.ReadFile(e.paths.AuditLog())
+	if n := strings.Count(string(audit), `"host":"example.org"`); n != 2 {
+		t.Errorf("a repeated denial is logged once, plus once in the summary; got %d lines", n)
+	}
+}

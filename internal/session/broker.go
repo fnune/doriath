@@ -11,6 +11,7 @@ import (
 
 	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/control"
+	"github.com/fnune/girdle/internal/profile"
 )
 
 type tlsCertificate = tls.Certificate
@@ -20,6 +21,7 @@ type tlsCertificate = tls.Certificate
 const (
 	MethodSubmit = "approval.submit"
 	MethodInform = "inform"
+	MethodStatus = "status"
 )
 
 // Methods on the control socket, which only the host can reach.
@@ -81,6 +83,9 @@ func (s *Session) startBroker(ctx context.Context) error {
 				Scope:   p.Scope,
 			}, timeout)
 		},
+		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
+			return s.status(), nil
+		},
 		MethodInform: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[InformParams](raw)
 			if err != nil {
@@ -120,6 +125,9 @@ func (s *Session) startControl(ctx context.Context) error {
 			}
 			return struct{}{}, s.manager.Decide(p.ID, p.Decision)
 		},
+		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
+			return s.status(), nil
+		},
 		MethodInfo: func(context.Context, json.RawMessage) (any, error) {
 			data, err := os.ReadFile(filepath.Join(s.dir, InfoFile))
 			if err != nil {
@@ -131,4 +139,67 @@ func (s *Session) startControl(ctx context.Context) error {
 	})
 	go func() { _ = srv.Serve(ctx, l) }()
 	return nil
+}
+
+// Status is what the agent and the person can learn about a running session.
+type Status struct {
+	Session     string       `json:"session"`
+	Profile     string       `json:"profile"`
+	Writable    []string     `json:"writable"`
+	ReadOnly    []string     `json:"read_only"`
+	Hosts       []string     `json:"hosts"`
+	Intercepted []StatusHost `json:"intercepted"`
+	Ports       []int        `json:"ports"`
+	Signing     bool         `json:"signing"`
+	Podman      bool         `json:"podman"`
+	Pending     int          `json:"pending"`
+	Denied      []Denial     `json:"denied"`
+}
+
+type StatusHost struct {
+	Host       string       `json:"host"`
+	Credential bool         `json:"credential"`
+	Default    string       `json:"default"`
+	Rules      []StatusRule `json:"rules"`
+}
+
+type StatusRule struct {
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Action  string `json:"action"`
+	Summary string `json:"summary,omitempty"`
+}
+
+func (s *Session) status() Status {
+	p := s.req.Profile
+	st := Status{
+		Session: s.id,
+		Profile: p.Name,
+		Ports:   p.Egress.Ports,
+		Signing: p.SigningKey != "",
+		Podman:  p.Podman,
+		Pending: len(s.manager.Pending()),
+		Denied:  s.egress.Denials(),
+	}
+	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeReadWrite {
+			st.Writable = append(st.Writable, m.Path)
+		} else {
+			st.ReadOnly = append(st.ReadOnly, m.Path)
+		}
+	}
+	for _, c := range p.Caches {
+		st.Writable = append(st.Writable, c.Path)
+	}
+	for _, h := range p.Egress.Allow {
+		st.Hosts = append(st.Hosts, string(h))
+	}
+	for _, h := range p.HTTP {
+		sh := StatusHost{Host: string(h.Host), Credential: h.Credential != nil, Default: string(h.Default)}
+		for _, r := range h.Rules {
+			sh.Rules = append(sh.Rules, StatusRule{Method: r.Method, Path: string(r.Path), Action: string(r.Action), Summary: r.Summary})
+		}
+		st.Intercepted = append(st.Intercepted, sh)
+	}
+	return st
 }

@@ -35,10 +35,16 @@ type Files interface {
 
 type settings struct {
 	DisableClaudeAiConnectors bool              `json:"disableClaudeAiConnectors,omitempty"`
+	StatusLine                *statusLine       `json:"statusLine,omitempty"`
 	DeniedMcpServers          []deniedServer    `json:"deniedMcpServers,omitempty"`
 	Permissions               permissions       `json:"permissions"`
 	Hooks                     map[string][]any  `json:"hooks"`
 	Env                       map[string]string `json:"env,omitempty"`
+}
+
+type statusLine struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
 }
 
 type deniedServer struct {
@@ -110,6 +116,12 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 			Timeout: timeout,
 		}},
 	})
+	s.Hooks["SessionStart"] = append(s.Hooks["SessionStart"], hookGroup{
+		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " hook claude session-start", Timeout: 10}},
+	})
+	if p.Claude.StatusLine {
+		s.StatusLine = &statusLine{Type: "command", Command: jail.ExePath + " statusline"}
+	}
 	s.Hooks["Notification"] = append(s.Hooks["Notification"], hookGroup{
 		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " hook claude notification", Timeout: 10}},
 	})
@@ -199,3 +211,66 @@ func (st State) Binds(host Host) []jail.Bind {
 
 // Shared lists what the jail sees from the real ~/.claude, read-only.
 func Shared() []string { return slices.Clone(shared) }
+
+// FilterMCPServers keeps only the named MCP servers in a ~/.claude.json
+// document, at the top level and per project. Other keys are left as they
+// are. A nil list keeps everything.
+func FilterMCPServers(data []byte, keep []string) ([]byte, error) {
+	if keep == nil {
+		return data, nil
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse ~/.claude.json: %w", err)
+	}
+	filter := func(raw json.RawMessage) (json.RawMessage, error) {
+		var servers map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &servers); err != nil {
+			return nil, err
+		}
+		for name := range servers {
+			if !slices.Contains(keep, name) {
+				delete(servers, name)
+			}
+		}
+		return json.Marshal(servers)
+	}
+	if raw, ok := doc["mcpServers"]; ok {
+		filtered, err := filter(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse mcpServers: %w", err)
+		}
+		doc["mcpServers"] = filtered
+	}
+	if raw, ok := doc["projects"]; ok {
+		var projects map[string]map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &projects); err != nil {
+			return nil, fmt.Errorf("parse projects: %w", err)
+		}
+		for name, proj := range projects {
+			if servers, ok := proj["mcpServers"]; ok {
+				filtered, err := filter(servers)
+				if err != nil {
+					return nil, fmt.Errorf("parse mcpServers of %s: %w", name, err)
+				}
+				proj["mcpServers"] = filtered
+			}
+		}
+		out, err := json.Marshal(projects)
+		if err != nil {
+			return nil, err
+		}
+		doc["projects"] = out
+	}
+	return json.Marshal(doc)
+}
+
+// SessionStart is the hook output that adds context for the agent.
+func SessionStart(context string) ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"hookSpecificOutput": map[string]string{
+			"hookEventName":     "SessionStart",
+			"additionalContext": context,
+		},
+	})
+}
