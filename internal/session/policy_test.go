@@ -14,6 +14,11 @@ func TestLearningModeAllowsAndRecords(t *testing.T) {
 		t.Fatal("without learning mode an unknown host is refused and nothing is recorded")
 	}
 	learning := newLivePolicy(p, true)
+	for _, h := range []string{"169.254.169.254", "10.0.0.1", "[::1]"} {
+		if learning.AllowsHost(h) {
+			t.Errorf("%s let through in learning mode", h)
+		}
+	}
 	for _, h := range []string{"WWW.kernel.org", "proxy.golang.org", "www.kernel.org", "bcr.bazel.build"} {
 		if !learning.AllowsHost(h) {
 			t.Fatalf("%s refused in learning mode", h)

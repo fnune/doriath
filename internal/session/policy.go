@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 	"strings"
 	"sync"
@@ -38,6 +39,11 @@ func (l *livePolicy) AllowsHost(host string) bool {
 	defer l.mu.Unlock()
 	if l.extra[host] {
 		return true
+	}
+	// An address the dialer refuses anyway, such as the cloud metadata
+	// service, is never something to add to a profile.
+	if ip, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil && !publicAddr(ip) {
+		return false
 	}
 	if l.learn {
 		l.learned[host] = true
@@ -92,4 +98,9 @@ func (s *Session) proposeHost(e proxy.Event) {
 			s.log.Write("rule-added", map[string]string{"host": e.Host, "file": profile.LocalFile(s.req.Profile.Name)})
 		}
 	})
+}
+
+func publicAddr(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return ip.IsGlobalUnicast() && !ip.IsPrivate()
 }
