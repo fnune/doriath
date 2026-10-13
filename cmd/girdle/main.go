@@ -41,8 +41,9 @@ Usage:
   girdle clean PROFILE
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  girdle profiles [list | show NAME | which [-q] [DIR]]
-  girdle doctor
+  girdle profiles [list | show NAME | edit NAME | which [-q] [DIR]]
+  girdle doctor [--secrets]
+  girdle completion zsh
   girdle version
 
 Inside a jail:
@@ -84,10 +85,14 @@ func run(args []string) int {
 		err = cmdStatusline(os.Stdout)
 	case "log":
 		err = cmdLog(args[1:], os.Stdout)
+	case "completion":
+		err = cmdCompletion(args[1:], os.Stdout)
+	case "__complete":
+		cmdComplete(args[1:], os.Stdout)
 	case "profiles":
 		err = cmdProfiles(args[1:])
 	case "doctor":
-		code = cmdDoctor()
+		code = cmdDoctor(args[1:])
 	case "version", "--version":
 		fmt.Println("girdle", version)
 	case "help", "-h", "--help":

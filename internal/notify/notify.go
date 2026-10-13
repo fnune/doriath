@@ -106,6 +106,16 @@ func NewDesktop(opener Opener, now func() time.Time) (*Desktop, error) {
 
 func (d *Desktop) Close() error { return d.conn.Close() }
 
+// Capabilities lists what the notification server supports, such as
+// "actions" for buttons.
+func (d *Desktop) Capabilities() ([]string, error) {
+	var caps []string
+	if err := d.conn.Object(busName, objPath).Call(iface+".GetCapabilities", 0).Store(&caps); err != nil {
+		return nil, fmt.Errorf("ask the notification server what it supports: %w", err)
+	}
+	return caps, nil
+}
+
 func (d *Desktop) dispatch(signals <-chan *dbus.Signal) {
 	for s := range signals {
 		if len(s.Body) < 2 {

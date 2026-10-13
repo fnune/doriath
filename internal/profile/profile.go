@@ -198,7 +198,10 @@ type Profile struct {
 	HTTP        []HTTPHost
 	SigningKey  string
 	Podman      bool
-	Hardening   Hardening
+	// ContainerImages limits which images containers may use, as globs over
+	// full references such as docker.io/library/*. Empty allows any.
+	ContainerImages []string
+	Hardening       Hardening
 	// NixDaemon gives the jail the system nix daemon's socket. The daemon
 	// runs builds outside the jail, so they bypass the egress allowlist.
 	NixDaemon bool

@@ -194,6 +194,7 @@ type builder struct {
 	http    []httpLayer
 	signing string
 	podman  bool
+	images  []string
 	nix     bool
 	harden  Hardening
 	claude  claudeLayer
@@ -250,6 +251,11 @@ func (b *builder) apply(l layer) {
 	}
 	if l.Podman != nil && l.Podman.Enabled != nil {
 		b.podman = *l.Podman.Enabled
+	}
+	if l.Podman != nil {
+		for _, img := range l.Podman.Images {
+			b.images = appendNew(b.images, img)
+		}
 	}
 	if l.Nix != nil && l.Nix.Daemon != nil {
 		b.nix = *l.Nix.Daemon
@@ -328,13 +334,14 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 func (b *builder) build(top layer) (*Profile, error) {
 	var errs []error
 	p := &Profile{
-		Name:        top.Name,
-		Description: top.Description,
-		Env:         Env{Set: map[string]string{}},
-		Podman:      b.podman,
-		NixDaemon:   b.nix,
-		Hardening:   b.harden,
-		Secrets:     b.secrets,
+		Name:            top.Name,
+		Description:     top.Description,
+		Env:             Env{Set: map[string]string{}},
+		Podman:          b.podman,
+		ContainerImages: b.images,
+		NixDaemon:       b.nix,
+		Hardening:       b.harden,
+		Secrets:         b.secrets,
 	}
 	for _, m := range top.Match {
 		path, err := b.expand(m)

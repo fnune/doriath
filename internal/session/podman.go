@@ -16,7 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fnune/girdle/internal/containers"
 	"github.com/fnune/girdle/internal/jail"
+	"github.com/fnune/girdle/internal/profile"
 )
 
 // IDRange is one entry of /etc/subuid or /etc/subgid.
@@ -137,7 +139,14 @@ func (s *Session) startPodman() error {
 	// Containers get a proxy port of their own, so the proxy never mistakes
 	// them for an identified program in the agent's jail.
 	argv := []string{jail.ExePath, "init", "--forward", fmt.Sprintf("%d=%s", containerProxyPort, jail.InJail(ProxySocket))}
-	argv = append(argv, "--", podmanBin, "system", "service", "--time=0", "unix://"+jail.InJail(PodmanSocket))
+	// The raw API socket lives where only the service sees it. The agent
+	// gets the broker's socket, which checks each request.
+	rawDir := filepath.Join(s.dir, "podman")
+	if err := os.MkdirAll(rawDir, 0o700); err != nil {
+		return err
+	}
+	raw := filepath.Join(rawDir, "podman.sock")
+	argv = append(argv, "--", podmanBin, "system", "service", "--time=0", "unix://"+raw)
 	spec, err := jail.Plan(p, s.layout(), jail.Options{
 		UID:     0,
 		Home:    s.deps.Paths.Home,
@@ -155,11 +164,12 @@ func (s *Session) startPodman() error {
 		},
 		ExtraBinds: []jail.Bind{
 			{Source: root, Dest: root},
+			{Source: rawDir, Dest: rawDir},
 			{Source: s.jailPath("policy.json"), Dest: filepath.Join(userConf, "policy.json"), ReadOnly: true},
 		},
-		SkipUserNS:      true,
-		InfoFD:          3,
-		JailDirWritable: true,
+		SkipUserNS: true,
+		InfoFD:     3,
+		Clones:     s.cloneDirs(),
 	}, osHost{})
 	if err != nil {
 		return fmt.Errorf("plan podman service: %w", err)
@@ -213,7 +223,7 @@ func (s *Session) startPodman() error {
 
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		if _, err := os.Stat(s.jailPath(PodmanSocket)); err == nil {
+		if _, err := os.Stat(raw); err == nil {
 			break
 		}
 		select {
@@ -228,7 +238,7 @@ func (s *Session) startPodman() error {
 		time.Sleep(50 * time.Millisecond)
 	}
 	s.log.Write("podman-start", map[string]any{"pid": s.netnsPID})
-	return nil
+	return s.startContainerBroker(raw)
 }
 
 func readSubIDs(path, name string, uid int) (IDRange, error) {
@@ -285,3 +295,38 @@ func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
 	}
 	return nil
 }
+
+// startContainerBroker puts the container API broker in front of the raw
+// podman socket. Containers may bind what the profile mounts, with the same
+// read-only limits, and the git paths the jail protects stay read-only.
+func (s *Session) startContainerBroker(raw string) error {
+	p := s.req.Profile
+	var mounts []containers.Mount
+	for _, m := range p.Mounts {
+		mounts = append(mounts, containers.Mount{Path: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
+		if m.Mode != profile.ModeReadOnly {
+			for _, name := range []string{"config", "hooks", "info"} {
+				mounts = append(mounts, containers.Mount{Path: filepath.Join(m.Path, ".git", name), ReadOnly: true})
+			}
+		}
+	}
+	for _, c := range p.Caches {
+		mounts = append(mounts, containers.Mount{Path: c.Path})
+	}
+	broker := containers.New(containers.Policy{Images: p.ContainerImages, Mounts: mounts}, raw, s.manager, s.log, containers.Config{
+		Session:     s.id,
+		Profile:     p.Name,
+		ApprovalTTL: approvalTTL,
+		Resolver:    symlinks{},
+	})
+	l, err := s.listen(PodmanSocket)
+	if err != nil {
+		return err
+	}
+	go func() { _ = broker.Serve(l) }()
+	return nil
+}
+
+type symlinks struct{}
+
+func (symlinks) EvalSymlinks(p string) (string, error) { return filepath.EvalSymlinks(p) }

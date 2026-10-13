@@ -528,6 +528,8 @@ podman --remote run --rm -v "$PWD:/w" docker.io/library/alpine:latest cat /w/sha
 podman --remote run --rm docker.io/library/alpine:latest wget -qO- https://example.com | grep -q "Example Domain" || echo "FAIL container egress"
 podman --remote run --rm docker.io/library/alpine:latest wget -qO- https://example.org >/dev/null 2>&1 && echo "FAIL container reached a denied host"
 podman --remote run --rm -v "$HOME/.ssh:/s" docker.io/library/alpine:latest ls /s >/dev/null 2>&1 && echo "FAIL ssh mounted"
+podman --remote run --rm --privileged docker.io/library/alpine:latest true 2>&1 | grep -q "girdle:" || echo "FAIL privileged not refused by girdle"
+ls "$XDG_RUNTIME_DIR"/../../../run/girdle 2>/dev/null && echo "FAIL session dir visible"
 echo done
 `, nil)
 	t.Log(out)

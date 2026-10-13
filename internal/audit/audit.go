@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/girdle/internal/containers"
 	"github.com/fnune/girdle/internal/proxy"
 )
 
@@ -67,3 +68,5 @@ func (l *Log) Decided(req approval.Request, d approval.Decision) {
 		Decision approval.Decision `json:"decision"`
 	}{req, d})
 }
+
+func (l *Log) ContainerAPI(e containers.Event) { l.Write("containers", e) }

@@ -89,7 +89,8 @@ type nixLayer struct {
 }
 
 type podmanLayer struct {
-	Enabled *bool `toml:"enabled"`
+	Enabled *bool    `toml:"enabled"`
+	Images  []string `toml:"images"`
 }
 
 type claudeLayer struct {

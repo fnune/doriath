@@ -10,13 +10,19 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	osuser "os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
+
+	"github.com/fnune/girdle/internal/notify"
+	"github.com/fnune/girdle/internal/seccomp"
+	"github.com/fnune/girdle/internal/secret"
 
 	"github.com/fnune/girdle/internal/agents/claude"
 	"github.com/fnune/girdle/internal/approval"
@@ -400,6 +406,9 @@ func cmdProfiles(args []string) error {
 	if args[0] == "which" {
 		return profilesWhich(l, args[1:])
 	}
+	if args[0] == "edit" && len(args) == 2 {
+		return profilesEdit(l, p.Profiles(), args[1], os.Stdin)
+	}
 	if args[0] == "show" && len(args) == 2 {
 		prof, err := l.Load(args[1])
 		if err != nil {
@@ -409,10 +418,15 @@ func cmdProfiles(args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(prof)
 	}
-	return errors.New("profiles: usage: girdle profiles [list | show NAME]")
+	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME | which [-q] [DIR]]")
 }
 
-func cmdDoctor() int {
+func cmdDoctor(args []string) int {
+	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fetch := flags.Bool("secrets", false, "also fetch every secret once, which can prompt for an unlock")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
 	failed := false
 	check := func(name string, err error) {
 		if err != nil {
@@ -444,23 +458,88 @@ func cmdDoctor() int {
 		}
 		check("unprivileged user namespaces", runErr)
 	}
-	names, err := loader(p).Names()
+	_, err = seccomp.HostArch()
+	check("seccomp filter for this architecture", err)
+	if abi, err := landlock.ABI(); err != nil {
+		note("landlock", "not available; writes are limited by the mounts only")
+	} else {
+		check(fmt.Sprintf("landlock (ABI %d)", abi), nil)
+	}
+
+	l := loader(p)
+	names, err := l.Names()
 	check("profiles in "+p.Profiles(), err)
+	podman := false
 	for _, n := range names {
-		_, err := loader(p).Load(n)
+		prof, err := l.Load(n)
 		check("profile "+n, err)
+		if err == nil && prof.Podman {
+			podman = true
+		}
 	}
 	if len(names) == 0 {
 		note("profiles", "none yet; see docs/install.md")
 	}
-	note("secrets", fmt.Sprintf("%d configured; girdle fetches them when a session first needs them", len(user.Secrets)))
-	for _, tool := range []string{"unshare", "nsenter", "podman", "newuidmap"} {
-		if lookPath(tool) == "" {
-			note(tool, "not found; the podman module needs it")
+
+	secretNames := make([]string, 0, len(user.Secrets))
+	for name := range user.Secrets {
+		secretNames = append(secretNames, name)
+	}
+	sort.Strings(secretNames)
+	store := secret.NewConfigured(user.Secrets, execRunner{}, secret.OSFiles{})
+	for _, name := range secretNames {
+		b := user.Secrets[name]
+		switch {
+		case *fetch:
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			_, err := store.Get(ctx, name)
+			cancel()
+			check("secret "+name, err)
+		case b.File != "":
+			info, err := os.Stat(b.File)
+			if err == nil && info.Mode().Perm()&0o077 != 0 {
+				err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
+			}
+			check("secret "+name+" (file)", err)
+		default:
+			_, err := exec.LookPath(b.Command[0])
+			check("secret "+name+" (command "+b.Command[0]+")", err)
 		}
 	}
-	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-		note("desktop notifications", "no session bus; approvals work through girdle approvals only")
+	if !*fetch && len(secretNames) > 0 {
+		note("secrets", "run girdle doctor --secrets to fetch each one once")
+	}
+
+	if podman {
+		for _, tool := range []string{"unshare", "nsenter", "podman", "newuidmap"} {
+			if lookPath(tool) == "" {
+				check(tool, fmt.Errorf("not found; the podman module needs it"))
+			}
+		}
+		if u, err := osuser.Current(); err == nil {
+			for _, f := range []string{"/etc/subuid", "/etc/subgid"} {
+				data, err := os.ReadFile(f)
+				if err == nil {
+					_, err = session.SubIDs(data, u.Username, os.Getuid())
+				}
+				check("subordinate ids in "+f, err)
+			}
+		}
+	}
+
+	if desktop, err := notify.NewDesktop(opener{}, time.Now); err != nil {
+		note("desktop notifications", "unavailable; approvals work through girdle approvals only")
+	} else {
+		caps, err := desktop.Capabilities()
+		_ = desktop.Close()
+		switch {
+		case err != nil:
+			note("desktop notifications", err.Error())
+		case !slices.Contains(caps, "actions"):
+			note("desktop notifications", "the notification server shows no buttons; decide with girdle approvals")
+		default:
+			check("desktop notifications with buttons", nil)
+		}
 	}
 	if failed {
 		return 1
@@ -583,4 +662,59 @@ func cmdSandboxExec(args []string) error {
 		return syscall.Exec(path, argv, os.Environ())
 	}
 	return fmt.Errorf("sandbox-exec: %w", err)
+}
+
+const profileTemplate = `description = ""
+modules = ["base", "claude"]
+match = []
+
+[[mounts]]
+path = "~/Development/my-project"
+mode = "clone"
+`
+
+// profilesEdit opens a profile in the editor and checks it after every save,
+// so a broken profile is caught here and not at the next girdle run.
+func profilesEdit(l *profile.Loader, dir, name string, in io.Reader) error {
+	path := filepath.Join(dir, name+".toml")
+	info, err := os.Lstat(path)
+	switch {
+	case err == nil && info.Mode()&os.ModeSymlink != 0:
+		if target, _ := filepath.EvalSymlinks(path); strings.HasPrefix(target, "/nix/store/") {
+			return fmt.Errorf("profile %s is managed by home-manager (%s): change it in your nix configuration", name, target)
+		}
+	case errors.Is(err, os.ErrNotExist):
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte(profileTemplate), 0o600); err != nil {
+			return err
+		}
+	case err != nil:
+		return err
+	}
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		editor = "vi"
+	}
+	answers := bufio.NewScanner(in)
+	for {
+		cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", path)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("editor: %w", err)
+		}
+		_, err := l.Load(name)
+		if err == nil {
+			fmt.Printf("Profile %s is valid.\n", name)
+			return nil
+		}
+		fmt.Printf("Profile %s has a problem:\n  %v\nEdit again? [Y/n] ", name, err)
+		if !answers.Scan() || strings.HasPrefix(strings.ToLower(strings.TrimSpace(answers.Text())), "n") {
+			return fmt.Errorf("profile %s is not valid", name)
+		}
+	}
 }
