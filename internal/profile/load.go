@@ -324,8 +324,6 @@ func (b *builder) apply(l layer) {
 	}
 }
 
-// mergeHTTP lets a later layer override an earlier entry for the same host.
-// Its rules go first, so that a profile can narrow what a module allows.
 func (b *builder) mergeHTTP(h httpLayer) {
 	i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, h.Host) })
 	if i < 0 {
@@ -343,8 +341,6 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	b.http[i] = cur
 }
 
-// imagePattern checks a [podman] images entry. Patterns match fully
-// qualified references, so one without a registry would match nothing.
 func imagePattern(p string) error {
 	if p == "*" {
 		return nil
@@ -577,8 +573,6 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 			return HTTPHost{}, fmt.Errorf("http %s credential: %w", h.Host, err)
 		}
 		out.Credential = &cred
-		// A request that carries the person's credential and that no rule
-		// names waits for them, rather than going out in their name.
 		if h.Default == "" {
 			out.Default = ActionApprove
 		}

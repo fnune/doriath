@@ -15,17 +15,11 @@ import (
 	"github.com/fnune/girdle/internal/proxy"
 )
 
-// livePolicy is the profile plus hosts the person allowed during this
-// session. In learning mode it lets any host through and records the ones
-// the profile does not name, so a person can build an allowlist from one
-// run instead of one denial at a time.
 type livePolicy struct {
 	*profile.Profile
-	mu    sync.RWMutex
-	extra map[string]bool
-	learn bool
-	// learned maps each host to the programs that reached it, so a person
-	// can tell hosts every program needs from hosts only one does.
+	mu      sync.RWMutex
+	extra   map[string]bool
+	learn   bool
 	learned map[string]map[string]bool
 }
 
@@ -43,8 +37,6 @@ func (l *livePolicy) AllowsHostFor(host, exe string) bool {
 	if l.extra[host] {
 		return true
 	}
-	// An address the dialer refuses anyway, such as the cloud metadata
-	// service, is never something to add to a profile.
 	if ip, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil && !publicAddr(ip) {
 		return false
 	}
@@ -93,9 +85,6 @@ func (l *livePolicy) allow(host string) {
 
 const ruleTTL = 30 * time.Minute
 
-// proposeHost drafts a rule from a denied host. Nothing waits for the
-// answer: the agent already got its error, and a retry after the person
-// allows the host goes through.
 func (s *Session) proposeHost(e proxy.Event) {
 	if e.Reason != "host not in the profile" {
 		return

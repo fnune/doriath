@@ -36,8 +36,6 @@ func (d seccompData) word(off uint32) (uint32, error) {
 	}
 }
 
-// run interprets the encoded filter the way the kernel would, for the
-// instructions Build emits.
 func run(t *testing.T, filter []byte, d seccompData) uint32 {
 	t.Helper()
 	if len(filter)%8 != 0 {

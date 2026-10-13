@@ -105,8 +105,6 @@ type Credential struct {
 	Binaries []string
 }
 
-// trustedRoots hold programs the agent cannot write, so a program found
-// there by name is the real one and not a copy the agent renamed.
 var trustedRoots = []string{"/nix/store/", "/usr/", "/bin/", "/sbin/", "/lib/", "/lib64/", "/opt/"}
 
 // AllowsBinary reports whether exe may use the credential. A pattern with a
@@ -131,9 +129,6 @@ func UnderTrustedRoot(path string) bool {
 	return false
 }
 
-// matchBinary reports whether exe is one of the programs: a bare name matches
-// a program under a read-only system path, because anywhere else the agent
-// could put its own program under that name, and a path is a glob.
 func matchBinary(binaries []string, exe string) bool {
 	if exe == "" {
 		return false
@@ -353,9 +348,6 @@ func (r Rule) matchGraphQL(parse func() ([]graphQLOperation, bool)) bool {
 	return ok && r.GraphQL.match(ops)
 }
 
-// jsonStrings returns every string in a JSON body, decoded, because JSON
-// escapes such as \u0050 would otherwise hide a GraphQL mutation name from
-// a plain byte search.
 func jsonStrings(body []byte) [][]byte {
 	var doc any
 	if json.Unmarshal(body, &doc) != nil {

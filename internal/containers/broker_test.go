@@ -17,14 +17,10 @@ import (
 	"github.com/fnune/girdle/internal/approval"
 )
 
-// fakePodman answers on a unix socket like the parts of podman the broker
-// relays: JSON replies, a followed log, and attach in both hijack styles.
 type fakePodman struct {
-	mu    sync.Mutex
-	paths []string
-	// more releases the second log line.
-	more chan struct{}
-	// image is the ID and digest that pulls store.
+	mu              sync.Mutex
+	paths           []string
+	more            chan struct{}
 	imageID, digest string
 	pullFails       bool
 	created         []string
@@ -66,7 +62,6 @@ func (f *fakePodman) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pull writes progress like podman does, ending with the stored image.
 func (f *fakePodman) pull(w http.ResponseWriter, libpodAPI bool) {
 	f.mu.Lock()
 	id, fails := f.imageID, f.pullFails
@@ -105,8 +100,6 @@ func (f *fakePodman) inspect(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, `{"Id":%q,"Digest":%q,"RepoTags":["docker.io/library/postgres:16"]}`, id, digest)
 }
 
-// attach echoes each line, as a container running cat would, until stdin
-// closes.
 func (f *fakePodman) attach(w http.ResponseWriter, r *http.Request) {
 	conn, brw, err := http.NewResponseController(w).Hijack()
 	if err != nil {
@@ -170,7 +163,6 @@ func (e *events) kinds() []string {
 	return out
 }
 
-// memPins keeps pins in memory.
 type memPins struct {
 	mu   sync.Mutex
 	pins map[string]string
@@ -373,8 +365,6 @@ func TestPushApproval(t *testing.T) {
 	}
 }
 
-// attachRoundTrip sends a line through attach and checks the echo, then
-// half-closes and expects the rest of the output.
 func attachRoundTrip(t *testing.T, h *harness, upgrade bool) {
 	t.Helper()
 	conn, err := net.Dial("unix", h.socket)

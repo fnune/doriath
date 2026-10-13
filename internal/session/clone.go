@@ -15,9 +15,6 @@ import (
 	"github.com/fnune/girdle/internal/profile"
 )
 
-// repoClone is the agent's private clone of one repository. Its objects
-// borrow from the source repository through an alternate that points inside
-// the jail, so a clone of a large repository costs almost nothing.
 type repoClone struct {
 	source    string
 	dir       string
@@ -82,8 +79,6 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 		base:      base,
 		refPrefix: fmt.Sprintf("refs/girdle/%s/%s/", s.req.Profile.Name, s.id),
 	}
-	// The base lives outside the clone, which the agent can write, because it
-	// becomes an argument to git on the host.
 	baseFile := c.dir + ".base"
 	if s.req.CloneFrom != "" {
 		data, err := os.ReadFile(baseFile)
@@ -105,17 +100,8 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	if _, err := s.git(ctx, "-C", c.dir, "checkout", "--quiet", "--detach", base); err != nil {
 		return repoClone{}, err
 	}
-	// git clone makes a branch for the source's HEAD. Without it, every
-	// branch in the clone is one the agent made, so landing brings back only
-	// the agent's work.
-	heads, err := s.git(ctx, "-C", c.dir, "for-each-ref", "--format=%(refname)", "refs/heads/")
-	if err != nil {
+	if err := s.dropBranchesTheAgentDidNotMake(ctx, c.dir); err != nil {
 		return repoClone{}, err
-	}
-	for _, ref := range strings.Fields(heads) {
-		if _, err := s.git(ctx, "-C", c.dir, "update-ref", "-d", ref); err != nil {
-			return repoClone{}, err
-		}
 	}
 	if err := writeFile(baseFile, []byte(base+"\n"), 0o600); err != nil {
 		return repoClone{}, err
@@ -130,9 +116,6 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	return c, s.pointAlternates(c, i)
 }
 
-// pointAlternates makes the clone borrow objects from the source through a
-// path inside the jail: the source's object directory is mounted read-only
-// at a path of its own, because the clone itself sits at the source's path.
 func (s *Session) pointAlternates(c repoClone, i int) error {
 	if err := os.MkdirAll(filepath.Join(s.jailDir, "origin-"+strconv.Itoa(i), "objects"), 0o700); err != nil {
 		return err
@@ -157,23 +140,14 @@ func (s *Session) cloneDirs() map[string]string {
 	return out
 }
 
-// landClones brings the clone's branches into the source repository as
-// refs under refs/girdle, where the person reviews them. Nothing touches the
-// source's working tree, and jj ignores that namespace.
 func (s *Session) landClones(ctx context.Context) []string {
 	var lines []string
 	for _, c := range s.clones {
-		// The jail is gone, so the clone's alternate goes back to the host
-		// path. git ignores GIT_ALTERNATE_OBJECT_DIRECTORIES for the other
-		// side of a local fetch, so the file itself has to change.
 		alternates := filepath.Join(c.dir, ".git", "objects", "info", "alternates")
 		if err := writeFile(alternates, []byte(c.objects+"\n"), 0o644); err != nil {
 			lines = append(lines, fmt.Sprintf("girdle: could not bring back work from %s: %v", c.dir, err))
 			continue
 		}
-		// The agent controls the clone, so the fetch names the upload-pack it
-		// runs and allows only the local transport, whatever the clone's
-		// config or a .git file in it say.
 		if _, err := s.git(ctx, "-C", c.source, "-c", "protocol.allow=never", "-c", "protocol.file.allow=always",
 			"fetch", "--quiet", "--no-write-fetch-head", "--upload-pack="+shellWord(s.deps.Git)+" upload-pack", c.dir,
 			"+refs/heads/*:"+c.refPrefix+"*", "+HEAD:"+c.refPrefix+"HEAD"); err != nil {
@@ -194,7 +168,6 @@ func (s *Session) landClones(ctx context.Context) []string {
 		}
 		for _, ref := range strings.Fields(refs) {
 			if strings.HasSuffix(ref, "/HEAD") {
-				// A detached HEAD only matters when no branch holds its commit.
 				if sha, err := s.git(ctx, "-C", c.source, "rev-parse", ref); err == nil && tips[sha] {
 					continue
 				}
@@ -204,7 +177,6 @@ func (s *Session) landClones(ctx context.Context) []string {
 				continue
 			}
 			if n == "0" {
-				// Nothing new: a ref at the base would only clutter the repository.
 				_, _ = s.git(ctx, "-C", c.source, "update-ref", "-d", ref)
 				continue
 			}
@@ -217,9 +189,6 @@ func (s *Session) landClones(ctx context.Context) []string {
 	return lines
 }
 
-// retireClone deletes a clone whose work has all landed, since each one is a
-// full checkout and they add up. A clone with uncommitted changes stays, for
-// girdle run --clone-from.
 func (s *Session) retireClone(ctx context.Context, c repoClone) []string {
 	status, err := s.gitInClone(ctx, c.dir, "status", "--porcelain", "--untracked-files=normal")
 	if err != nil {
@@ -243,8 +212,6 @@ func (s *Session) cloneOwner() string {
 	return s.id
 }
 
-// gitInClone runs git in a repository the agent could change, so neither
-// your git config nor the clone's may name programs for it to run.
 func (s *Session) gitInClone(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, s.deps.Git, append([]string{"-C", dir, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"}, args...)...)
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
@@ -271,4 +238,17 @@ func isObjectID(s string) bool {
 
 func shellWord(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func (s *Session) dropBranchesTheAgentDidNotMake(ctx context.Context, dir string) error {
+	heads, err := s.git(ctx, "-C", dir, "for-each-ref", "--format=%(refname)", "refs/heads/")
+	if err != nil {
+		return err
+	}
+	for _, ref := range strings.Fields(heads) {
+		if _, err := s.git(ctx, "-C", dir, "update-ref", "-d", ref); err != nil {
+			return err
+		}
+	}
+	return nil
 }

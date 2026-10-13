@@ -17,13 +17,6 @@ type Resolver interface {
 	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
-// guardDialer keeps the proxy from reaching the host itself or the local
-// network through an allowed name. It resolves the name once and dials the
-// address it checked, so a second DNS answer cannot slip a different address
-// in. Loopback, link-local (cloud metadata lives there), multicast and
-// unspecified addresses are always refused. Private ranges are allowed only
-// for hosts the profile names exactly, such as an internal service reached
-// over a VPN.
 type guardDialer struct {
 	next     proxy.Dialer
 	resolver Resolver

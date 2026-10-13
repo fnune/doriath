@@ -70,8 +70,6 @@ func cmdCompletion(args []string, w io.Writer) error {
 	return err
 }
 
-// cmdComplete prints candidates for the completion script, one per line,
-// and stays quiet on errors so a broken config never breaks the shell.
 func cmdComplete(args []string, w io.Writer) {
 	if len(args) != 1 {
 		return

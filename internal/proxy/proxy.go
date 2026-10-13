@@ -149,9 +149,6 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// absoluteHTTPS serves clients that send "GET https://host/path" to the
-// proxy instead of a CONNECT, as busybox wget does. The proxy makes the TLS
-// connection itself, so the same rules apply as for a tunnel.
 func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
 	if port := r.URL.Port(); port != "" && port != "443" {
@@ -231,7 +228,6 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	pipe(prefixed(conn, buf.Reader), upstream)
 }
 
-// intercept serves HTTP on the decrypted connection, one request at a time.
 func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, id Identity) {
 	tlsConn := tls.Server(conn, &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -290,8 +286,6 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			return
 		}
 		if tooLarge {
-			// Refused rather than passed through, so that padding cannot
-			// hide a mutation from a rule.
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "request body too large to inspect"})
 			deny(w, http.StatusRequestEntityTooLarge, "girdle: request body too large to inspect")
 			return
@@ -368,8 +362,6 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	s.forward(w, r, "http", r.URL.Host)
 }
 
-// forwardAudited records every request to an intercepted host with its
-// outcome, because these are the requests that carry a credential.
 func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string) {
 	exe := IdentityFrom(r.Context()).Exe
 	s.forwardWith(w, r, "https", host, func(resp *http.Response) error {
@@ -399,15 +391,9 @@ func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, hos
 			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: upstream %s failed: %v", host, err))
 		},
 	}
-	// Some clients half-close their side after sending the request, which
-	// net/http reports as a cancelled context. The response is still wanted,
-	// so the upstream request must outlive that signal.
 	rp.ServeHTTP(noCloseNotify{w}, r.WithContext(context.WithoutCancel(r.Context())))
 }
 
-// noCloseNotify hides http.CloseNotifier, which ReverseProxy would otherwise
-// use to cancel the upstream request on a half-close. Unwrap keeps flushing
-// and hijacking reachable through http.ResponseController.
 type noCloseNotify struct{ http.ResponseWriter }
 
 func (w noCloseNotify) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -428,13 +414,9 @@ func (s *Server) authorization(ctx context.Context, c profile.Credential) (strin
 	}
 }
 
-// scope identifies what an approval covers. Requests that match the same rule
-// share a scope, so "allow for this session" covers them all.
 func scope(r profile.Rule, matched bool, method, path, host string, body []byte) string {
 	if !matched {
 		s := fmt.Sprintf("http %s %s %s", method, host, path)
-		// Without this, allowing one unnamed GraphQL write for the session
-		// would allow every other one on the same path.
 		if gql := profile.DescribeGraphQL(body); gql != "" {
 			s += " graphql " + gql
 		}
@@ -453,8 +435,6 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte)
 	return s
 }
 
-// repoPrefix narrows an approval to one repository, so allowing a merge for
-// the session does not allow merges everywhere the token reaches.
 func repoPrefix(p string) string {
 	segs := strings.Split(strings.TrimPrefix(p, "/"), "/")
 	switch {
@@ -468,8 +448,6 @@ func repoPrefix(p string) string {
 
 const excerptLimit = 400
 
-// bodyExcerpt shows the person what an inspected request would send. For
-// GraphQL that is the decoded query, not its JSON wrapping.
 func bodyExcerpt(body []byte) string {
 	if len(body) == 0 {
 		return ""
@@ -489,7 +467,6 @@ func bodyExcerpt(body []byte) string {
 
 const maxInspectedBody = 1 << 20
 
-// readBody reads up to limit bytes and puts the body back for forwarding.
 func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
 	if r.Body == nil {
 		return nil, false, nil
@@ -507,8 +484,6 @@ func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
 	return data, false, nil
 }
 
-// withheld records, once per host and program, that a request went out
-// without the host's credential because the program is not allowed to use it.
 func (s *Server) withheld(host string, id Identity) {
 	exe := id.Exe
 	if exe == "" {
@@ -576,8 +551,6 @@ func pipe(a, b net.Conn) {
 	_ = b.Close()
 }
 
-// canonicalPath refuses paths that a server could resolve differently from
-// the rules, such as doubled slashes, dot segments or encoded separators.
 func canonicalPath(u *url.URL) bool {
 	raw := strings.ToLower(u.EscapedPath())
 	if strings.Contains(raw, "%2f") || strings.Contains(raw, "%5c") || strings.Contains(u.Path, "\\") || strings.Contains(u.Path, ";") {
@@ -596,9 +569,6 @@ func identityEncoding(enc string) bool {
 	return enc == "" || enc == "identity"
 }
 
-// hostReason is why a host was refused. "host not in the profile" also
-// drafts a rule for the person, which a program-only host must not get:
-// the person already chose which programs reach it.
 func (s *Server) hostReason(host string) string {
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		return "host allowed only for " + strings.Join(progs, ", ")

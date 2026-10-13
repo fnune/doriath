@@ -14,9 +14,6 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-// gitDenied are git settings from the desktop that must not reach the jail:
-// credential helpers, URL rewrites to SSH, includes of files the jail cannot
-// see, and settings that name programs or keys outside the jail.
 var gitDenied = []string{
 	"credential.", "url.", "include.", "includeif.", "http.", "sendemail.", "remote.", "branch.",
 	"core.sshcommand", "core.askpass", "core.hookspath", "core.fsmonitor", "core.editor",
@@ -35,7 +32,6 @@ func gitAllowed(key string) bool {
 
 type gitEntry struct{ key, value string }
 
-// parseGitList reads the output of git config --list -z.
 func parseGitList(data []byte) []gitEntry {
 	var out []gitEntry
 	for _, rec := range bytes.Split(data, []byte{0}) {
@@ -194,8 +190,6 @@ func JavaTrustStore(bundle []byte) ([]byte, error) {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			// System bundles carry the odd certificate Go cannot parse;
-			// leaving it out only means Java does not trust that root.
 			continue
 		}
 		certs = append(certs, cert)

@@ -13,8 +13,6 @@ import (
 	"github.com/fnune/girdle/internal/session"
 )
 
-// sessionStatus asks the broker when running inside a jail, and the only
-// running session's control socket on the host.
 func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	var st session.Status
 	if broker := os.Getenv("GIRDLE_BROKER"); broker != "" {
@@ -58,8 +56,6 @@ func cmdStatus(args []string, w io.Writer) error {
 	return nil
 }
 
-// describeStatus is written for the agent as much as for the person: it says
-// what the jail allows and how to ask for more.
 func describeStatus(st session.Status) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This session runs in girdle profile %q (session %s).\n", st.Profile, st.Session)

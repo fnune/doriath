@@ -115,17 +115,10 @@ type Options struct {
 	Clones map[string]string
 }
 
-// The nix daemon builds outside the jail, so its socket would let builds
-// bypass the egress allowlist.
 const nixDaemonDir = "/nix/var/nix/daemon-socket"
 
-// hiddenRoots are empty in the jail. /var holds logs, package databases and
-// service state, and /opt holds programs such as password managers, none of
-// which a profile asked for. A profile mounts back what it needs.
 var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var", "/var/tmp", "/opt", "/mnt", "/media", "/srv", "/boot"}
 
-// varLinks keeps the /var paths that point into /run working once /var is
-// empty, since programs still open /var/run/... by that name.
 var varLinks = map[string]string{"/var/run": "../run", "/var/lock": "../run/lock"}
 
 func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, error) {
@@ -227,9 +220,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	if err := errors.Join(errs...); err != nil {
 		return Spec{}, err
 	}
-	// Parents must be mounted before children, or a parent bind would hide
-	// the child. A stable sort keeps the declared order among equals.
-	sort.SliceStable(binds, func(i, j int) bool { return depth(binds[i].Dest) < depth(binds[j].Dest) })
+	mountParentsBeforeChildren(binds)
 	s.Binds = binds
 
 	for _, k := range p.Env.Pass {
@@ -256,12 +247,6 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	return s, nil
 }
 
-// gitGuards keeps a repo's config, hooks and the files that redirect git to
-// other config read-only. git outside the jail runs hooks and commands named
-// in config (core.fsmonitor, core.hooksPath and others), so a writable copy
-// would let the agent run code on the desktop. commondir, config.worktree
-// and a worktree's .git file all choose which config git reads, and each
-// submodule under .git/modules has config and hooks of its own.
 func gitGuards(src, dest string, host Host) []Bind {
 	srcGit, destGit := filepath.Join(src, ".git"), filepath.Join(dest, ".git")
 	if filepath.Base(src) == ".git" {
@@ -276,9 +261,6 @@ func gitGuards(src, dest string, host Host) []Bind {
 	return nil
 }
 
-// repositories finds the repositories a writable mount contains: the mount
-// itself and any below it, a few levels down, so a checkout nested inside a
-// mounted directory gets the same guards.
 func repositories(root string, host Host) []string {
 	var out []string
 	var walk func(dir string, depth int)
@@ -306,8 +288,6 @@ const repositoryDepth = 3
 
 var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
 
-// jjGuards keeps a jj repository's own config read-only, because jj on the
-// desktop runs commands it names, such as diff and merge tools.
 func jjGuards(repo string, host Host) []Bind {
 	p := filepath.Join(repo, ".jj", "repo", "config.toml")
 	if host.Kind(p) == "" {
@@ -418,4 +398,8 @@ func (s Spec) Args() []string {
 	}
 	args = append(args, "--chdir", s.Cwd, "--")
 	return append(args, s.Command...)
+}
+
+func mountParentsBeforeChildren(binds []Bind) {
+	sort.SliceStable(binds, func(i, j int) bool { return depth(binds[i].Dest) < depth(binds[j].Dest) })
 }

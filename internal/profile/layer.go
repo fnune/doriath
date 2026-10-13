@@ -8,9 +8,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// layer is one TOML document: a module or a profile. Pointer fields tell
-// "not set" apart from the zero value, so later layers only override what
-// they name.
 type layer struct {
 	Name        string                 `toml:"name"`
 	Description string                 `toml:"description"`

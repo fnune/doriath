@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// request is what the decision needs from an HTTP request. Path has the
-// version prefix stripped.
 type request struct {
 	Method string
 	Path   string
@@ -15,22 +13,15 @@ type request struct {
 	Body   []byte
 }
 
-// verdict is the outcome of a decision. A zero verdict forwards the request.
 type verdict struct {
-	// refusal is shown to the client after "girdle: ".
 	refusal string
 	ask     *ask
-	// pull is the tag whose digest the broker pins once the pull is done.
-	pull *imageRef
-	// image is the tag that a create runs, which the broker replaces with
-	// its pinned digest.
-	image *imageRef
+	pull    *imageRef
+	image   *imageRef
 }
 
-// ask is a request that needs a person's approval before it is forwarded.
 type ask struct {
 	summary string
-	// details defaults to the request line.
 	details string
 	scope   string
 }
@@ -41,7 +32,6 @@ func refuse(format string, args ...any) verdict {
 
 func refuseIf(reason string) verdict { return verdict{refusal: reason} }
 
-// running is the verdict for a create that passed its checks.
 func running(ref string) verdict {
 	if r, ok := tagged(ref); ok {
 		return verdict{image: &r}
@@ -55,8 +45,6 @@ type checker struct {
 	profile  string
 }
 
-// decide applies the route table and the request checks. It does no IO
-// beyond the resolver.
 func (c checker) decide(r request) verdict {
 	rt, ok := lookup(r.Method, r.Path)
 	if !ok {
@@ -71,8 +59,6 @@ func (c checker) decide(r request) verdict {
 	return rt.treat.check(c, r)
 }
 
-// queryValues reads a parameter the way podman's decoder does, which ignores
-// the case of names. Every value counts, so a second spelling cannot hide one.
 func queryValues(q url.Values, name string) []string {
 	var out []string
 	for k, vs := range q {

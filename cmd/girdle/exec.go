@@ -16,10 +16,6 @@ import (
 	"github.com/fnune/girdle/internal/session"
 )
 
-// cmdExec runs a command inside a running session's jail, as one more of its
-// processes: same mounts, network, process tree, environment, seccomp filter
-// and write rules. It is how a person looks at what an agent started, such
-// as a dev server that only listens inside the jail.
 func cmdExec(args []string) (int, error) {
 	flags := flag.NewFlagSet("exec", flag.ContinueOnError)
 	id := flags.String("session", "", "session to join (default: the only running one)")
@@ -45,10 +41,8 @@ func cmdExec(args []string) (int, error) {
 	}
 
 	argv := []string{"--target", strconv.Itoa(entry.PID), "--user", "--mount", "--net", "--pid", "--ipc", "--uts"}
-	// A jail's user namespace maps your IDs to themselves, and it forbids
-	// setgroups, which --setgid would call. Only a jail inside the podman
-	// service's namespace, where you are root, runs the agent as other IDs.
-	if entry.UID == os.Getuid() && entry.GID == os.Getgid() {
+	jailMapsYourIDsToThemselves := entry.UID == os.Getuid() && entry.GID == os.Getgid()
+	if jailMapsYourIDsToThemselves {
 		argv = append(argv, "--preserve-credentials")
 	} else {
 		argv = append(argv, "--setuid", strconv.Itoa(entry.UID), "--setgid", strconv.Itoa(entry.GID))
@@ -75,8 +69,6 @@ func cmdExec(args []string) (int, error) {
 	return 0, nil
 }
 
-// runningEntry finds a running session, the only one or the one named, and
-// how to join its jail.
 func runningEntry(id string) (string, session.Entry, error) {
 	p, err := paths()
 	if err != nil {
@@ -126,8 +118,6 @@ func pickSession(sessions []liveSession, id, root string) (string, error) {
 	return "", fmt.Errorf("several sessions are running (%s): pick one with --session", strings.Join(ids, ", "))
 }
 
-// entryCwd keeps the caller's directory when the jail sees it at the same
-// path, which holds inside the session's working directory.
 func entryCwd(sessionCwd string) string {
 	wd, err := os.Getwd()
 	if err == nil && (wd == sessionCwd || strings.HasPrefix(wd, sessionCwd+"/")) {

@@ -6,9 +6,6 @@ import (
 	"sync"
 )
 
-// prefixed returns conn with any bytes the HTTP server already buffered put
-// back in front, so that a client that sends its TLS hello right after the
-// CONNECT line loses nothing.
 func prefixed(conn net.Conn, buf *bufio.Reader) net.Conn {
 	if buf == nil || buf.Buffered() == 0 {
 		return conn
@@ -30,9 +27,6 @@ func (c *bufferedConn) CloseWrite() error {
 	return c.Close()
 }
 
-// oneConnListener hands out a single connection, then blocks until that
-// connection closes, so that http.Server.Serve returns when the client is
-// done.
 type oneConnListener struct {
 	conn     net.Conn
 	accepted sync.Once

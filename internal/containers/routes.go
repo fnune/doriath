@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// api says which of podman's two APIs a route belongs to. Libpod routes are
-// the same paths under /libpod.
 type api int
 
 const (
@@ -16,9 +14,7 @@ const (
 	both = docker | libpod
 )
 
-// treatment is what the broker does with requests to a route.
 type treatment struct {
-	// refused, when set, says why the route is never forwarded.
 	refused string
 	check   func(checker, request) verdict
 	body    bool
@@ -27,8 +23,6 @@ type treatment struct {
 
 var allowed = treatment{}
 
-// streamed routes switch the connection to a raw stream, with a 101 response
-// or, for older clients, a 200 response without a length.
 var streamed = treatment{stream: true}
 
 func refused(reason string) treatment { return treatment{refused: reason} }
@@ -40,14 +34,10 @@ func onBody(f func(checker, request) verdict) treatment { return treatment{check
 type route struct {
 	api     api
 	methods string
-	// pattern segments: * matches one segment, ** one or more, for image
-	// names such as docker.io/library/alpine.
 	pattern string
 	treat   treatment
 }
 
-// routes lists every endpoint that reaches podman. The first match wins and
-// anything else is refused.
 var routes = expand([]route{
 	{both, "GET HEAD", "/_ping", allowed},
 	{both, "GET", "/version", allowed},
@@ -249,9 +239,6 @@ func matchSegments(pattern, segs []string) bool {
 
 var versionSegment = regexp.MustCompile(`^v[0-9][0-9A-Za-z.-]*$`)
 
-// apiPath strips the optional version prefix, as in /v1.41/containers/json
-// or /v5.0.0/libpod/info. Paths that are not clean are refused: podman's
-// router would clean them and match a different route.
 func apiPath(p string) (string, bool) {
 	if !strings.HasPrefix(p, "/") || path.Clean(p) != p {
 		return "", false

@@ -70,8 +70,6 @@ func (u *upstream) count() int {
 	return len(u.requests)
 }
 
-// redirectDialer sends every connection to one local address, whatever host
-// the proxy asked for.
 type redirectDialer struct{ tlsAddr, plainAddr string }
 
 func (d redirectDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
@@ -239,8 +237,6 @@ func newHarness(t *testing.T) *harness {
 	return &harness{dialAddrs: redirectDialer{tlsAddr: tlsServer.Listener.Addr().String(), plainAddr: plainServer.Listener.Addr().String()}, proxyURL: u, session: session, upstream: up, upCA: upCA, approver: approver, events: ev}
 }
 
-// client trusts both the session CA (for intercepted hosts) and the upstream
-// CA (for tunneled hosts), as the jail's combined bundle does.
 func (h *harness) client() *http.Client {
 	pool := h.upCA.Pool()
 	pool.AppendCertsFromPEM(h.session.CertPEM())

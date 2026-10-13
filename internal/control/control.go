@@ -64,7 +64,6 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	// A closed client connection cancels whatever the handler waits for.
 	go func() {
 		buf := make([]byte, 1)
 		_, _ = conn.Read(buf)

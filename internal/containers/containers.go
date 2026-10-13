@@ -150,8 +150,6 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			b.refuse(w, r, http.StatusBadRequest, "cannot read the request body")
 			return
 		case tooLarge:
-			// Refused rather than passed through, so that padding cannot
-			// hide a field from the check.
 			b.refuse(w, r, http.StatusRequestEntityTooLarge, "request bodies over 2 MB cannot be checked")
 			return
 		}
@@ -185,8 +183,6 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// approved asks the person. When they do not allow the request, it returns
-// the message for the client.
 func (b *Broker) approved(r *http.Request, a ask) (bool, string) {
 	details := a.details
 	if details == "" {
@@ -226,8 +222,6 @@ func (b *Broker) record(e Event) {
 	}
 }
 
-// deny writes the error shape of podman and Docker, whose clients print
-// message.
 func deny(w http.ResponseWriter, status int, message string) {
 	body, _ := json.Marshal(map[string]any{"message": message, "cause": "refused by girdle", "response": status})
 	body = append(body, '\n')
@@ -238,7 +232,6 @@ func deny(w http.ResponseWriter, status int, message string) {
 	_, _ = w.Write(body)
 }
 
-// readBody reads up to limit bytes and puts the body back for forwarding.
 func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
 	if r.Body == nil || r.Body == http.NoBody {
 		return nil, false, nil

@@ -9,11 +9,6 @@ import (
 	"sync"
 )
 
-// stream forwards attach and exec start. Podman answers clients that ask for
-// an upgrade with 101, and others with a 200 that has no length and turns the
-// connection into a raw stream in both directions. ReverseProxy only relays
-// the first, so both are relayed here at the connection level once the
-// response shows the switch.
 func (b *Broker) stream(w http.ResponseWriter, r *http.Request) {
 	up, err := b.dial(r.Context(), "unix", b.upstream)
 	if err != nil {
@@ -78,9 +73,6 @@ func writeHead(w io.Writer, resp *http.Response) error {
 	return err
 }
 
-// pipe copies both ways. Reads go through the buffered readers, which may
-// already hold stream bytes. A finished direction is half-closed, so that a
-// client closing stdin still gets the rest of the output.
 func pipe(client net.Conn, clientR io.Reader, up net.Conn, upR io.Reader) {
 	var wg sync.WaitGroup
 	wg.Add(2)

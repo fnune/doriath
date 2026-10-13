@@ -13,10 +13,6 @@ import (
 	"strings"
 )
 
-// runPinned replaces the image of a create body with the digest pinned for
-// its tag. Rewriting the body, rather than comparing the local image with the
-// pin first, leaves no moment in which the tag can move between the check
-// and the create: podman resolves the digest itself.
 func (b *Broker) runPinned(w http.ResponseWriter, r *http.Request, body []byte, ref imageRef) bool {
 	if b.cfg.Pins == nil {
 		return true
@@ -40,8 +36,6 @@ func (b *Broker) runPinned(w http.ResponseWriter, r *http.Request, body []byte, 
 	return true
 }
 
-// withImage sets the top-level image field, which both APIs decode without
-// regard to case. Duplicate keys were refused before, so there is one.
 func withImage(body []byte, ref string) ([]byte, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(body, &m); err != nil {
@@ -65,10 +59,6 @@ func withImage(body []byte, ref string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// pull forwards a pull of a tag and relays its progress. Once the pull is
-// done, the digest it resolved to is pinned or compared with the pin. The
-// status line is sent by then, so a refusal is the stream's last message,
-// which Docker and podman clients report as the pull's error.
 func (b *Broker) pull(w http.ResponseWriter, r *http.Request, ref imageRef, libpodAPI bool) {
 	out := r.Clone(r.Context())
 	out.URL.Scheme, out.URL.Host, out.Host, out.RequestURI = "http", "podman", "podman", ""
@@ -101,9 +91,6 @@ func (b *Broker) pull(w http.ResponseWriter, r *http.Request, ref imageRef, libp
 	_, _ = w.Write(pullError("girdle: "+reason, libpodAPI))
 }
 
-// pullMessage holds the fields that both APIs' pull streams share. The last
-// message of a pull that worked names the image: in full for libpod, by
-// its first 12 characters for Docker.
 type pullMessage struct {
 	ID    string          `json:"id"`
 	Error json.RawMessage `json:"error"`
@@ -111,8 +98,6 @@ type pullMessage struct {
 
 const maxPullLine = 64 << 10
 
-// relayPull copies the stream line by line. It returns the ID in the last
-// message, and false when the client left or the pull reported an error.
 func relayPull(w http.ResponseWriter, body io.Reader) (string, bool) {
 	rc := http.NewResponseController(w)
 	br := bufio.NewReaderSize(body, maxPullLine)
@@ -162,9 +147,6 @@ func pullError(message string, libpodAPI bool) []byte {
 	return append(data, '\n')
 }
 
-// pinPull pins the digest of the image a pull produced. Asking podman about
-// that image by ID, rather than about the tag, reads what this pull stored
-// even if the tag moves again in the meantime.
 func (b *Broker) pinPull(r *http.Request, ref imageRef, id string) string {
 	digest, err := b.imageDigest(r, id)
 	if err != nil {
@@ -205,8 +187,6 @@ func shortDigest(d string) string {
 	return d
 }
 
-// imageDigest asks podman for the manifest digest of a local image. Podman
-// serves libpod paths only under a version prefix, and accepts any version.
 func (b *Broker) imageDigest(r *http.Request, id string) (string, error) {
 	id = strings.TrimPrefix(id, "sha256:")
 	if !imageID.MatchString(id) {

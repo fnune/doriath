@@ -50,9 +50,6 @@ func FindPeer(procRoot string, conn net.Conn) (Peer, error) {
 	return soleOwner(procRoot, pids)
 }
 
-// soleOwner names the process behind a socket. A socket inherited across
-// fork and exec has several holders, and naming the first would credit one
-// program with another's request, so holders must run the same executable.
 func soleOwner(procRoot string, pids []int) (Peer, error) {
 	var first os.FileInfo
 	for _, pid := range pids {
@@ -74,8 +71,6 @@ func soleOwner(procRoot string, pids []int) (Peer, error) {
 	return Peer{PID: pids[0], Exe: exe}, nil
 }
 
-// socketInode looks for the socket whose local address is the client's and
-// whose remote address is the listener's.
 func socketInode(procRoot string, client, server *net.TCPAddr) (string, error) {
 	want := procAddr(client) + " " + procAddr(server)
 	for _, table := range []string{"net/tcp", "net/tcp6"} {
@@ -99,8 +94,6 @@ func socketInode(procRoot string, client, server *net.TCPAddr) (string, error) {
 	return "", fmt.Errorf("no socket for %s", client)
 }
 
-// procAddr formats an IPv4 address as /proc/net/tcp does: the address as a
-// little-endian hex word and the port as big-endian hex.
 func procAddr(a *net.TCPAddr) string {
 	ip := a.IP.To4()
 	if ip == nil {

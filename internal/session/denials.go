@@ -7,14 +7,8 @@ import (
 	"github.com/fnune/girdle/internal/proxy"
 )
 
-// egressLog writes the first denial for each host and reason to the audit
-// log and counts the repeats, so a client that retries in a loop does not
-// flood the log. The counts also answer "what was blocked" for the agent and
-// for the end-of-session summary.
 type egressLog struct {
-	next proxy.Recorder
-	// firstDenial runs once for each denied host and reason, outside the
-	// lock.
+	next        proxy.Recorder
 	firstDenial func(proxy.Event)
 
 	mu     sync.Mutex

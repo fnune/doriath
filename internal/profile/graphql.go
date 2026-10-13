@@ -59,13 +59,8 @@ type graphQLOperation struct {
 	Fields []string
 }
 
-// maxGraphQLTokens bounds the parser's recursion, so that a deeply nested
-// query cannot exhaust the proxy's stack. gqlgen uses the same default.
 const maxGraphQLTokens = 15000
 
-// parseGraphQL returns every operation in a GraphQL request body, single or
-// batched. It reports false when any part of the body cannot be read, so a
-// rule never matches a request it does not fully understand.
 func parseGraphQL(body []byte) (ops []graphQLOperation, ok bool) {
 	defer func() {
 		if recover() != nil {
@@ -93,8 +88,6 @@ func parseGraphQL(body []byte) (ops []graphQLOperation, ok bool) {
 	return ops, len(ops) > 0
 }
 
-// duplicateFragments catches a document that defines a fragment twice, since
-// the spread could then resolve to a definition other than the one checked.
 func duplicateFragments(doc *ast.QueryDocument) bool {
 	seen := map[string]bool{}
 	for _, f := range doc.Fragments {
@@ -120,9 +113,6 @@ func DescribeGraphQL(body []byte) string {
 	return strings.Join(parts, "; ")
 }
 
-// graphQLQueries returns the query text of each request in a body. Every key
-// that folds to "query" counts, because decoders differ on duplicate and
-// differently cased keys and the server may read any of them.
 func graphQLQueries(body []byte) ([]string, bool) {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	tok, err := dec.Token()
@@ -160,9 +150,6 @@ func graphQLQueries(body []byte) ([]string, bool) {
 	return queries, len(queries) > 0
 }
 
-// requestQueries reads the rest of one request object, whose opening brace
-// the caller consumed. A request without query text, such as a persisted
-// query sent by hash, cannot be checked.
 func requestQueries(dec *json.Decoder) ([]string, bool) {
 	var queries []string
 	for dec.More() {
@@ -193,9 +180,6 @@ func requestQueries(dec *json.Decoder) ([]string, bool) {
 	return queries, len(queries) > 0
 }
 
-// expander lists the top-level fields of a selection set, through inline
-// fragments and fragment spreads. Each named fragment is expanded once, so
-// fragments that spread each other many times cannot blow up the work.
 type expander struct {
 	doc    *ast.QueryDocument
 	done   map[string][]string

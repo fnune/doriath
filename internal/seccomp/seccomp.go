@@ -46,32 +46,21 @@ type Policy struct {
 	AllowPtrace     bool
 }
 
-// Offsets into struct seccomp_data.
 const (
-	offsetNr   = 0
-	offsetArch = 4
-	// The low halves of args[0] and args[1] on a little-endian machine. amd64
-	// and arm64 are both little-endian.
+	offsetNr      = 0
+	offsetArch    = 4
 	offsetArg0Low = 16
 	offsetArg1Low = 24
 )
 
-// Terminal ioctls that push input into a terminal, which would let the agent
-// type commands into the shell that started girdle once it exits.
 var terminalInjection = []uint32{unix.TIOCSTI, unix.TIOCLINUX}
 
-// Socket families that tools do not need and that reach rarely used kernel
-// code: raw packets, kernel crypto, VM sockets, IPsec keys, XDP and device
-// buses.
 var deniedFamilies = []uint32{
 	unix.AF_PACKET, unix.AF_ALG, unix.AF_VSOCK, unix.AF_KEY, unix.AF_XDP,
 	unix.AF_BLUETOOTH, unix.AF_CAN, unix.AF_TIPC, unix.AF_RDS, unix.AF_LLC,
 	unix.AF_NFC, unix.AF_SMC, unix.AF_KCM, unix.AF_QIPCRTR, unix.AF_MCTP,
 }
 
-// x32 syscalls on x86_64 carry this bit in their number and share the
-// AUDIT_ARCH_X86_64 arch, so without this check they would slip past every
-// rule keyed on a syscall number.
 const x32SyscallBit = 0x40000000
 
 const namespaceCloneFlags = unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWNET |
@@ -79,11 +68,9 @@ const namespaceCloneFlags = unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_N
 	unix.CLONE_NEWTIME
 
 const (
-	retAllow = unix.SECCOMP_RET_ALLOW
-	retKill  = unix.SECCOMP_RET_KILL_PROCESS
-	retEPERM = unix.SECCOMP_RET_ERRNO | uint32(unix.EPERM)&unix.SECCOMP_RET_DATA
-	// ENOSYS makes callers believe the kernel lacks the syscall, so they take
-	// their fallback path instead of failing.
+	retAllow  = unix.SECCOMP_RET_ALLOW
+	retKill   = unix.SECCOMP_RET_KILL_PROCESS
+	retEPERM  = unix.SECCOMP_RET_ERRNO | uint32(unix.EPERM)&unix.SECCOMP_RET_DATA
 	retENOSYS = unix.SECCOMP_RET_ERRNO | uint32(unix.ENOSYS)&unix.SECCOMP_RET_DATA
 )
 
@@ -123,9 +110,6 @@ func rules(arch Arch, p Policy) []rule {
 			"move_mount", "open_tree", "fsopen", "fsconfig", "fsmount", "fspick", "mount_setattr",
 			"setns", "unshare",
 		)...)
-		// clone3 passes its flags in a struct that classic BPF cannot read.
-		// glibc falls back to clone on ENOSYS, and clone's flags are checked
-		// below.
 		rs = append(rs, deny(retENOSYS, "clone3")...)
 	}
 	return rs
@@ -179,8 +163,6 @@ func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
 	prog = append(prog, argumentRule(numbers["ioctl"], offsetArg1Low, terminalInjection)...)
 	prog = append(prog, argumentRule(numbers["socket"], offsetArg0Low, deniedFamilies)...)
 	if !p.AllowNamespaces {
-		// Thread creation goes through clone too, so only the namespace flags
-		// are refused. They all sit in the low 32 bits.
 		prog = append(prog,
 			jump(opJeq, numbers["clone"], 0, 3),
 			stmt(opLoad, offsetArg0Low),
@@ -191,13 +173,7 @@ func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
 	return append(prog, stmt(opRet, retAllow)), nil
 }
 
-// argumentRule refuses a syscall when one argument equals any of values. The
-// syscall number is reloaded afterwards, so later rules see it again.
 func argumentRule(nr uint32, offset uint32, values []uint32) []unix.SockFilter {
-	// Layout: [0] syscall check, [1] load argument, [2..n+1] one check per
-	// value, [n+2] jump over the refusal, [n+3] refuse, [n+4] reload the
-	// syscall number. A jump target is its own index plus one plus the
-	// offset.
 	n := len(values)
 	prog := []unix.SockFilter{
 		jump(opJeq, nr, 0, uint8(n+3)),

@@ -56,7 +56,6 @@ func TestLoadUser(t *testing.T) {
 		t.Fatalf("desktop should be false: %+v, %v", u, err)
 	}
 
-	// Secrets belong to profiles, so config.toml has no place for them.
 	write("[secrets.x]\nfile = \"~/token\"\n")
 	if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "unknown keys") {
 		t.Fatalf("err = %v, want unknown keys", err)

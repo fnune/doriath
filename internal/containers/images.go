@@ -16,22 +16,15 @@ var (
 	imageDigest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 )
 
-// imageRef is a normalized image reference.
 type imageRef struct {
-	// full is the reference with tag or digest, such as
-	// "docker.io/library/alpine:latest".
-	full string
-	// repo is the part without tag and digest.
+	full   string
 	repo   string
 	tag    string
 	digest string
 }
 
-// pinned is the reference to a digest that create bodies are rewritten to.
 func (r imageRef) pinned(digest string) string { return r.repo + "@" + digest }
 
-// normalizeImage expands a reference the way Docker does: "alpine" becomes
-// "docker.io/library/alpine:latest".
 func normalizeImage(ref string) (imageRef, bool) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || imageID.MatchString(ref) {
@@ -66,8 +59,6 @@ func normalizeImage(ref string) (imageRef, bool) {
 	return r, true
 }
 
-// image checks a reference against the profile's image patterns. A pattern
-// without a tag matches every tag of the repositories it names.
 func (c checker) image(ref string) string {
 	if c.anyImage() {
 		return ""
@@ -87,7 +78,6 @@ func (c checker) image(ref string) string {
 	return fmt.Sprintf("image %s is not allowed: add it, or a pattern such as %q, to [podman] images in profile %q (%q allows any image)", r.full, path.Dir(r.repo)+"/*", c.profile, AnyImage)
 }
 
-// repository checks a pull of every tag of a repository.
 func (c checker) repository(ref string) string {
 	if c.anyImage() {
 		return ""
@@ -111,10 +101,6 @@ func (c checker) anyImage() bool {
 	return false
 }
 
-// tagged is the reference to pin, or false for references by digest or ID,
-// which name their content already. Images under localhost are built or
-// loaded in the session and change with each build, which a pin would hold
-// back.
 func tagged(ref string) (imageRef, bool) {
 	r, ok := normalizeImage(ref)
 	if !ok || r.digest != "" || r.repo == "localhost" || strings.HasPrefix(r.repo, "localhost/") || strings.HasPrefix(r.repo, "localhost:") {

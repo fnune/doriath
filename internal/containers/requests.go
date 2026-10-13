@@ -28,7 +28,6 @@ func dockerPull(c checker, r request) verdict {
 	return pulling(c.image(ref), ref)
 }
 
-// pulling is the verdict for a pull of one reference.
 func pulling(reason, ref string) verdict {
 	if reason != "" {
 		return refuseIf(reason)
@@ -39,8 +38,6 @@ func pulling(reason, ref string) verdict {
 	return verdict{}
 }
 
-// withTag joins Docker's fromImage and tag parameters, where the tag can also
-// be a digest.
 func withTag(ref, tag string) string {
 	if tag == "" || strings.Contains(ref, "@") {
 		return ref
@@ -62,16 +59,12 @@ func libpodPull(c checker, r request) verdict {
 	case len(refs) > 1:
 		return refuse("a pull that names more than one image cannot be checked")
 	}
-	// Every tag cannot be pinned at once. Creates still run the digest
-	// pinned for a tag.
 	if allTags, _ := strconv.ParseBool(queryValue(r.Query, "allTags")); allTags {
 		return refuseIf(c.repository(refs[0]))
 	}
 	return pulling(c.image(refs[0]), refs[0])
 }
 
-// libpodImport refuses sources other than URLs, which podman reads as paths
-// on its own side.
 func libpodImport(_ checker, r request) verdict {
 	for _, src := range queryValues(r.Query, "url") {
 		if src != "" && !isHTTPURL(src) {
@@ -132,8 +125,6 @@ func build(c checker, r request) verdict {
 	return verdict{}
 }
 
-// jsonList reads parameters that podman sends as JSON arrays and that older
-// clients send as plain strings.
 func jsonList(values []string) []string {
 	var out []string
 	for _, v := range values {
@@ -174,8 +165,6 @@ func buildNamespaces(values []string) string {
 			if o.Path != "" {
 				return fmt.Sprintf("builds that join a %s namespace by path are not allowed; no profile setting allows them", o.Name)
 			}
-			// podman asks for the host's user namespace by default. Here
-			// that is the service's own, which every container shares.
 			if o.Host && o.Name != "user" && o.Name != "network" && o.Name != "net" {
 				return fmt.Sprintf("builds in the host's %s namespace are not allowed; no profile setting allows them", o.Name)
 			}
@@ -184,8 +173,6 @@ func buildNamespaces(values []string) string {
 	return ""
 }
 
-// buildFiles checks Containerfile names, which podman reads from its own side
-// when they are absolute or leave the build context.
 func buildFiles(files []string, what string) string {
 	for _, f := range files {
 		if isHTTPURL(f) {
@@ -198,8 +185,6 @@ func buildFiles(files []string, what string) string {
 	return ""
 }
 
-// buildSecrets checks src= in build secrets: podman moves that file, relative
-// to the build context, on its own side.
 func buildSecrets(secrets []string) string {
 	for _, s := range secrets {
 		for _, kv := range strings.Split(s, ",") {
@@ -243,8 +228,6 @@ func volumeCreate(c checker, r request) verdict {
 	return refuseIf(c.volumeDriver(b.Driver, opts))
 }
 
-// volumeDriver checks the options of the local driver, which can bind a host
-// path (o=bind) or mount a device.
 func (c checker) volumeDriver(driver string, opts map[string]string) string {
 	switch strings.ToLower(driver) {
 	case "", "local":
@@ -279,8 +262,6 @@ type secretBody struct {
 	}
 }
 
-// Secret drivers other than file run commands or write files on the podman
-// service's side.
 func dockerSecret(_ checker, r request) verdict {
 	var b secretBody
 	if reason := decodeBody(r.Body, &b); reason != "" {
@@ -323,8 +304,6 @@ func secretDriver(name string, hasOptions bool) string {
 	return ""
 }
 
-// decodeBody decodes JSON after refusing duplicate keys, which podman's
-// decoder and this one could resolve differently.
 func decodeBody(body []byte, v any) string {
 	if len(bytes.TrimSpace(body)) == 0 {
 		return ""

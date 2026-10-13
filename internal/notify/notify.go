@@ -46,8 +46,6 @@ func Actions(req approval.Request) []string {
 	return a
 }
 
-// safeURL allows only web links, which the person sees in the body before
-// opening them.
 func safeURL(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
@@ -104,8 +102,6 @@ type Desktop struct {
 	opener Opener
 	now    func() time.Time
 
-	// owner is the notification server's unique bus name. Only dispatch
-	// uses it.
 	owner string
 
 	mu       sync.Mutex
@@ -132,10 +128,6 @@ func NewDesktop(opener Opener, now func() time.Time) (*Desktop, error) {
 
 func (d *Desktop) Close() error { return d.conn.Close() }
 
-// fromServer checks that a signal comes from the notification server, since
-// any client on the session bus can emit ActionInvoked and so approve a
-// request. The owner is looked up again when it changes, as it does when the
-// server restarts.
 func (d *Desktop) fromServer(sender string) bool {
 	if sender != "" && sender == d.owner {
 		return true

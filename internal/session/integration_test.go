@@ -101,20 +101,17 @@ func (clock) Now() time.Time                         { return time.Now() }
 func (clock) After(d time.Duration) <-chan time.Time { return time.After(d) }
 
 type env struct {
-	t        *testing.T
-	home     string
-	work     string
-	paths    config.Paths
-	upstream *recorder
-	dialer   proxyDialer
-	bundle   string
-	secrets  map[string]secret.Backend
-	roots    *ca.Authority
-	// binaries is spliced into the api.github.com credential.
-	binaries string
-	// cloneFrom is passed to the next session; lastID is the last session's.
-	cloneFrom string
-	// systemdRun is empty unless a test checks resource limits.
+	t          *testing.T
+	home       string
+	work       string
+	paths      config.Paths
+	upstream   *recorder
+	dialer     proxyDialer
+	bundle     string
+	secrets    map[string]secret.Backend
+	roots      *ca.Authority
+	binaries   string
+	cloneFrom  string
 	systemdRun string
 	lastID     string
 }
@@ -124,7 +121,6 @@ func newEnv(t *testing.T) *env {
 	if _, err := exec.LookPath("bwrap"); err != nil && !bundle.Bundled() {
 		t.Skip("bubblewrap not available")
 	}
-	// Unix socket paths are limited to 108 bytes, and test names are long.
 	root, err := os.MkdirTemp("/tmp", "gi")
 	if err != nil {
 		t.Fatal(err)
@@ -221,8 +217,6 @@ summary = "Create a GitHub release"
 	return p
 }
 
-// run starts a session with script as the command. while runs alongside it,
-// for example to decide approvals.
 func (e *env) run(p *profile.Profile, script string, while func()) (int, string) {
 	e.t.Helper()
 	scriptPath := filepath.Join(e.work, "script.sh")
@@ -308,7 +302,6 @@ func lookPath(name string) string {
 	return p
 }
 
-// decideNext waits for one pending request and decides it.
 func (e *env) decideNext(d approval.Decision) approval.Request {
 	e.t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
@@ -697,10 +690,9 @@ func TestCloneMode(t *testing.T) {
 	}
 	gitIn("add", "README")
 	gitIn("commit", "-q", "-m", "first")
-	// The person is on a branch of their own, ahead of the ref the clone
-	// starts from. Landing must not report it as the agent's work.
-	gitIn("switch", "-q", "-c", "wip")
-	gitIn("commit", "-q", "--allow-empty", "-m", "wip")
+	const personsOwnBranch = "wip"
+	gitIn("switch", "-q", "-c", personsOwnBranch)
+	gitIn("commit", "-q", "--allow-empty", "-m", personsOwnBranch)
 	base := gitIn("rev-parse", "HEAD")
 
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\nref = \"main\"\n", repo))
@@ -809,7 +801,6 @@ func TestLimitsRunTheSessionInAScope(t *testing.T) {
 	var tasksMax string
 	code, out := e.run(p, `while [ ! -e "$PWD/release" ]; do sleep 0.05; done`, func() {
 		defer func() { _ = os.WriteFile(release, nil, 0o600) }()
-		// The jail's cgroup namespace hides the scope, so read it from outside.
 		unit := fmt.Sprintf("girdle-%s-agent-%s.scope", p.Name, e.lastID)
 		for range 100 {
 			got, _ := exec.Command("systemctl", "--user", "show", "-p", "TasksMax", "--value", unit).Output()

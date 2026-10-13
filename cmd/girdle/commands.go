@@ -74,8 +74,6 @@ func cmdInit(args []string) (int, error) {
 
 const maxHookInput = 1 << 20
 
-// cmdHook runs as a Claude Code hook inside the jail. If girdle cannot get a
-// decision, it prints nothing, and Claude Code shows its own prompt.
 func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) < 2 || args[0] != "claude" {
 		return errors.New("hook: usage: girdle hook claude permission-request|notification")
@@ -169,8 +167,6 @@ type liveSession struct {
 	control string
 }
 
-// liveSessions lists running sessions and removes the directories of
-// sessions whose process is gone.
 func liveSessions(p config.Paths) ([]liveSession, error) {
 	entries, err := os.ReadDir(p.Sessions())
 	if errors.Is(err, os.ErrNotExist) {
@@ -319,8 +315,6 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 
 func indent(s string) string { return strings.ReplaceAll(s, "\n", "\n    ") }
 
-// watch asks about each new request in the terminal, for people who keep a
-// terminal open next to their agents instead of using notifications.
 func watch(ctx context.Context, p config.Paths, in io.Reader, out io.Writer) error {
 	asked := map[string]bool{}
 	lines := bufio.NewScanner(in)
@@ -566,8 +560,6 @@ func cmdDoctor(args []string) int {
 	return 0
 }
 
-// cmdClean deletes a profile's caches. Container storage holds files owned by
-// subordinate ids, which a plain rm cannot remove.
 func cmdClean(args []string) error {
 	if len(args) != 1 {
 		return errors.New("clean: usage: girdle clean PROFILE")
@@ -607,9 +599,6 @@ func cmdClean(args []string) error {
 	return nil
 }
 
-// profilesWhich prints the profile that girdle run would pick, for shell
-// shims that run an agent through girdle when a profile matches. With -q it
-// prints nothing and only sets the exit status.
 func profilesWhich(l *profile.Loader, args []string) error {
 	flags := flag.NewFlagSet("which", flag.ContinueOnError)
 	quiet := flags.Bool("q", false, "print nothing, only set the exit status")
@@ -658,8 +647,6 @@ func (l *stringList) Set(s string) error {
 	return nil
 }
 
-// cmdSandboxExec limits writes to the given paths with Landlock and then
-// becomes the command, so the limit holds for it and everything it starts.
 func cmdSandboxExec(args []string) error {
 	flags := flag.NewFlagSet("sandbox-exec", flag.ContinueOnError)
 	var writable stringList
@@ -677,8 +664,6 @@ func cmdSandboxExec(args []string) error {
 	if err != nil {
 		return fmt.Errorf("sandbox-exec: %w", err)
 	}
-	// Capabilities, seccomp and Landlock all bind the calling thread, which
-	// then execs, so it must not change under us.
 	runtime.LockOSThread()
 	if *seccompFD != 0 {
 		prog, err := io.ReadAll(os.NewFile(uintptr(*seccompFD), "seccomp"))
@@ -714,8 +699,6 @@ path = "~/Development/my-project"
 mode = "clone"
 `
 
-// profilesEdit opens a profile in the editor and checks it after every save,
-// so a broken profile is caught here and not at the next girdle run.
 func profilesEdit(l *profile.Loader, dir, name string, in io.Reader) error {
 	path := filepath.Join(dir, name+".toml")
 	info, err := os.Lstat(path)

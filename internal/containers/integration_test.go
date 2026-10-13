@@ -21,8 +21,6 @@ import (
 	"github.com/fnune/girdle/internal/approval"
 )
 
-// tool is a static binary for a test image, so that the tests need no
-// registry.
 const toolSource = `package main
 
 import (
@@ -70,8 +68,6 @@ type podmanEnv struct {
 	broker string
 }
 
-// on returns the environment for a subtest, so that failures end the
-// subtest.
 func (p *podmanEnv) on(t *testing.T) *podmanEnv {
 	q := *p
 	q.t = t
@@ -84,7 +80,6 @@ func (p *podmanEnv) command(ctx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// remote runs the podman client against the broker.
 func (p *podmanEnv) remote(stdin string, args ...string) (string, string, error) {
 	p.t.Helper()
 	ctx, cancel := context.WithTimeout(p.t.Context(), 2*time.Minute)
@@ -119,7 +114,6 @@ func (p *podmanEnv) refused(want string, args ...string) {
 	}
 }
 
-// mustContainer creates a container and returns its ID.
 func (p *podmanEnv) mustContainer(image string) string {
 	p.t.Helper()
 	id := strings.TrimSpace(p.mustRemote("", "create", image, "true"))
@@ -139,8 +133,6 @@ func writeFiles(t *testing.T, files map[string]string) {
 	}
 }
 
-// startPodman runs a podman service with its own storage, configuration and
-// runtime directory, so that the user's containers are never touched.
 func startPodman(t *testing.T) *podmanEnv {
 	t.Helper()
 	if _, err := exec.LookPath("podman"); err != nil {
@@ -195,8 +187,6 @@ func startPodman(t *testing.T) *podmanEnv {
 			_ = syscall.Kill(-svc.Process.Pid, syscall.SIGKILL)
 			<-waited
 		}
-		// Container storage holds files owned by subordinate ids, which only
-		// the user namespace can remove.
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		rm := p.command(ctx, "--root", p.root, "--runroot", p.run, "unshare", "rm", "-rf", p.root, p.run)
@@ -239,7 +229,6 @@ func (p *podmanEnv) startBroker(policy Policy, pins Pins) *events {
 	return rec
 }
 
-// testImage imports a one-file image built from toolSource.
 func (p *podmanEnv) testImage(name string) {
 	p.t.Helper()
 	dir := p.t.TempDir()

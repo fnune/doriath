@@ -80,9 +80,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 				Summary: p.Summary,
 				Details: p.Details,
 				URL:     p.URL,
-				// The agent writes this request, so its scope is namespaced and
-				// can only ever match its own earlier tool requests.
-				Scope: "tool " + p.Agent + " " + p.Scope,
+				Scope:   "tool " + p.Agent + " " + p.Scope,
 			}, timeout)
 		},
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {

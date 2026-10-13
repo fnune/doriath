@@ -43,8 +43,6 @@ func TestNameConstraintsHoldEvenForForgedLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Bypass the covers check, as a leaked key would, and check that a
-	// verifier still rejects the leaf.
 	a.permitted = append(a.permitted, "evil.com")
 	leaf, err := a.Certificate("evil.com")
 	if err != nil {

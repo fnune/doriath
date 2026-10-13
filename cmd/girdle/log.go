@@ -90,9 +90,8 @@ func cmdLog(args []string, out io.Writer) error {
 			if !*follow {
 				return nil
 			}
-			// Put back a partial line so the next read completes it.
 			if len(line) > 0 {
-				r = bufio.NewReader(io.MultiReader(strings.NewReader(string(line)), file))
+				r = resumeAfterPartialLine(line, file)
 			}
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -156,4 +155,8 @@ func formatRecord(r auditRecord) string {
 		return head + fmt.Sprintf("ended with exit code %v", d["exit"])
 	}
 	return head + r.Event + " " + string(r.Data)
+}
+
+func resumeAfterPartialLine(partial []byte, rest io.Reader) *bufio.Reader {
+	return bufio.NewReader(io.MultiReader(strings.NewReader(string(partial)), rest))
 }

@@ -101,9 +101,6 @@ func (a *Agent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.Signat
 	return a.signer.Sign(nil, data)
 }
 
-// sshsigNamespace reads the namespace from the data ssh-keygen -Y sign asks
-// the agent to sign: the magic preamble, then namespace, reserved, hash
-// algorithm and message hash as SSH strings (PROTOCOL.sshsig).
 func sshsigNamespace(data []byte) (string, error) {
 	rest, ok := bytes.CutPrefix(data, sshsigMagic)
 	if !ok {

@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// links resolves symbolic links from a fixed table.
 type links map[string]string
 
 func (l links) EvalSymlinks(p string) (string, error) {
@@ -35,12 +34,11 @@ func testChecker() checker {
 
 func TestDecide(t *testing.T) {
 	tests := []struct {
-		name   string
-		method string
-		path   string
-		query  string
-		body   string
-		// refused is a substring of the refusal, or empty when allowed.
+		name    string
+		method  string
+		path    string
+		query   string
+		body    string
 		refused string
 	}{
 		{"ping", "GET", "/_ping", "", "", ""},
@@ -229,7 +227,6 @@ func TestPushAsks(t *testing.T) {
 	}
 }
 
-// defaultImages is the list of the podman module.
 var defaultImages = []string{
 	"docker.io/library/*",
 	"localhost/*",
@@ -398,8 +395,6 @@ func TestResolveMissingPath(t *testing.T) {
 	}
 }
 
-// missing resolves only paths up to exists, like a file system where the rest
-// is not created yet.
 type missing struct {
 	links  links
 	exists string

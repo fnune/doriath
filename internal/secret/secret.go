@@ -121,8 +121,6 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend) (Value, 
 	return trimmed(name, stdout)
 }
 
-// trimmed drops one trailing newline, which files and command output add, but
-// keeps everything else so that multi-line keys survive.
 func trimmed(name string, data []byte) (Value, error) {
 	data = bytes.TrimSuffix(data, []byte("\n"))
 	data = bytes.TrimSuffix(data, []byte("\r"))

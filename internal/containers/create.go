@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// Field names follow the Docker Engine API's container create body and
-// podman v5's pkg/specgen. Fields not named here pass through unchanged.
-
 type dockerCreateBody struct {
 	Image      string
 	HostConfig *dockerHostConfig
@@ -130,9 +127,6 @@ func (c checker) dockerMounts(ms []dockerMount) string {
 	return ""
 }
 
-// dockerNamespace checks modes such as "host", "container:<id>" and
-// "ns:<path>". Joining the host's or a path's namespace leaves the
-// container's isolation.
 func (c checker) dockerNamespace(kind, mode string) string {
 	m, _, _ := strings.Cut(strings.ToLower(mode), ":")
 	switch m {
@@ -144,8 +138,6 @@ func (c checker) dockerNamespace(kind, mode string) string {
 	return ""
 }
 
-// dockerNetwork allows "host": the session already shares one network
-// namespace, whose only way out is the proxy.
 func (c checker) dockerNetwork(mode string) string {
 	m, _, _ := strings.Cut(strings.ToLower(mode), ":")
 	if m == "ns" || m == "path" {
@@ -154,8 +146,6 @@ func (c checker) dockerNetwork(mode string) string {
 	return ""
 }
 
-// securityOpts checks Docker-style options, "name=value" or the older
-// "name:value".
 func (c checker) securityOpts(opts []string) string {
 	for _, o := range opts {
 		i := strings.IndexAny(o, "=:")
@@ -209,9 +199,6 @@ type imageVolume struct {
 	Source string `json:"source"`
 }
 
-// libpodSpec holds the fields of podman's SpecGenerator that reach outside a
-// container, and the PodSpecGenerator fields that carry over to a pod's infra
-// container.
 type libpodSpec struct {
 	Image                string            `json:"image"`
 	Privileged           *bool             `json:"privileged"`
@@ -338,8 +325,6 @@ func (c checker) specNetwork(ns specNamespace) string {
 	return ""
 }
 
-// seccomp refuses custom profiles as well as "unconfined": an agent can write
-// a profile that allows everything into its worktree.
 func (c checker) seccomp(policy, profile string) string {
 	if strings.EqualFold(policy, "image") {
 		return "the seccomp profile from the image is not allowed: containers keep the default seccomp profile"
@@ -399,8 +384,6 @@ func (c checker) specMounts(ms []specMount) string {
 	return ""
 }
 
-// globBase is the directory part of a glob mount's source before the first
-// pattern character, which bounds every path the glob can match.
 func globBase(src string) string {
 	i := strings.IndexAny(src, "*?[")
 	if i < 0 {
@@ -409,7 +392,6 @@ func globBase(src string) string {
 	return path.Dir(src[:i] + "x")
 }
 
-// overlays only need read access: writes go to a temporary upper layer.
 func (c checker) overlays(vs []overlayVolume) string {
 	for _, v := range vs {
 		a, reason := bindAccess(v.Options)

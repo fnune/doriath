@@ -173,7 +173,6 @@ func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (D
 		_ = m.Decide(req.ID, d)
 	})
 	if err != nil {
-		// The terminal can still answer, so a failed notification is not fatal.
 		withdraw = func() {}
 	}
 
@@ -265,7 +264,4 @@ func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)
 	}()
 }
 
-// grantKey ties a grant to the kind of request it came from, so a decision
-// about one kind can never answer a request of another kind with the same
-// scope text.
 func grantKey(r Request) string { return string(r.Kind) + "\x00" + r.Scope }

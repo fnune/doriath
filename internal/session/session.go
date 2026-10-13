@@ -117,26 +117,22 @@ type Info struct {
 }
 
 type Session struct {
-	deps    Deps
-	req     Request
-	id      string
-	dir     string
-	jailDir string
-	log     *audit.Log
-	egress  *egressLog
-	policy  *livePolicy
-	peers   *hostPeers
-	clones  []repoClone
-	logFile io.Closer
-	manager *approval.Manager
-	closers []func()
-	entry   Entry
-	// claudeProject is this project's directory under the real ~/.claude
-	// and its copy in the profile's own, when the session runs Claude.
+	deps          Deps
+	req           Request
+	id            string
+	dir           string
+	jailDir       string
+	log           *audit.Log
+	egress        *egressLog
+	policy        *livePolicy
+	peers         *hostPeers
+	clones        []repoClone
+	logFile       io.Closer
+	manager       *approval.Manager
+	closers       []func()
+	entry         Entry
 	claudeProject [2]string
-	// netnsPID is a process in the podman service's namespaces. When set,
-	// the agent joins its user and network namespaces.
-	netnsPID int
+	netnsPID      int
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -206,8 +202,6 @@ func (s *Session) prepare(ctx context.Context) error {
 			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
-	// Each session gets its own /tmp, so one session cannot plant files that
-	// a later one of the same profile trusts.
 	s.closers = append(s.closers, func() { _ = os.RemoveAll(s.tmp()) })
 	for _, c := range p.Caches {
 		if err := os.MkdirAll(jail.CacheSource(s.cacheRoot(), c.Path, s.deps.Paths.Home), 0o700); err != nil {
@@ -355,8 +349,6 @@ func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
 	return nil
 }
 
-// httpForward reaches a host dev server as HTTP only. Anything that is not
-// HTTP fails to parse, and websocket upgrades still work for hot reload.
 func (s *Session) httpForward(target string, port int) http.Handler {
 	transport := &http.Transport{DialContext: s.localDialer().DialContext, MaxIdleConnsPerHost: 8, IdleConnTimeout: 90 * time.Second}
 	rp := &httputil.ReverseProxy{
@@ -475,20 +467,17 @@ func (s *Session) plan() (jail.Spec, error) {
 	home := s.deps.Paths.Home
 	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", jail.ProxyPort)
 	env := map[string]string{
-		"HTTP_PROXY":         proxyURL,
-		"HTTPS_PROXY":        proxyURL,
-		"http_proxy":         proxyURL,
-		"https_proxy":        proxyURL,
-		"NO_PROXY":           "localhost,127.0.0.1,::1",
-		"no_proxy":           "localhost,127.0.0.1,::1",
-		"SSL_CERT_FILE":      jail.InJail("ca-bundle.pem"),
-		"NIX_SSL_CERT_FILE":  jail.InJail("ca-bundle.pem"),
-		"CURL_CA_BUNDLE":     jail.InJail("ca-bundle.pem"),
-		"GIT_SSL_CAINFO":     jail.InJail("ca-bundle.pem"),
-		"REQUESTS_CA_BUNDLE": jail.InJail("ca-bundle.pem"),
-		// The bundle rather than the session CA alone: a profile without
-		// intercepted hosts has no CA, and Bun-based tools such as Claude
-		// Code fail every connection when this file holds no certificate.
+		"HTTP_PROXY":          proxyURL,
+		"HTTPS_PROXY":         proxyURL,
+		"http_proxy":          proxyURL,
+		"https_proxy":         proxyURL,
+		"NO_PROXY":            "localhost,127.0.0.1,::1",
+		"no_proxy":            "localhost,127.0.0.1,::1",
+		"SSL_CERT_FILE":       jail.InJail("ca-bundle.pem"),
+		"NIX_SSL_CERT_FILE":   jail.InJail("ca-bundle.pem"),
+		"CURL_CA_BUNDLE":      jail.InJail("ca-bundle.pem"),
+		"GIT_SSL_CAINFO":      jail.InJail("ca-bundle.pem"),
+		"REQUESTS_CA_BUNDLE":  jail.InJail("ca-bundle.pem"),
 		"NODE_EXTRA_CA_CERTS": jail.InJail("ca-bundle.pem"),
 		"JAVA_TOOL_OPTIONS":   javaToolOptions(p.Env.Set["JAVA_TOOL_OPTIONS"]),
 		"GIT_CONFIG_GLOBAL":   jail.InJail("gitconfig"),
@@ -557,8 +546,6 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		if s.deps.Nsenter == "" {
 			return 1, errors.New("joining the podman network namespace needs util-linux nsenter")
 		}
-		// Joining a network namespace needs CAP_SYS_ADMIN in the namespace's
-		// owner, which the agent only has after joining that user namespace.
 		target := strconv.Itoa(s.netnsPID)
 		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, spec.Args()...)...)
 	}
@@ -723,8 +710,6 @@ func (osHost) Kind(p string) string {
 
 func splice(a, b net.Conn) { jailinit.Splice(a, b) }
 
-// writable lists where the agent may write under Landlock: everything the
-// jail mounts read-write, plus the jail's own scratch locations.
 func (s *Session) writable(extra []jail.Bind) []string {
 	p := s.req.Profile
 	home := s.deps.Paths.Home
@@ -745,7 +730,6 @@ func (s *Session) writable(extra []jail.Bind) []string {
 	return out
 }
 
-// seccompFile holds the agent jail's seccomp program for bubblewrap.
 func (s *Session) seccompFile() (*os.File, error) {
 	arch, err := seccomp.HostArch()
 	if err != nil {
@@ -781,11 +765,6 @@ func (s *Session) localDialer() proxy.Dialer {
 	return s.deps.Dialer
 }
 
-// limited runs cmd in a transient systemd user scope with the profile's
-// limits, and with an empty environment because bwrap sets the jail's own.
-// A missing systemd-run leaves the session without limits rather than
-// failing it, because limits protect the workstation's availability, not the
-// boundary.
 func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	cmd.Env = []string{}
 	lim := s.req.Profile.Limits
@@ -809,9 +788,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	args = append(args, cmd.Args...)
 	wrapped := exec.Command(s.deps.SystemdRun, args...)
 	wrapped.SysProcAttr = cmd.SysProcAttr
-	// systemd-run reaches the user manager over the session bus. The scope
-	// keeps these two variables, and bwrap's --clearenv drops them in the jail.
-	for _, k := range []string{"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"} {
+	for _, k := range userBusEnv {
 		if v := s.deps.Getenv(k); v != "" {
 			wrapped.Env = append(wrapped.Env, k+"="+v)
 		}
@@ -822,9 +799,6 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	return wrapped
 }
 
-// checkHelpers refuses a helper program that the jail can write, such as
-// one found on PATH inside a writable mount, because girdle runs helpers
-// outside the jail.
 func checkHelpers(deps Deps, p *profile.Profile) error {
 	writable := []string{deps.Paths.AgentCache(p.Name)}
 	for _, m := range p.Mounts {
@@ -854,10 +828,6 @@ func within(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// cloneRepositories turns each rw mount of a repository into a clone mount,
-// unless the profile marks it live, so the agent never writes files that the
-// desktop's git and editors later run. A repository without commits has no
-// base to clone from, so it stays a rw mount and the jail notes that.
 func cloneRepositories(p *profile.Profile, host jail.Host, hasCommits func(repo string) bool) *profile.Profile {
 	out := *p
 	out.Mounts = slices.Clone(p.Mounts)
@@ -902,8 +872,6 @@ func (s *Session) writeEntry(pid int, spec jail.Spec) {
 	}
 }
 
-// javaToolOptions points every JVM in the jail at the session trust store,
-// after any options the profile sets.
 func javaToolOptions(profile string) string {
 	opts := "-Djavax.net.ssl.trustStore=" + jail.InJail("truststore.p12") +
 		" -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword
@@ -913,8 +881,6 @@ func javaToolOptions(profile string) string {
 	return opts
 }
 
-// bazelrc gives the jail's home a .bazelrc that points Bazel's server at the
-// session trust store, unless the profile mounts a .bazelrc of its own.
 func (s *Session) bazelrc(home string) (jail.Bind, bool) {
 	dest := filepath.Join(home, ".bazelrc")
 	for _, m := range s.req.Profile.Mounts {
@@ -925,9 +891,6 @@ func (s *Session) bazelrc(home string) (jail.Bind, bool) {
 	return jail.Bind{Source: s.jailPath("bazelrc"), Dest: dest, ReadOnly: true}, true
 }
 
-// programNotes warns about programs named by a path outside the read-only
-// system paths: the agent can write there, so a program it puts at that
-// path reaches the same hosts.
 func programNotes(p *profile.Profile) []string {
 	var out []string
 	for _, prog := range p.Egress.Programs {
@@ -939,3 +902,5 @@ func programNotes(p *profile.Profile) []string {
 	}
 	return out
 }
+
+var userBusEnv = []string{"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"}

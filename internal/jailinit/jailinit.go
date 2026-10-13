@@ -124,9 +124,6 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	if err != nil {
 		return 127, fmt.Errorf("init: %w", err)
 	}
-	// Orphaned processes come to this init and not to bubblewrap's reaper,
-	// so that the reaper's only child is girdle, which the proxy relies on to
-	// tell girdle's identity headers from anything else.
 	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); err != nil {
 		return 1, fmt.Errorf("init: become a subreaper: %w", err)
 	}
@@ -158,8 +155,6 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	return ws.ExitStatus(), nil
 }
 
-// reapUntil waits for any child, so that orphans reparented to this
-// subreaper do not linger as zombies, and returns when pid exits.
 func reapUntil(pid int) (syscall.WaitStatus, error) {
 	for {
 		var ws syscall.WaitStatus

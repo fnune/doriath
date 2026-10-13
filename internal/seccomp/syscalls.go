@@ -2,12 +2,6 @@ package seccomp
 
 import "fmt"
 
-// syscallNumbers returns the numbers of the syscalls the filter names. The
-// constants in golang.org/x/sys/unix only exist for the GOARCH being built,
-// so a filter for another architecture needs its own table. Sources:
-//
-//   - amd64: arch/x86/entry/syscalls/syscall_64.tbl
-//   - arm64: include/uapi/asm-generic/unistd.h (scripts/syscall.tbl since 6.11)
 func syscallNumbers(arch Arch) (map[string]uint32, error) {
 	switch arch {
 	case AMD64:

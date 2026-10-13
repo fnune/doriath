@@ -69,9 +69,6 @@ func RestrictWrites(writable []string) error {
 			return err
 		}
 	}
-	// Landlock refuses restrict_self without no_new_privs unless the caller
-	// has CAP_SYS_ADMIN, and no_new_privs keeps setuid binaries from
-	// shedding the restriction.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("set no_new_privs: %w", err)
 	}
@@ -95,8 +92,7 @@ func allowBeneath(ruleset int, path string, handled uint64) error {
 		return fmt.Errorf("stat writable path %s: %w", path, err)
 	}
 	allowed := handled
-	// The kernel rejects directory rights on a rule for a file.
-	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
+	if isFile := st.Mode&unix.S_IFMT != unix.S_IFDIR; isFile {
 		allowed &= fileWrites | unix.LANDLOCK_ACCESS_FS_TRUNCATE
 	}
 	rule := unix.LandlockPathBeneathAttr{Allowed_access: allowed, Parent_fd: int32(fd)}

@@ -17,16 +17,11 @@ type Resolver interface {
 
 var volumeName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
-// access is what a bind needs from the host path.
 type access struct {
-	write bool
-	// nonRecursive binds leave out the mounts below the source, which would
-	// uncover what a read-only mount inside a writable one hides.
+	write        bool
 	nonRecursive bool
 }
 
-// bindSource checks a host path that a container wants to bind. The reason is
-// empty when the profile allows it.
 func (c checker) bindSource(src string, a access) string {
 	if !path.IsAbs(src) {
 		return fmt.Sprintf("bind source %q is not an absolute path", src)
@@ -50,7 +45,6 @@ func (c checker) bindSource(src string, a access) string {
 	return ""
 }
 
-// mountFor finds the most specific profile mount that contains p.
 func (c checker) mountFor(p string) (Mount, bool) {
 	var best Mount
 	bestLen := -1
@@ -66,8 +60,6 @@ func (c checker) mountFor(p string) (Mount, bool) {
 	return best, bestLen >= 0
 }
 
-// resolve follows symbolic links in the longest existing prefix of p, since
-// podman creates some bind sources that do not exist yet.
 func (c checker) resolve(p string) string {
 	if c.resolver == nil {
 		return p
@@ -87,14 +79,10 @@ func (c checker) resolve(p string) string {
 	}
 }
 
-// within compares by path segments, so /home/a/projects is not within
-// /home/a/proj.
 func within(p, base string) bool {
 	return base == "/" || p == base || strings.HasPrefix(p, base+"/")
 }
 
-// escapes reports whether a path that the server joins to a directory leaves
-// that directory.
 func escapes(rel string) bool {
 	const anchor = "/anchor"
 	return !within(path.Join(anchor, rel), anchor)
@@ -102,8 +90,6 @@ func escapes(rel string) bool {
 
 var errNotBind = errors.New("not a bind")
 
-// bindSpec is a "src:dst[:opts]" volume argument, as in Docker's Binds and
-// podman's -v.
 type bindSpec struct {
 	source  string
 	options []string
@@ -121,8 +107,6 @@ func parseBind(s string) (bindSpec, error) {
 	return b, nil
 }
 
-// bindArgument checks a "src:dst[:opts]" argument. Sources that are names
-// refer to volumes in the podman service and need no profile entry.
 func (c checker) bindArgument(s string) string {
 	b, err := parseBind(s)
 	if err != nil {
@@ -141,8 +125,6 @@ func (c checker) bindArgument(s string) string {
 	return c.bindSource(b.source, a)
 }
 
-// bindAccess reads podman's bind options. With O, writes go to an overlay
-// and never reach the source; U chowns the source on the host.
 func bindAccess(options []string) (access, string) {
 	readOnly, overlay, chown, nonRecursive := false, false, false, false
 	for _, o := range options {

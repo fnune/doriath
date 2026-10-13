@@ -14,11 +14,6 @@ import (
 	"syscall"
 )
 
-// cmdForward makes a port inside a running session reachable on the host's
-// localhost, so desktop tools can look at what the agent started, such as a
-// browser's DevTools port or a dev server. Each connection gets its own
-// relay inside the jail's network, and the jail's processes cannot reach the
-// host through it.
 func cmdForward(args []string) error {
 	flags := flag.NewFlagSet("forward", flag.ContinueOnError)
 	id := flags.String("session", "", "session to forward into (default: the only running one)")
@@ -68,9 +63,6 @@ func cmdForward(args []string) error {
 	}
 }
 
-// relayInto hands the connection to a girdle relay in the jail's network
-// namespace. Entering it needs the jail's user namespace first, which a
-// running Go program cannot join, so nsenter starts the relay there.
 func relayInto(conn *net.TCPConn, nsenter, self string, pid, port int) {
 	defer func() { _ = conn.Close() }()
 	f, err := conn.File()
@@ -88,7 +80,6 @@ func relayInto(conn *net.TCPConn, nsenter, self string, pid, port int) {
 	}
 }
 
-// cmdRelay copies between the connection on its standard input and addr.
 func cmdRelay(args []string) error {
 	if len(args) != 1 {
 		return errors.New("usage: girdle __relay ADDR")

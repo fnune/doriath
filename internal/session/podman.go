@@ -64,8 +64,6 @@ image_copy_tmp_dir = %[1]s
 `, quote(tmpDir), proxyURL))
 }
 
-// Policy accepts any image, which is podman's own default. Signature checks
-// belong in a profile that needs them.
 const policyJSON = `{"default": [{"type": "insecureAcceptAnything"}]}
 `
 
@@ -88,11 +86,6 @@ type bwrapInfo struct {
 	ChildPID int `json:"child-pid"`
 }
 
-// startPodman runs a podman service as root in a user namespace that maps the
-// user's subordinate ids. It sees the same paths as the agent's jail, so
-// containers can mount the worktree and nothing else. Its network namespace
-// becomes the session's: the agent joins it, and the service's init process
-// holds the proxy and port forwards for both.
 func (s *Session) startPodman() error {
 	if s.deps.Unshare == "" || s.deps.Podman == "" {
 		return errors.New("the podman module needs util-linux unshare and podman on PATH")
@@ -137,11 +130,7 @@ func (s *Session) startPodman() error {
 	userConf := filepath.Join(s.deps.Paths.Home, ".config", "containers")
 
 	p := s.req.Profile
-	// Containers get a proxy port of their own, so the proxy never mistakes
-	// them for an identified program in the agent's jail.
 	argv := []string{jail.ExePath, "init", "--forward", fmt.Sprintf("%d=%s", containerProxyPort, jail.InJail(ProxySocket))}
-	// The raw API socket lives where only the service sees it. The agent
-	// gets the broker's socket, which checks each request.
 	rawDir := filepath.Join(s.dir, "podman")
 	if err := os.MkdirAll(rawDir, 0o700); err != nil {
 		return err
@@ -296,9 +285,6 @@ func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
 	return nil
 }
 
-// startContainerBroker puts the container API broker in front of the raw
-// podman socket. Containers may bind what the profile mounts, with the same
-// read-only limits, and the git paths the jail protects stay read-only.
 func (s *Session) startContainerBroker(raw string) error {
 	p := s.req.Profile
 	var mounts []containers.Mount

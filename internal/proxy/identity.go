@@ -85,8 +85,6 @@ type identifiedConn struct {
 
 func (c *identifiedConn) Unwrap() net.Conn { return c.Conn }
 
-// closedConn stands in for a connection that failed its header, so Serve
-// sees a connection that ends at once instead of an accept error.
 type closedConn struct{ net.Conn }
 
 func (closedConn) Read([]byte) (int, error) { return 0, errors.New("closed") }

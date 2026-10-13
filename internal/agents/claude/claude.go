@@ -68,7 +68,6 @@ type hookCommand struct {
 	Timeout int    `json:"timeout,omitempty"`
 }
 
-// projectSettings is the part of a repo's settings files that girdle keeps.
 type projectSettings struct {
 	Permissions permissions       `json:"permissions"`
 	Hooks       map[string][]any  `json:"hooks"`

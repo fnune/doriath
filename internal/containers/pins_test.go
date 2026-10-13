@@ -33,7 +33,6 @@ var pulls = []struct{ name, path string }{
 	{"libpod", "/v5.0.0/libpod/images/pull?reference=postgres:16"},
 }
 
-// lastMessage decodes the last line of a pull stream.
 func lastMessage(t *testing.T, body string) map[string]any {
 	t.Helper()
 	lines := strings.Split(strings.TrimSpace(body), "\n")
