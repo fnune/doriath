@@ -46,6 +46,8 @@ func CacheSource(root, path, home string) string {
 type Host interface {
 	// Kind returns "dir", "file", "other" or "" when the path does not exist.
 	Kind(path string) string
+	// Entries lists the names in a directory, or nothing if it cannot.
+	Entries(dir string) []string
 }
 
 type Bind struct {
@@ -214,22 +216,46 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	return s, nil
 }
 
-// gitGuards keeps a repo's config and hooks read-only. git outside the jail
-// runs hooks and commands named in the config (core.fsmonitor,
-// core.hooksPath and others), so a writable copy would let the agent run code
-// on the desktop.
+// gitGuards keeps a repo's config, hooks and the files that redirect git to
+// other config read-only. git outside the jail runs hooks and commands named
+// in config (core.fsmonitor, core.hooksPath and others), so a writable copy
+// would let the agent run code on the desktop. commondir, config.worktree
+// and a worktree's .git file all choose which config git reads, and each
+// submodule under .git/modules has config and hooks of its own.
 func gitGuards(src, dest string, host Host) []Bind {
 	srcGit, destGit := filepath.Join(src, ".git"), filepath.Join(dest, ".git")
 	if filepath.Base(src) == ".git" {
 		srcGit, destGit = src, dest
 	}
-	if host.Kind(srcGit) != "dir" {
-		return nil
+	switch host.Kind(srcGit) {
+	case "file":
+		return []Bind{{Source: srcGit, Dest: destGit, ReadOnly: true}}
+	case "dir":
+		return gitDirGuards(srcGit, destGit, host, 0)
 	}
+	return nil
+}
+
+// GitControlFiles are the entries of a .git directory that decide what git
+// runs or which config it reads.
+var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info"}
+
+const maxSubmoduleDepth = 4
+
+func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 	var binds []Bind
-	for _, name := range []string{"config", "hooks", "info"} {
+	for _, name := range GitControlFiles {
 		if p := filepath.Join(srcGit, name); host.Kind(p) != "" {
 			binds = append(binds, Bind{Source: p, Dest: filepath.Join(destGit, name), ReadOnly: true})
+		}
+	}
+	if depth >= maxSubmoduleDepth {
+		return binds
+	}
+	modules := filepath.Join(srcGit, "modules")
+	for _, name := range host.Entries(modules) {
+		if sub := filepath.Join(modules, name); host.Kind(sub) == "dir" {
+			binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", name), host, depth+1)...)
 		}
 	}
 	return binds

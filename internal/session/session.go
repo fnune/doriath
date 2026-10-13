@@ -624,6 +624,18 @@ type osHost struct{}
 
 func (osHost) Resolve(p string) (string, error) { return filepath.EvalSymlinks(p) }
 
+func (osHost) Entries(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	return names
+}
+
 func (osHost) Kind(p string) string {
 	info, err := os.Lstat(p)
 	if err != nil {

@@ -154,12 +154,12 @@ func NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Man
 func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (Decision, error) {
 	now := m.clock.Now()
 	m.mu.Lock()
-	if g, ok := m.grants[req.Scope]; ok && req.Scope != "" {
+	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
 		if g.forever || now.Before(g.until) {
 			m.mu.Unlock()
 			return Decision{Verdict: VerdictAllow, Lasting: g.decision.Lasting, Until: g.until, By: "grant"}, nil
 		}
-		delete(m.grants, req.Scope)
+		delete(m.grants, grantKey(req))
 	}
 	req.ID = m.ids.New()
 	req.Created = now
@@ -225,9 +225,9 @@ func (m *Manager) Decide(id string, d Decision) error {
 	if d.Verdict == VerdictAllow && p.req.Scope != "" {
 		switch d.Lasting {
 		case LastingSession:
-			m.grants[p.req.Scope] = grant{forever: true, decision: d}
+			m.grants[grantKey(p.req)] = grant{forever: true, decision: d}
 		case LastingUntil:
-			m.grants[p.req.Scope] = grant{until: d.Until, decision: d}
+			m.grants[grantKey(p.req)] = grant{until: d.Until, decision: d}
 		}
 	}
 	m.history = append(m.history, Outcome{Request: p.req, Decision: d})
@@ -264,3 +264,8 @@ func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)
 		}
 	}()
 }
+
+// grantKey ties a grant to the kind of request it came from, so a decision
+// about one kind can never answer a request of another kind with the same
+// scope text.
+func grantKey(r Request) string { return string(r.Kind) + "\x00" + r.Scope }

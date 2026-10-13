@@ -12,6 +12,16 @@ type fakeHost map[string]string
 
 func (h fakeHost) Kind(p string) string { return h[p] }
 
+func (h fakeHost) Entries(dir string) []string {
+	var out []string
+	for p := range h {
+		if rest, ok := strings.CutPrefix(p, dir+"/"); ok && !strings.Contains(rest, "/") {
+			out = append(out, rest)
+		}
+	}
+	return out
+}
+
 func testProfile() *profile.Profile {
 	return &profile.Profile{
 		Name: "project",
@@ -229,5 +239,42 @@ func TestNixDaemonHiddenUnlessGranted(t *testing.T) {
 	}
 	if slices.Contains(s.Tmpfs, nixDaemonDir) {
 		t.Fatal("a profile that grants the daemon must see it")
+	}
+}
+
+func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
+	h := host()
+	repo := "/home/u/Development/project"
+	for p, k := range map[string]string{
+		repo + "/.git":                    "dir",
+		repo + "/.git/config":             "file",
+		repo + "/.git/commondir":          "file",
+		repo + "/.git/config.worktree":    "file",
+		repo + "/.git/modules":            "dir",
+		repo + "/.git/modules/emu":        "dir",
+		repo + "/.git/modules/emu/config": "file",
+		repo + "/.git/modules/emu/hooks":  "dir",
+	} {
+		h[p] = k
+	}
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{".git/commondir", ".git/config.worktree", ".git/modules/emu/config", ".git/modules/emu/hooks"} {
+		i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == repo+"/"+p })
+		if i < 0 || !s.Binds[i].ReadOnly {
+			t.Errorf("%s must be read-only", p)
+		}
+	}
+	w := host()
+	w["/home/u/Development/project/.git"] = "file"
+	s, err = Plan(testProfile(), layout(), opts(), w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == repo+"/.git" })
+	if i < 0 || !s.Binds[i].ReadOnly {
+		t.Error("a worktree's .git pointer file must be read-only")
 	}
 }

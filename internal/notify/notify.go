@@ -66,6 +66,9 @@ func Body(req approval.Request, now time.Time) string {
 	if req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
 	}
+	if req.Scope != "" {
+		fmt.Fprintf(&b, "Allow for this session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
+	}
 	fmt.Fprintf(&b, "Profile %s, session %s.", html.EscapeString(req.Profile), html.EscapeString(req.Session))
 	if !req.Expires.IsZero() {
 		fmt.Fprintf(&b, " Expires in %s.", req.Expires.Sub(now).Round(time.Second))

@@ -305,7 +305,7 @@ func (s *Session) startContainerBroker(raw string) error {
 	for _, m := range p.Mounts {
 		mounts = append(mounts, containers.Mount{Path: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
 		if m.Mode != profile.ModeReadOnly {
-			for _, name := range []string{"config", "hooks", "info"} {
+			for _, name := range jail.GitControlFiles {
 				mounts = append(mounts, containers.Mount{Path: filepath.Join(m.Path, ".git", name), ReadOnly: true})
 			}
 		}

@@ -4,6 +4,7 @@ package profile
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -256,12 +257,44 @@ func (r Rule) matchBody(body []byte) bool {
 	if len(r.BodyContains) == 0 {
 		return true
 	}
+	texts := append([][]byte{body}, jsonStrings(body)...)
 	for _, s := range r.BodyContains {
-		if bytes.Contains(body, []byte(s)) {
-			return true
+		for _, t := range texts {
+			if bytes.Contains(t, []byte(s)) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// jsonStrings returns every string in a JSON body, decoded, because JSON
+// escapes such as \u0050 would otherwise hide a GraphQL mutation name from
+// a plain byte search.
+func jsonStrings(body []byte) [][]byte {
+	var doc any
+	if json.Unmarshal(body, &doc) != nil {
+		return nil
+	}
+	var out [][]byte
+	var walk func(v any)
+	walk = func(v any) {
+		switch t := v.(type) {
+		case string:
+			out = append(out, []byte(t))
+		case []any:
+			for _, e := range t {
+				walk(e)
+			}
+		case map[string]any:
+			for k, e := range t {
+				out = append(out, []byte(k))
+				walk(e)
+			}
+		}
+	}
+	walk(doc)
+	return out
 }
 
 // HostPattern is an exact host name, or "*." followed by a domain, which
@@ -325,7 +358,7 @@ func (p PathPattern) Match(path string) bool {
 		if i >= len(got) {
 			return false
 		}
-		if seg != "*" && seg != got[i] {
+		if seg != "*" && !strings.EqualFold(seg, got[i]) {
 			return false
 		}
 	}

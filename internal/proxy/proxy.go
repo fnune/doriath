@@ -16,6 +16,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -260,6 +262,11 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		deny(w, http.StatusMisdirectedRequest, "girdle: the Host header must match the tunneled host")
 		return
 	}
+	if !canonicalPath(r.URL) {
+		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "path is not in canonical form"})
+		deny(w, http.StatusBadRequest, "girdle: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
+		return
+	}
 	var body []byte
 	if rules.NeedsBody(r.Method, r.URL.Path) {
 		var tooLarge bool
@@ -493,4 +500,19 @@ func pipe(a, b net.Conn) {
 	wg.Wait()
 	_ = a.Close()
 	_ = b.Close()
+}
+
+// canonicalPath refuses paths that a server could resolve differently from
+// the rules, such as doubled slashes, dot segments or encoded separators.
+func canonicalPath(u *url.URL) bool {
+	raw := strings.ToLower(u.EscapedPath())
+	if strings.Contains(raw, "%2f") || strings.Contains(raw, "%5c") || strings.Contains(u.Path, "\\") {
+		return false
+	}
+	p := u.Path
+	if p == "" || p == "/" {
+		return true
+	}
+	clean := path.Clean(p)
+	return p == clean || p == clean+"/"
 }

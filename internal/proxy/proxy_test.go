@@ -645,3 +645,50 @@ func TestIdentifyingListener(t *testing.T) {
 		})
 	}
 }
+
+func TestCanonicalPath(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"/repos/a/b/pulls/1/merge":      true,
+		"/repos/a/b/":                   true,
+		"/":                             true,
+		"/repos/a/b//pulls/1/merge":     false,
+		"/repos/a/b/./pulls/1/merge":    false,
+		"/repos/a/x/../b/pulls/1/merge": false,
+		"/repos/a%2Fb/pulls/1/merge":    false,
+	} {
+		u, err := url.Parse("https://api.github.com" + raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := canonicalPath(u); got != want {
+			t.Errorf("canonicalPath(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
+func TestEscapedMutationIsCaught(t *testing.T) {
+	h := newHarness(t)
+	resp, err := h.client().Post("https://api.github.com/graphql", "application/json", strings.NewReader(`{"query":"mutation{merge\u0050ullRequest(input:{}){clientMutationId}}"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("an escaped mutation name got through: %d", resp.StatusCode)
+	}
+	req, _ := http.NewRequest(http.MethodPut, "https://api.github.com/repos/a/b//pulls/1/merge", nil)
+	resp, err = h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("a doubled slash got through: %d", resp.StatusCode)
+	}
+	req, _ = http.NewRequest(http.MethodPut, "https://api.github.com/REPOS/a/b/PULLS/1/MERGE", nil)
+	resp, err = h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("a different case got past the rule: %d", resp.StatusCode)
+	}
+}

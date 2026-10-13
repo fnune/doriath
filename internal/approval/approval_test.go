@@ -159,7 +159,7 @@ func TestSessionGrantAnswersLaterRequests(t *testing.T) {
 	if d := <-got; d.Verdict != VerdictAllow {
 		t.Fatalf("decision = %+v", d)
 	}
-	d, err := m.Submit(context.Background(), Request{Scope: "POST api.github.com /repos/*/*/releases"}, time.Minute)
+	d, err := m.Submit(context.Background(), Request{Kind: KindHTTP, Scope: "POST api.github.com /repos/*/*/releases"}, time.Minute)
 	if err != nil || d.Verdict != VerdictAllow || d.By != "grant" {
 		t.Fatalf("grant not used: %+v, %v", d, err)
 	}
@@ -175,7 +175,7 @@ func TestUntilGrantExpires(t *testing.T) {
 	_ = m.Decide(req.ID, Decision{Verdict: VerdictAllow, Lasting: LastingUntil, Until: clock.Now().Add(10 * time.Minute)})
 	<-got
 	clock.advance(5 * time.Minute)
-	if d, _ := m.Submit(context.Background(), Request{Scope: "s"}, time.Minute); d.By != "grant" {
+	if d, _ := m.Submit(context.Background(), Request{Kind: KindHTTP, Scope: "s"}, time.Minute); d.By != "grant" {
 		t.Fatalf("grant should still hold: %+v", d)
 	}
 	clock.advance(6 * time.Minute)
@@ -229,5 +229,27 @@ func TestValidate(t *testing.T) {
 	m, _, _, _ := setup()
 	if err := m.Decide("nope", Decision{Verdict: VerdictAllow}); err == nil {
 		t.Fatal("invalid decision must be rejected")
+	}
+}
+
+func TestGrantsDoNotCrossKinds(t *testing.T) {
+	m, _, notifier, _ := setup()
+	scope := "http PUT api.github.com /repos/*/*/pulls/*/merge"
+	out := make(chan Decision, 1)
+	go func() {
+		d, _ := m.Submit(context.Background(), Request{Kind: KindTool, Summary: "harmless", Scope: scope}, time.Minute)
+		out <- d
+	}()
+	notifier.waitShown(t, 1)(Decision{Verdict: VerdictAllow, Lasting: LastingSession, By: "test"})
+	<-out
+	later := make(chan Decision, 1)
+	go func() {
+		d, _ := m.Submit(context.Background(), Request{Kind: KindHTTP, Summary: "merge", Scope: scope}, time.Minute)
+		later <- d
+	}()
+	respond := notifier.waitShown(t, 2)
+	respond(Decision{Verdict: VerdictDeny, By: "test"})
+	if d := <-later; d.Verdict != VerdictDeny || d.By == "grant" {
+		t.Fatalf("a tool grant answered an HTTP request: %+v", d)
 	}
 }
