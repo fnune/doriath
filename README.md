@@ -12,26 +12,27 @@ Pre-alpha. Linux only.
 ```mermaid
 flowchart LR
     subgraph jail["Jail: its own files, network and processes"]
+        tech["Linux: bubblewrap, seccomp, Landlock<br/>macOS: Seatbelt, not supported yet"]
         agent["Agent<br/>(Claude Code, scripts, browsers)"]
         clone[("Private clone<br/>of your repository")]
         agent --> clone
     end
 
-    proxy["girdle's proxy, outside the jail<br/>allowlist and request rules"]
+    proxy["girdle's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
 
     secrets[("Your secrets")]
     you(["You"])
-    repo[("Your repository")]
     internet(("Internet"))
 
     agent -- "every request" --> proxy
     proxy -- "allowed hosts,<br/>token added" --> internet
     proxy -. "risky requests<br/>wait for approval" .-> you
     secrets --> proxy
-    clone -- "new branches<br/>as refs to review" --> repo
+
+    style tech fill:none,stroke-dasharray:3 3
 ```
 
-The agent works on a clone in a jail with no network of its own. Everything it sends goes through girdle's proxy, which reaches only the hosts the profile allows and adds credentials the agent never sees. Risky requests wait for you, and the agent's commits reach your repository only as refs you review.
+The agent works on a clone in a jail with no network of its own. Everything it sends goes through girdle's proxy, which reaches only the hosts the profile allows and adds credentials the agent never sees. Risky requests wait for you.
 
 ## What the agent gets
 
@@ -50,4 +51,5 @@ One static Go binary. It bundles bubblewrap and implements the proxy, the CA, th
 
 - [Install](docs/install.md)
 - [Configuration](docs/configuration.md)
+- [Security limits](docs/security-limits.md)
 - [Engineering principles](docs/engineering.md)
