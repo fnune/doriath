@@ -159,11 +159,12 @@ var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 // directory that belongs to the profile, so nothing the agent writes there
 // reaches the desktop's Claude, which runs hooks, plugins and settings from
 // the real ~/.claude outside any jail. Into it go, read-only, the files that
-// configure Claude, and, writable, the login tokens (so a refresh in the jail
-// keeps the desktop logged in) and this project's transcripts.
+// configure Claude, and, writable, this project's transcripts. The profile
+// keeps its own claude.ai login unless it shares the desktop's.
 type State struct {
-	Home string
-	Cwd  string
+	Home       string
+	Cwd        string
+	ShareLogin bool
 	// Private is the profile's own ~/.claude.
 	Private string
 	// ConfigCopy is a copy of ~/.claude.json made at session start.
@@ -201,7 +202,7 @@ func (st State) Binds(host Host) []jail.Bind {
 		}
 		binds = append(binds, jail.Bind{Source: target, Dest: filepath.Join(real, name), ReadOnly: true})
 	}
-	if cred := filepath.Join(real, credentials); host.Kind(cred) == "file" {
+	if cred := filepath.Join(real, credentials); st.ShareLogin && host.Kind(cred) == "file" {
 		binds = append(binds, jail.Bind{Source: cred, Dest: cred})
 	}
 	own := filepath.Join(real, "projects", ProjectDir(st.Cwd))

@@ -81,6 +81,7 @@ type claudeLayer struct {
 	DisableConnectors *bool     `toml:"disable_connectors"`
 	MCPServers        *[]string `toml:"mcp_servers"`
 	StatusLine        *bool     `toml:"statusline"`
+	ShareLogin        *bool     `toml:"share_login"`
 	DeniedMCPServers  []string  `toml:"denied_mcp_servers"`
 	Ask               []string  `toml:"ask"`
 	Deny              []string  `toml:"deny"`

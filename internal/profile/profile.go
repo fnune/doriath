@@ -94,8 +94,13 @@ type Claude struct {
 	DisableConnectors bool
 	// MCPServers, when set, keeps only these MCP servers from ~/.claude.json
 	// in the jail's copy. Nil keeps them all.
-	MCPServers       []string
-	StatusLine       bool
+	MCPServers []string
+	StatusLine bool
+	// ShareLogin gives the jail the desktop's claude.ai login, writable so
+	// that token refreshes reach the desktop. Off by default: a writable
+	// login lets the agent take the token, or swap in another account that
+	// the desktop's sessions would then use.
+	ShareLogin       bool
 	DeniedMCPServers []string
 	Ask              []string
 	Deny             []string

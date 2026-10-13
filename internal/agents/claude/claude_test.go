@@ -98,7 +98,7 @@ func (h fakeHost) Resolve(p string) (string, error) {
 }
 
 func TestStateBinds(t *testing.T) {
-	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home", ConfigCopy: "/c/claude.json"}
+	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home", ConfigCopy: "/c/claude.json", ShareLogin: true}
 	host := fakeHost{
 		"/home/u/.claude/.credentials.json": "file",
 		"/home/u/.claude/settings.json":     "other",
@@ -192,5 +192,14 @@ func TestFilterMCPServers(t *testing.T) {
 	same, _ := FilterMCPServers(in, nil)
 	if string(same) != string(in) {
 		t.Fatal("a nil list must keep the document as is")
+	}
+}
+
+func TestLoginIsPrivateByDefault(t *testing.T) {
+	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home"}
+	for _, b := range st.Binds(fakeHost{"/home/u/.claude/.credentials.json": "file"}) {
+		if b.Dest == "/home/u/.claude/.credentials.json" {
+			t.Fatal("the desktop login must not be in the jail unless the profile shares it")
+		}
 	}
 }

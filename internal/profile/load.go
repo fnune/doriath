@@ -168,6 +168,7 @@ type builder struct {
 	disable bool
 	mcp     *[]string
 	status  bool
+	share   bool
 	secrets map[string]string
 }
 
@@ -223,6 +224,9 @@ func (b *builder) apply(l layer) {
 		}
 		if c.StatusLine != nil {
 			b.status = *c.StatusLine
+		}
+		if c.ShareLogin != nil {
+			b.share = *c.ShareLogin
 		}
 		for _, s := range c.DeniedMCPServers {
 			b.claude.DeniedMCPServers = appendNew(b.claude.DeniedMCPServers, s)
@@ -467,6 +471,7 @@ func (b *builder) buildClaude() (Claude, error) {
 	c := Claude{
 		DisableConnectors: b.disable,
 		StatusLine:        b.status,
+		ShareLogin:        b.share,
 		DeniedMCPServers:  b.claude.DeniedMCPServers,
 		Ask:               b.claude.Ask,
 		Deny:              b.claude.Deny,

@@ -426,7 +426,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	var extra []jail.Bind
 	if claude.Matches(command) {
 		command = claude.Args(command, jail.InJail("claude-settings.json"))
-		st := claude.State{Home: home, Cwd: s.req.Cwd, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
+		st := claude.State{Home: home, Cwd: s.req.Cwd, ShareLogin: s.req.Profile.Claude.ShareLogin, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
 		extra = append(extra, st.Binds(osHost{})...)
 	}
 	argv := []string{jail.ExePath, "init"}
