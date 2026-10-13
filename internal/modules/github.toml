@@ -196,27 +196,57 @@ method = "POST"
 path = "/repos/*/*/actions/jobs/*/rerun"
 action = "allow"
 
-# GraphQL carries reads and writes on one path, so path rules cannot tell
-# them apart. Until the proxy reads the operation type, writes known to be
-# dangerous wait for approval and the rest pass.
+# GraphQL carries reads and writes on one path, so these rules read the
+# operations in the body. Reads pass, routine pull request and issue writes
+# pass, merges wait for approval with their own summary, and every other
+# write falls to the host default and waits too.
 [[http.rules]]
 method = "POST"
 path = "/graphql"
-body_contains = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"]
-action = "approve"
-summary = "Merge a pull request"
-
-[[http.rules]]
-method = "POST"
-path = "/graphql"
-body_contains = ["createCommitOnBranch", "updateRef", "createRef", "deleteRef", "BranchProtectionRule", "createRelease", "updateRelease", "deleteRelease", "deleteRepository", "updateRepository", "createRepository", "DeployKey"]
-action = "approve"
-summary = "Change a branch, release or repository setting"
+graphql = { operation = "query" }
+action = "allow"
 
 [[http.rules]]
 method = "POST"
 path = "/graphql"
 action = "allow"
+
+[http.rules.graphql]
+operation = "mutation"
+fields = [
+  "createPullRequest",
+  "updatePullRequest",
+  "markPullRequestReadyForReview",
+  "convertPullRequestToDraft",
+  "closePullRequest",
+  "reopenPullRequest",
+  "requestReviews",
+  "addPullRequestReview",
+  "submitPullRequestReview",
+  "addPullRequestReviewComment",
+  "addPullRequestReviewThread",
+  "addPullRequestReviewThreadReply",
+  "resolveReviewThread",
+  "unresolveReviewThread",
+  "addComment",
+  "updateIssueComment",
+  "minimizeComment",
+  "createIssue",
+  "updateIssue",
+  "closeIssue",
+  "reopenIssue",
+  "addLabelsToLabelable",
+  "removeLabelsFromLabelable",
+  "addReaction",
+  "removeReaction",
+]
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"] }
+action = "approve"
+summary = "Merge a pull request"
 
 [[http]]
 host = "uploads.github.com"

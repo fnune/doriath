@@ -41,20 +41,26 @@ func TestEveryModuleLoads(t *testing.T) {
 	if alias, _ := gh.Decide("PUT", "/repositories/123/pulls/1/merge", nil); alias.Action != profile.ActionApprove {
 		t.Errorf("the /repositories alias must need approval too, got %v", alias.Action)
 	}
-	for _, req := range []struct{ method, path, body, want string }{
-		{"GET", "/repos/a/b/releases/1", "", "allow"},
-		{"POST", "/repos/a/b/pulls", "", "allow"},
-		{"POST", "/repos/a/b/actions/runs/1/rerun-failed-jobs", "", "allow"},
-		{"PUT", "/repos/a/b/contents/README.md", "", "approve"},
-		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve"},
-		{"POST", "/user/keys", "", "approve"},
-		{"POST", "/gists", "", "approve"},
-		{"PUT", "/repos/a/b/environments/prod/secrets/X", "", "deny"},
-		{"POST", "/graphql", `{"query":"query { viewer { login } }"}`, "allow"},
-		{"POST", "/graphql", `{"query":"mutation { createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve"},
+	for _, req := range []struct{ method, path, body, want, summary string }{
+		{"GET", "/repos/a/b/releases/1", "", "allow", ""},
+		{"POST", "/repos/a/b/pulls", "", "allow", ""},
+		{"POST", "/repos/a/b/actions/runs/1/rerun-failed-jobs", "", "allow", ""},
+		{"PUT", "/repos/a/b/contents/README.md", "", "approve", ""},
+		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve", ""},
+		{"POST", "/user/keys", "", "approve", ""},
+		{"POST", "/gists", "", "approve", ""},
+		{"PUT", "/repos/a/b/environments/prod/secrets/X", "", "deny", ""},
+		{"POST", "/graphql", `{"query":"query { viewer { login } }"}`, "allow", ""},
+		{"POST", "/graphql", `{"query":"mutation($i: CreatePullRequestInput!) { createPullRequest(input: $i) { pullRequest { url } } }"}`, "allow", ""},
+		{"POST", "/graphql", `{"query":"mutation { addComment(input: {}) { clientMutationId } }"}`, "allow", ""},
+		{"POST", "/graphql", `{"query":"mutation { createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve", ""},
+		{"POST", "/graphql", `{"query":"mutation { addComment: createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve", ""},
+		{"POST", "/graphql", `{"query":"mutation { mergePullRequest(input: {}) { clientMutationId } }"}`, "approve", "Merge a pull request"},
+		{"POST", "/graphql", `{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc"}}}`, "approve", ""},
 	} {
-		if got, _ := gh.Decide(req.method, req.path, []byte(req.body)); string(got.Action) != req.want {
-			t.Errorf("%s %s = %v, want %s", req.method, req.path, got.Action, req.want)
+		got, _ := gh.Decide(req.method, req.path, []byte(req.body))
+		if string(got.Action) != req.want || got.Summary != req.summary {
+			t.Errorf("%s %s %s = %v %q, want %s %q", req.method, req.path, req.body, got.Action, got.Summary, req.want, req.summary)
 		}
 	}
 	git, _ := p.Intercepted("github.com")

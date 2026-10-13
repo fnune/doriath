@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -140,14 +141,16 @@ type Rule struct {
 	// BodyContains narrows the rule to requests whose body contains one of
 	// these strings, for example a GraphQL mutation name.
 	BodyContains []string
-	Action       Action
-	Summary      string
+	// GraphQL narrows the rule by the operations a GraphQL body carries.
+	GraphQL *GraphQLRule
+	Action  Action
+	Summary string
 }
 
 // NeedsBody reports whether any rule for this host looks at request bodies.
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if len(r.BodyContains) > 0 && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || r.GraphQL != nil) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
@@ -260,8 +263,9 @@ func (p *Profile) AllowsHost(host string) bool {
 // Decide returns the matching rule for one request to an intercepted host.
 // The first matching rule wins. body is nil when no rule needs it.
 func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
+	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchBody(body) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchBody(body) && r.matchGraphQL(graphql) {
 			return r, true
 		}
 	}
@@ -281,6 +285,14 @@ func (r Rule) matchBody(body []byte) bool {
 		}
 	}
 	return false
+}
+
+func (r Rule) matchGraphQL(parse func() ([]graphQLOperation, bool)) bool {
+	if r.GraphQL == nil {
+		return true
+	}
+	ops, ok := parse()
+	return ok && r.GraphQL.match(ops)
 }
 
 // jsonStrings returns every string in a JSON body, decoded, because JSON

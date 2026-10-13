@@ -69,11 +69,17 @@ type credentialLayer struct {
 }
 
 type ruleLayer struct {
-	Method       string   `toml:"method"`
-	Path         string   `toml:"path"`
-	BodyContains []string `toml:"body_contains"`
-	Action       string   `toml:"action"`
-	Summary      string   `toml:"summary"`
+	Method       string        `toml:"method"`
+	Path         string        `toml:"path"`
+	BodyContains []string      `toml:"body_contains"`
+	GraphQL      *graphQLLayer `toml:"graphql"`
+	Action       string        `toml:"action"`
+	Summary      string        `toml:"summary"`
+}
+
+type graphQLLayer struct {
+	Operation string    `toml:"operation"`
+	Fields    *[]string `toml:"fields"`
 }
 
 type signingLayer struct {

@@ -169,6 +169,19 @@ path = "/graphql"
 body_contains = ["mergePullRequest"]
 action = "deny"
 
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "query" }
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["createRef"] }
+action = "approve"
+summary = "Create a ref"
+
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token" }
@@ -497,6 +510,35 @@ func TestGraphQLBodyRule(t *testing.T) {
 	}
 	if body(t, resp); resp.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized body: %d", resp.StatusCode)
+	}
+}
+
+func TestGraphQLOperationRule(t *testing.T) {
+	h := newHarness(t)
+	post := func(query string) {
+		t.Helper()
+		b, _ := json.Marshal(map[string]string{"query": query})
+		resp, err := h.client().Post("https://api.github.com/graphql", "application/json", strings.NewReader(string(b)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b := body(t, resp); resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %d %s", query, resp.StatusCode, b)
+		}
+	}
+	post("query { viewer { login } }")
+	post("mutation { createRef(input: {}) { clientMutationId } }")
+	post("mutation { createCommitOnBranch(input: {}) { commit { oid } } }")
+	h.approver.mu.Lock()
+	defer h.approver.mu.Unlock()
+	if len(h.approver.requests) != 2 {
+		t.Fatalf("approval requests = %+v, want two: the query passes", h.approver.requests)
+	}
+	if r := h.approver.requests[0]; r.Summary != "Create a ref" || r.Scope != "http POST api.github.com /graphql graphql mutation createRef" {
+		t.Errorf("named mutation: %+v", r)
+	}
+	if r := h.approver.requests[1]; r.Scope != "http POST api.github.com /graphql graphql mutation createCommitOnBranch" {
+		t.Errorf("a session grant for an unnamed mutation must cover only that mutation: %+v", r)
 	}
 }
 

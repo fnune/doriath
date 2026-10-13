@@ -312,7 +312,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body)),
-			Scope:   scope(rule, matched, r.Method, r.URL.Path, host),
+			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason := "denied"
@@ -428,13 +428,22 @@ func (s *Server) authorization(ctx context.Context, c profile.Credential) (strin
 
 // scope identifies what an approval covers. Requests that match the same rule
 // share a scope, so "allow for this session" covers them all.
-func scope(r profile.Rule, matched bool, method, path, host string) string {
+func scope(r profile.Rule, matched bool, method, path, host string, body []byte) string {
 	if !matched {
-		return fmt.Sprintf("http %s %s %s", method, host, path)
+		s := fmt.Sprintf("http %s %s %s", method, host, path)
+		// Without this, allowing one unnamed GraphQL write for the session
+		// would allow every other one on the same path.
+		if gql := profile.DescribeGraphQL(body); gql != "" {
+			s += " graphql " + gql
+		}
+		return s
 	}
 	s := fmt.Sprintf("http %s %s %s", r.Method, host, string(r.Path))
 	if len(r.BodyContains) > 0 {
 		s += " " + strings.Join(r.BodyContains, ",")
+	}
+	if r.GraphQL != nil {
+		s += " " + r.GraphQL.String()
 	}
 	if repo := repoPrefix(path); repo != "" {
 		s += " in " + repo

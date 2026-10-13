@@ -574,7 +574,40 @@ func buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("body_contains entries must not be empty")
 		}
 	}
-	return Rule{Method: method, Path: path, BodyContains: r.BodyContains, Action: action, Summary: r.Summary}, nil
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Action: action, Summary: r.Summary}
+	if r.GraphQL != nil {
+		g, err := buildGraphQL(*r.GraphQL)
+		if err != nil {
+			return Rule{}, err
+		}
+		rule.GraphQL = &g
+	}
+	return rule, nil
+}
+
+var graphQLName = regexp.MustCompile(`^[_A-Za-z][_0-9A-Za-z]*$`)
+
+func buildGraphQL(g graphQLLayer) (GraphQLRule, error) {
+	op := GraphQLOperation(g.Operation)
+	switch op {
+	case GraphQLQuery, GraphQLMutation, GraphQLSubscription:
+	default:
+		return GraphQLRule{}, fmt.Errorf("graphql operation %q: want query, mutation or subscription", g.Operation)
+	}
+	out := GraphQLRule{Operation: op}
+	if g.Fields == nil {
+		return out, nil
+	}
+	if len(*g.Fields) == 0 {
+		return GraphQLRule{}, fmt.Errorf("graphql fields: list at least one field, or leave fields out to match any")
+	}
+	for _, f := range *g.Fields {
+		if !graphQLName.MatchString(f) {
+			return GraphQLRule{}, fmt.Errorf("graphql field %q: want a GraphQL field name such as createPullRequest", f)
+		}
+	}
+	out.Fields = slices.Clone(*g.Fields)
+	return out, nil
 }
 
 func parseAction(s string) (Action, error) {
