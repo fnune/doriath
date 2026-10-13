@@ -6,8 +6,6 @@ package landlock
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -50,7 +48,7 @@ func handledRights(abi int) uint64 {
 // RestrictWrites lets the calling thread write only beneath the writable
 // paths, skipping those that do not exist. Landlock binds the calling thread
 // and the processes it later starts, not the other threads of a Go program,
-// so call it with the OS thread locked and exec right after. Exec does both.
+// so call it with the OS thread locked and exec right after.
 func RestrictWrites(writable []string) error {
 	abi, err := ABI()
 	if err != nil {
@@ -105,20 +103,6 @@ func allowBeneath(ruleset int, path string, handled uint64) error {
 	if _, _, errno := unix.Syscall6(unix.SYS_LANDLOCK_ADD_RULE, uintptr(ruleset),
 		unix.LANDLOCK_RULE_PATH_BENEATH, uintptr(unsafe.Pointer(&rule)), 0, 0, 0); errno != 0 {
 		return fmt.Errorf("allow writes beneath %s: %w", path, errno)
-	}
-	return nil
-}
-
-// Exec restricts writes to the writable paths and replaces the process with
-// argv0. It returns only on failure, and then the calling goroutine stays
-// locked to its OS thread, which may already be restricted.
-func Exec(writable []string, argv0 string, argv, env []string) error {
-	runtime.LockOSThread()
-	if err := RestrictWrites(writable); err != nil {
-		return err
-	}
-	if err := syscall.Exec(argv0, argv, env); err != nil {
-		return fmt.Errorf("exec %s: %w", argv0, err)
 	}
 	return nil
 }

@@ -32,7 +32,8 @@ var version = "dev"
 const usage = `girdle runs a coding agent in a jail that shows it only what its profile names.
 
 Usage:
-  girdle run [--profile NAME] [--clone-from SESSION] [--] COMMAND [ARGS...]
+  girdle run [--profile NAME] [--clone-from SESSION] [--learn] [--] COMMAND [ARGS...]
+  girdle exec [--session ID] [--] [COMMAND [ARGS...]]
   girdle approvals [list]
   girdle approvals allow ID [--for once|session|DURATION]
   girdle approvals deny ID [--reason TEXT]
@@ -41,7 +42,7 @@ Usage:
   girdle clean PROFILE
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  girdle profiles [list | show NAME | edit NAME | which [-q] [DIR]]
+  girdle profiles [list | show NAME | edit NAME | which [-q] [DIR] | allow NAME HOST...]
   girdle doctor [--secrets]
   girdle completion zsh
   girdle version
@@ -67,6 +68,8 @@ func run(args []string) int {
 	switch args[0] {
 	case "run":
 		code, err = cmdRun(args[1:])
+	case "exec":
+		code, err = cmdExec(args[1:])
 	case "init":
 		code, err = cmdInit(args[1:])
 	case "sandbox-exec":
@@ -124,6 +127,7 @@ func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	name := flags.String("profile", "", "profile to use (default: the one whose match paths contain the working directory)")
 	cloneFrom := flags.String("clone-from", "", "reuse the clones of an earlier session, to resume its work")
+	learn := flags.Bool("learn", false, "let egress reach any public host, and list the hosts the profile does not allow when the session ends")
 	if err := flags.Parse(args); err != nil {
 		return 2, err
 	}
@@ -200,7 +204,7 @@ func cmdRun(args []string) (int, error) {
 		Git:         lookPath("git"),
 		SystemdRun:  lookPath("systemd-run"),
 	}
-	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, CloneFrom: *cloneFrom})
+	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, CloneFrom: *cloneFrom, Learn: *learn})
 	if err != nil {
 		return 1, err
 	}

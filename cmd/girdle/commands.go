@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	osuser "os/user"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -28,11 +29,14 @@ import (
 	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/bundle"
 	"github.com/fnune/girdle/internal/config"
+	"github.com/fnune/girdle/internal/confine"
 	"github.com/fnune/girdle/internal/control"
 	"github.com/fnune/girdle/internal/jailinit"
 	"github.com/fnune/girdle/internal/landlock"
 	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/session"
+
+	"golang.org/x/sys/unix"
 )
 
 type forwardFlags []jailinit.Forward
@@ -406,6 +410,18 @@ func cmdProfiles(args []string) error {
 	if args[0] == "which" {
 		return profilesWhich(l, args[1:])
 	}
+	if args[0] == "allow" && len(args) >= 3 {
+		if _, err := l.Load(args[1]); err != nil {
+			return err
+		}
+		for _, host := range args[2:] {
+			if err := profile.AddEgressHost(p.Profiles(), args[1], host); err != nil {
+				return err
+			}
+		}
+		fmt.Printf("Added %d hosts to %s.\n", len(args)-2, filepath.Join(p.Profiles(), profile.LocalFile(args[1])))
+		return nil
+	}
 	if args[0] == "edit" && len(args) == 2 {
 		return profilesEdit(l, p.Profiles(), args[1], os.Stdin)
 	}
@@ -645,6 +661,8 @@ func cmdSandboxExec(args []string) error {
 	flags := flag.NewFlagSet("sandbox-exec", flag.ContinueOnError)
 	var writable stringList
 	flags.Var(&writable, "writable", "a path the command may write beneath")
+	useLandlock := flags.Bool("landlock", true, "restrict writes to the writable paths")
+	seccompFD := flags.Int("seccomp-fd", 0, "a file descriptor with the jail's seccomp program, for a process that joins a running jail")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -656,11 +674,32 @@ func cmdSandboxExec(args []string) error {
 	if err != nil {
 		return fmt.Errorf("sandbox-exec: %w", err)
 	}
-	err = landlock.Exec(writable, path, argv, os.Environ())
-	if errors.Is(err, landlock.ErrUnsupported) {
-		return errors.New("sandbox-exec: this kernel has no Landlock; set landlock = false under [hardening] in the profile to run without it")
+	// Capabilities, seccomp and Landlock all bind the calling thread, which
+	// then execs, so it must not change under us.
+	runtime.LockOSThread()
+	if *seccompFD != 0 {
+		prog, err := io.ReadAll(os.NewFile(uintptr(*seccompFD), "seccomp"))
+		if err != nil {
+			return fmt.Errorf("sandbox-exec: read seccomp program: %w", err)
+		}
+		_ = unix.Close(*seccompFD)
+		if err := confine.DropCapabilities(); err != nil {
+			return fmt.Errorf("sandbox-exec: %w", err)
+		}
+		if err := confine.InstallSeccomp(prog); err != nil {
+			return fmt.Errorf("sandbox-exec: %w", err)
+		}
 	}
-	return fmt.Errorf("sandbox-exec: %w", err)
+	if *useLandlock {
+		err := landlock.RestrictWrites(writable)
+		if errors.Is(err, landlock.ErrUnsupported) {
+			return errors.New("sandbox-exec: this kernel has no Landlock; set landlock = false under [hardening] in the profile to run without it")
+		}
+		if err != nil {
+			return fmt.Errorf("sandbox-exec: %w", err)
+		}
+	}
+	return fmt.Errorf("sandbox-exec: exec %s: %w", path, syscall.Exec(path, argv, os.Environ()))
 }
 
 const profileTemplate = `description = ""

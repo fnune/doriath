@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -88,7 +89,11 @@ func helper(mode, allowed, denied string) error {
 		}
 		script := fmt.Sprintf("echo ok > %s/new && ! echo no > %s/new 2>/dev/null && cat %s/existing",
 			allowed, denied, denied)
-		return Exec([]string{allowed}, sh, []string{"sh", "-c", script}, os.Environ())
+		runtime.LockOSThread()
+		if err := RestrictWrites([]string{allowed}); err != nil {
+			return err
+		}
+		return syscall.Exec(sh, []string{"sh", "-c", script}, os.Environ())
 	default:
 		return fmt.Errorf("unknown helper mode %q", mode)
 	}

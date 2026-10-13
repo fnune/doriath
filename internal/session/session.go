@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -100,6 +101,9 @@ type Request struct {
 	// CloneFrom reuses the clones of an earlier session, so that resumed
 	// work keeps its uncommitted changes.
 	CloneFrom string
+	// Learn lets egress reach any public host and reports the hosts the
+	// profile does not allow when the session ends.
+	Learn bool
 }
 
 // Info describes a running session for girdle approvals and girdle status.
@@ -126,6 +130,7 @@ type Session struct {
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
+	entry   Entry
 	// claudeProject is this project's directory under the real ~/.claude
 	// and its copy in the profile's own, when the session runs Claude.
 	claudeProject [2]string
@@ -189,7 +194,10 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log = audit.New(f, s.deps.Clock.Now, s.id, p.Name)
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
-	s.policy = newLivePolicy(p)
+	s.policy = newLivePolicy(p, s.req.Learn)
+	if s.req.Learn {
+		fmt.Fprintln(s.deps.Stderr, "girdle: learning mode: any public host is reachable this session, and girdle lists the ones the profile does not allow when it ends")
+	}
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
 	s.egress.firstDenial = s.proposeHost
 
@@ -499,6 +507,10 @@ func (s *Session) plan() (jail.Spec, error) {
 		argv = append(argv, "--forward", f)
 	}
 	argv = append(argv, "--")
+	s.entry = Entry{Cwd: s.req.Cwd, Landlock: !p.Hardening.NoLandlock}
+	if s.entry.Landlock {
+		s.entry.Writable = s.writable(extra)
+	}
 	if !p.Hardening.NoLandlock {
 		argv = append(argv, jail.ExePath, "sandbox-exec")
 		for _, w := range s.writable(extra) {
@@ -565,6 +577,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		defer infoR.Close()
 		if info, err := readInfo(infoR, time.Minute); err == nil {
 			s.peers.setInit(info.ChildPID)
+			s.writeEntry(info.ChildPID, spec)
 		}
 	}()
 	done := make(chan struct{})
@@ -598,6 +611,10 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	for _, line := range s.landClones(context.Background()) {
 		fmt.Fprintln(s.deps.Stderr, line)
+	}
+	if learned := s.policy.Learned(); len(learned) > 0 {
+		s.log.Write("learned", map[string]any{"hosts": learned})
+		fmt.Fprintf(s.deps.Stderr, "girdle: the session reached %d hosts the profile does not allow. To allow them: girdle profiles allow %s %s\n", len(learned), s.req.Profile.Name, strings.Join(learned, " "))
 	}
 	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
 		fmt.Fprintln(s.deps.Stderr, line)
@@ -831,4 +848,37 @@ func cloneRepositories(p *profile.Profile, host jail.Host, hasCommits func(repo 
 		}
 	}
 	return &out
+}
+
+// EntryFile, in the session directory, tells girdle exec how to join the
+// running jail.
+const EntryFile = "entry.json"
+
+// Entry is what a process needs to join a running jail as one of its own:
+// the jail's first process to enter the namespaces of, and the environment
+// and write rules the jail's processes have. The seccomp program sits next
+// to it as seccomp.bpf.
+type Entry struct {
+	PID      int      `json:"pid"`
+	UID      int      `json:"uid"`
+	GID      int      `json:"gid"`
+	Cwd      string   `json:"cwd"`
+	Env      []string `json:"env"`
+	Landlock bool     `json:"landlock"`
+	Writable []string `json:"writable"`
+}
+
+func (s *Session) writeEntry(pid int, spec jail.Spec) {
+	e := s.entry
+	e.PID, e.UID, e.GID = pid, spec.UID, spec.GID
+	for _, k := range slices.Sorted(maps.Keys(spec.Env)) {
+		e.Env = append(e.Env, k+"="+spec.Env[k])
+	}
+	data, err := json.Marshal(e)
+	if err == nil {
+		err = writeFile(filepath.Join(s.dir, EntryFile), data, 0o600)
+	}
+	if err != nil {
+		s.log.Write("entry-error", map[string]string{"error": err.Error()})
+	}
 }

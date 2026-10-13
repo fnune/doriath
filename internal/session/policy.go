@@ -2,6 +2,8 @@ package session
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,24 +14,42 @@ import (
 )
 
 // livePolicy is the profile plus hosts the person allowed during this
-// session.
+// session. In learning mode it lets any host through and records the ones
+// the profile does not name, so a person can build an allowlist from one
+// run instead of one denial at a time.
 type livePolicy struct {
 	*profile.Profile
-	mu    sync.RWMutex
-	extra map[string]bool
+	mu      sync.RWMutex
+	extra   map[string]bool
+	learn   bool
+	learned map[string]bool
 }
 
-func newLivePolicy(p *profile.Profile) *livePolicy {
-	return &livePolicy{Profile: p, extra: map[string]bool{}}
+func newLivePolicy(p *profile.Profile, learn bool) *livePolicy {
+	return &livePolicy{Profile: p, extra: map[string]bool{}, learn: learn, learned: map[string]bool{}}
 }
 
 func (l *livePolicy) AllowsHost(host string) bool {
 	if l.Profile.AllowsHost(host) {
 		return true
 	}
+	host = strings.ToLower(host)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.extra[host] {
+		return true
+	}
+	if l.learn {
+		l.learned[host] = true
+	}
+	return l.learn
+}
+
+// Learned lists the hosts that learning mode let through, sorted.
+func (l *livePolicy) Learned() []string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.extra[strings.ToLower(host)]
+	return slices.Sorted(maps.Keys(l.learned))
 }
 
 func (l *livePolicy) allow(host string) {

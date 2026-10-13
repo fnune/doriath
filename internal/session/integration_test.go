@@ -170,7 +170,7 @@ func newEnv(t *testing.T) *env {
 			Config:  filepath.Join(root, "cfg"),
 			State:   filepath.Join(root, "state"),
 			Cache:   filepath.Join(root, "cache"),
-			Runtime: filepath.Join(root, "run"),
+			Runtime: filepath.Join(root, "run", "girdle"),
 		},
 		upstream: up,
 		dialer:   redirect{addr: srv.Listener.Addr().String()},
@@ -838,5 +838,46 @@ func TestWritableRepositoryBecomesAClone(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, "written")); err == nil {
 		t.Fatal("the agent wrote into the checkout: a rw repository mount must be a clone")
+	}
+}
+
+func TestExecJoinsTheRunningJail(t *testing.T) {
+	e := newEnv(t)
+	release := filepath.Join(e.work, "release")
+	var out []byte
+	var execErr error
+	code, sessionOut := e.run(e.profile(""), `
+echo inside > /tmp/marker
+while [ ! -e "$PWD/release" ]; do sleep 0.05; done
+echo done
+`, func() {
+		defer func() { _ = os.WriteFile(release, nil, 0o600) }()
+		entry := filepath.Join(e.paths.Sessions(), e.lastID, session.EntryFile)
+		for range 200 {
+			if _, err := os.Stat(entry); err == nil {
+				break
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+		cmd := exec.Command(girdleBin, "exec", "--session", e.lastID, "--", "sh", "-c", `
+cat /tmp/marker
+grep -q '^CapEff:[[:space:]]*0*$' /proc/self/status || echo "FAIL capabilities kept"
+unshare -U true 2>/dev/null && echo "FAIL user namespace"
+touch /mnt/x 2>/dev/null && echo "FAIL write outside the writable paths"
+touch "$PWD/from-exec" || echo "FAIL worktree write"
+test -n "$HTTPS_PROXY" || echo "FAIL jail environment missing"
+`)
+		cmd.Dir = e.work
+		cmd.Env = []string{"HOME=" + e.home, "XDG_RUNTIME_DIR=" + filepath.Dir(e.paths.Runtime), "PATH=" + os.Getenv("PATH")}
+		out, execErr = cmd.CombinedOutput()
+	})
+	if code != 0 || !strings.Contains(sessionOut, "done") {
+		t.Fatalf("session code %d:\n%s", code, sessionOut)
+	}
+	if execErr != nil || strings.Contains(string(out), "FAIL") || !strings.Contains(string(out), "inside") {
+		t.Fatalf("exec: %v\n%s", execErr, out)
+	}
+	if _, err := os.Stat(filepath.Join(e.work, "from-exec")); err != nil {
+		t.Errorf("exec did not write in the session's working directory: %v", err)
 	}
 }
