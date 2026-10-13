@@ -383,7 +383,7 @@ func (s *Session) startSigning(context.Context) error {
 	if p.SigningKey == "" {
 		return nil
 	}
-	key, err := s.deps.Secrets.Get(context.Background(), p.SecretName(p.SigningKey))
+	key, err := s.deps.Secrets.Get(context.Background(), p.SigningKey)
 	if err != nil {
 		return fmt.Errorf("signing key: %w", err)
 	}

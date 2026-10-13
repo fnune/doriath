@@ -21,7 +21,7 @@ func TestEveryModuleLoads(t *testing.T) {
 			names = append(names, `"`+name+`"`)
 		}
 	}
-	body := "modules = [" + strings.Join(names, ", ") + "]\nsecrets = { github = \"gh\" }\n"
+	body := "modules = [" + strings.Join(names, ", ") + "]\n[secrets.github]\ncommand = [\"gh\", \"auth\", \"token\"]\n"
 	l := &profile.Loader{
 		Profiles: fstest.MapFS{"all.toml": {Data: []byte(body)}},
 		Modules:  []fs.FS{FS},
@@ -32,7 +32,7 @@ func TestEveryModuleLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	gh, ok := p.Intercepted("api.github.com")
-	if !ok || gh.Credential == nil || p.SecretName(gh.Credential.Secret) != "gh" {
+	if !ok || gh.Credential == nil || gh.Credential.Secret != "github" {
 		t.Fatalf("github module: %+v", gh)
 	}
 	merge, _ := gh.Decide("PUT", "/repos/a/b/pulls/1/merge", nil)

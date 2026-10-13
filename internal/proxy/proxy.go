@@ -34,7 +34,6 @@ type Policy interface {
 	// ProgramsFor names the programs that alone may reach host, if any.
 	ProgramsFor(host string) []string
 	Intercepted(host string) (profile.HTTPHost, bool)
-	SecretName(name string) string
 }
 
 type Approver interface {
@@ -414,7 +413,7 @@ type noCloseNotify struct{ http.ResponseWriter }
 func (w noCloseNotify) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (s *Server) authorization(ctx context.Context, c profile.Credential) (string, error) {
-	v, err := s.secrets.Get(ctx, s.policy.SecretName(c.Secret))
+	v, err := s.secrets.Get(ctx, c.Secret)
 	if err != nil {
 		return "", err
 	}

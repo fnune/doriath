@@ -143,7 +143,8 @@ type harness struct {
 }
 
 const testProfile = `
-secrets = { github = "github-test" }
+[secrets.github]
+file = "/run/secrets/github"
 
 [egress]
 allow = ["example.com", "plain.example"]
@@ -223,7 +224,7 @@ func newHarness(t *testing.T) *harness {
 		Config{Session: "s1", Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: upCA.Pool()},
 		loadPolicy(t),
 		approver,
-		mapSecrets{"github-test": "real-token"},
+		mapSecrets{"github": "real-token"},
 		session,
 		redirectDialer{tlsAddr: tlsServer.Listener.Addr().String(), plainAddr: plainServer.Listener.Addr().String()},
 		ev,
@@ -471,7 +472,6 @@ func TestPlainHTTP(t *testing.T) {
 func TestMissingSecretFailsClosed(t *testing.T) {
 	h := newHarness(t)
 	p := loadPolicy(t)
-	p.Secrets["github"] = "absent"
 	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{}, h.session, redirectDialer{}, h.events)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
@@ -604,7 +604,7 @@ func TestCredentialOnlyForListedBinaries(t *testing.T) {
 			p.HTTP[i].Credential.Binaries = []string{"gh"}
 		}
 	}
-	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{"github-test": "real-token"}, h.session, h.dialer(), h.events)
+	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{"github": "real-token"}, h.session, h.dialer(), h.events)
 	host, _ := p.Intercepted("api.github.com")
 	call := func(exe string) *http.Request {
 		t.Helper()

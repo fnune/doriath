@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	osuser "os/user"
@@ -459,7 +460,7 @@ func cmdDoctor(args []string) int {
 	if err != nil {
 		return 1
 	}
-	user, err := config.LoadUser(p.UserConfig(), p.Home)
+	_, err = config.LoadUser(p.UserConfig())
 	check("config "+p.UserConfig(), err)
 	bwrap, err := bundle.Bwrap(p.Bundle(), os.Getenv)
 	if bundle.Bundled() {
@@ -486,43 +487,45 @@ func cmdDoctor(args []string) int {
 	names, err := l.Names()
 	check("profiles in "+p.Profiles(), err)
 	podman := false
+	var profiles []*profile.Profile
 	for _, n := range names {
 		prof, err := l.Load(n)
 		check("profile "+n, err)
-		if err == nil && prof.Podman {
-			podman = true
+		if err == nil {
+			profiles = append(profiles, prof)
+			podman = podman || prof.Podman
 		}
 	}
 	if len(names) == 0 {
 		note("profiles", "none yet; see docs/install.md")
 	}
 
-	secretNames := make([]string, 0, len(user.Secrets))
-	for name := range user.Secrets {
-		secretNames = append(secretNames, name)
-	}
-	sort.Strings(secretNames)
-	store := secret.NewConfigured(user.Secrets, execRunner{}, secret.OSFiles{})
-	for _, name := range secretNames {
-		b := user.Secrets[name]
-		switch {
-		case *fetch:
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			_, err := store.Get(ctx, name)
-			cancel()
-			check("secret "+name, err)
-		case b.File != "":
-			info, err := os.Stat(b.File)
-			if err == nil && info.Mode().Perm()&0o077 != 0 {
-				err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
+	secrets := 0
+	for _, prof := range profiles {
+		store := secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{})
+		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
+			secrets++
+			label := "secret " + prof.Name + "/" + name
+			b := prof.Secrets[name]
+			switch {
+			case *fetch:
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				_, err := store.Get(ctx, name)
+				cancel()
+				check(label, err)
+			case b.File != "":
+				info, err := os.Stat(b.File)
+				if err == nil && info.Mode().Perm()&0o077 != 0 {
+					err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
+				}
+				check(label+" (file)", err)
+			default:
+				_, err := exec.LookPath(b.Command[0])
+				check(label+" (command "+b.Command[0]+")", err)
 			}
-			check("secret "+name+" (file)", err)
-		default:
-			_, err := exec.LookPath(b.Command[0])
-			check("secret "+name+" (command "+b.Command[0]+")", err)
 		}
 	}
-	if !*fetch && len(secretNames) > 0 {
+	if !*fetch && secrets > 0 {
 		note("secrets", "run girdle doctor --secrets to fetch each one once")
 	}
 

@@ -18,6 +18,26 @@ let
     };
   };
 
+  secretType = lib.types.submodule {
+    options = {
+      file = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "A file that holds the secret. It must not be readable by other users.";
+      };
+      command = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        example = [
+          "rbw"
+          "get"
+          "github-project"
+        ];
+        description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
+      };
+    };
+  };
+
   profileType = lib.types.submodule {
     freeformType = toml.type;
     options = {
@@ -43,6 +63,15 @@ let
         default = [ ];
         example = [ "~/Development/project" ];
         description = "Directories where girdle run picks this profile without --profile.";
+      };
+      secrets = lib.mkOption {
+        type = lib.types.attrsOf secretType;
+        default = { };
+        example = lib.literalExpression ''{ github.command = [ "rbw" "get" "github-my-app" ]; }'';
+        description = ''
+          Where each secret this profile uses comes from. Only this profile
+          sees them; to use a secret in another profile, name it there too.
+        '';
       };
       packages = lib.mkOption {
         type = lib.types.listOf lib.types.package;
@@ -72,34 +101,18 @@ let
             };
           };
     in
-    builtins.removeAttrs profile [ "packages" ] // withPath;
-
-  secretType = lib.types.submodule {
-    options = {
-      file = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "A file that holds the secret. It must not be readable by other users.";
-      };
-      command = lib.mkOption {
-        type = lib.types.nullOr (lib.types.listOf lib.types.str);
-        default = null;
-        example = [
-          "rbw"
-          "get"
-          "github-project"
-        ];
-        description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
-      };
-    };
-  };
+    builtins.removeAttrs profile [
+      "packages"
+      "secrets"
+    ]
+    // withPath
+    // lib.optionalAttrs (profile.secrets != { }) { secrets = lib.mapAttrs (_: withoutNull) profile.secrets; };
 
   withoutNull = lib.filterAttrs (_: v: v != null);
 
   configFile = toml.generate "girdle-config.toml" (
     withoutNull {
       approvals = withoutNull { desktop = cfg.approvals.desktop; };
-      secrets = lib.mapAttrs (_: withoutNull) cfg.secrets;
     }
   );
 
@@ -141,15 +154,6 @@ in
       description = "Show approval requests as desktop notifications with buttons.";
     };
 
-    secrets = lib.mkOption {
-      type = lib.types.attrsOf secretType;
-      default = { };
-      description = ''
-        Where each named secret comes from. Profiles name secrets, never their
-        values, so this file holds no secret material itself.
-      '';
-    };
-
     modules = lib.mkOption {
       type = lib.types.attrsOf layerType;
       default = { };
@@ -164,10 +168,15 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    assertions = lib.mapAttrsToList (name: s: {
-      assertion = (s.file == null) != (s.command == null);
-      message = "programs.girdle.secrets.${name}: set exactly one of file or command.";
-    }) cfg.secrets;
+    assertions = lib.flatten (
+      lib.mapAttrsToList (
+        profile: p:
+        lib.mapAttrsToList (name: s: {
+          assertion = (s.file == null) != (s.command == null);
+          message = "programs.girdle.profiles.${profile}.secrets.${name}: set exactly one of file or command.";
+        }) p.secrets
+      ) cfg.profiles
+    );
 
     home.packages = [ cfg.package ];
 

@@ -13,12 +13,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -176,7 +178,7 @@ func newEnv(t *testing.T) *env {
 		dialer:   redirect{addr: srv.Listener.Addr().String()},
 		bundle:   bundlePath,
 		roots:    upCA,
-		secrets:  map[string]secret.Backend{"gh": {File: tokenPath}},
+		secrets:  map[string]secret.Backend{"github": {File: tokenPath}},
 	}
 }
 
@@ -184,7 +186,6 @@ func (e *env) profile(extra string) *profile.Profile {
 	e.t.Helper()
 	body := fmt.Sprintf(`
 modules = ["base"]
-secrets = { github = "gh" }
 
 [[mounts]]
 path = %q
@@ -206,6 +207,9 @@ path = "/repos/*/*/releases"
 action = "approve"
 summary = "Create a GitHub release"
 %s`, e.work, e.binaries, extra)
+	for _, name := range slices.Sorted(maps.Keys(e.secrets)) {
+		body += fmt.Sprintf("\n[secrets.%s]\nfile = %q\n", name, e.secrets[name].File)
+	}
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "it.toml"), []byte(body), 0o600); err != nil {
 		e.t.Fatal(err)
 	}
@@ -241,7 +245,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 	}
 	deps := session.Deps{
 		Paths:         e.paths,
-		Secrets:       secret.NewConfigured(e.secrets, nil, secret.OSFiles{}),
+		Secrets:       secret.NewConfigured(p.Secrets, nil, secret.OSFiles{}),
 		Notifier:      notify.None{},
 		Informer:      notify.None{},
 		Clock:         clock{},

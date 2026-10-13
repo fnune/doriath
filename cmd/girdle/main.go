@@ -158,7 +158,7 @@ func cmdRun(args []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	user, err := config.LoadUser(p.UserConfig(), p.Home)
+	user, err := config.LoadUser(p.UserConfig())
 	if err != nil {
 		return 1, err
 	}
@@ -188,7 +188,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(user.Secrets, execRunner{}, secret.OSFiles{}),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

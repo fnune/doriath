@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fnune/girdle/internal/secret"
 )
 
 type Mode string
@@ -251,16 +253,10 @@ type Profile struct {
 	// runs builds outside the jail, so they bypass the egress allowlist.
 	NixDaemon bool
 	Claude    Claude
-	Secrets   map[string]string
-}
-
-// SecretName maps a secret name used by a module to the name in the user's
-// secret configuration.
-func (p *Profile) SecretName(name string) string {
-	if alias, ok := p.Secrets[name]; ok {
-		return alias
-	}
-	return name
+	// Secrets says where each secret this profile uses comes from. They live
+	// in the profile, not in a shared table, so a profile reaches only the
+	// secrets written into it, and reusing one elsewhere is a deliberate copy.
+	Secrets map[string]secret.Backend
 }
 
 // Intercepted returns the HTTP host entry that covers host, if any.

@@ -45,44 +45,20 @@ func TestLoadUser(t *testing.T) {
 		}
 	}
 
-	u, err := LoadUser(filepath.Join(dir, "missing.toml"), "/home/u")
-	if err != nil || !u.Approvals.Desktop || len(u.Secrets) != 0 {
+	u, err := LoadUser(filepath.Join(dir, "missing.toml"))
+	if err != nil || !u.Approvals.Desktop {
 		t.Fatalf("missing file: %+v, %v", u, err)
 	}
 
-	write(`
-[secrets.github-project]
-file = "~/.config/girdle/secrets/github"
-
-[secrets.agent-signing]
-command = ["rbw", "get", "agent-signing"]
-
-[approvals]
-desktop = false
-`)
-	u, err = LoadUser(path, "/home/u")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if u.Secrets["github-project"].File != "/home/u/.config/girdle/secrets/github" {
-		t.Errorf("file = %q", u.Secrets["github-project"].File)
-	}
-	if got := u.Secrets["agent-signing"].Command; len(got) != 3 || got[0] != "rbw" {
-		t.Errorf("command = %v", got)
-	}
-	if u.Approvals.Desktop {
-		t.Error("desktop should be false")
+	write("[approvals]\ndesktop = false\n")
+	u, err = LoadUser(path)
+	if err != nil || u.Approvals.Desktop {
+		t.Fatalf("desktop should be false: %+v, %v", u, err)
 	}
 
-	for body, want := range map[string]string{
-		"[secrets.x]\nfile = \"a\"\ncommand = [\"b\"]": "not both",
-		"[secrets.x]\n":               "set file or command",
-		"[secrets.x]\nfile = \"rel\"": "must be absolute",
-		"colour = \"blue\"":           "unknown keys: colour",
-	} {
-		write(body)
-		if _, err := LoadUser(path, "/home/u"); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%q: err = %v, want %q", body, err, want)
-		}
+	// Secrets belong to profiles, so config.toml has no place for them.
+	write("[secrets.x]\nfile = \"~/token\"\n")
+	if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "unknown keys") {
+		t.Fatalf("err = %v, want unknown keys", err)
 	}
 }

@@ -83,7 +83,7 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	}
 	b, ok := c.backends[name]
 	if !ok {
-		return Value{}, fmt.Errorf("secret %q: %w: add it to the secrets table in config.toml", name, ErrUnknown)
+		return Value{}, fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile", name, ErrUnknown, name)
 	}
 	v, err := c.fetch(ctx, name, b)
 	if err != nil {

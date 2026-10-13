@@ -12,23 +12,23 @@ import (
 // "not set" apart from the zero value, so later layers only override what
 // they name.
 type layer struct {
-	Name        string            `toml:"name"`
-	Description string            `toml:"description"`
-	Modules     []string          `toml:"modules"`
-	Match       []string          `toml:"match"`
-	Mounts      []mountLayer      `toml:"mounts"`
-	Caches      []cacheLayer      `toml:"caches"`
-	Devices     []string          `toml:"devices"`
-	Env         envLayer          `toml:"env"`
-	Egress      egressLayer       `toml:"egress"`
-	HTTP        []httpLayer       `toml:"http"`
-	Signing     *signingLayer     `toml:"signing"`
-	Podman      *podmanLayer      `toml:"podman"`
-	Nix         *nixLayer         `toml:"nix"`
-	Hardening   *hardeningLayer   `toml:"hardening"`
-	Limits      *limitsLayer      `toml:"limits"`
-	Claude      *claudeLayer      `toml:"claude"`
-	Secrets     map[string]string `toml:"secrets"`
+	Name        string                 `toml:"name"`
+	Description string                 `toml:"description"`
+	Modules     []string               `toml:"modules"`
+	Match       []string               `toml:"match"`
+	Mounts      []mountLayer           `toml:"mounts"`
+	Caches      []cacheLayer           `toml:"caches"`
+	Devices     []string               `toml:"devices"`
+	Env         envLayer               `toml:"env"`
+	Egress      egressLayer            `toml:"egress"`
+	HTTP        []httpLayer            `toml:"http"`
+	Signing     *signingLayer          `toml:"signing"`
+	Podman      *podmanLayer           `toml:"podman"`
+	Nix         *nixLayer              `toml:"nix"`
+	Hardening   *hardeningLayer        `toml:"hardening"`
+	Limits      *limitsLayer           `toml:"limits"`
+	Claude      *claudeLayer           `toml:"claude"`
+	Secrets     map[string]secretLayer `toml:"secrets"`
 }
 
 type mountLayer struct {
@@ -139,4 +139,9 @@ func decodeLayer(origin string, data []byte) (layer, error) {
 		return layer{}, fmt.Errorf("%s: unknown keys: %s", origin, strings.Join(keys, ", "))
 	}
 	return l, nil
+}
+
+type secretLayer struct {
+	File    string   `toml:"file"`
+	Command []string `toml:"command"`
 }

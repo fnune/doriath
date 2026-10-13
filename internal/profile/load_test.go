@@ -50,7 +50,10 @@ summary = "Create a release"
 		"project.toml": file(`
 modules = ["github", "base"]
 match = ["~/Development/project"]
-secrets = { github = "github-project" }
+
+[secrets.github]
+command = ["rbw", "get", "github-project"]
+
 
 [[mounts]]
 path = "~/Development/project"
@@ -78,8 +81,8 @@ action = "deny"
 	if p.Env.Set["LANG"] != "en_US.UTF-8" {
 		t.Errorf("profile env must override module env, got %q", p.Env.Set["LANG"])
 	}
-	if p.SecretName("github") != "github-project" || p.SecretName("other") != "other" {
-		t.Errorf("secret aliases not applied: %v", p.Secrets)
+	if got := p.Secrets["github"].Command; len(got) != 3 || got[2] != "github-project" {
+		t.Errorf("secrets = %v", p.Secrets)
 	}
 	host, ok := p.Intercepted("api.github.com")
 	if !ok || host.Credential == nil || host.Credential.Secret != "github" {
@@ -118,6 +121,10 @@ func TestLoadRejects(t *testing.T) {
 		"device outside dev": {profile: "devices = [\"/etc/passwd\"]", want: "under /dev"},
 		"bad timeout":        {profile: "[claude]\napproval_timeout = \"soon\"", want: "approval_timeout"},
 		"missing module":     {profile: `modules = ["nope"]`, want: `module "nope" not found`},
+		"undefined secret":   {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
+		"undefined signing":  {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
+		"secret both":        {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "not both"},
+		"secret relative":    {profile: "[secrets.x]\nfile = \"rel\"", want: "must be absolute"},
 		"bad memory limit":   {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
 		"bad cpu limit":      {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
 		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},
@@ -131,6 +138,11 @@ func TestLoadRejects(t *testing.T) {
 		"module with match": {
 			profile: `modules = ["a"]`,
 			modules: fstest.MapFS{"a.toml": file(`match = ["/x"]`)},
+			want:    "belong in profiles",
+		},
+		"module with secrets": {
+			profile: `modules = ["a"]`,
+			modules: fstest.MapFS{"a.toml": file("[secrets.gh]\nfile = \"/t\"")},
 			want:    "belong in profiles",
 		},
 	}

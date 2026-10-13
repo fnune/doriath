@@ -10,12 +10,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
-
-	"github.com/fnune/girdle/internal/secret"
 )
 
 const appName = "girdle"
@@ -81,8 +78,9 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 	return p, nil
 }
 
+// User is girdle's own configuration, which holds for every profile.
+// Secrets belong to the profiles that use them.
 type User struct {
-	Secrets   map[string]secret.Backend
 	Approvals Approvals
 }
 
@@ -91,20 +89,14 @@ type Approvals struct {
 }
 
 type userFile struct {
-	Secrets   map[string]secretFile `toml:"secrets"`
 	Approvals struct {
 		Desktop *bool `toml:"desktop"`
 	} `toml:"approvals"`
 }
 
-type secretFile struct {
-	File    string   `toml:"file"`
-	Command []string `toml:"command"`
-}
-
 // LoadUser reads config.toml. A missing file is an empty configuration.
-func LoadUser(path, home string) (User, error) {
-	u := User{Secrets: map[string]secret.Backend{}, Approvals: Approvals{Desktop: true}}
+func LoadUser(path string) (User, error) {
+	u := User{Approvals: Approvals{Desktop: true}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return u, nil
@@ -127,37 +119,5 @@ func LoadUser(path, home string) (User, error) {
 	if f.Approvals.Desktop != nil {
 		u.Approvals.Desktop = *f.Approvals.Desktop
 	}
-	names := make([]string, 0, len(f.Secrets))
-	for name := range f.Secrets {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	var errs []error
-	for _, name := range names {
-		s := f.Secrets[name]
-		b := secret.Backend{File: expandHome(s.File, home), Command: s.Command}
-		if err := b.Validate(); err != nil {
-			errs = append(errs, fmt.Errorf("secret %q: %w", name, err))
-			continue
-		}
-		if b.File != "" && !filepath.IsAbs(b.File) {
-			errs = append(errs, fmt.Errorf("secret %q: file %q must be absolute or start with ~/", name, s.File))
-			continue
-		}
-		u.Secrets[name] = b
-	}
-	if err := errors.Join(errs...); err != nil {
-		return User{}, fmt.Errorf("%s: %w", path, err)
-	}
 	return u, nil
-}
-
-func expandHome(p, home string) string {
-	if p == "~" {
-		return home
-	}
-	if rest, ok := strings.CutPrefix(p, "~/"); ok {
-		return filepath.Join(home, rest)
-	}
-	return p
 }

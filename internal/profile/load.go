@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -11,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/fnune/girdle/internal/secret"
 )
 
 const defaultApprovalTimeout = 60 * time.Second
@@ -131,8 +134,8 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		if err != nil {
 			return err
 		}
-		if ly.Name != "" || len(ly.Match) > 0 {
-			return fmt.Errorf("module %q: name and match belong in profiles", name)
+		if ly.Name != "" || len(ly.Match) > 0 || len(ly.Secrets) > 0 {
+			return fmt.Errorf("module %q: name, match and secrets belong in profiles", name)
 		}
 		if err := l.collect(ly.Modules, out, append(stack, name), done); err != nil {
 			return err
@@ -205,11 +208,11 @@ type builder struct {
 	mcp      *[]string
 	status   bool
 	share    bool
-	secrets  map[string]string
+	secrets  map[string]secretLayer
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]string{}, limits: Limits{Tasks: DefaultTaskLimit}}
+	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, limits: Limits{Tasks: DefaultTaskLimit}}
 }
 
 func (b *builder) apply(l layer) {
@@ -380,7 +383,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		NixDaemon:       b.nix,
 		Hardening:       b.harden,
 		Limits:          b.limits,
-		Secrets:         b.secrets,
+		Secrets:         map[string]secret.Backend{},
 	}
 	for _, m := range top.Match {
 		path, err := b.expand(m)
@@ -501,11 +504,39 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		p.HTTP = append(p.HTTP, host)
 	}
+	for _, name := range slices.Sorted(maps.Keys(b.secrets)) {
+		s := b.secrets[name]
+		if !namePattern.MatchString(name) {
+			errs = append(errs, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", name))
+			continue
+		}
+		backend := secret.Backend{File: s.File, Command: s.Command}
+		if s.File != "" {
+			file, err := b.expand(s.File)
+			if err != nil || !filepath.IsAbs(file) {
+				errs = append(errs, fmt.Errorf("secret %q: file %q must be absolute or start with ~/", name, s.File))
+				continue
+			}
+			backend.File = file
+		}
+		if err := backend.Validate(); err != nil {
+			errs = append(errs, fmt.Errorf("secret %q: %w", name, err))
+			continue
+		}
+		p.Secrets[name] = backend
+	}
 	if b.signing != "" {
-		if !namePattern.MatchString(b.signing) {
-			errs = append(errs, fmt.Errorf("signing key %q: use lowercase letters, digits and dashes", b.signing))
+		if _, ok := p.Secrets[b.signing]; !ok {
+			errs = append(errs, fmt.Errorf("signing key %q: add it under [secrets.%s] in the profile", b.signing, b.signing))
 		}
 		p.SigningKey = b.signing
+	}
+	for _, h := range p.HTTP {
+		if c := h.Credential; c != nil {
+			if _, ok := p.Secrets[c.Secret]; !ok {
+				errs = append(errs, fmt.Errorf("http %s: secret %q: add it under [secrets.%s] in the profile", h.Host, c.Secret, c.Secret))
+			}
+		}
 	}
 	if b.limits.Tasks < 0 {
 		errs = append(errs, fmt.Errorf("limits tasks %d: must be zero (no limit) or more", b.limits.Tasks))

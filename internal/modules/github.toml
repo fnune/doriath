@@ -2,9 +2,8 @@
 # any other program reaches these hosts without it. The proxy adds it to
 # requests for these hosts. Reads and routine work on pull requests, issues
 # and CI runs go through. Everything else waits for approval, and changes to
-# webhooks, secrets, collaborators and deploy keys are refused. Map the
-# "github" secret to your token in the profile:
-# secrets = { github = "<name in config.toml>" }.
+# webhooks, secrets, collaborators and deploy keys are refused. Say where
+# the token comes from under [secrets.github] in the profile.
 
 [egress]
 allow = ["*.githubusercontent.com"]
