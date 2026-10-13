@@ -2,35 +2,51 @@
 
 girdle runs a coding agent, such as Claude Code, in a jail on a Linux host, such as a workstation or a server. The jail has its own files, network and processes. A proxy outside the jail decides which hosts the agent reaches and adds credentials to requests.
 
+Pre-alpha. Linux only.
+
+## Install
+
 ```sh
-cd ~/Development/my-project
+nix profile install github:fnune/girdle
+girdle doctor
+```
+
+girdle is one static binary that bundles bubblewrap. It needs a Linux kernel with unprivileged user namespaces, and podman for containers. With home-manager, import `girdle.homeManagerModules.default` and write profiles as nix. The [install guide](docs/install.md) has both ways, the credentials to create and how to find the hosts a build needs.
+
+## Quick start
+
+A profile says what one kind of work can reach. Save this as `~/.config/girdle/profiles/my-app.toml`:
+
+```toml
+description = "My app: Go API and React frontend"
+modules = ["base", "go", "node", "playwright", "github", "claude"]
+match = ["~/Development/my-app"]
+
+# The agent works on a clone. Its branches come back as refs/girdle/...
+[[mounts]]
+path = "~/Development/my-app"
+mode = "clone"
+
+# Hosts the build and tests need beyond what the modules allow.
+[egress]
+allow = ["api.stripe.com"]
+
+# A token for the github module. girdle adds it to gh and git requests.
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+
+[limits]
+memory = "16G"
+```
+
+Then run the agent from a directory that the profile matches:
+
+```sh
+cd ~/Development/my-app
 girdle run -- claude
 ```
 
-Pre-alpha. Linux only.
-
-```mermaid
-flowchart LR
-    subgraph jail["Jail: its own files, network and processes"]
-        tech["Linux: bubblewrap, seccomp, Landlock<br/>macOS: Seatbelt, not supported yet"]
-        agent["Agent<br/>(Claude Code, scripts, browsers)"]
-        clone[("Private clone<br/>of your repository")]
-        agent --> clone
-    end
-
-    proxy["girdle's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
-
-    secrets[("Your secrets")]
-    you(["You"])
-    internet(("Internet"))
-
-    agent -- "every request" --> proxy
-    proxy -- "allowed hosts,<br/>token added" --> internet
-    proxy -. "requests a rule holds<br/>wait for approval" .-> you
-    secrets --> proxy
-
-    style tech fill:none,stroke-dasharray:3 3
-```
+The modules hold the usual hosts, caches and rules for a toolchain: `go` allows the Go module proxy, `github` allows reads and routine pull request work and holds merges, releases and pushes for approval. [Configuration](docs/configuration.md) lists every key.
 
 ## What girdle is for
 
@@ -57,6 +73,29 @@ girdle does not protect you from:
 
 ## How it works
 
+```mermaid
+flowchart LR
+    subgraph jail["Jail: its own files, network and processes"]
+        tech["Linux: bubblewrap, seccomp, Landlock<br/>macOS: Seatbelt, not supported yet"]
+        agent["Agent<br/>(Claude Code, scripts, browsers)"]
+        clone[("Private clone<br/>of your repository")]
+        agent --> clone
+    end
+
+    proxy["girdle's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
+
+    secrets[("Your secrets")]
+    you(["You"])
+    internet(("Internet"))
+
+    agent -- "every request" --> proxy
+    proxy -- "allowed hosts,<br/>token added" --> internet
+    proxy -. "requests a rule holds<br/>wait for approval" .-> you
+    secrets --> proxy
+
+    style tech fill:none,stroke-dasharray:3 3
+```
+
 | Part            | What it does                                                                                                                                                                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Files           | bubblewrap mounts the system read-only. The home directory, `/run`, `/tmp`, `/var` and `/opt` are empty. The paths that the profile names are mounted at the same paths. A repository is mounted as a git clone, and its branches come back to your repository as refs under `refs/girdle/`. |
@@ -69,11 +108,12 @@ girdle does not protect you from:
 | Resource limits | Each session runs in a systemd user scope with a task limit and a memory limit.                                                                                                                                                                                                              |
 | Looking inside  | `girdle exec` runs a command in a running session. `girdle forward` makes a port in the jail reachable on the host's localhost.                                                                                                                                                              |
 
-girdle is one static Go binary that bundles bubblewrap. It needs a Linux kernel with unprivileged user namespaces, and podman for containers.
-
 ## Docs
 
-- [Install](docs/install.md)
-- [Configuration](docs/configuration.md)
-- [Security limits](docs/security-limits.md)
-- [Engineering principles](docs/engineering.md)
+- [Install](docs/install.md): setup, credentials, Claude Code in the jail, known issues
+- [Configuration](docs/configuration.md): every profile and module key
+- [Security limits](docs/security-limits.md): what girdle leaves open, and why
+
+## Development
+
+`nix develop` gives the toolchain. `just check` runs formatting, lint and unit tests, and `just test-integration` runs the tests that start real jails. [Engineering principles](docs/engineering.md) describes how the code is written.
