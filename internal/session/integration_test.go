@@ -134,7 +134,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 
-	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com"}, time.Now)
+	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +551,7 @@ curl -s https://example.org/ >/dev/null 2>&1
 	if code != 0 {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "girdle it · 2 hosts · 1 blocked", `"hookEventName":"SessionStart"`} {
+	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "girdle it · 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
@@ -606,5 +606,29 @@ echo done
 `, nil)
 	if code != 0 || strings.Contains(out, "FAIL") {
 		t.Fatalf("relaxed: code %d:\n%s", code, out)
+	}
+}
+
+func TestDraftedRuleFromDenial(t *testing.T) {
+	e := newEnv(t)
+	var req approval.Request
+	code, out := e.run(e.profile(""), `
+curl -s -o /dev/null https://drafted.example/ && echo "FAIL allowed before approval"
+for i in $(seq 1 60); do
+	if curl -s -o /dev/null https://drafted.example/after; then echo "allowed after approval"; break; fi
+	sleep 0.25
+done
+`, func() {
+		req = e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingProfile, By: "test"})
+	})
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "allowed after approval") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if req.Kind != approval.KindRule || !strings.Contains(req.Summary, "drafted.example") || !strings.Contains(req.Details, "curl") {
+		t.Errorf("proposal = %+v", req)
+	}
+	local, err := os.ReadFile(filepath.Join(e.paths.Profiles(), "it.local.toml"))
+	if err != nil || !strings.Contains(string(local), "drafted.example") {
+		t.Fatalf("local layer: %s, %v", local, err)
 	}
 }

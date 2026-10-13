@@ -13,6 +13,9 @@ import (
 // for the end-of-session summary.
 type egressLog struct {
 	next proxy.Recorder
+	// firstDenial runs once for each denied host and reason, outside the
+	// lock.
+	firstDenial func(proxy.Event)
 
 	mu     sync.Mutex
 	denied map[denialKey]int
@@ -45,6 +48,9 @@ func (l *egressLog) Egress(e proxy.Event) {
 	l.mu.Unlock()
 	if first {
 		l.next.Egress(e)
+		if l.firstDenial != nil {
+			l.firstDenial(e)
+		}
 	}
 }
 

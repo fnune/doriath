@@ -109,6 +109,7 @@ type Session struct {
 	jailDir string
 	log     *audit.Log
 	egress  *egressLog
+	policy  *livePolicy
 	peers   *hostPeers
 	logFile io.Closer
 	manager *approval.Manager
@@ -160,7 +161,9 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log = audit.New(f, s.deps.Clock.Now, s.id, p.Name)
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
+	s.policy = newLivePolicy(p)
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
+	s.egress.firstDenial = s.proposeHost
 
 	for _, d := range []string{s.cacheRoot(), s.tmp()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
@@ -257,7 +260,7 @@ func (s *Session) startProxy() error {
 		Profile:       p.Name,
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
-	}, p, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.egress)
+	}, s.policy, s.manager, s.deps.Secrets, issuer, s.deps.Dialer, s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {
 		return err

@@ -24,6 +24,7 @@ const (
 )
 
 const (
+	actionAddProfile   = "add-profile"
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
@@ -33,6 +34,9 @@ const (
 // Actions are the buttons, as key and label pairs in the order the
 // specification wants.
 func Actions(req approval.Request) []string {
+	if req.Kind == approval.KindRule {
+		return []string{actionAllowSession, "Allow for this session", actionAddProfile, "Add to profile", actionDeny, "Ignore"}
+	}
 	a := []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	if req.URL != "" {
 		a = append(a, actionOpen, "Open link")
@@ -48,6 +52,8 @@ func DecisionFor(action string) (approval.Decision, bool) {
 		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "desktop"}, true
 	case actionAllowSession:
 		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}, true
+	case actionAddProfile:
+		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingProfile, By: "desktop"}, true
 	case actionDeny:
 		return approval.Decision{Verdict: approval.VerdictDeny, By: "desktop"}, true
 	}

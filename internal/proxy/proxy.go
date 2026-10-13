@@ -51,6 +51,7 @@ type Dialer interface {
 type Event struct {
 	Kind   string `json:"kind"`
 	Host   string `json:"host"`
+	Exe    string `json:"exe,omitempty"`
 	Port   string `json:"port,omitempty"`
 	Method string `json:"method,omitempty"`
 	Path   string `json:"path,omitempty"`
@@ -182,7 +183,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.policy.AllowsHost(host) {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "host not in the profile"})
+		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: "host not in the profile"})
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
 		return
 	}

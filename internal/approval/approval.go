@@ -16,6 +16,9 @@ type Kind string
 const (
 	KindHTTP Kind = "http"
 	KindTool Kind = "tool"
+	// KindRule proposes a change to the profile, drafted from a denial. The
+	// agent does not wait for it.
+	KindRule Kind = "rule"
 )
 
 type Request struct {
@@ -51,6 +54,9 @@ const (
 	LastingOnce    Lasting = "once"
 	LastingSession Lasting = "session"
 	LastingUntil   Lasting = "until"
+	// LastingProfile applies a drafted rule to the profile for later
+	// sessions too.
+	LastingProfile Lasting = "profile"
 )
 
 type Decision struct {
@@ -65,7 +71,7 @@ func (d Decision) Validate() error {
 	switch d.Verdict {
 	case VerdictAllow:
 		switch d.Lasting {
-		case LastingOnce, LastingSession:
+		case LastingOnce, LastingSession, LastingProfile:
 			return nil
 		case LastingUntil:
 			if d.Until.IsZero() {
@@ -73,7 +79,7 @@ func (d Decision) Validate() error {
 			}
 			return nil
 		}
-		return fmt.Errorf("lasting %q: want once, session or until", d.Lasting)
+		return fmt.Errorf("lasting %q: want once, session, until or profile", d.Lasting)
 	case VerdictDeny:
 		return nil
 	}
@@ -246,4 +252,15 @@ func (m *Manager) History() []Outcome {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]Outcome(nil), m.history...)
+}
+
+// Propose shows a request without anyone waiting for it, and calls decided
+// when the person answers. Requests nobody answers expire quietly.
+func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)) {
+	go func() {
+		d, err := m.Submit(context.Background(), req, ttl)
+		if err == nil && d.Verdict != VerdictNone && decided != nil {
+			decided(d)
+		}
+	}()
 }
