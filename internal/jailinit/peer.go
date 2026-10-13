@@ -43,15 +43,35 @@ func FindPeer(procRoot string, conn net.Conn) (Peer, error) {
 	if err != nil {
 		return Peer{}, err
 	}
-	pid, err := inodeOwner(procRoot, inode)
+	pids, err := inodeOwners(procRoot, inode)
 	if err != nil {
 		return Peer{}, err
 	}
-	exe, err := os.Readlink(filepath.Join(procRoot, strconv.Itoa(pid), "exe"))
-	if err != nil {
-		return Peer{}, fmt.Errorf("read executable of pid %d: %w", pid, err)
+	return soleOwner(procRoot, pids)
+}
+
+// soleOwner names the process behind a socket. A socket inherited across
+// fork and exec has several holders, and naming the first would credit one
+// program with another's request, so holders must run the same executable.
+func soleOwner(procRoot string, pids []int) (Peer, error) {
+	var first os.FileInfo
+	for _, pid := range pids {
+		exe := filepath.Join(procRoot, strconv.Itoa(pid), "exe")
+		info, err := os.Stat(exe)
+		if err != nil {
+			return Peer{}, fmt.Errorf("read executable of pid %d: %w", pid, err)
+		}
+		if first == nil {
+			first = info
+		} else if !os.SameFile(first, info) {
+			return Peer{}, fmt.Errorf("processes %v running different programs share the socket", pids)
+		}
 	}
-	return Peer{PID: pid, Exe: exe}, nil
+	exe, err := os.Readlink(filepath.Join(procRoot, strconv.Itoa(pids[0]), "exe"))
+	if err != nil {
+		return Peer{}, fmt.Errorf("read executable of pid %d: %w", pids[0], err)
+	}
+	return Peer{PID: pids[0], Exe: exe}, nil
 }
 
 // socketInode looks for the socket whose local address is the client's and
@@ -101,13 +121,14 @@ func procAddr6(a *net.TCPAddr) string {
 	return fmt.Sprintf("%s:%04X", b.String(), a.Port)
 }
 
-func inodeOwner(procRoot, inode string) (int, error) {
+func inodeOwners(procRoot, inode string) ([]int, error) {
 	target := "socket:[" + inode + "]"
 	self := os.Getpid()
 	entries, err := os.ReadDir(procRoot)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	var pids []int
 	for _, e := range entries {
 		pid, err := strconv.Atoi(e.Name())
 		if err != nil || pid == self {
@@ -120,9 +141,13 @@ func inodeOwner(procRoot, inode string) (int, error) {
 		}
 		for _, fd := range fds {
 			if link, err := os.Readlink(filepath.Join(fdDir, fd.Name())); err == nil && link == target {
-				return pid, nil
+				pids = append(pids, pid)
+				break
 			}
 		}
 	}
-	return 0, fmt.Errorf("no process owns socket %s", inode)
+	if len(pids) == 0 {
+		return nil, fmt.Errorf("no process owns socket %s", inode)
+	}
+	return pids, nil
 }

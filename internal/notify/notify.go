@@ -104,6 +104,10 @@ type Desktop struct {
 	opener Opener
 	now    func() time.Time
 
+	// owner is the notification server's unique bus name. Only dispatch
+	// uses it.
+	owner string
+
 	mu       sync.Mutex
 	handlers map[uint32]func(action string)
 }
@@ -115,7 +119,7 @@ func NewDesktop(opener Opener, now func() time.Time) (*Desktop, error) {
 	}
 	d := &Desktop{conn: conn, opener: opener, now: now, handlers: map[uint32]func(string){}}
 	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
-		if err := conn.AddMatchSignal(dbus.WithMatchObjectPath(objPath), dbus.WithMatchInterface(iface), dbus.WithMatchMember(member)); err != nil {
+		if err := conn.AddMatchSignal(dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(objPath), dbus.WithMatchInterface(iface), dbus.WithMatchMember(member)); err != nil {
 			_ = conn.Close()
 			return nil, fmt.Errorf("subscribe to %s: %w", member, err)
 		}
@@ -127,6 +131,22 @@ func NewDesktop(opener Opener, now func() time.Time) (*Desktop, error) {
 }
 
 func (d *Desktop) Close() error { return d.conn.Close() }
+
+// fromServer checks that a signal comes from the notification server, since
+// any client on the session bus can emit ActionInvoked and so approve a
+// request. The owner is looked up again when it changes, as it does when the
+// server restarts.
+func (d *Desktop) fromServer(sender string) bool {
+	if sender != "" && sender == d.owner {
+		return true
+	}
+	var owner string
+	if err := d.conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, busName).Store(&owner); err != nil {
+		return false
+	}
+	d.owner = owner
+	return sender == owner
+}
 
 // Capabilities lists what the notification server supports, such as
 // "actions" for buttons.
@@ -140,7 +160,7 @@ func (d *Desktop) Capabilities() ([]string, error) {
 
 func (d *Desktop) dispatch(signals <-chan *dbus.Signal) {
 	for s := range signals {
-		if len(s.Body) < 2 {
+		if len(s.Body) < 2 || !d.fromServer(s.Sender) {
 			continue
 		}
 		id, ok := s.Body[0].(uint32)

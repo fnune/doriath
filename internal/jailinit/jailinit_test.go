@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -114,5 +115,30 @@ func TestPeerHeader(t *testing.T) {
 	got := string(PeerHeader(Peer{PID: 7, Exe: "/nix/store/x-gh/bin/gh"}))
 	if got != "GIRDLE-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSoleOwnerRefusesDifferentPrograms(t *testing.T) {
+	proc := t.TempDir()
+	programs := t.TempDir()
+	for _, name := range []string{"gh", "curl"} {
+		if err := os.WriteFile(filepath.Join(programs, name), nil, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for pid, program := range map[string]string{"10": "gh", "11": "gh", "12": "curl"} {
+		if err := os.MkdirAll(filepath.Join(proc, pid), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(programs, program), filepath.Join(proc, pid, "exe")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	peer, err := soleOwner(proc, []int{10, 11})
+	if err != nil || peer.PID != 10 || filepath.Base(peer.Exe) != "gh" {
+		t.Fatalf("one program, two processes: %+v, %v", peer, err)
+	}
+	if _, err := soleOwner(proc, []int{10, 12}); err == nil {
+		t.Fatal("two programs sharing a socket must not get an identity")
 	}
 }
