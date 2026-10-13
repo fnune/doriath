@@ -145,7 +145,21 @@ func (s *Session) landClones(ctx context.Context) []string {
 		if err != nil {
 			continue
 		}
+		tips := map[string]bool{}
 		for _, ref := range strings.Fields(refs) {
+			if !strings.HasSuffix(ref, "/HEAD") {
+				if sha, err := s.git(ctx, "-C", c.source, "rev-parse", ref); err == nil {
+					tips[sha] = true
+				}
+			}
+		}
+		for _, ref := range strings.Fields(refs) {
+			if strings.HasSuffix(ref, "/HEAD") {
+				// A detached HEAD only matters when no branch holds its commit.
+				if sha, err := s.git(ctx, "-C", c.source, "rev-parse", ref); err == nil && tips[sha] {
+					continue
+				}
+			}
 			n, err := s.git(ctx, "-C", c.source, "rev-list", "--count", c.base+".."+ref)
 			if err != nil || n == "0" {
 				continue
