@@ -82,6 +82,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - Run cheap checks locally: `just fmt`, `just lint`, and the tests that cover the change.
 - `just check` runs format check, lint, `go vet` and the unit tests. `just test-integration` runs the tests that start a real jail.
 - Parsers and decisions that see agent-controlled input have fuzz tests that check a security property. Their seeds run with the unit tests. `just fuzz` searches for new inputs, 30 seconds per target by default (`just fuzz 5m` for longer).
+- `just mutate` runs mutation testing with [gremlins](https://github.com/go-gremlins/gremlins) over the security-critical packages. It is slow, so it runs now and then by hand, not in CI. A mutant that survives in a guard means no unit test checks that guard.
 
 ### Git conventions
 

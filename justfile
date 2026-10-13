@@ -42,6 +42,18 @@ check:
     golangci-lint run ./...
     go test -race ./...
 
+# Gremlins sets its test timeout from the coverage run, so a cached run would
+# time out every mutant. The nix shell's long TMPDIR pushes the tests' unix
+# socket paths past the kernel's limit.
+
+# Mutation testing of the security-critical packages. Slow: run it now and then, not in CI.
+mutate:
+    for pkg in seccomp jail proxy containers profile approval ca landlock; do \
+        TMPDIR=/tmp GOFLAGS=-count=1 go run github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0 unleash \
+            --invert-logical --invert-bitwise --invert-loopctrl --timeout-coefficient 30 --output-statuses lt \
+            ./internal/$pkg; \
+    done
+
 # Updates the vendor hash after go.mod changes.
 vendor-hash:
     echo 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' > nix/vendor-hash
