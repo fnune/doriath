@@ -1,10 +1,22 @@
 {
   description = "Girdle of Melian: run coding agents in a jail that shows them only what their task needs";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Only the checks use home-manager, to evaluate the module against its real
+    # option types. Consumers can make it follow their own home-manager.
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      home-manager,
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -69,6 +81,7 @@
 
       checks = forAllSystems (pkgs: {
         package = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+        home-manager-module = import ./nix/home-manager-check.nix { inherit self pkgs home-manager; };
       });
 
       homeManagerModules.default = import ./nix/home-manager.nix self;
