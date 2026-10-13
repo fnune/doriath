@@ -1,5 +1,5 @@
 #!/bin/sh
-# threat: run a program from memory, which Landlock cannot see
+# threat: run a program from memory, which adds nothing while a written file runs just as well
 # expect: gap
 
 python3 - <<'PY'
