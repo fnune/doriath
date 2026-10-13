@@ -91,7 +91,11 @@ func (a *fakeApprover) Submit(_ context.Context, req approval.Request, _ time.Du
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.requests = append(a.requests, req)
-	return approval.Decision{Verdict: a.verdict, Lasting: approval.LastingOnce}, nil
+	reason := ""
+	if a.verdict == approval.VerdictDeny {
+		reason = "not today"
+	}
+	return approval.Decision{Verdict: a.verdict, Lasting: approval.LastingOnce, Reason: reason}, nil
 }
 
 type mapSecrets map[string]string
@@ -324,7 +328,7 @@ func TestRuleApprove(t *testing.T) {
 		t.Fatalf("approval request = %+v", req)
 	}
 	resp := post()
-	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release was denied") {
+	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release was denied: not today") {
 		t.Fatalf("denied: status %d: %s", resp.StatusCode, b)
 	}
 	if h.upstream.count() != 1 {

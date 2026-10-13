@@ -1,0 +1,9 @@
+# pre-commit hooks run inside the jail when the agent commits. Hook
+# environments are built in the profile's own cache, from PyPI and the hook
+# repositories (GitHub comes from the github module).
+
+[[caches]]
+path = "~/.cache/pre-commit"
+
+[egress]
+allow = ["pypi.org", "files.pythonhosted.org"]

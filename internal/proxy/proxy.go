@@ -291,7 +291,11 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 				reason = "nobody approved it in time"
 			}
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: reason})
-			deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s was %s", summary, reason))
+			message := fmt.Sprintf("girdle: %s was %s", summary, reason)
+			if d.Reason != "" && d.Verdict == approval.VerdictDeny {
+				message += ": " + d.Reason
+			}
+			deny(w, http.StatusForbidden, message)
 			return
 		}
 		s.record(Event{Kind: "approved", Host: host, Method: r.Method, Path: r.URL.Path, Reason: summary})
