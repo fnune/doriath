@@ -44,8 +44,9 @@ type cacheLayer struct {
 }
 
 type envLayer struct {
-	Set  map[string]string `toml:"set"`
-	Pass []string          `toml:"pass"`
+	Set         map[string]string `toml:"set"`
+	Pass        []string          `toml:"pass"`
+	PathPrepend []string          `toml:"path_prepend"`
 }
 
 type egressLayer struct {

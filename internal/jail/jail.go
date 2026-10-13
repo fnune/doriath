@@ -240,6 +240,13 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	for k, v := range p.Env.Set {
 		s.Env[k] = v
 	}
+	if len(p.Env.PathPrepend) > 0 {
+		path := strings.Join(p.Env.PathPrepend, ":")
+		if rest := s.Env["PATH"]; rest != "" {
+			path += ":" + rest
+		}
+		s.Env["PATH"] = path
+	}
 	s.Env["HOME"] = opts.Home
 	s.Env["XDG_RUNTIME_DIR"] = runtime
 	s.Env["GIRDLE_PROFILE"] = p.Name

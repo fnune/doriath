@@ -188,6 +188,7 @@ type builder struct {
 	devices []string
 	envSet  map[string]string
 	envPass []string
+	envPath []string
 	allow   []string
 	ports   []int
 	tcp     []int
@@ -230,6 +231,9 @@ func (b *builder) apply(l layer) {
 	}
 	for _, k := range l.Env.Pass {
 		b.envPass = appendNew(b.envPass, k)
+	}
+	for _, d := range l.Env.PathPrepend {
+		b.envPath = appendNew(b.envPath, d)
 	}
 	for _, h := range l.Egress.Allow {
 		b.allow = appendNew(b.allow, h)
@@ -445,6 +449,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Env.Pass = append(p.Env.Pass, k)
+	}
+	for _, raw := range b.envPath {
+		d, err := b.expand(raw)
+		if err != nil || !filepath.IsAbs(d) || strings.Contains(d, ":") {
+			errs = append(errs, fmt.Errorf("env path_prepend %q: must be an absolute path without a colon", d))
+			continue
+		}
+		p.Env.PathPrepend = append(p.Env.PathPrepend, filepath.Clean(d))
 	}
 	for _, h := range b.allow {
 		pattern, err := ParseHostPattern(h)

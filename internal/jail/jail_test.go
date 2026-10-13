@@ -342,6 +342,19 @@ func TestNestedRepositoriesAreGuarded(t *testing.T) {
 	}
 }
 
+func TestPathPrependComesFirst(t *testing.T) {
+	p := testProfile()
+	p.Env.Pass = append(p.Env.Pass, "PATH")
+	p.Env.PathPrepend = []string{"/nix/store/a-xvfb/bin"}
+	s, err := Plan(p, layout(), opts(), host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Env["PATH"] != "/nix/store/a-xvfb/bin:/usr/bin" {
+		t.Fatalf("PATH = %q", s.Env["PATH"])
+	}
+}
+
 func TestVarAndOptAreHidden(t *testing.T) {
 	h := host()
 	h["/var"], h["/opt"] = "dir", "dir"

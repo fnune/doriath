@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -211,6 +212,17 @@ func TestApprovalTimeout(t *testing.T) {
 	p, err := loader(fstest.MapFS{"p.toml": file("[claude]\napproval_timeout = \"90s\"")}, fstest.MapFS{}).Load("p")
 	if err != nil || p.Claude.ApprovalTimeout != 90*time.Second {
 		t.Fatalf("got %v, %v", p, err)
+	}
+}
+
+func TestPathPrepend(t *testing.T) {
+	modules := fstest.MapFS{"tools.toml": file("[env]\npath_prepend = [\"/nix/store/a-xvfb/bin\"]")}
+	p, err := loader(fstest.MapFS{"p.toml": file("modules = [\"tools\"]\n[env]\npath_prepend = [\"~/bin\", \"/nix/store/a-xvfb/bin\"]")}, modules).Load("p")
+	if err != nil || !slices.Equal(p.Env.PathPrepend, []string{"/nix/store/a-xvfb/bin", "/home/u/bin"}) {
+		t.Fatalf("path_prepend = %v, %v", p.Env.PathPrepend, err)
+	}
+	if _, err := loader(fstest.MapFS{"p.toml": file("[env]\npath_prepend = [\"/a:/b\"]")}, fstest.MapFS{}).Load("p"); err == nil {
+		t.Fatal("a colon would split into two PATH entries")
 	}
 }
 

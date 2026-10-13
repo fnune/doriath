@@ -44,8 +44,35 @@ let
         example = [ "~/Development/project" ];
         description = "Directories where girdle run picks this profile without --profile.";
       };
+      packages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [ ];
+        example = lib.literalExpression "[ pkgs.xvfb-run ]";
+        description = ''
+          Tools for the jail that the host does not install. Their bin
+          directories go in front of the jail's PATH, through env.path_prepend.
+        '';
+      };
     };
   };
+
+  # packages is not a profile key: it becomes env.path_prepend.
+  profileToml =
+    profile:
+    let
+      bins = map (p: "${lib.getBin p}/bin") profile.packages;
+      env = profile.env or { };
+      withPath =
+        if bins == [ ] then
+          { }
+        else
+          {
+            env = env // {
+              path_prepend = bins ++ (env.path_prepend or [ ]);
+            };
+          };
+    in
+    builtins.removeAttrs profile [ "packages" ] // withPath;
 
   secretType = lib.types.submodule {
     options = {
@@ -168,7 +195,7 @@ in
       // lib.mapAttrs' (
         name: profile:
         lib.nameValuePair "girdle/profiles/${name}.toml" {
-          source = toml.generate "girdle-profile-${name}.toml" (emptyLists profile);
+          source = toml.generate "girdle-profile-${name}.toml" (emptyLists (profileToml profile));
         }
       ) cfg.profiles
       // lib.mapAttrs' (

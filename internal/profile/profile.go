@@ -45,6 +45,9 @@ type Cache struct {
 type Env struct {
 	Set  map[string]string
 	Pass []string
+	// PathPrepend puts directories, such as nix store paths of tools the
+	// host does not install, in front of the jail's PATH.
+	PathPrepend []string
 }
 
 type Egress struct {
