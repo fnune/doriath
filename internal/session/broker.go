@@ -175,7 +175,7 @@ func (s *Session) status() Status {
 	st := Status{
 		Session: s.id,
 		Profile: p.Name,
-		Ports:   p.Egress.Ports,
+		Ports:   append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
 		Signing: p.SigningKey != "",
 		Podman:  p.Podman,
 		Pending: len(s.manager.Pending()),

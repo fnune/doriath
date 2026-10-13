@@ -24,6 +24,8 @@ type layer struct {
 	HTTP        []httpLayer       `toml:"http"`
 	Signing     *signingLayer     `toml:"signing"`
 	Podman      *podmanLayer      `toml:"podman"`
+	Nix         *nixLayer         `toml:"nix"`
+	Hardening   *hardeningLayer   `toml:"hardening"`
 	Claude      *claudeLayer      `toml:"claude"`
 	Secrets     map[string]string `toml:"secrets"`
 }
@@ -44,8 +46,9 @@ type envLayer struct {
 }
 
 type egressLayer struct {
-	Allow []string `toml:"allow"`
-	Ports []int    `toml:"ports"`
+	Allow    []string `toml:"allow"`
+	Ports    []int    `toml:"ports"`
+	TCPPorts []int    `toml:"tcp_ports"`
 }
 
 type httpLayer struct {
@@ -56,9 +59,10 @@ type httpLayer struct {
 }
 
 type credentialLayer struct {
-	Secret   string `toml:"secret"`
-	Scheme   string `toml:"scheme"`
-	Username string `toml:"username"`
+	Secret   string   `toml:"secret"`
+	Scheme   string   `toml:"scheme"`
+	Username string   `toml:"username"`
+	Binaries []string `toml:"binaries"`
 }
 
 type ruleLayer struct {
@@ -71,6 +75,16 @@ type ruleLayer struct {
 
 type signingLayer struct {
 	Key string `toml:"key"`
+}
+
+type hardeningLayer struct {
+	Namespaces *bool `toml:"namespaces"`
+	Ptrace     *bool `toml:"ptrace"`
+	Landlock   *bool `toml:"landlock"`
+}
+
+type nixLayer struct {
+	Daemon *bool `toml:"daemon"`
 }
 
 type podmanLayer struct {

@@ -79,6 +79,8 @@ runroot = "/run/containers/storage"
 `, quote(graphRoot)))
 }
 
+const containerProxyPort = 3129
+
 type bwrapInfo struct {
 	ChildPID int `json:"child-pid"`
 }
@@ -116,7 +118,7 @@ func (s *Session) startPodman() error {
 			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
-	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", jail.ProxyPort)
+	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", containerProxyPort)
 	if err := writeFile(s.jailPath("containers.conf"), ContainersConf(filepath.Join(root, "tmp"), proxyURL), 0o644); err != nil {
 		return err
 	}
@@ -132,10 +134,9 @@ func (s *Session) startPodman() error {
 	userConf := filepath.Join(s.deps.Paths.Home, ".config", "containers")
 
 	p := s.req.Profile
-	argv := []string{jail.ExePath, "init"}
-	for _, f := range s.forwards() {
-		argv = append(argv, "--forward", f)
-	}
+	// Containers get a proxy port of their own, so the proxy never mistakes
+	// them for an identified program in the agent's jail.
+	argv := []string{jail.ExePath, "init", "--forward", fmt.Sprintf("%d=%s", containerProxyPort, jail.InJail(ProxySocket))}
 	argv = append(argv, "--", podmanBin, "system", "service", "--time=0", "unix://"+jail.InJail(PodmanSocket))
 	spec, err := jail.Plan(p, s.layout(), jail.Options{
 		UID:     0,

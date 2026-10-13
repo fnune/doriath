@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -23,6 +24,7 @@ import (
 	"github.com/fnune/girdle/internal/config"
 	"github.com/fnune/girdle/internal/control"
 	"github.com/fnune/girdle/internal/jailinit"
+	"github.com/fnune/girdle/internal/landlock"
 	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/session"
 )
@@ -43,9 +45,18 @@ func (f *forwardFlags) Set(s string) error {
 func cmdInit(args []string) (int, error) {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	var forwards forwardFlags
+	var identify intList
 	flags.Var(&forwards, "forward", "PORT=SOCKET to listen on 127.0.0.1:PORT and forward to SOCKET")
+	flags.Var(&identify, "identify", "PORT whose forwarded connections start with the calling program's identity")
 	if err := flags.Parse(args); err != nil {
 		return 2, err
+	}
+	for i := range forwards {
+		for _, p := range identify {
+			if forwards[i].Port == p {
+				forwards[i].Identify = true
+			}
+		}
 	}
 	return jailinit.Run(forwards, flags.Args())
 }
@@ -523,4 +534,51 @@ func profilesWhich(l *profile.Loader, args []string) error {
 		fmt.Println(p.Name)
 	}
 	return nil
+}
+
+type intList []int
+
+func (l *intList) String() string { return fmt.Sprint(*l) }
+
+func (l *intList) Set(s string) error {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("%q is not a port number", s)
+	}
+	*l = append(*l, n)
+	return nil
+}
+
+type stringList []string
+
+func (l *stringList) String() string { return fmt.Sprint(*l) }
+
+func (l *stringList) Set(s string) error {
+	*l = append(*l, s)
+	return nil
+}
+
+// cmdSandboxExec limits writes to the given paths with Landlock and then
+// becomes the command, so the limit holds for it and everything it starts.
+func cmdSandboxExec(args []string) error {
+	flags := flag.NewFlagSet("sandbox-exec", flag.ContinueOnError)
+	var writable stringList
+	flags.Var(&writable, "writable", "a path the command may write beneath")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	argv := flags.Args()
+	if len(argv) == 0 {
+		return errors.New("sandbox-exec: no command")
+	}
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return fmt.Errorf("sandbox-exec: %w", err)
+	}
+	err = landlock.Exec(writable, path, argv, os.Environ())
+	if errors.Is(err, landlock.ErrUnsupported) {
+		fmt.Fprintln(os.Stderr, "girdle: this kernel has no Landlock; writes are limited by the mounts only")
+		return syscall.Exec(path, argv, os.Environ())
+	}
+	return fmt.Errorf("sandbox-exec: %w", err)
 }

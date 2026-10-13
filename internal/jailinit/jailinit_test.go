@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -50,7 +51,7 @@ func TestBridgeForwardsBothWays(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	go Bridge(context.Background(), l, sock)
+	go Bridge(context.Background(), l, Forward{Socket: sock})
 
 	c, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -75,5 +76,43 @@ func TestRunExitCodes(t *testing.T) {
 	}
 	if code, _ := Run(nil, []string{"definitely-not-a-command-girdle"}); code != 127 {
 		t.Fatalf("missing command: code %d", code)
+	}
+}
+
+func TestFindPeerIdentifiesTheClientProcess(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	port := l.Addr().(*net.TCPAddr).Port
+	child := exec.Command(bash, "-c", fmt.Sprintf("exec 3<>/dev/tcp/127.0.0.1/%d; read -r _ <&3", port))
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
+	conn, err := l.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	peer, err := FindPeer("/proc", conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	real, _ := filepath.EvalSymlinks(bash)
+	if peer.PID != child.Process.Pid || peer.Exe != real {
+		t.Fatalf("peer = %+v, want pid %d exe %s", peer, child.Process.Pid, real)
+	}
+}
+
+func TestPeerHeader(t *testing.T) {
+	got := string(PeerHeader(Peer{PID: 7, Exe: "/nix/store/x-gh/bin/gh"}))
+	if got != "GIRDLE-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -161,9 +161,12 @@ type builder struct {
 	envPass []string
 	allow   []string
 	ports   []int
+	tcp     []int
 	http    []httpLayer
 	signing string
 	podman  bool
+	nix     bool
+	harden  Hardening
 	claude  claudeLayer
 	disable bool
 	mcp     *[]string
@@ -205,6 +208,11 @@ func (b *builder) apply(l layer) {
 			b.ports = append(b.ports, p)
 		}
 	}
+	for _, p := range l.Egress.TCPPorts {
+		if !slices.Contains(b.tcp, p) {
+			b.tcp = append(b.tcp, p)
+		}
+	}
 	for _, h := range l.HTTP {
 		b.mergeHTTP(h)
 	}
@@ -213,6 +221,20 @@ func (b *builder) apply(l layer) {
 	}
 	if l.Podman != nil && l.Podman.Enabled != nil {
 		b.podman = *l.Podman.Enabled
+	}
+	if l.Nix != nil && l.Nix.Daemon != nil {
+		b.nix = *l.Nix.Daemon
+	}
+	if h := l.Hardening; h != nil {
+		if h.Namespaces != nil {
+			b.harden.Namespaces = *h.Namespaces
+		}
+		if h.Ptrace != nil {
+			b.harden.Ptrace = *h.Ptrace
+		}
+		if h.Landlock != nil {
+			b.harden.NoLandlock = !*h.Landlock
+		}
 	}
 	if c := l.Claude; c != nil {
 		if c.DisableConnectors != nil {
@@ -281,6 +303,8 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Description: top.Description,
 		Env:         Env{Set: map[string]string{}},
 		Podman:      b.podman,
+		NixDaemon:   b.nix,
+		Hardening:   b.harden,
 		Secrets:     b.secrets,
 	}
 	for _, m := range top.Match {
@@ -354,6 +378,16 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Egress.Ports = append(p.Egress.Ports, port)
+	}
+	for _, port := range b.tcp {
+		switch {
+		case port < 1 || port > 65535:
+			errs = append(errs, fmt.Errorf("egress tcp port %d: out of range", port))
+		case slices.Contains(p.Egress.Ports, port):
+			errs = append(errs, fmt.Errorf("egress port %d: listed both as HTTP and as TCP", port))
+		default:
+			p.Egress.TCPPorts = append(p.Egress.TCPPorts, port)
+		}
 	}
 	for _, h := range b.http {
 		host, err := b.buildHTTP(h)
@@ -430,7 +464,15 @@ func buildCredential(c credentialLayer) (Credential, error) {
 	default:
 		return Credential{}, fmt.Errorf("scheme %q: want bearer, token or basic", c.Scheme)
 	}
-	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username}, nil
+	for _, b := range c.Binaries {
+		if b == "" {
+			return Credential{}, fmt.Errorf("binaries entries must not be empty")
+		}
+		if strings.Contains(b, "/") && !strings.HasPrefix(b, "/") {
+			return Credential{}, fmt.Errorf("binary %q: a path must be absolute", b)
+		}
+	}
+	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Binaries: c.Binaries}, nil
 }
 
 var methodPattern = regexp.MustCompile(`^(\*|[A-Z]+)$`)

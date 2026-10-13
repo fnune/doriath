@@ -22,6 +22,8 @@ import (
 type Forward struct {
 	Port   int
 	Socket string
+	// Identify sends a PeerHeader before the forwarded bytes.
+	Identify bool
 }
 
 func (f Forward) String() string { return fmt.Sprintf("%d=%s", f.Port, f.Socket) }
@@ -58,7 +60,7 @@ func Listen(forwards []Forward) ([]net.Listener, error) {
 	return ls, nil
 }
 
-func Bridge(ctx context.Context, l net.Listener, socket string) {
+func Bridge(ctx context.Context, l net.Listener, f Forward) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -67,11 +69,17 @@ func Bridge(ctx context.Context, l net.Listener, socket string) {
 		go func() {
 			defer conn.Close()
 			var d net.Dialer
-			up, err := d.DialContext(ctx, "unix", socket)
+			up, err := d.DialContext(ctx, "unix", f.Socket)
 			if err != nil {
 				return
 			}
 			defer up.Close()
+			if f.Identify {
+				peer, _ := FindPeer("/proc", conn)
+				if _, err := up.Write(PeerHeader(peer)); err != nil {
+					return
+				}
+			}
 			Splice(conn, up)
 		}()
 	}
@@ -107,7 +115,7 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	for i, l := range ls {
-		go Bridge(ctx, l, forwards[i].Socket)
+		go Bridge(ctx, l, forwards[i])
 	}
 
 	path, err := exec.LookPath(argv[0])

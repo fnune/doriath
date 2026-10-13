@@ -108,6 +108,8 @@ type env struct {
 	bundle   string
 	secrets  map[string]secret.Backend
 	roots    *ca.Authority
+	// binaries is spliced into the api.github.com credential.
+	binaries string
 }
 
 func newEnv(t *testing.T) *env {
@@ -115,7 +117,12 @@ func newEnv(t *testing.T) *env {
 	if _, err := exec.LookPath("bwrap"); err != nil && !bundle.Bundled() {
 		t.Skip("bubblewrap not available")
 	}
-	root := t.TempDir()
+	// Unix socket paths are limited to 108 bytes, and test names are long.
+	root, err := os.MkdirTemp("/tmp", "gi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	home := filepath.Join(root, "home")
 	work := filepath.Join(home, "work")
 	for _, d := range []string{filepath.Join(home, ".ssh"), work, filepath.Join(root, "run"), filepath.Join(root, "cfg", "profiles")} {
@@ -183,14 +190,14 @@ allow = ["example.com"]
 
 [[http]]
 host = "api.github.com"
-credential = { secret = "github", scheme = "bearer" }
+credential = { secret = "github", scheme = "bearer"%s }
 
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/releases"
 action = "approve"
 summary = "Create a GitHub release"
-%s`, e.work, extra)
+%s`, e.work, e.binaries, extra)
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "it.toml"), []byte(body), 0o600); err != nil {
 		e.t.Fatal(err)
 	}
@@ -379,7 +386,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 	}
 	var lines []string
 	for _, l := range strings.Split(out, "\n") {
-		if strings.TrimSpace(l) != "" {
+		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "girdle: session") {
 			lines = append(lines, l)
 		}
 	}
@@ -552,5 +559,52 @@ curl -s https://example.org/ >/dev/null 2>&1
 	audit, _ := os.ReadFile(e.paths.AuditLog())
 	if n := strings.Count(string(audit), `"host":"example.org"`); n != 2 {
 		t.Errorf("a repeated denial is logged once, plus once in the summary; got %d lines", n)
+	}
+}
+
+func TestCredentialOnlyForListedBinaries(t *testing.T) {
+	if lookPath("python3") == "" {
+		t.Skip("python3 not installed")
+	}
+	e := newEnv(t)
+	e.binaries = `, binaries = ["curl"]`
+	code, out := e.run(e.profile(""), `
+curl -sS -o /dev/null https://api.github.com/curl
+python3 -c 'import urllib.request; urllib.request.urlopen("https://api.github.com/python").read()'
+echo done
+`, nil)
+	if code != 0 || !strings.Contains(out, "done") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if r := e.upstream.find("/curl"); r == nil || r.Header.Get("Authorization") != "Bearer real-token" {
+		t.Fatalf("curl must get the credential: %+v", r)
+	}
+	if r := e.upstream.find("/python"); r == nil || r.Header.Get("Authorization") != "" {
+		t.Fatalf("python must reach the host without the credential: %+v", r)
+	}
+}
+
+func TestHardening(t *testing.T) {
+	e := newEnv(t)
+	code, out := e.run(e.profile(""), `
+unshare -U true 2>/dev/null && echo "FAIL user namespace"
+bwrap --unshare-all --ro-bind / / true 2>/dev/null && echo "FAIL nested bwrap"
+touch /mnt/x 2>/dev/null && echo "FAIL write outside the writable paths"
+touch "$PWD/landlock-ok" || echo "FAIL worktree write"
+python3 -c 'import threading; t=threading.Thread(target=print, args=("threads ok",)); t.start(); t.join()' || echo "FAIL threads"
+echo done
+`, nil)
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "threads ok") || !strings.Contains(out, "done") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+
+	p := e.profile("\n[hardening]\nnamespaces = true\nlandlock = false\n")
+	code, out = e.run(p, `
+bwrap --unshare-all --ro-bind / / true || echo "FAIL nested bwrap with namespaces allowed"
+touch /mnt/x || echo "FAIL tmpfs write without landlock"
+echo done
+`, nil)
+	if code != 0 || strings.Contains(out, "FAIL") {
+		t.Fatalf("relaxed: code %d:\n%s", code, out)
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -131,12 +133,13 @@ func (e *events) has(kind, host string) bool {
 }
 
 type harness struct {
-	proxyURL *url.URL
-	session  *ca.Authority
-	upstream *upstream
-	upCA     *ca.Authority
-	approver *fakeApprover
-	events   *events
+	dialAddrs redirectDialer
+	proxyURL  *url.URL
+	session   *ca.Authority
+	upstream  *upstream
+	upCA      *ca.Authority
+	approver  *fakeApprover
+	events    *events
 }
 
 const testProfile = `
@@ -219,7 +222,7 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(func() { _ = l.Close() })
 	go func() { _ = srv.Serve(l) }()
 	u, _ := url.Parse("http://" + l.Addr().String())
-	return &harness{proxyURL: u, session: session, upstream: up, upCA: upCA, approver: approver, events: ev}
+	return &harness{dialAddrs: redirectDialer{tlsAddr: tlsServer.Listener.Addr().String(), plainAddr: plainServer.Listener.Addr().String()}, proxyURL: u, session: session, upstream: up, upCA: upCA, approver: approver, events: ev}
 }
 
 // client trusts both the session CA (for intercepted hosts) and the upstream
@@ -235,6 +238,8 @@ func (h *harness) client() *http.Client {
 		Timeout: 10 * time.Second,
 	}
 }
+
+func (h *harness) dialer() redirectDialer { return h.dialAddrs }
 
 func body(t *testing.T, resp *http.Response) string {
 	t.Helper()
@@ -543,5 +548,100 @@ func TestHalfCloseStillGetsResponse(t *testing.T) {
 	}
 	if b := body(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(b, "/half") {
 		t.Fatalf("status %d: %s", resp.StatusCode, b)
+	}
+}
+
+func TestCredentialOnlyForListedBinaries(t *testing.T) {
+	h := newHarness(t)
+	p := loadPolicy(t)
+	for i := range p.HTTP {
+		if p.HTTP[i].Credential != nil {
+			p.HTTP[i].Credential.Binaries = []string{"gh"}
+		}
+	}
+	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{"github-test": "real-token"}, h.session, h.dialer(), h.events)
+	host, _ := p.Intercepted("api.github.com")
+	call := func(exe string) *http.Request {
+		t.Helper()
+		before := h.upstream.count()
+		req := httptest.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
+		req = req.WithContext(withIdentity(req.Context(), Identity{PID: 9, Exe: exe}))
+		rec := httptest.NewRecorder()
+		srv.intercepted(rec, req, "api.github.com", host)
+		if rec.Code != http.StatusOK || h.upstream.count() != before+1 {
+			t.Fatalf("%s: status %d", exe, rec.Code)
+		}
+		got, _ := h.upstream.last(t)
+		return got
+	}
+	if got := call("/nix/store/abc-gh/bin/gh"); got.Header.Get("Authorization") != "Bearer real-token" {
+		t.Errorf("gh must get the credential, got %q", got.Header.Get("Authorization"))
+	}
+	if got := call("/nix/store/abc-curl/bin/curl"); got.Header.Get("Authorization") != "" {
+		t.Errorf("curl must go without the credential, got %q", got.Header.Get("Authorization"))
+	}
+	if !h.events.has("credential-withheld", "api.github.com") {
+		t.Error("withholding must be recorded")
+	}
+}
+
+type fakePeers struct {
+	trusted int
+	exe     string
+}
+
+func (f fakePeers) TrustsHeader(pid int) bool { return pid == f.trusted }
+func (f fakePeers) Exe(int) string            { return f.exe }
+
+func TestIdentifyingListener(t *testing.T) {
+	for name, tc := range map[string]struct {
+		trust   bool
+		send    string
+		wantExe string
+		closed  bool
+	}{
+		"header from init":     {trust: true, send: "GIRDLE-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\nGET / HTTP/1.1\r\n", wantExe: "/nix/store/x-gh/bin/gh"},
+		"header from stranger": {trust: false, send: "GIRDLE-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n", wantExe: "/usr/bin/self"},
+		"init without header":  {trust: true, send: "GET / HTTP/1.1\r\n", closed: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sock := filepath.Join(t.TempDir(), "p.sock")
+			raw, err := net.Listen("unix", sock)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer raw.Close()
+			trusted := -1
+			if tc.trust {
+				trusted = os.Getpid()
+			}
+			l := &IdentifyingListener{Listener: raw, Peers: fakePeers{trusted: trusted, exe: "/usr/bin/self"}}
+			c, err := net.Dial("unix", sock)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			fmt.Fprint(c, tc.send)
+			got, err := l.Accept()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer got.Close()
+			if tc.closed {
+				if _, err := got.Read(make([]byte, 1)); err == nil {
+					t.Fatal("a missing header must end the connection")
+				}
+				return
+			}
+			if id := connIdentity(got); id.Exe != tc.wantExe {
+				t.Fatalf("identity = %+v", id)
+			}
+			if tc.trust {
+				line, _ := bufio.NewReader(got).ReadString('\n')
+				if line != "GET / HTTP/1.1\r\n" {
+					t.Fatalf("bytes after the header = %q", line)
+				}
+			}
+		})
 	}
 }

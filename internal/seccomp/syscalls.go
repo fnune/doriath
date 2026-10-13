@@ -1,0 +1,108 @@
+package seccomp
+
+import "fmt"
+
+// syscallNumbers returns the numbers of the syscalls the filter names. The
+// constants in golang.org/x/sys/unix only exist for the GOARCH being built,
+// so a filter for another architecture needs its own table. Sources:
+//
+//   - amd64: arch/x86/entry/syscalls/syscall_64.tbl
+//   - arm64: include/uapi/asm-generic/unistd.h (scripts/syscall.tbl since 6.11)
+func syscallNumbers(arch Arch) (map[string]uint32, error) {
+	switch arch {
+	case AMD64:
+		return map[string]uint32{
+			"clone":             56,
+			"ptrace":            101,
+			"pivot_root":        155,
+			"chroot":            161,
+			"acct":              163,
+			"mount":             165,
+			"umount2":           166,
+			"swapon":            167,
+			"swapoff":           168,
+			"reboot":            169,
+			"iopl":              172,
+			"ioperm":            173,
+			"init_module":       175,
+			"delete_module":     176,
+			"quotactl":          179,
+			"lookup_dcookie":    212,
+			"kexec_load":        246,
+			"add_key":           248,
+			"request_key":       249,
+			"keyctl":            250,
+			"unshare":           272,
+			"perf_event_open":   298,
+			"name_to_handle_at": 303,
+			"open_by_handle_at": 304,
+			"setns":             308,
+			"process_vm_readv":  310,
+			"process_vm_writev": 311,
+			"finit_module":      313,
+			"kexec_file_load":   320,
+			"bpf":               321,
+			"userfaultfd":       323,
+			"io_uring_setup":    425,
+			"io_uring_enter":    426,
+			"io_uring_register": 427,
+			"open_tree":         428,
+			"move_mount":        429,
+			"fsopen":            430,
+			"fsconfig":          431,
+			"fsmount":           432,
+			"fspick":            433,
+			"clone3":            435,
+			"pidfd_getfd":       438,
+			"mount_setattr":     442,
+			"quotactl_fd":       443,
+		}, nil
+	case ARM64:
+		return map[string]uint32{
+			"lookup_dcookie":    18,
+			"umount2":           39,
+			"mount":             40,
+			"pivot_root":        41,
+			"chroot":            51,
+			"quotactl":          60,
+			"acct":              89,
+			"unshare":           97,
+			"kexec_load":        104,
+			"init_module":       105,
+			"delete_module":     106,
+			"ptrace":            117,
+			"reboot":            142,
+			"add_key":           217,
+			"request_key":       218,
+			"keyctl":            219,
+			"clone":             220,
+			"swapon":            224,
+			"swapoff":           225,
+			"perf_event_open":   241,
+			"name_to_handle_at": 264,
+			"open_by_handle_at": 265,
+			"setns":             268,
+			"process_vm_readv":  270,
+			"process_vm_writev": 271,
+			"finit_module":      273,
+			"bpf":               280,
+			"userfaultfd":       282,
+			"kexec_file_load":   294,
+			"io_uring_setup":    425,
+			"io_uring_enter":    426,
+			"io_uring_register": 427,
+			"open_tree":         428,
+			"move_mount":        429,
+			"fsopen":            430,
+			"fsconfig":          431,
+			"fsmount":           432,
+			"fspick":            433,
+			"clone3":            435,
+			"pidfd_getfd":       438,
+			"mount_setattr":     442,
+			"quotactl_fd":       443,
+		}, nil
+	default:
+		return nil, fmt.Errorf("no syscall table for architecture %q", arch)
+	}
+}

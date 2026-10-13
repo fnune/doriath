@@ -5,6 +5,7 @@ package profile
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -36,7 +37,28 @@ type Env struct {
 
 type Egress struct {
 	Allow []HostPattern
+	// Ports are host loopback ports the jail reaches over HTTP, through a
+	// reverse proxy that only speaks HTTP and websockets.
 	Ports []int
+	// TCPPorts are passed as raw TCP, for protocols such as MySQL.
+	TCPPorts []int
+}
+
+// Forwards lists every forwarded port with whether it is raw TCP.
+func (e Egress) Forwards() []Forward {
+	out := make([]Forward, 0, len(e.Ports)+len(e.TCPPorts))
+	for _, p := range e.Ports {
+		out = append(out, Forward{Port: p})
+	}
+	for _, p := range e.TCPPorts {
+		out = append(out, Forward{Port: p, TCP: true})
+	}
+	return out
+}
+
+type Forward struct {
+	Port int
+	TCP  bool
 }
 
 type Scheme string
@@ -51,6 +73,46 @@ type Credential struct {
 	Secret   string
 	Scheme   Scheme
 	Username string
+	// Binaries limits the credential to these programs. Other programs reach
+	// the host without it. Empty means any program.
+	Binaries []string
+}
+
+// trustedRoots hold programs the agent cannot write, so a program found
+// there by name is the real one and not a copy the agent renamed.
+var trustedRoots = []string{"/nix/store/", "/usr/", "/bin/", "/sbin/", "/lib/", "/lib64/", "/opt/"}
+
+// AllowsBinary reports whether exe may use the credential. A pattern with a
+// slash is a glob over the whole path. A bare name matches the file name of a
+// program under a read-only system location, also in the form nix wrappers
+// give it (".gh-wrapped" for "gh").
+func (c Credential) AllowsBinary(exe string) bool {
+	if len(c.Binaries) == 0 {
+		return true
+	}
+	if exe == "" {
+		return false
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(exe), "."), "-wrapped")
+	trusted := false
+	for _, root := range trustedRoots {
+		if strings.HasPrefix(exe, root) {
+			trusted = true
+			break
+		}
+	}
+	for _, pattern := range c.Binaries {
+		if strings.Contains(pattern, "/") {
+			if ok, _ := filepath.Match(pattern, exe); ok {
+				return true
+			}
+			continue
+		}
+		if trusted && pattern == name {
+			return true
+		}
+	}
+	return false
 }
 
 type Action string
@@ -90,6 +152,17 @@ type HTTPHost struct {
 	Rules      []Rule
 }
 
+// Hardening is on by default. Each switch loosens the agent jail for tools
+// that need it.
+type Hardening struct {
+	// Namespaces lets the agent create user namespaces and mounts, which
+	// nested sandboxes such as bubblewrap need.
+	Namespaces bool
+	Ptrace     bool
+	// NoLandlock turns off Landlock's limit on where the agent can write.
+	NoLandlock bool
+}
+
 type Claude struct {
 	DisableConnectors bool
 	// MCPServers, when set, keeps only these MCP servers from ~/.claude.json
@@ -119,8 +192,12 @@ type Profile struct {
 	HTTP        []HTTPHost
 	SigningKey  string
 	Podman      bool
-	Claude      Claude
-	Secrets     map[string]string
+	Hardening   Hardening
+	// NixDaemon gives the jail the system nix daemon's socket. The daemon
+	// runs builds outside the jail, so they bypass the egress allowlist.
+	NixDaemon bool
+	Claude    Claude
+	Secrets   map[string]string
 }
 
 // SecretName maps a secret name used by a module to the name in the user's

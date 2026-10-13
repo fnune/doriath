@@ -12,12 +12,15 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +33,7 @@ import (
 	"github.com/fnune/girdle/internal/jailinit"
 	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/proxy"
+	"github.com/fnune/girdle/internal/seccomp"
 	"github.com/fnune/girdle/internal/secret"
 	"github.com/fnune/girdle/internal/sshagent"
 )
@@ -105,6 +109,7 @@ type Session struct {
 	jailDir string
 	log     *audit.Log
 	egress  *egressLog
+	peers   *hostPeers
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
@@ -119,7 +124,7 @@ func New(deps Deps, req Request) (*Session, error) {
 		return nil, err
 	}
 	dir := filepath.Join(deps.Paths.Sessions(), id)
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail")}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: &hostPeers{}}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -171,8 +176,8 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.startProxy(); err != nil {
 		return err
 	}
-	for _, port := range p.Egress.Ports {
-		if err := s.startForward(ctx, port); err != nil {
+	for _, f := range p.Egress.Forwards() {
+		if err := s.startForward(ctx, f); err != nil {
 			return err
 		}
 	}
@@ -257,18 +262,23 @@ func (s *Session) startProxy() error {
 	if err != nil {
 		return err
 	}
-	go func() { _ = srv.Serve(l) }()
+	go func() { _ = srv.Serve(&proxy.IdentifyingListener{Listener: l, Peers: s.peers}) }()
 	return nil
 }
 
 const approvalTTL = 10 * time.Minute
 
-func (s *Session) startForward(ctx context.Context, port int) error {
-	l, err := s.listen(fmt.Sprintf("port-%d.sock", port))
+func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
+	l, err := s.listen(fmt.Sprintf("port-%d.sock", f.Port))
 	if err != nil {
 		return err
 	}
-	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(f.Port))
+	if !f.TCP {
+		srv := &http.Server{Handler: s.httpForward(target, f.Port), ReadHeaderTimeout: 30 * time.Second}
+		go func() { _ = srv.Serve(l) }()
+		return nil
+	}
 	go func() {
 		for {
 			conn, err := l.Accept()
@@ -279,7 +289,7 @@ func (s *Session) startForward(ctx context.Context, port int) error {
 				defer conn.Close()
 				up, err := s.deps.Dialer.DialContext(ctx, "tcp", target)
 				if err != nil {
-					s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Reason: err.Error()})
+					s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(f.Port), Reason: err.Error()})
 					return
 				}
 				defer up.Close()
@@ -288,6 +298,29 @@ func (s *Session) startForward(ctx context.Context, port int) error {
 		}
 	}()
 	return nil
+}
+
+// httpForward reaches a host dev server as HTTP only. Anything that is not
+// HTTP fails to parse, and websocket upgrades still work for hot reload.
+func (s *Session) httpForward(target string, port int) http.Handler {
+	transport := &http.Transport{DialContext: s.deps.Dialer.DialContext, MaxIdleConnsPerHost: 8, IdleConnTimeout: 90 * time.Second}
+	rp := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.URL.Scheme = "http"
+			pr.Out.URL.Host = target
+		},
+		Transport:     transport,
+		FlushInterval: -1,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
+			http.Error(w, fmt.Sprintf("girdle: nothing answers on port %d: %v", port, err), http.StatusBadGateway)
+		},
+	}
+	var seen sync.Once
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.Do(func() { s.egress.Egress(proxy.Event{Kind: "port", Host: "127.0.0.1", Port: strconv.Itoa(port)}) })
+		rp.ServeHTTP(w, r)
+	})
 }
 
 func (s *Session) startSigning(context.Context) error {
@@ -377,8 +410,8 @@ func (s *Session) layout() jail.Layout {
 
 func (s *Session) forwards() []string {
 	out := []string{fmt.Sprintf("%d=%s", jail.ProxyPort, jail.InJail(ProxySocket))}
-	for _, port := range s.req.Profile.Egress.Ports {
-		out = append(out, fmt.Sprintf("%d=%s", port, jail.InJail(fmt.Sprintf("port-%d.sock", port))))
+	for _, f := range s.req.Profile.Egress.Forwards() {
+		out = append(out, fmt.Sprintf("%d=%s", f.Port, jail.InJail(fmt.Sprintf("port-%d.sock", f.Port))))
 	}
 	return out
 }
@@ -416,12 +449,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		env["DOCKER_HOST"] = "unix://" + jail.InJail(PodmanSocket)
 	}
 
-	// In a shared namespace the podman service's init already holds the
-	// forwards.
-	var forwards []string
-	if s.netnsPID == 0 {
-		forwards = s.forwards()
-	}
+	forwards := s.forwards()
 	command := s.req.Command
 	var extra []jail.Bind
 	if claude.Matches(command) {
@@ -429,14 +457,23 @@ func (s *Session) plan() (jail.Spec, error) {
 		st := claude.State{Home: home, Cwd: s.req.Cwd, ShareLogin: s.req.Profile.Claude.ShareLogin, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
 		extra = append(extra, st.Binds(osHost{})...)
 	}
-	argv := []string{jail.ExePath, "init"}
+	argv := []string{jail.ExePath, "init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
 	}
 	argv = append(argv, "--")
+	if !p.Hardening.NoLandlock {
+		argv = append(argv, jail.ExePath, "sandbox-exec")
+		for _, w := range s.writable(extra) {
+			argv = append(argv, "--writable", w)
+		}
+		argv = append(argv, "--")
+	}
 	argv = append(argv, command...)
 
 	return jail.Plan(p, s.layout(), jail.Options{
+		InfoFD:     3,
+		SeccompFD:  4,
 		SkipNetNS:  s.netnsPID != 0,
 		SetIDs:     s.netnsPID != 0,
 		GID:        os.Getgid(),
@@ -463,14 +500,35 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.deps.Stdin, s.deps.Stdout, s.deps.Stderr
 	cmd.Env = []string{}
+	infoR, infoW, err := os.Pipe()
+	if err != nil {
+		return 1, err
+	}
+	filter, err := s.seccompFile()
+	if err != nil {
+		_ = infoR.Close()
+		_ = infoW.Close()
+		return 1, err
+	}
+	defer filter.Close()
+	cmd.ExtraFiles = []*os.File{infoW, filter}
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	defer signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sigs)
 	if err := cmd.Start(); err != nil {
+		_ = infoW.Close()
+		_ = infoR.Close()
 		return 1, fmt.Errorf("start bubblewrap: %w", err)
 	}
+	_ = infoW.Close()
+	go func() {
+		defer infoR.Close()
+		if info, err := readInfo(infoR, time.Minute); err == nil {
+			s.peers.setInit(info.ChildPID)
+		}
+	}()
 	done := make(chan struct{})
 	go func() {
 		select {
@@ -481,7 +539,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		case <-done:
 		}
 	}()
-	err := cmd.Wait()
+	err = cmd.Wait()
 	close(done)
 	code := 0
 	var exit *exec.ExitError
@@ -570,3 +628,47 @@ func (osHost) Kind(p string) string {
 }
 
 func splice(a, b net.Conn) { jailinit.Splice(a, b) }
+
+// writable lists where the agent may write under Landlock: everything the
+// jail mounts read-write, plus the jail's own scratch locations.
+func (s *Session) writable(extra []jail.Bind) []string {
+	p := s.req.Profile
+	home := s.deps.Paths.Home
+	out := []string{home, "/tmp", "/var/tmp", "/dev", "/proc", filepath.Join("/run/user", strconv.Itoa(os.Getuid()))}
+	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeReadWrite {
+			out = append(out, m.Path)
+		}
+	}
+	for _, c := range p.Caches {
+		out = append(out, c.Path)
+	}
+	for _, b := range extra {
+		if !b.ReadOnly && !b.Device {
+			out = append(out, b.Dest)
+		}
+	}
+	return out
+}
+
+// seccompFile holds the agent jail's seccomp program for bubblewrap.
+func (s *Session) seccompFile() (*os.File, error) {
+	arch, err := seccomp.HostArch()
+	if err != nil {
+		return nil, err
+	}
+	h := s.req.Profile.Hardening
+	prog, err := seccomp.Build(arch, seccomp.Policy{AllowNamespaces: h.Namespaces, AllowPtrace: h.Ptrace})
+	if err != nil {
+		return nil, fmt.Errorf("build seccomp filter: %w", err)
+	}
+	path := filepath.Join(s.dir, "seccomp.bpf")
+	if err := writeFile(path, prog, 0o600); err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open seccomp filter: %w", err)
+	}
+	return f, nil
+}

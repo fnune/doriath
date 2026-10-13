@@ -1,6 +1,5 @@
-# nix through the system daemon. The daemon runs outside the jail, so builds
-# it runs are not limited by the egress allowlist. Remove this module from
-# profiles that must not reach the network that way.
+# Caches and hosts for nix tools that run in the jail. The nix daemon itself
+# is not reachable: add the nix-daemon module for that.
 
 [[caches]]
 path = "~/.cache/nix"

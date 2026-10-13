@@ -46,7 +46,8 @@ Usage:
   girdle version
 
 Inside a jail:
-  girdle init [--forward PORT=SOCKET]... -- COMMAND [ARGS...]
+  girdle init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
+  girdle sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
   girdle hook claude session-start|permission-request|notification
   girdle statusline
 `
@@ -67,6 +68,8 @@ func run(args []string) int {
 		code, err = cmdRun(args[1:])
 	case "init":
 		code, err = cmdInit(args[1:])
+	case "sandbox-exec":
+		err = cmdSandboxExec(args[1:])
 	case "hook":
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":

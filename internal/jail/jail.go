@@ -64,6 +64,8 @@ type Spec struct {
 	SkipNetNS bool
 	// InfoFD is a file descriptor for bubblewrap's JSON status, or 0.
 	InfoFD int
+	// SeccompFD is a file descriptor with a seccomp program, or 0.
+	SeccompFD int
 	// SetIDs maps the jail's user and group to UID and GID explicitly, for a
 	// bubblewrap that starts as root inside another user namespace.
 	SetIDs   bool
@@ -94,12 +96,17 @@ type Options struct {
 	SkipUserNS bool
 	SkipNetNS  bool
 	InfoFD     int
+	SeccompFD  int
 	SetIDs     bool
 	GID        int
 	// JailDirWritable lets a helper such as the podman service create its
 	// socket in the girdle directory.
 	JailDirWritable bool
 }
+
+// The nix daemon builds outside the jail, so its socket would let builds
+// bypass the egress allowlist.
+const nixDaemonDir = "/nix/var/nix/daemon-socket"
 
 var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var/tmp", "/mnt", "/media", "/srv"}
 
@@ -114,6 +121,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		SkipUserNS: opts.SkipUserNS,
 		SkipNetNS:  opts.SkipNetNS,
 		InfoFD:     opts.InfoFD,
+		SeccompFD:  opts.SeccompFD,
 		SetIDs:     opts.SetIDs,
 		GID:        opts.GID,
 		Hostname:   "girdle-" + p.Name,
@@ -127,6 +135,9 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		if host.Kind(root) == "dir" {
 			s.Tmpfs = append(s.Tmpfs, root)
 		}
+	}
+	if !p.NixDaemon && host.Kind(nixDaemonDir) == "dir" {
+		s.Tmpfs = append(s.Tmpfs, nixDaemonDir)
 	}
 	runtime := filepath.Join("/run/user", strconv.Itoa(opts.UID))
 	s.Dirs = append(s.Dirs, opts.Home, runtime)
@@ -245,6 +256,9 @@ func (s Spec) Args() []string {
 	}
 	if s.InfoFD > 0 {
 		args = append(args, "--info-fd", strconv.Itoa(s.InfoFD))
+	}
+	if s.SeccompFD > 0 {
+		args = append(args, "--seccomp", strconv.Itoa(s.SeccompFD))
 	}
 	args = append(args,
 		"--unshare-ipc",

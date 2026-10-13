@@ -210,3 +210,24 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 		t.Fatal("hooks must be read-only when .git itself is the mount")
 	}
 }
+
+func TestNixDaemonHiddenUnlessGranted(t *testing.T) {
+	h := host()
+	h[nixDaemonDir] = "dir"
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(s.Tmpfs, nixDaemonDir) {
+		t.Fatal("the nix daemon socket must be hidden by default")
+	}
+	p := testProfile()
+	p.NixDaemon = true
+	s, err = Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(s.Tmpfs, nixDaemonDir) {
+		t.Fatal("a profile that grants the daemon must see it")
+	}
+}

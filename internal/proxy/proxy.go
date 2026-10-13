@@ -112,7 +112,13 @@ func New(cfg Config, policy Policy, approver Approver, secrets Secrets, issuer I
 
 // Serve accepts proxy clients until the listener closes.
 func (s *Server) Serve(l net.Listener) error {
-	srv := &http.Server{Handler: http.HandlerFunc(s.handle), ReadHeaderTimeout: 30 * time.Second}
+	srv := &http.Server{
+		Handler:           http.HandlerFunc(s.handle),
+		ReadHeaderTimeout: 30 * time.Second,
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return withIdentity(ctx, connIdentity(c))
+		},
+	}
 	err := srv.Serve(l)
 	if errors.Is(err, net.ErrClosed) {
 		return nil
@@ -195,7 +201,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.firstSeen(host, "intercept")
-		s.intercept(prefixed(conn, buf.Reader), host, intercept)
+		s.intercept(prefixed(conn, buf.Reader), host, intercept, IdentityFrom(r.Context()))
 		return
 	}
 
@@ -220,7 +226,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 }
 
 // intercept serves HTTP on the decrypted connection, one request at a time.
-func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost) {
+func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, id Identity) {
 	tlsConn := tls.Server(conn, &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"http/1.1"},
@@ -235,7 +241,11 @@ func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.intercepted(w, r, host, rules)
 	})
-	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 30 * time.Second}
+	srv := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 30 * time.Second,
+		ConnContext:       func(ctx context.Context, _ net.Conn) context.Context { return withIdentity(ctx, id) },
+	}
 	_ = srv.Serve(newOneConnListener(tlsConn))
 }
 
@@ -282,7 +292,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Profile: s.cfg.Profile,
 			Kind:    approval.KindHTTP,
 			Summary: summary,
-			Details: fmt.Sprintf("%s https://%s%s", r.Method, host, r.URL.RequestURI()),
+			Details: fmt.Sprintf("%s https://%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context())),
 			Scope:   scope(rule, matched, r.Method, r.URL.Path, host),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
@@ -301,7 +311,9 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		s.record(Event{Kind: "approved", Host: host, Method: r.Method, Path: r.URL.Path, Reason: summary})
 	}
 
-	if c := rules.Credential; c != nil {
+	if c := rules.Credential; c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Exe) {
+		s.withheld(host, IdentityFrom(r.Context()))
+	} else if c != nil {
 		header, err := s.authorization(r.Context(), *c)
 		if err != nil {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
@@ -411,6 +423,30 @@ func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
 	r.Body = io.NopCloser(bytes.NewReader(data))
 	r.ContentLength = int64(len(data))
 	return data, false, nil
+}
+
+// withheld records, once per host and program, that a request went out
+// without the host's credential because the program is not allowed to use it.
+func (s *Server) withheld(host string, id Identity) {
+	exe := id.Exe
+	if exe == "" {
+		exe = "an unidentified program"
+	}
+	s.mu.Lock()
+	key := "withheld " + host + " " + exe
+	first := !s.seen[key]
+	s.seen[key] = true
+	s.mu.Unlock()
+	if first {
+		s.record(Event{Kind: "credential-withheld", Host: host, Reason: "not allowed for " + exe})
+	}
+}
+
+func caller(ctx context.Context) string {
+	if exe := IdentityFrom(ctx).Exe; exe != "" {
+		return " from " + exe
+	}
+	return ""
 }
 
 func (s *Server) firstSeen(host, kind string) {

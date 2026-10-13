@@ -237,3 +237,25 @@ summary = "Merge a pull request"
 		t.Error("empty body_contains entry must be rejected")
 	}
 }
+
+func TestCredentialBinaries(t *testing.T) {
+	c := Credential{Binaries: []string{"gh", "git-remote-https", "/home/u/bin/tool"}}
+	for exe, want := range map[string]bool{
+		"/nix/store/abc-gh-2.76/bin/gh":                      true,
+		"/nix/store/abc-gh-2.76/bin/.gh-wrapped":             true,
+		"/usr/lib/git-core/git-remote-https":                 true,
+		"/nix/store/x-git/libexec/git-core/git-remote-https": true,
+		"/home/u/bin/tool":                                   true,
+		"/home/u/Development/k/gh":                           false,
+		"/tmp/gh":                                            false,
+		"/nix/store/abc-curl/bin/curl":                       false,
+		"":                                                   false,
+	} {
+		if got := c.AllowsBinary(exe); got != want {
+			t.Errorf("AllowsBinary(%q) = %v, want %v", exe, got, want)
+		}
+	}
+	if !(Credential{}).AllowsBinary("") {
+		t.Error("no list means any program")
+	}
+}

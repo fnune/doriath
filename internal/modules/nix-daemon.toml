@@ -1,0 +1,9 @@
+# The system nix daemon, for nix-shell -p, nix build and nix develop inside
+# the jail. The daemon runs builds outside the jail, so they reach the
+# network without the egress allowlist. Prefer entering the dev shell before
+# girdle run.
+
+modules = ["nix"]
+
+[nix]
+daemon = true

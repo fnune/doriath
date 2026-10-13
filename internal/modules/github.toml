@@ -1,4 +1,5 @@
-# GitHub with a token the agent never sees. The proxy adds it to requests for
+# GitHub with a token the agent never sees, and that only gh and git get:
+# any other program reaches these hosts without it. The proxy adds it to requests for
 # these hosts. Routine work goes through, and actions that publish or
 # destroy wait for approval. Map the "github" secret to your token in the
 # profile: secrets = { github = "<name in config.toml>" }.
@@ -8,11 +9,11 @@ allow = ["*.githubusercontent.com"]
 
 [[http]]
 host = "github.com"
-credential = { secret = "github", scheme = "basic", username = "x-access-token" }
+credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git"] }
 
 [[http]]
 host = "api.github.com"
-credential = { secret = "github", scheme = "bearer" }
+credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 
 [[http.rules]]
 method = "PUT"
@@ -80,5 +81,5 @@ action = "deny"
 
 [[http]]
 host = "uploads.github.com"
-credential = { secret = "github", scheme = "bearer" }
+credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 default = "approve"
