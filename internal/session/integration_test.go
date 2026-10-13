@@ -114,6 +114,7 @@ type env struct {
 	cloneFrom  string
 	systemdRun string
 	lastID     string
+	resolver   session.Resolver
 }
 
 func newEnv(t *testing.T) *env {
@@ -257,6 +258,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Podman:        lookPath("podman"),
 		Git:           lookPath("git"),
 		SystemdRun:    e.systemdRun,
+		Resolver:      e.resolver,
 	}
 	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}, CloneFrom: e.cloneFrom})
 	if err != nil {

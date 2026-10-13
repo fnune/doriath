@@ -37,6 +37,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - No service locator and no ambient context. Do not reach for `time.Now()`, `os.Getenv` or `os.Exec` from domain code. Receive a `Clock`, the config, or a `Runner` instead.
 - A growing constructor argument list is a sign that a type does too much.
 - Tests follow the seams DI creates. Hand-written in-memory fakes for volatile dependencies, no mocking frameworks. Integration tests run the real jail (bubblewrap, sockets, proxy) where the machine supports it.
+- Every way out of the jail that girdle closes has a script in `internal/session/testdata/escapes`, run in a real jail by `TestEscapes`. A script names its threat and exits 0 when the guard held. A new finding becomes a new script. Scripts marked `expect: gap` document a limit from [security limits](security-limits.md) and fail once the gap closes, so the docs change with the code.
 
 ### Layered architecture and abstraction ownership
 
