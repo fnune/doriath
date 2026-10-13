@@ -244,13 +244,13 @@ func body(t *testing.T, resp *http.Response) string {
 
 func TestInterceptInjectsCredential(t *testing.T) {
 	h := newHarness(t)
-	req, _ := http.NewRequest("GET", "https://api.github.com/user", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
 	req.Header.Set("Authorization", "token placeholder")
 	resp, err := h.client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d: %s", resp.StatusCode, body(t, resp))
 	}
 	got, _ := h.upstream.last(t)
@@ -272,7 +272,7 @@ func TestBasicCredentialForGit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := body(t, resp); resp.StatusCode != 200 || !strings.HasSuffix(b, fmt.Sprint(len(payload))) {
+	if b := body(t, resp); resp.StatusCode != http.StatusOK || !strings.HasSuffix(b, fmt.Sprint(len(payload))) {
 		t.Fatalf("status %d: %s", resp.StatusCode, b)
 	}
 	got, gotBody := h.upstream.last(t)
@@ -286,7 +286,7 @@ func TestBasicCredentialForGit(t *testing.T) {
 
 func TestRuleDeny(t *testing.T) {
 	h := newHarness(t)
-	req, _ := http.NewRequest("PUT", "https://api.github.com/repos/fnune/project/pulls/3/merge", nil)
+	req, _ := http.NewRequest(http.MethodPut, "https://api.github.com/repos/fnune/project/pulls/3/merge", nil)
 	resp, err := h.client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -313,7 +313,7 @@ func TestRuleApprove(t *testing.T) {
 		}
 		return resp
 	}
-	if resp := post(); resp.StatusCode != 200 {
+	if resp := post(); resp.StatusCode != http.StatusOK {
 		t.Fatalf("approved: status %d: %s", resp.StatusCode, body(t, resp))
 	}
 	h.approver.mu.Lock()
@@ -334,13 +334,13 @@ func TestRuleApprove(t *testing.T) {
 
 func TestTunnelPassesThrough(t *testing.T) {
 	h := newHarness(t)
-	req, _ := http.NewRequest("GET", "https://example.com/x", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com/x", nil)
 	req.Header.Set("Authorization", "mine")
 	resp, err := h.client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 	if _, err := resp.TLS.PeerCertificates[0].Verify(x509.VerifyOptions{DNSName: "example.com", Roots: h.session.Pool()}); err == nil {
@@ -387,7 +387,7 @@ func TestHostHeaderMustMatchTunnel(t *testing.T) {
 	fmt.Fprint(conn, "CONNECT api.github.com:443 HTTP/1.1\r\nHost: api.github.com:443\r\n\r\n")
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, nil)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("CONNECT: %v %v", resp, err)
 	}
 	tc := tls.Client(conn, &tls.Config{ServerName: "api.github.com", RootCAs: h.session.Pool()})
@@ -428,7 +428,7 @@ func TestPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := body(t, resp); resp.StatusCode != 200 || !strings.HasPrefix(b, "ok plain.example /a") {
+	if b := body(t, resp); resp.StatusCode != http.StatusOK || !strings.HasPrefix(b, "ok plain.example /a") {
 		t.Fatalf("allowed: %d %s", resp.StatusCode, b)
 	}
 	for _, u := range []string{"http://evil.example/", "http://api.github.com/user", "http://plain.example:8080/"} {
@@ -449,7 +449,7 @@ func TestMissingSecretFailsClosed(t *testing.T) {
 	p.Secrets["github"] = "absent"
 	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{}, h.session, redirectDialer{}, h.events)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "https://api.github.com/user", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
 	host, _ := p.Intercepted("api.github.com")
 	srv.intercepted(rec, req, "api.github.com", host)
 	if rec.Code != http.StatusBadGateway || h.upstream.count() != 0 {
@@ -471,7 +471,7 @@ func TestGraphQLBodyRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := body(t, resp); resp.StatusCode != 200 || !strings.Contains(b, "/graphql 27") {
+	if b := body(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(b, "/graphql 27") {
 		t.Fatalf("read query: %d %s", resp.StatusCode, b)
 	}
 	_, upBody := h.upstream.last(t)
@@ -505,13 +505,13 @@ func TestAbsoluteHTTPSRequests(t *testing.T) {
 		}
 		return resp
 	}
-	if resp := send("https://example.com/abs", ""); resp.StatusCode != 200 {
+	if resp := send("https://example.com/abs", ""); resp.StatusCode != http.StatusOK {
 		t.Fatalf("allowed: %d", resp.StatusCode)
 	}
 	if resp := send("https://evil.example/", ""); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("denied host: %d", resp.StatusCode)
 	}
-	if resp := send("https://api.github.com/user", "Authorization: token x\r\n"); resp.StatusCode != 200 {
+	if resp := send("https://api.github.com/user", "Authorization: token x\r\n"); resp.StatusCode != http.StatusOK {
 		t.Fatalf("intercepted: %d", resp.StatusCode)
 	}
 	got := h.upstream.find(t, "/user")
@@ -519,7 +519,7 @@ func TestAbsoluteHTTPSRequests(t *testing.T) {
 		t.Fatalf("credential not injected: %q", got.Header.Get("Authorization"))
 	}
 	resp := send("https://api.github.com/repos/a/b/pulls/1/merge", "")
-	if resp.Request = nil; resp.StatusCode != 200 {
+	if resp.Request = nil; resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET on a PUT-only rule must pass: %d", resp.StatusCode)
 	}
 }
@@ -537,7 +537,7 @@ func TestHalfCloseStillGetsResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := body(t, resp); resp.StatusCode != 200 || !strings.Contains(b, "/half") {
+	if b := body(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(b, "/half") {
 		t.Fatalf("status %d: %s", resp.StatusCode, b)
 	}
 }

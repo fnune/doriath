@@ -410,7 +410,7 @@ func cmdDoctor() int {
 	if err == nil {
 		out, runErr := exec.Command(bwrap, "--unshare-all", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "true").CombinedOutput()
 		if runErr != nil {
-			runErr = fmt.Errorf("%v: %s (are unprivileged user namespaces enabled?)", runErr, strings.TrimSpace(string(out)))
+			runErr = fmt.Errorf("%w: %s (are unprivileged user namespaces enabled?)", runErr, strings.TrimSpace(string(out)))
 		}
 		check("unprivileged user namespaces", runErr)
 	}

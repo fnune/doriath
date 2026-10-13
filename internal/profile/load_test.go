@@ -2,6 +2,7 @@ package profile
 
 import (
 	iofs "io/fs"
+	"net/http"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -81,7 +82,7 @@ action = "deny"
 	if !ok || host.Credential == nil || host.Credential.Secret != "github" {
 		t.Fatalf("intercepted host = %+v, %v", host, ok)
 	}
-	if len(host.Rules) != 2 || host.Rules[0].Method != "PUT" {
+	if len(host.Rules) != 2 || host.Rules[0].Method != http.MethodPut {
 		t.Errorf("profile rules must come before module rules, got %+v", host.Rules)
 	}
 	if r, ok := host.Decide("POST", "/repos/fnune/project/releases", nil); !ok || r.Action != ActionApprove || r.Summary != "Create a release" {

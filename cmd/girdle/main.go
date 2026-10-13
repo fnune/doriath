@@ -149,7 +149,7 @@ func cmdRun(args []string) (int, error) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "girdle: desktop notifications are off (%v); use girdle approvals\n", err)
 		} else {
-			defer desktop.Close()
+			defer func() { _ = desktop.Close() }()
 			notifier, informer = desktop, desktop
 		}
 	}

@@ -27,7 +27,7 @@ func (c *bufferedConn) CloseWrite() error {
 	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
 		return cw.CloseWrite()
 	}
-	return c.Conn.Close()
+	return c.Close()
 }
 
 // oneConnListener hands out a single connection, then blocks until that

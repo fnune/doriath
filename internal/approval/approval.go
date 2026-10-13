@@ -101,9 +101,7 @@ type IDs interface {
 	New() string
 }
 
-var (
-	ErrUnknownRequest = errors.New("unknown or already decided request")
-)
+var ErrUnknownRequest = errors.New("unknown or already decided request")
 
 type Manager struct {
 	clock    Clock

@@ -116,7 +116,7 @@ func sshsigNamespace(data []byte) (string, error) {
 		Digest    []byte
 	}
 	if err := ssh.Unmarshal(rest, &blob); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrNotSSHSIG, err)
+		return "", fmt.Errorf("%w: %w", ErrNotSSHSIG, err)
 	}
 	if blob.Hash != "sha256" && blob.Hash != "sha512" {
 		return "", fmt.Errorf("%w: hash %q", ErrNotSSHSIG, blob.Hash)

@@ -110,8 +110,6 @@ type Session struct {
 	// netnsPID is a process in the podman service's namespaces. When set,
 	// the agent joins its user and network namespaces.
 	netnsPID int
-	// nsenter joins netns. Empty when the agent gets its own namespace.
-	nsenter string
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -168,7 +166,7 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 
-	if err := s.startProxy(ctx); err != nil {
+	if err := s.startProxy(); err != nil {
 		return err
 	}
 	for _, port := range p.Egress.Ports {
@@ -186,7 +184,7 @@ func (s *Session) prepare(ctx context.Context) error {
 		return err
 	}
 	if p.Podman {
-		if err := s.startPodman(ctx); err != nil {
+		if err := s.startPodman(); err != nil {
 			return err
 		}
 	}
@@ -221,7 +219,7 @@ func (s *Session) listen(name string) (net.Listener, error) {
 	return l, nil
 }
 
-func (s *Session) startProxy(ctx context.Context) error {
+func (s *Session) startProxy() error {
 	p := s.req.Profile
 	var hosts []string
 	for _, h := range p.HTTP {

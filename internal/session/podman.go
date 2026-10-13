@@ -88,7 +88,7 @@ type bwrapInfo struct {
 // containers can mount the worktree and nothing else. Its network namespace
 // becomes the session's: the agent joins it, and the service's init process
 // holds the proxy and port forwards for both.
-func (s *Session) startPodman(ctx context.Context) error {
+func (s *Session) startPodman() error {
 	if s.deps.Unshare == "" || s.deps.Podman == "" {
 		return errors.New("the podman module needs util-linux unshare and podman on PATH")
 	}
@@ -218,7 +218,7 @@ func (s *Session) startPodman(ctx context.Context) error {
 		select {
 		case err := <-waited:
 			waited <- err
-			return fmt.Errorf("podman service exited: %v (see %s)", err, logPath)
+			return fmt.Errorf("podman service exited: %w (see %s)", err, logPath)
 		default:
 		}
 		if time.Now().After(deadline) {
@@ -280,7 +280,7 @@ func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
 		fmt.Sprintf("--map-groups=1:%d:%d", subgid.Start, min(subgid.Count, 65536)),
 		"--", "rm", "-rf", "--", dir)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("remove %s: %v: %s", dir, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("remove %s: %w: %s", dir, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

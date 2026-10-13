@@ -25,6 +25,7 @@ func (f *fakeRunner) Output(_ context.Context, _ []string) ([]byte, []byte, erro
 type mapFiles struct{ fs fstest.MapFS }
 
 func (m mapFiles) Stat(p string) (fs.FileInfo, error) { return m.fs.Stat(strings.TrimPrefix(p, "/")) }
+
 func (m mapFiles) ReadFile(p string) ([]byte, error) {
 	return m.fs.ReadFile(strings.TrimPrefix(p, "/"))
 }
