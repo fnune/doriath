@@ -304,7 +304,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			return
 		}
 	}
-	rule, matched := rules.Decide(r.Method, r.URL.Path, body)
+	rule, matched := rules.DecideRequest(r.Method, r.URL.Path, r.Header, body)
 	action, summary := rule.Action, rule.Summary
 	switch action {
 	case profile.ActionDeny:

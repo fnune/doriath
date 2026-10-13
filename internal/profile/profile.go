@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -165,6 +166,9 @@ type Rule struct {
 	BodyContains []string
 	// GraphQL narrows the rule by the operations a GraphQL body carries.
 	GraphQL *GraphQLRule
+	// Header narrows the rule to requests that carry this header, such as
+	// an API key the agent brought.
+	Header  string
 	Action  Action
 	Summary string
 }
@@ -322,9 +326,14 @@ func (p *Profile) AllowsHost(host string) bool {
 // Decide returns the matching rule for one request to an intercepted host.
 // The first matching rule wins. body is nil when no rule needs it.
 func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
+	return h.DecideRequest(method, path, nil, body)
+}
+
+// DecideRequest is Decide for a request whose headers rules may look at.
+func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []byte) (Rule, bool) {
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchBody(body) && r.matchGraphQL(graphql) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchBody(body) && r.matchGraphQL(graphql) {
 			return r, true
 		}
 	}
@@ -449,4 +458,8 @@ func (p PathPattern) Match(path string) bool {
 		}
 	}
 	return len(got) == len(want)
+}
+
+func (r Rule) matchHeader(header http.Header) bool {
+	return r.Header == "" || header.Get(r.Header) != ""
 }

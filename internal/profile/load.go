@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"net/http"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -362,6 +363,7 @@ func appendNew(list []string, s string) []string {
 }
 
 var (
+	headerName = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	limitValue = regexp.MustCompile(`^([0-9]+[KMGT]?|[0-9]{1,2}%|100%|infinity)$`)
 	cpuValue   = regexp.MustCompile(`^[0-9]+%$`)
 )
@@ -645,7 +647,10 @@ func buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("body_contains entries must not be empty")
 		}
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Action: action, Summary: r.Summary}
+	if r.Header != "" && !headerName.MatchString(r.Header) {
+		return Rule{}, fmt.Errorf("header %q: want a header name such as x-api-key", r.Header)
+	}
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {

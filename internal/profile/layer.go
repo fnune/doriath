@@ -77,6 +77,7 @@ type ruleLayer struct {
 	Path         string        `toml:"path"`
 	BodyContains []string      `toml:"body_contains"`
 	GraphQL      *graphQLLayer `toml:"graphql"`
+	Header       string        `toml:"header"`
 	Action       string        `toml:"action"`
 	Summary      string        `toml:"summary"`
 }

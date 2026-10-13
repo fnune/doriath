@@ -2,6 +2,7 @@ package modules
 
 import (
 	"io/fs"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -63,6 +64,18 @@ func TestEveryModuleLoads(t *testing.T) {
 		if string(got.Action) != req.want || got.Summary != req.summary {
 			t.Errorf("%s %s %s = %v %q, want %s %q", req.method, req.path, req.body, got.Action, got.Summary, req.want, req.summary)
 		}
+	}
+	anthropic, ok := p.Intercepted("api.anthropic.com")
+	if !ok {
+		t.Fatal("the claude module must intercept api.anthropic.com")
+	}
+	withKey := http.Header{"X-Api-Key": {"sk-ant-agent"}}
+	if r, _ := anthropic.DecideRequest("POST", "/v1/messages", withKey, nil); r.Action != profile.ActionDeny {
+		t.Errorf("a request with an API key = %v, want deny", r.Action)
+	}
+	login := http.Header{"Authorization": {"Bearer from-the-login"}}
+	if r, _ := anthropic.DecideRequest("POST", "/v1/messages", login, nil); r.Action != profile.ActionAllow {
+		t.Errorf("a request with the login = %v, want allow", r.Action)
 	}
 	git, _ := p.Intercepted("github.com")
 	if !git.Credential.AllowsBinary("/nix/store/x-git-2.54.0/libexec/git-core/git-remote-http") {

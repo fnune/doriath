@@ -6,7 +6,22 @@
 set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1" }
 
 [egress]
-allow = ["api.anthropic.com", "console.anthropic.com", "claude.ai"]
+allow = ["console.anthropic.com", "claude.ai"]
+
+# Claude uses the profile's login. A request that carries an API key, such as
+# one the agent found or brought, could send the project to another account,
+# so it is refused. A profile that runs Claude with ANTHROPIC_API_KEY allows
+# it again with its own rule for api.anthropic.com: profile rules come first.
+[[http]]
+host = "api.anthropic.com"
+default = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+header = "x-api-key"
+action = "deny"
+summary = "Use an API key instead of the profile's Claude login"
 
 [claude]
 disable_connectors = true
