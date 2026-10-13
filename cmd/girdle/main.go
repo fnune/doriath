@@ -38,6 +38,7 @@ Usage:
   girdle approvals deny ID [--reason TEXT]
   girdle approvals watch
   girdle sessions
+  girdle clean PROFILE
   girdle profiles [list | show NAME]
   girdle doctor
   girdle version
@@ -69,6 +70,8 @@ func run(args []string) int {
 		err = cmdApprovals(args[1:])
 	case "sessions":
 		err = cmdSessions()
+	case "clean":
+		err = cmdClean(args[1:])
 	case "profiles":
 		err = cmdProfiles(args[1:])
 	case "doctor":

@@ -437,3 +437,44 @@ func cmdDoctor() int {
 	}
 	return 0
 }
+
+// cmdClean deletes a profile's caches. Container storage holds files owned by
+// subordinate ids, which a plain rm cannot remove.
+func cmdClean(args []string) error {
+	if len(args) != 1 {
+		return errors.New("clean: usage: girdle clean PROFILE")
+	}
+	name := args[0]
+	p, err := paths()
+	if err != nil {
+		return err
+	}
+	if _, err := loader(p).Load(name); err != nil {
+		return err
+	}
+	sessions, err := liveSessions(p)
+	if err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if s.info.Profile == name {
+			return fmt.Errorf("session %s of profile %s is running; stop it first", s.info.ID, name)
+		}
+	}
+	dir := p.AgentCache(name)
+	containers := filepath.Join(dir, "containers")
+	if _, err := os.Stat(containers); err == nil {
+		unshare := lookPath("unshare")
+		if unshare == "" {
+			return errors.New("clean: container storage needs util-linux unshare to remove")
+		}
+		if err := session.RemoveAsMapped(context.Background(), unshare, containers); err != nil {
+			return err
+		}
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("remove %s: %w", dir, err)
+	}
+	fmt.Printf("Removed the caches of profile %s.\n", name)
+	return nil
+}
