@@ -112,6 +112,13 @@ type Manager struct {
 	mu      sync.Mutex
 	pending map[string]*pending
 	grants  map[string]grant
+	history []Outcome
+}
+
+// Outcome is a decided or expired request, for the end-of-session summary.
+type Outcome struct {
+	Request  Request
+	Decision Decision
 }
 
 type pending struct {
@@ -191,6 +198,9 @@ func (m *Manager) expire(id string) Decision {
 	default:
 	}
 	d := Decision{Verdict: VerdictNone, Reason: "nobody decided before the request expired"}
+	m.mu.Lock()
+	m.history = append(m.history, Outcome{Request: p.req, Decision: d})
+	m.mu.Unlock()
 	m.recorder.Decided(p.req, d)
 	return d
 }
@@ -214,6 +224,7 @@ func (m *Manager) Decide(id string, d Decision) error {
 			m.grants[p.req.Scope] = grant{until: d.Until, decision: d}
 		}
 	}
+	m.history = append(m.history, Outcome{Request: p.req, Decision: d})
 	m.mu.Unlock()
 	m.recorder.Decided(p.req, d)
 	p.decision <- d
@@ -229,4 +240,10 @@ func (m *Manager) Pending() []Request {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Created.Before(out[j].Created) })
 	return out
+}
+
+func (m *Manager) History() []Outcome {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]Outcome(nil), m.history...)
 }

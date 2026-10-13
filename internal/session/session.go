@@ -495,6 +495,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
+	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
+		fmt.Fprintln(s.deps.Stderr, line)
+	}
 	return code, nil
 }
 

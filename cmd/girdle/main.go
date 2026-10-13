@@ -40,6 +40,7 @@ Usage:
   girdle sessions
   girdle clean PROFILE
   girdle status [SESSION]
+  girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
   girdle profiles [list | show NAME | which [-q] [DIR]]
   girdle doctor
   girdle version
@@ -78,6 +79,8 @@ func run(args []string) int {
 		err = cmdStatus(args[1:], os.Stdout)
 	case "statusline":
 		err = cmdStatusline(os.Stdout)
+	case "log":
+		err = cmdLog(args[1:], os.Stdout)
 	case "profiles":
 		err = cmdProfiles(args[1:])
 	case "doctor":
