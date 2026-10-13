@@ -86,6 +86,9 @@ type Deps struct {
 	Nsenter string
 	Podman  string
 	Git     string
+	// SystemdRun puts each jail in a systemd user scope with the profile's
+	// limits. Empty runs without limits.
+	SystemdRun string
 	// UpstreamRoots verifies upstream servers in tests. Nil means the system
 	// roots.
 	UpstreamRoots *x509.CertPool
@@ -130,6 +133,9 @@ type Session struct {
 }
 
 func New(deps Deps, req Request) (*Session, error) {
+	if err := checkHelpers(deps, req.Profile); err != nil {
+		return nil, err
+	}
 	id, err := newID()
 	if err != nil {
 		return nil, err
@@ -153,6 +159,9 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	spec, err := s.plan()
 	if err != nil {
 		return 1, err
+	}
+	for _, note := range spec.Notes {
+		fmt.Fprintln(s.deps.Stderr, "girdle: "+note)
 	}
 	return s.exec(ctx, spec)
 }
@@ -184,6 +193,9 @@ func (s *Session) prepare(ctx context.Context) error {
 			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
+	// Each session gets its own /tmp, so one session cannot plant files that
+	// a later one of the same profile trusts.
+	s.closers = append(s.closers, func() { _ = os.RemoveAll(s.tmp()) })
 	for _, c := range p.Caches {
 		if err := os.MkdirAll(jail.CacheSource(s.cacheRoot(), c.Path, s.deps.Paths.Home), 0o700); err != nil {
 			return fmt.Errorf("create cache for %s: %w", c.Path, err)
@@ -227,7 +239,7 @@ func (s *Session) prepare(ctx context.Context) error {
 }
 
 func (s *Session) cacheRoot() string { return s.deps.Paths.AgentCache(s.req.Profile.Name) }
-func (s *Session) tmp() string       { return filepath.Join(s.cacheRoot(), "tmp") }
+func (s *Session) tmp() string       { return filepath.Join(s.cacheRoot(), "tmp", s.id) }
 func (s *Session) jailPath(name string) string {
 	return filepath.Join(s.jailDir, name)
 }
@@ -520,8 +532,8 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		target := strconv.Itoa(s.netnsPID)
 		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, spec.Args()...)...)
 	}
+	cmd = s.limited(cmd, "agent")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.deps.Stdin, s.deps.Stdout, s.deps.Stderr
-	cmd.Env = []string{}
 	infoR, infoW, err := os.Pipe()
 	if err != nil {
 		return 1, err
@@ -722,4 +734,77 @@ func (s *Session) localDialer() proxy.Dialer {
 		return s.deps.LocalDialer
 	}
 	return s.deps.Dialer
+}
+
+// limited runs cmd in a transient systemd user scope with the profile's
+// limits, and with an empty environment because bwrap sets the jail's own.
+// A missing systemd-run leaves the session without limits rather than
+// failing it, because limits protect the workstation's availability, not the
+// boundary.
+func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
+	cmd.Env = []string{}
+	lim := s.req.Profile.Limits
+	if s.deps.SystemdRun == "" || (lim.Tasks == 0 && lim.Memory == "" && lim.CPU == "") {
+		return cmd
+	}
+	args := []string{
+		"--user", "--scope", "--quiet", "--collect",
+		"--unit", fmt.Sprintf("girdle-%s-%s-%s", s.req.Profile.Name, role, s.id),
+	}
+	if lim.Tasks > 0 {
+		args = append(args, "-p", fmt.Sprintf("TasksMax=%d", lim.Tasks))
+	}
+	if lim.Memory != "" {
+		args = append(args, "-p", "MemoryMax="+lim.Memory)
+	}
+	if lim.CPU != "" {
+		args = append(args, "-p", "CPUQuota="+lim.CPU)
+	}
+	args = append(args, "--")
+	args = append(args, cmd.Args...)
+	wrapped := exec.Command(s.deps.SystemdRun, args...)
+	wrapped.SysProcAttr = cmd.SysProcAttr
+	// systemd-run reaches the user manager over the session bus. The scope
+	// keeps these two variables, and bwrap's --clearenv drops them in the jail.
+	for _, k := range []string{"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"} {
+		if v := s.deps.Getenv(k); v != "" {
+			wrapped.Env = append(wrapped.Env, k+"="+v)
+		}
+	}
+	if wrapped.Env == nil {
+		wrapped.Env = []string{}
+	}
+	return wrapped
+}
+
+// checkHelpers refuses a helper program that the jail can write, such as
+// one found on PATH inside a writable mount, because girdle runs helpers
+// outside the jail.
+func checkHelpers(deps Deps, p *profile.Profile) error {
+	writable := []string{deps.Paths.AgentCache(p.Name)}
+	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeReadWrite {
+			writable = append(writable, m.Path)
+		}
+	}
+	for _, helper := range []string{deps.Exe, deps.Bwrap, deps.Git, deps.Unshare, deps.Nsenter, deps.Podman, deps.SystemdRun} {
+		if helper == "" {
+			continue
+		}
+		real, err := filepath.EvalSymlinks(helper)
+		if err != nil {
+			real = helper
+		}
+		for _, w := range writable {
+			if within(real, w) || within(helper, w) {
+				return fmt.Errorf("%s is inside %s, which the jail can write: install it elsewhere or take it out of PATH", helper, w)
+			}
+		}
+	}
+	return nil
+}
+
+func within(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }

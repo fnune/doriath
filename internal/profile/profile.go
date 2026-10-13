@@ -159,6 +159,16 @@ type HTTPHost struct {
 	Rules      []Rule
 }
 
+// Limits caps what a session can use, so a runaway agent cannot exhaust the
+// workstation. Zero or empty means no limit.
+type Limits struct {
+	Tasks  int
+	Memory string
+	CPU    string
+}
+
+const DefaultTaskLimit = 4096
+
 // Hardening is on by default. Each switch loosens the agent jail for tools
 // that need it.
 type Hardening struct {
@@ -203,6 +213,7 @@ type Profile struct {
 	// full references such as docker.io/library/*. Empty allows any.
 	ContainerImages []string
 	Hardening       Hardening
+	Limits          Limits
 	// NixDaemon gives the jail the system nix daemon's socket. The daemon
 	// runs builds outside the jail, so they bypass the egress allowlist.
 	NixDaemon bool

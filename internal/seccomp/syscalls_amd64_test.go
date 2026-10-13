@@ -9,6 +9,10 @@ import (
 func TestTableMatchesUnix(t *testing.T) {
 	want := map[string]uint32{
 		"clone":             unix.SYS_CLONE,
+		"ioctl":             unix.SYS_IOCTL,
+		"socket":            unix.SYS_SOCKET,
+		"kcmp":              unix.SYS_KCMP,
+		"process_madvise":   unix.SYS_PROCESS_MADVISE,
 		"ptrace":            unix.SYS_PTRACE,
 		"pivot_root":        unix.SYS_PIVOT_ROOT,
 		"chroot":            unix.SYS_CHROOT,

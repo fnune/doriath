@@ -82,13 +82,18 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 		base:      base,
 		refPrefix: fmt.Sprintf("refs/girdle/%s/%s/", s.req.Profile.Name, s.id),
 	}
-	baseFile := filepath.Join(c.dir, ".git", "girdle-base")
+	// The base lives outside the clone, which the agent can write, because it
+	// becomes an argument to git on the host.
+	baseFile := c.dir + ".base"
 	if s.req.CloneFrom != "" {
 		data, err := os.ReadFile(baseFile)
 		if err != nil {
 			return repoClone{}, fmt.Errorf("no clone from session %s: run girdle run without --clone-from, or check ~/.cache/girdle/agents/%s/clones", s.req.CloneFrom, s.req.Profile.Name)
 		}
 		c.base = strings.TrimSpace(string(data))
+		if !isObjectID(c.base) {
+			return repoClone{}, fmt.Errorf("%s does not hold a commit id", baseFile)
+		}
 		return c, s.pointAlternates(c, i)
 	}
 	if err := os.MkdirAll(filepath.Dir(c.dir), 0o700); err != nil {
@@ -154,7 +159,11 @@ func (s *Session) landClones(ctx context.Context) []string {
 			lines = append(lines, fmt.Sprintf("girdle: could not bring back work from %s: %v", c.dir, err))
 			continue
 		}
-		if _, err := s.git(ctx, "-C", c.source, "fetch", "--quiet", "--no-write-fetch-head", c.dir,
+		// The agent controls the clone, so the fetch names the upload-pack it
+		// runs and allows only the local transport, whatever the clone's
+		// config or a .git file in it say.
+		if _, err := s.git(ctx, "-C", c.source, "-c", "protocol.allow=never", "-c", "protocol.file.allow=always",
+			"fetch", "--quiet", "--no-write-fetch-head", "--upload-pack="+shellWord(s.deps.Git)+" upload-pack", c.dir,
 			"+refs/heads/*:"+c.refPrefix+"*", "+HEAD:"+c.refPrefix+"HEAD"); err != nil {
 			lines = append(lines, fmt.Sprintf("girdle: could not bring back work from %s: %v", c.dir, err))
 			continue
@@ -188,4 +197,20 @@ func (s *Session) landClones(ctx context.Context) []string {
 		s.log.Write("clone-landed", map[string]string{"source": c.source, "refs": c.refPrefix})
 	}
 	return lines
+}
+
+func isObjectID(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
+		return false
+	}
+	for _, r := range s {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
+	return true
+}
+
+func shellWord(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

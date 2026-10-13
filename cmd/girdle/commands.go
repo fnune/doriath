@@ -658,8 +658,7 @@ func cmdSandboxExec(args []string) error {
 	}
 	err = landlock.Exec(writable, path, argv, os.Environ())
 	if errors.Is(err, landlock.ErrUnsupported) {
-		fmt.Fprintln(os.Stderr, "girdle: this kernel has no Landlock; writes are limited by the mounts only")
-		return syscall.Exec(path, argv, os.Environ())
+		return errors.New("sandbox-exec: this kernel has no Landlock; set landlock = false under [hardening] in the profile to run without it")
 	}
 	return fmt.Errorf("sandbox-exec: %w", err)
 }

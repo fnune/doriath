@@ -26,6 +26,7 @@ type layer struct {
 	Podman      *podmanLayer      `toml:"podman"`
 	Nix         *nixLayer         `toml:"nix"`
 	Hardening   *hardeningLayer   `toml:"hardening"`
+	Limits      *limitsLayer      `toml:"limits"`
 	Claude      *claudeLayer      `toml:"claude"`
 	Secrets     map[string]string `toml:"secrets"`
 }
@@ -76,6 +77,12 @@ type ruleLayer struct {
 
 type signingLayer struct {
 	Key string `toml:"key"`
+}
+
+type limitsLayer struct {
+	Tasks  *int   `toml:"tasks"`
+	Memory string `toml:"memory"`
+	CPU    string `toml:"cpu"`
 }
 
 type hardeningLayer struct {

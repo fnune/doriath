@@ -50,10 +50,24 @@ type Policy struct {
 const (
 	offsetNr   = 0
 	offsetArch = 4
-	// The low half of args[0] on a little-endian machine. amd64 and arm64 are
-	// both little-endian.
+	// The low halves of args[0] and args[1] on a little-endian machine. amd64
+	// and arm64 are both little-endian.
 	offsetArg0Low = 16
+	offsetArg1Low = 24
 )
+
+// Terminal ioctls that push input into a terminal, which would let the agent
+// type commands into the shell that started girdle once it exits.
+var terminalInjection = []uint32{unix.TIOCSTI, unix.TIOCLINUX}
+
+// Socket families that tools do not need and that reach rarely used kernel
+// code: raw packets, kernel crypto, VM sockets, IPsec keys, XDP and device
+// buses.
+var deniedFamilies = []uint32{
+	unix.AF_PACKET, unix.AF_ALG, unix.AF_VSOCK, unix.AF_KEY, unix.AF_XDP,
+	unix.AF_BLUETOOTH, unix.AF_CAN, unix.AF_TIPC, unix.AF_RDS, unix.AF_LLC,
+	unix.AF_NFC, unix.AF_SMC, unix.AF_KCM, unix.AF_QIPCRTR, unix.AF_MCTP,
+}
 
 // x32 syscalls on x86_64 carry this bit in their number and share the
 // AUDIT_ARCH_X86_64 arch, so without this check they would slip past every
@@ -94,6 +108,7 @@ func rules(arch Arch, p Policy) []rule {
 		"open_by_handle_at", "name_to_handle_at",
 		"quotactl", "quotactl_fd", "lookup_dcookie",
 		"pidfd_getfd", "process_vm_readv", "process_vm_writev",
+		"kcmp", "process_madvise",
 	)
 	if arch == AMD64 {
 		rs = append(rs, deny(retEPERM, "iopl", "ioperm")...)
@@ -127,6 +142,7 @@ const (
 	opJeq  = unix.BPF_JMP | unix.BPF_JEQ | unix.BPF_K
 	opJset = unix.BPF_JMP | unix.BPF_JSET | unix.BPF_K
 	opRet  = unix.BPF_RET | unix.BPF_K
+	opJa   = unix.BPF_JMP | unix.BPF_JA
 )
 
 func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
@@ -160,6 +176,8 @@ func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
 			stmt(opRet, r.ret),
 		)
 	}
+	prog = append(prog, argumentRule(numbers["ioctl"], offsetArg1Low, terminalInjection)...)
+	prog = append(prog, argumentRule(numbers["socket"], offsetArg0Low, deniedFamilies)...)
 	if !p.AllowNamespaces {
 		// Thread creation goes through clone too, so only the namespace flags
 		// are refused. They all sit in the low 32 bits.
@@ -171,6 +189,28 @@ func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
 		)
 	}
 	return append(prog, stmt(opRet, retAllow)), nil
+}
+
+// argumentRule refuses a syscall when one argument equals any of values. The
+// syscall number is reloaded afterwards, so later rules see it again.
+func argumentRule(nr uint32, offset uint32, values []uint32) []unix.SockFilter {
+	// Layout: [0] syscall check, [1] load argument, [2..n+1] one check per
+	// value, [n+2] jump over the refusal, [n+3] refuse, [n+4] reload the
+	// syscall number. A jump target is its own index plus one plus the
+	// offset.
+	n := len(values)
+	prog := []unix.SockFilter{
+		jump(opJeq, nr, 0, uint8(n+3)),
+		stmt(opLoad, offset),
+	}
+	for i, v := range values {
+		prog = append(prog, jump(opJeq, v, uint8(n-i), 0))
+	}
+	return append(prog,
+		stmt(opJa, 1),
+		stmt(opRet, retEPERM),
+		stmt(opLoad, offsetNr),
+	)
 }
 
 // Build returns the filter as bubblewrap reads it from --seccomp: an array of

@@ -198,6 +198,7 @@ func cmdRun(args []string) (int, error) {
 		Nsenter:     lookPath("nsenter"),
 		Podman:      lookPath("podman"),
 		Git:         lookPath("git"),
+		SystemdRun:  lookPath("systemd-run"),
 	}
 	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, CloneFrom: *cloneFrom})
 	if err != nil {

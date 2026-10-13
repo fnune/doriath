@@ -221,6 +221,27 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 	}
 }
 
+func TestWritableRepoMountSuggestsCloneMode(t *testing.T) {
+	h := host()
+	p := testProfile()
+	p.Mounts = []profile.Mount{{Path: "/home/u/Development/project", Mode: profile.ModeReadWrite}}
+	s, err := Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Notes) != 0 {
+		t.Fatalf("a mount without a repository needs no note: %v", s.Notes)
+	}
+	h["/home/u/Development/project/.git"] = "dir"
+	s, err = Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], `mode = "clone"`) {
+		t.Fatalf("notes = %v", s.Notes)
+	}
+}
+
 func TestNixDaemonHiddenUnlessGranted(t *testing.T) {
 	h := host()
 	h[nixDaemonDir] = "dir"
@@ -276,5 +297,30 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == repo+"/.git" })
 	if i < 0 || !s.Binds[i].ReadOnly {
 		t.Error("a worktree's .git pointer file must be read-only")
+	}
+}
+
+func TestNestedRepositoriesAreGuarded(t *testing.T) {
+	h := host()
+	nested := "/home/u/Development/project/vendor-not/inner"
+	for p, k := range map[string]string{
+		"/home/u/Development/project/vendor-not": "dir",
+		nested:                             "dir",
+		nested + "/.git":                   "dir",
+		nested + "/.git/config":            "file",
+		"/home/u/Development/project/.jj": "dir",
+		"/home/u/Development/project/.jj/repo/config.toml": "file",
+	} {
+		h[p] = k
+	}
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{nested + "/.git/config", "/home/u/Development/project/.jj/repo/config.toml"} {
+		i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == p })
+		if i < 0 || !s.Binds[i].ReadOnly {
+			t.Errorf("%s must be read-only", p)
+		}
 	}
 }

@@ -12,6 +12,10 @@ func syscallNumbers(arch Arch) (map[string]uint32, error) {
 	switch arch {
 	case AMD64:
 		return map[string]uint32{
+			"ioctl":             16,
+			"socket":            41,
+			"kcmp":              312,
+			"process_madvise":   440,
 			"clone":             56,
 			"ptrace":            101,
 			"pivot_root":        155,
@@ -75,6 +79,10 @@ func syscallNumbers(arch Arch) (map[string]uint32, error) {
 			"add_key":           217,
 			"request_key":       218,
 			"keyctl":            219,
+			"ioctl":             29,
+			"socket":            198,
+			"kcmp":              272,
+			"process_madvise":   440,
 			"clone":             220,
 			"swapon":            224,
 			"swapoff":           225,

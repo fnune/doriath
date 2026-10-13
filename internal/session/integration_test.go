@@ -112,7 +112,9 @@ type env struct {
 	binaries string
 	// cloneFrom is passed to the next session; lastID is the last session's.
 	cloneFrom string
-	lastID    string
+	// systemdRun is empty unless a test checks resource limits.
+	systemdRun string
+	lastID     string
 }
 
 func newEnv(t *testing.T) *env {
@@ -226,8 +228,11 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 	}
 	var out bytes.Buffer
 	getenv := func(k string) string {
-		if k == "SSL_CERT_FILE" {
+		switch k {
+		case "SSL_CERT_FILE":
 			return e.bundle
+		case "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS":
+			return os.Getenv(k)
 		}
 		return ""
 	}
@@ -250,6 +255,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Nsenter:       lookPath("nsenter"),
 		Podman:        lookPath("podman"),
 		Git:           lookPath("git"),
+		SystemdRun:    e.systemdRun,
 	}
 	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}, CloneFrom: e.cloneFrom})
 	if err != nil {
@@ -599,9 +605,25 @@ bwrap --unshare-all --ro-bind / / true 2>/dev/null && echo "FAIL nested bwrap"
 touch /mnt/x 2>/dev/null && echo "FAIL write outside the writable paths"
 touch "$PWD/landlock-ok" || echo "FAIL worktree write"
 python3 -c 'import threading; t=threading.Thread(target=print, args=("threads ok",)); t.start(); t.join()' || echo "FAIL threads"
+cat > /tmp/sec.py <<'PY'
+import errno, fcntl, socket, termios, os
+def refused(f):
+    try:
+        f()
+    except OSError as e:
+        return e.errno == errno.EPERM
+    return False
+print("packet refused" if refused(lambda: socket.socket(socket.AF_PACKET, socket.SOCK_RAW)) else "FAIL packet socket")
+print("alg refused" if refused(lambda: socket.socket(socket.AF_ALG, socket.SOCK_SEQPACKET)) else "FAIL alg socket")
+socket.socket(socket.AF_INET, socket.SOCK_STREAM).close()
+socket.socket(socket.AF_UNIX, socket.SOCK_STREAM).close()
+print("inet ok")
+print("tiocsti refused" if refused(lambda: fcntl.ioctl(0, termios.TIOCSTI, b"x")) else "FAIL tiocsti")
+PY
+python3 /tmp/sec.py
 echo done
 `, nil)
-	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "threads ok") || !strings.Contains(out, "done") {
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "threads ok") || !strings.Contains(out, "tiocsti refused") || !strings.Contains(out, "inet ok") || !strings.Contains(out, "done") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 
@@ -752,5 +774,32 @@ print(s.recv(200).decode(errors="replace").splitlines()[0], flush=True)
 	}
 	if r := e.upstream.find("/forged"); r != nil && r.Header.Get("Authorization") != "" {
 		t.Fatalf("a forged header got the credential")
+	}
+}
+
+func TestLimitsRunTheSessionInAScope(t *testing.T) {
+	systemdRun := lookPath("systemd-run")
+	if systemdRun == "" || exec.Command(systemdRun, "--user", "--scope", "--quiet", "true").Run() != nil {
+		t.Skip("no systemd user manager")
+	}
+	e := newEnv(t)
+	e.systemdRun = systemdRun
+	p := e.profile("\n[limits]\ntasks = 64\n")
+	release := filepath.Join(e.work, "release")
+	var tasksMax string
+	code, out := e.run(p, `while [ ! -e "$PWD/release" ]; do sleep 0.05; done`, func() {
+		defer func() { _ = os.WriteFile(release, nil, 0o600) }()
+		// The jail's cgroup namespace hides the scope, so read it from outside.
+		unit := fmt.Sprintf("girdle-%s-agent-%s.scope", p.Name, e.lastID)
+		for range 100 {
+			got, _ := exec.Command("systemctl", "--user", "show", "-p", "TasksMax", "--value", unit).Output()
+			if tasksMax = strings.TrimSpace(string(got)); tasksMax == "64" {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	if code != 0 || tasksMax != "64" {
+		t.Fatalf("code %d, TasksMax %q:\n%s", code, tasksMax, out)
 	}
 }

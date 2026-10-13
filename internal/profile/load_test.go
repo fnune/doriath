@@ -117,6 +117,9 @@ func TestLoadRejects(t *testing.T) {
 		"device outside dev": {profile: "devices = [\"/etc/passwd\"]", want: "under /dev"},
 		"bad timeout":        {profile: "[claude]\napproval_timeout = \"soon\"", want: "approval_timeout"},
 		"missing module":     {profile: `modules = ["nope"]`, want: `module "nope" not found`},
+		"bad memory limit":   {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
+		"bad cpu limit":      {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
+		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},
 		"module cycle": {
 			profile: `modules = ["a"]`,
 			modules: fstest.MapFS{"a.toml": file(`modules = ["b"]`), "b.toml": file(`modules = ["a"]`)},
@@ -206,6 +209,18 @@ func TestApprovalTimeout(t *testing.T) {
 	p, err := loader(fstest.MapFS{"p.toml": file("[claude]\napproval_timeout = \"90s\"")}, fstest.MapFS{}).Load("p")
 	if err != nil || p.Claude.ApprovalTimeout != 90*time.Second {
 		t.Fatalf("got %v, %v", p, err)
+	}
+}
+
+func TestLimits(t *testing.T) {
+	empty := fstest.MapFS{}
+	p, err := loader(fstest.MapFS{"p.toml": file("")}, empty).Load("p")
+	if err != nil || p.Limits != (Limits{Tasks: DefaultTaskLimit}) {
+		t.Fatalf("default limits = %+v, %v", p.Limits, err)
+	}
+	p, err = loader(fstest.MapFS{"p.toml": file("[limits]\ntasks = 0\nmemory = \"8G\"\ncpu = \"200%\"")}, empty).Load("p")
+	if err != nil || p.Limits != (Limits{Memory: "8G", CPU: "200%"}) {
+		t.Fatalf("limits = %+v, %v", p.Limits, err)
 	}
 }
 

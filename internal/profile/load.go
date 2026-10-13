@@ -197,6 +197,7 @@ type builder struct {
 	images  []string
 	nix     bool
 	harden  Hardening
+	limits  Limits
 	claude  claudeLayer
 	disable bool
 	mcp     *[]string
@@ -206,7 +207,7 @@ type builder struct {
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]string{}}
+	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]string{}, limits: Limits{Tasks: DefaultTaskLimit}}
 }
 
 func (b *builder) apply(l layer) {
@@ -259,6 +260,17 @@ func (b *builder) apply(l layer) {
 	}
 	if l.Nix != nil && l.Nix.Daemon != nil {
 		b.nix = *l.Nix.Daemon
+	}
+	if lim := l.Limits; lim != nil {
+		if lim.Tasks != nil {
+			b.limits.Tasks = *lim.Tasks
+		}
+		if lim.Memory != "" {
+			b.limits.Memory = lim.Memory
+		}
+		if lim.CPU != "" {
+			b.limits.CPU = lim.CPU
+		}
 	}
 	if h := l.Hardening; h != nil {
 		if h.Namespaces != nil {
@@ -329,6 +341,11 @@ func appendNew(list []string, s string) []string {
 	return append(list, s)
 }
 
+var (
+	limitValue = regexp.MustCompile(`^[0-9]+[KMGT]?$`)
+	cpuValue   = regexp.MustCompile(`^[0-9]+%$`)
+)
+
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func (b *builder) build(top layer) (*Profile, error) {
@@ -341,6 +358,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		ContainerImages: b.images,
 		NixDaemon:       b.nix,
 		Hardening:       b.harden,
+		Limits:          b.limits,
 		Secrets:         b.secrets,
 	}
 	for _, m := range top.Match {
@@ -442,6 +460,15 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("signing key %q: use lowercase letters, digits and dashes", b.signing))
 		}
 		p.SigningKey = b.signing
+	}
+	if b.limits.Tasks < 0 {
+		errs = append(errs, fmt.Errorf("limits tasks %d: must be zero (no limit) or more", b.limits.Tasks))
+	}
+	if b.limits.Memory != "" && !limitValue.MatchString(b.limits.Memory) {
+		errs = append(errs, fmt.Errorf("limits memory %q: want a size such as 8G", b.limits.Memory))
+	}
+	if b.limits.CPU != "" && !cpuValue.MatchString(b.limits.CPU) {
+		errs = append(errs, fmt.Errorf("limits cpu %q: want a percentage such as 200%%", b.limits.CPU))
 	}
 	claude, err := b.buildClaude()
 	if err != nil {

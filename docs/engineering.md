@@ -19,7 +19,7 @@ Girdle sits between a person and their agents. It must feel calm: simple, clear,
 
 ### Secure by default
 
-- Deny by default. A path, socket, host, credential or environment variable is in the jail only if a profile names it.
+- Deny by default. A host, socket, credential, environment variable or path under the home is in the jail only if a profile names it. The system directories (`/etc`, `/usr`, `/var`, `/opt`, `/nix/store`) stay readable so that tools work, and nothing outside the writable paths can be changed.
 - Hide rather than deny. What the agent must not reach is not mounted, not forwarded, and not in its environment.
 - Widen by config, never in the session. An agent can propose a change to a profile. Only the person applies it.
 - Secrets never enter logs, errors, test fixtures, or the agent's environment unless a profile grants them. Redact at the boundary that writes output.

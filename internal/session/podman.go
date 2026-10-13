@@ -189,8 +189,7 @@ func (s *Session) startPodman() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(s.deps.Unshare, append(unshareArgs, spec.Args()...)...)
-	cmd.Env = []string{}
+	cmd := s.limited(exec.Command(s.deps.Unshare, append(unshareArgs, spec.Args()...)...), "podman")
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	cmd.ExtraFiles = []*os.File{infoW}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

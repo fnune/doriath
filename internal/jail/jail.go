@@ -81,6 +81,9 @@ type Spec struct {
 	Env      map[string]string
 	Cwd      string
 	Command  []string
+	// Notes are advice for the person who starts the session. They never
+	// change the jail.
+	Notes []string
 }
 
 type Options struct {
@@ -112,7 +115,7 @@ type Options struct {
 // bypass the egress allowlist.
 const nixDaemonDir = "/nix/var/nix/daemon-socket"
 
-var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var/tmp", "/mnt", "/media", "/srv"}
+var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var/tmp", "/mnt", "/media", "/srv", "/boot"}
 
 func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, error) {
 	if !filepath.IsAbs(opts.Home) || !filepath.IsAbs(opts.Cwd) {
@@ -169,7 +172,14 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		}
 		binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
 		if m.Mode == profile.ModeReadWrite {
-			binds = append(binds, gitGuards(m.Path, m.Path, host)...)
+			repos := repositories(m.Path, host)
+			if len(repos) > 0 {
+				s.Notes = append(s.Notes, fmt.Sprintf("%s is a writable mount with a git repository: mode = \"clone\" keeps the agent's commits out of it until the session lands them", m.Path))
+			}
+			for _, repo := range repos {
+				binds = append(binds, gitGuards(repo, repo, host)...)
+				binds = append(binds, jjGuards(repo, host)...)
+			}
 		}
 	}
 	for _, c := range p.Caches {
@@ -234,6 +244,46 @@ func gitGuards(src, dest string, host Host) []Bind {
 		return gitDirGuards(srcGit, destGit, host, 0)
 	}
 	return nil
+}
+
+// repositories finds the repositories a writable mount contains: the mount
+// itself and any below it, a few levels down, so a checkout nested inside a
+// mounted directory gets the same guards.
+func repositories(root string, host Host) []string {
+	var out []string
+	var walk func(dir string, depth int)
+	walk = func(dir string, depth int) {
+		if host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != "" || filepath.Base(dir) == ".git" {
+			out = append(out, dir)
+		}
+		if depth == repositoryDepth {
+			return
+		}
+		for _, name := range host.Entries(dir) {
+			if skipWalk[name] {
+				continue
+			}
+			if sub := filepath.Join(dir, name); host.Kind(sub) == "dir" {
+				walk(sub, depth+1)
+			}
+		}
+	}
+	walk(root, 0)
+	return out
+}
+
+const repositoryDepth = 3
+
+var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
+
+// jjGuards keeps a jj repository's own config read-only, because jj on the
+// desktop runs commands it names, such as diff and merge tools.
+func jjGuards(repo string, host Host) []Bind {
+	p := filepath.Join(repo, ".jj", "repo", "config.toml")
+	if host.Kind(p) == "" {
+		return nil
+	}
+	return []Bind{{Source: p, Dest: p, ReadOnly: true}}
 }
 
 // GitControlFiles are the entries of a .git directory that decide what git
