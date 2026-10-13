@@ -65,6 +65,9 @@ func TestEveryModuleLoads(t *testing.T) {
 		}
 	}
 	git, _ := p.Intercepted("github.com")
+	if !git.Credential.AllowsBinary("/nix/store/x-git-2.54.0/libexec/git-core/git-remote-http") {
+		t.Error("nix's git fetches over HTTPS as git-remote-http and needs the token")
+	}
 	if fetch, _ := git.Decide("POST", "/a/b/git-upload-pack", nil); fetch.Action != profile.ActionAllow {
 		t.Errorf("fetch = %v, want allow", fetch.Action)
 	}

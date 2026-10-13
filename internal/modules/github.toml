@@ -16,9 +16,11 @@ set = { GH_TOKEN = "girdle-placeholder-token" }
 
 # git over HTTPS. Fetches pass, and each push waits for approval, which you
 # can grant for the session per repository.
+# Some builds, nix's among them, link git-remote-https to git-remote-http, and
+# the kernel names the program by the file it runs.
 [[http]]
 host = "github.com"
-credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git"] }
+credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git-remote-http", "git"] }
 default = "approve"
 
 [[http.rules]]
