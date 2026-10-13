@@ -90,6 +90,9 @@ type Request struct {
 	Profile *profile.Profile
 	Cwd     string
 	Command []string
+	// CloneFrom reuses the clones of an earlier session, so that resumed
+	// work keeps its uncommitted changes.
+	CloneFrom string
 }
 
 // Info describes a running session for girdle approvals and girdle status.

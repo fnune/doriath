@@ -64,3 +64,9 @@ func TestDesktop(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	withdraw()
 }
+
+func TestUrgency(t *testing.T) {
+	if Urgency(approval.Request{Kind: approval.KindHTTP}) != urgencyHi || Urgency(approval.Request{Kind: approval.KindRule}) != urgencyNormal {
+		t.Fatal("held requests are urgent, drafted rules are not")
+	}
+}

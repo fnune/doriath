@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	busName   = "org.freedesktop.Notifications"
-	objPath   = "/org/freedesktop/Notifications"
-	iface     = "org.freedesktop.Notifications"
-	appName   = "Girdle of Melian"
-	urgencyHi = byte(2)
+	busName       = "org.freedesktop.Notifications"
+	objPath       = "/org/freedesktop/Notifications"
+	iface         = "org.freedesktop.Notifications"
+	appName       = "Girdle of Melian"
+	urgencyHi     = byte(2)
+	urgencyNormal = byte(1)
 )
 
 const (
@@ -144,8 +145,9 @@ func (d *Desktop) dispatch(signals <-chan *dbus.Signal) {
 
 func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(approval.Decision)) (func(), error) {
 	hints := map[string]dbus.Variant{
-		"urgency":  dbus.MakeVariant(urgencyHi),
-		"resident": dbus.MakeVariant(true),
+		"urgency":       dbus.MakeVariant(Urgency(req)),
+		"resident":      dbus.MakeVariant(true),
+		"desktop-entry": dbus.MakeVariant("girdle"),
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
@@ -172,10 +174,20 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}, nil
 }
 
+// Urgency keeps held requests on screen, because an agent is waiting, and
+// lets drafted rules wait in the notification history like any other
+// notification.
+func Urgency(req approval.Request) byte {
+	if req.Kind == approval.KindRule {
+		return urgencyNormal
+	}
+	return urgencyHi
+}
+
 // Inform shows a message without buttons, for events that need attention
 // but no decision.
 func (d *Desktop) Inform(title, body string) error {
-	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(byte(1))}
+	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("girdle")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
 		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err
 }

@@ -70,13 +70,26 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	if err != nil {
 		return repoClone{}, err
 	}
+	owner := s.id
+	if s.req.CloneFrom != "" {
+		owner = s.req.CloneFrom
+	}
 	c := repoClone{
 		source:    m.Path,
-		dir:       filepath.Join(s.cacheRoot(), "clones", filepath.Base(m.Path)+"-"+s.id),
+		dir:       filepath.Join(s.cacheRoot(), "clones", filepath.Base(m.Path)+"-"+owner),
 		objects:   filepath.Join(common, "objects"),
 		jailObjs:  jail.InJail("origin-" + strconv.Itoa(i) + "/objects"),
 		base:      base,
 		refPrefix: fmt.Sprintf("refs/girdle/%s/%s/", s.req.Profile.Name, s.id),
+	}
+	baseFile := filepath.Join(c.dir, ".git", "girdle-base")
+	if s.req.CloneFrom != "" {
+		data, err := os.ReadFile(baseFile)
+		if err != nil {
+			return repoClone{}, fmt.Errorf("no clone from session %s: run girdle run without --clone-from, or check ~/.cache/girdle/agents/%s/clones", s.req.CloneFrom, s.req.Profile.Name)
+		}
+		c.base = strings.TrimSpace(string(data))
+		return c, s.pointAlternates(c, i)
 	}
 	if err := os.MkdirAll(filepath.Dir(c.dir), 0o700); err != nil {
 		return repoClone{}, err
@@ -87,6 +100,9 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	if _, err := s.git(ctx, "-C", c.dir, "checkout", "--quiet", "--detach", base); err != nil {
 		return repoClone{}, err
 	}
+	if err := writeFile(baseFile, []byte(base+"\n"), 0o600); err != nil {
+		return repoClone{}, err
+	}
 	if url, err := s.git(ctx, "-C", m.Path, "remote", "get-url", "origin"); err == nil && url != "" {
 		if _, err := s.git(ctx, "-C", c.dir, "remote", "set-url", "origin", url); err != nil {
 			return repoClone{}, err
@@ -94,16 +110,18 @@ func (s *Session) makeClone(ctx context.Context, i int, m profile.Mount) (repoCl
 	} else if _, err := s.git(ctx, "-C", c.dir, "remote", "remove", "origin"); err != nil {
 		return repoClone{}, err
 	}
-	// The source's object directory is mounted read-only inside the jail at a
-	// path of its own, because the clone itself sits at the source's path.
+	return c, s.pointAlternates(c, i)
+}
+
+// pointAlternates makes the clone borrow objects from the source through a
+// path inside the jail: the source's object directory is mounted read-only
+// at a path of its own, because the clone itself sits at the source's path.
+func (s *Session) pointAlternates(c repoClone, i int) error {
 	if err := os.MkdirAll(filepath.Join(s.jailDir, "origin-"+strconv.Itoa(i), "objects"), 0o700); err != nil {
-		return repoClone{}, err
+		return err
 	}
 	alternates := filepath.Join(c.dir, ".git", "objects", "info", "alternates")
-	if err := writeFile(alternates, []byte(c.jailObjs+"\n"), 0o644); err != nil {
-		return repoClone{}, err
-	}
-	return c, nil
+	return writeFile(alternates, []byte(c.jailObjs+"\n"), 0o644)
 }
 
 func (s *Session) cloneBinds() []jail.Bind {

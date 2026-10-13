@@ -32,7 +32,7 @@ var version = "dev"
 const usage = `girdle runs a coding agent in a jail that shows it only what its profile names.
 
 Usage:
-  girdle run [--profile NAME] [--] COMMAND [ARGS...]
+  girdle run [--profile NAME] [--clone-from SESSION] [--] COMMAND [ARGS...]
   girdle approvals [list]
   girdle approvals allow ID [--for once|session|DURATION]
   girdle approvals deny ID [--reason TEXT]
@@ -123,6 +123,7 @@ func loader(p config.Paths) *profile.Loader {
 func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	name := flags.String("profile", "", "profile to use (default: the one whose match paths contain the working directory)")
+	cloneFrom := flags.String("clone-from", "", "reuse the clones of an earlier session, to resume its work")
 	if err := flags.Parse(args); err != nil {
 		return 2, err
 	}
@@ -196,7 +197,7 @@ func cmdRun(args []string) (int, error) {
 		Podman:     lookPath("podman"),
 		Git:        lookPath("git"),
 	}
-	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command})
+	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, CloneFrom: *cloneFrom})
 	if err != nil {
 		return 1, err
 	}

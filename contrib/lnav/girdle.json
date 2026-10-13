@@ -1,0 +1,28 @@
+{
+  "$schema": "https://lnav.org/schemas/format-v1.schema.json",
+  "girdle_audit": {
+    "title": "girdle audit log",
+    "description": "One line per session start and end, egress decision and approval.",
+    "url": "https://github.com/fnune/girdle/blob/main/docs/configuration.md",
+    "json": true,
+    "file-pattern": "girdle/audit\\.jsonl$",
+    "timestamp-field": "time",
+    "line-format": [
+      { "field": "__timestamp__" },
+      " ",
+      { "field": "profile", "min-width": 10 },
+      " ",
+      { "field": "session", "min-width": 8 },
+      " ",
+      { "field": "event" },
+      " ",
+      { "field": "data" }
+    ],
+    "value": {
+      "session": { "kind": "string", "identifier": true },
+      "profile": { "kind": "string", "identifier": true },
+      "event": { "kind": "string", "identifier": true },
+      "data": { "kind": "json" }
+    }
+  }
+}

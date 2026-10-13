@@ -110,6 +110,9 @@ type env struct {
 	roots    *ca.Authority
 	// binaries is spliced into the api.github.com credential.
 	binaries string
+	// cloneFrom is passed to the next session; lastID is the last session's.
+	cloneFrom string
+	lastID    string
 }
 
 func newEnv(t *testing.T) *env {
@@ -248,10 +251,11 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Podman:        lookPath("podman"),
 		Git:           lookPath("git"),
 	}
-	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}})
+	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}, CloneFrom: e.cloneFrom})
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	e.lastID = s.ID()
 	done := make(chan struct{})
 	if while != nil {
 		go func() {
@@ -691,5 +695,35 @@ echo done
 	}
 	if msg := gitIn("log", "-1", "--format=%s", strings.Fields(refs)[0]); msg != "agent change" && !strings.Contains(refs, "HEAD") {
 		t.Errorf("landed commit = %q", msg)
+	}
+}
+
+func TestCloneFromResumesWork(t *testing.T) {
+	if lookPath("git") == "" {
+		t.Skip("git not installed")
+	}
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+	}
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\n", repo))
+	if code, out := e.run(p, fmt.Sprintf("echo draft > %q/notes\n", repo), nil); code != 0 {
+		t.Fatalf("first session: %d\n%s", code, out)
+	}
+	e.cloneFrom = e.lastID
+	code, out := e.run(p, fmt.Sprintf("cat %q/notes\n", repo), nil)
+	if code != 0 || !strings.Contains(out, "draft") {
+		t.Fatalf("the resumed session must see uncommitted work: %d\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "notes")); err == nil {
+		t.Fatal("the source checkout must not see the clone's files")
 	}
 }

@@ -89,6 +89,25 @@ in
       description = "Which build of girdle to install.";
     };
 
+    zsh = {
+      completion = lib.mkOption {
+        type = lib.types.bool;
+        default = config.programs.zsh.enable;
+        defaultText = lib.literalExpression "config.programs.zsh.enable";
+        description = "Load girdle's zsh completion.";
+      };
+      agentShims = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "claude" ];
+        description = ''
+          Commands to run through girdle wherever a profile matches the
+          working directory. Each becomes a zsh function; setting
+          GIRDLE_BYPASS=1 runs the command directly.
+        '';
+      };
+    };
+
     approvals.desktop = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -124,6 +143,23 @@ in
     }) cfg.secrets;
 
     home.packages = [ cfg.package ];
+
+    programs.zsh.initContent = lib.mkMerge [
+      (lib.mkIf cfg.zsh.completion ''
+        source <(${lib.getExe cfg.package} completion zsh)
+      '')
+      (lib.mkIf (cfg.zsh.agentShims != [ ]) (
+        lib.concatMapStrings (agent: ''
+          function ${agent}() {
+            if [[ -z $GIRDLE_BYPASS ]] && ${lib.getExe cfg.package} profiles which -q; then
+              ${lib.getExe cfg.package} run -- ${agent} "$@"
+            else
+              command ${agent} "$@"
+            fi
+          }
+        '') cfg.zsh.agentShims
+      ))
+    ];
 
     xdg.configFile =
       {
