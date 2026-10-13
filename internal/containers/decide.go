@@ -20,11 +20,18 @@ type verdict struct {
 	// refusal is shown to the client after "girdle: ".
 	refusal string
 	ask     *ask
+	// pull is the tag whose digest the broker pins once the pull is done.
+	pull *imageRef
+	// image is the tag that a create runs, which the broker replaces with
+	// its pinned digest.
+	image *imageRef
 }
 
 // ask is a request that needs a person's approval before it is forwarded.
 type ask struct {
 	summary string
+	// details defaults to the request line.
+	details string
 	scope   string
 }
 
@@ -33,6 +40,14 @@ func refuse(format string, args ...any) verdict {
 }
 
 func refuseIf(reason string) verdict { return verdict{refusal: reason} }
+
+// running is the verdict for a create that passed its checks.
+func running(ref string) verdict {
+	if r, ok := tagged(ref); ok {
+		return verdict{image: &r}
+	}
+	return verdict{}
+}
 
 type checker struct {
 	policy   Policy

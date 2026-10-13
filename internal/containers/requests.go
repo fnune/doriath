@@ -21,11 +21,20 @@ func dockerPull(c checker, r request) verdict {
 		}
 		return verdict{}
 	}
-	tag := queryValue(r.Query, "tag")
-	for _, ref := range images {
-		if reason := c.image(withTag(ref, tag)); reason != "" {
-			return refuseIf(reason)
-		}
+	if len(images) > 1 {
+		return refuse("a pull that names more than one image cannot be checked")
+	}
+	ref := withTag(images[0], queryValue(r.Query, "tag"))
+	return pulling(c.image(ref), ref)
+}
+
+// pulling is the verdict for a pull of one reference.
+func pulling(reason, ref string) verdict {
+	if reason != "" {
+		return refuseIf(reason)
+	}
+	if r, ok := tagged(ref); ok {
+		return verdict{pull: &r}
 	}
 	return verdict{}
 }
@@ -46,17 +55,19 @@ func withTag(ref, tag string) string {
 }
 
 func libpodPull(c checker, r request) verdict {
-	allTags, _ := strconv.ParseBool(queryValue(r.Query, "allTags"))
-	for _, ref := range queryValues(r.Query, "reference") {
-		check := c.image
-		if allTags {
-			check = c.repository
-		}
-		if reason := check(ref); reason != "" {
-			return refuseIf(reason)
-		}
+	refs := queryValues(r.Query, "reference")
+	switch {
+	case len(refs) == 0:
+		return verdict{}
+	case len(refs) > 1:
+		return refuse("a pull that names more than one image cannot be checked")
 	}
-	return verdict{}
+	// Every tag cannot be pinned at once. Creates still run the digest
+	// pinned for a tag.
+	if allTags, _ := strconv.ParseBool(queryValue(r.Query, "allTags")); allTags {
+		return refuseIf(c.repository(refs[0]))
+	}
+	return pulling(c.image(refs[0]), refs[0])
 }
 
 // libpodImport refuses sources other than URLs, which podman reads as paths

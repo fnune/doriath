@@ -65,9 +65,9 @@ func dockerCreate(c checker, r request) verdict {
 	}
 	h := b.HostConfig
 	if h == nil {
-		return verdict{}
+		return running(b.Image)
 	}
-	return refuseIf(first(
+	if reason := first(
 		banFlag(h.Privileged, "privileged containers"),
 		banList(h.CapAdd, "added capabilities"),
 		banList(h.Devices, "host devices"),
@@ -88,7 +88,10 @@ func dockerCreate(c checker, r request) verdict {
 		c.writablePath(lookupFold(h.LogConfig.Config, "path"), "the log path"),
 		c.binds(h.Binds),
 		c.dockerMounts(h.Mounts),
-	))
+	); reason != "" {
+		return refuseIf(reason)
+	}
+	return running(b.Image)
 }
 
 func (c checker) binds(bs []string) string {
@@ -259,7 +262,10 @@ func libpodCreate(c checker, r request) verdict {
 	if s.Rootfs != "" {
 		return refuse("containers with a host directory as their root file system (rootfs) are not allowed; use an image")
 	}
-	return refuseIf(first(c.image(s.Image), c.spec(s)))
+	if reason := first(c.image(s.Image), c.spec(s)); reason != "" {
+		return refuseIf(reason)
+	}
+	return running(s.Image)
 }
 
 func podCreate(c checker, r request) verdict {

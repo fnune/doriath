@@ -4,6 +4,20 @@
 
 [podman]
 enabled = true
+# Images containers may use. A profile adds to this list, and "*" allows any
+# image. The first pull of each tag pins the digest it resolved to.
+images = [
+  # Docker's official images, such as postgres or node.
+  "docker.io/library/*",
+  # Images built or loaded in the session.
+  "localhost/*",
+  # Playwright's browsers, for end-to-end suites.
+  "mcr.microsoft.com/playwright",
+  "mcr.microsoft.com/playwright/*",
+  # Testcontainers starts these beside the containers a test asks for.
+  "docker.io/testcontainers/ryuk",
+  "docker.io/testcontainers/sshd",
+]
 
 [egress]
 allow = [

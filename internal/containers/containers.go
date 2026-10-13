@@ -1,6 +1,7 @@
 // Package containers brokers the podman API for the jail. It forwards a list
 // of endpoints to the session's podman service and checks the requests that
-// could reach outside a container: creates, pulls, builds and volumes.
+// could reach outside a container: creates, pulls, builds and volumes. It
+// pins the digest each tag resolved to on its first pull.
 package containers
 
 import (
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fnune/girdle/internal/approval"
@@ -22,7 +24,7 @@ import (
 // Policy is what the profile lets containers use.
 type Policy struct {
 	// Images are path.Match patterns over fully qualified references, such
-	// as "docker.io/library/*". Empty allows every image.
+	// as "docker.io/library/*", or AnyImage. Empty allows no image.
 	Images []string
 	// Mounts are the host paths containers may bind: the profile's mounts
 	// and caches.
@@ -38,11 +40,20 @@ type Approver interface {
 	Submit(ctx context.Context, req approval.Request, ttl time.Duration) (approval.Decision, error)
 }
 
+// Pins remembers the digest each tag, such as docker.io/library/postgres:16,
+// resolved to the first time a profile pulled it.
+type Pins interface {
+	Pinned(ref string) (digest string, ok bool, err error)
+	Pin(ref, digest string) error
+}
+
 type Event struct {
 	Kind   string `json:"kind"`
 	Method string `json:"method,omitempty"`
 	Path   string `json:"path,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	Image  string `json:"image,omitempty"`
+	Digest string `json:"digest,omitempty"`
 }
 
 type Recorder interface {
@@ -57,6 +68,8 @@ type Config struct {
 	// Resolver resolves symbolic links in bind sources. Nil compares paths
 	// as written.
 	Resolver Resolver
+	// Pins holds the profile's image digests. Nil pins nothing.
+	Pins Pins
 }
 
 // KindContainers marks approval requests from the broker.
@@ -65,12 +78,13 @@ const KindContainers approval.Kind = "containers"
 const maxInspectedBody = 2 << 20
 
 type Broker struct {
-	cfg      Config
-	checker  checker
-	upstream string
-	approver Approver
-	recorder Recorder
-	proxy    *httputil.ReverseProxy
+	cfg       Config
+	checker   checker
+	upstream  string
+	approver  Approver
+	recorder  Recorder
+	transport http.RoundTripper
+	proxy     *httputil.ReverseProxy
 }
 
 func New(policy Policy, upstream string, approver Approver, recorder Recorder, cfg Config) *Broker {
@@ -81,18 +95,19 @@ func New(policy Policy, upstream string, approver Approver, recorder Recorder, c
 		approver: approver,
 		recorder: recorder,
 	}
+	b.transport = &http.Transport{
+		DialContext:        b.dial,
+		DisableCompression: true,
+		MaxIdleConns:       8,
+		IdleConnTimeout:    90 * time.Second,
+	}
 	b.proxy = &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = "http"
 			pr.Out.URL.Host = "podman"
 			pr.Out.Host = "podman"
 		},
-		Transport: &http.Transport{
-			DialContext:        b.dial,
-			DisableCompression: true,
-			MaxIdleConns:       8,
-			IdleConnTimeout:    90 * time.Second,
-		},
+		Transport:     b.transport,
 		FlushInterval: -1,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			if errors.Is(err, context.Canceled) {
@@ -148,31 +163,46 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.refuse(w, r, http.StatusForbidden, v.refusal)
 		return
 	}
-	if v.ask != nil && !b.approved(w, r, *v.ask) {
+	if v.ask != nil {
+		if ok, message := b.approved(r, *v.ask); !ok {
+			b.refuse(w, r, http.StatusForbidden, message)
+			return
+		}
+	}
+	if v.image != nil && !b.runPinned(w, r, req.Body, *v.image) {
 		return
 	}
 	if rt.treat.check != nil {
 		b.record(Event{Kind: "allowed", Method: r.Method, Path: r.URL.Path})
 	}
-	if rt.treat.stream {
+	switch {
+	case rt.treat.stream:
 		b.stream(w, r)
-		return
+	case v.pull != nil && b.cfg.Pins != nil:
+		b.pull(w, r, *v.pull, strings.HasPrefix(p, "/libpod/"))
+	default:
+		b.proxy.ServeHTTP(w, r)
 	}
-	b.proxy.ServeHTTP(w, r)
 }
 
-func (b *Broker) approved(w http.ResponseWriter, r *http.Request, a ask) bool {
+// approved asks the person. When they do not allow the request, it returns
+// the message for the client.
+func (b *Broker) approved(r *http.Request, a ask) (bool, string) {
+	details := a.details
+	if details == "" {
+		details = r.Method + " " + r.URL.RequestURI()
+	}
 	d, err := b.approver.Submit(r.Context(), approval.Request{
 		Session: b.cfg.Session,
 		Profile: b.cfg.Profile,
 		Kind:    KindContainers,
 		Summary: a.summary,
-		Details: r.Method + " " + r.URL.RequestURI(),
+		Details: details,
 		Scope:   a.scope,
 	}, b.cfg.ApprovalTTL)
 	if err == nil && d.Verdict == approval.VerdictAllow {
 		b.record(Event{Kind: "approved", Method: r.Method, Path: r.URL.Path, Reason: a.summary})
-		return true
+		return true, ""
 	}
 	reason := "denied"
 	if err == nil && d.Verdict == approval.VerdictNone {
@@ -182,8 +212,7 @@ func (b *Broker) approved(w http.ResponseWriter, r *http.Request, a ask) bool {
 	if err == nil && d.Verdict == approval.VerdictDeny && d.Reason != "" {
 		message += ": " + d.Reason
 	}
-	b.refuse(w, r, http.StatusForbidden, message)
-	return false
+	return false, message
 }
 
 func (b *Broker) refuse(w http.ResponseWriter, r *http.Request, status int, reason string) {

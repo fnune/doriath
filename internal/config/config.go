@@ -34,6 +34,12 @@ func (p Paths) UserConfig() string { return filepath.Join(p.Config, "config.toml
 func (p Paths) AuditLog() string   { return filepath.Join(p.State, "audit.jsonl") }
 func (p Paths) Sessions() string   { return filepath.Join(p.Runtime, "sessions") }
 
+// ImagePins holds the digests a profile's container image tags resolved to.
+// It is state rather than cache: deleting it trusts the next pull again.
+func (p Paths) ImagePins(profile string) string {
+	return filepath.Join(p.State, "images", profile+".json")
+}
+
 // AgentCache is where a profile's caches live. Nothing outside the jail reads
 // these, so what an agent writes there cannot reach the desktop's tools.
 func (p Paths) AgentCache(profile string) string {

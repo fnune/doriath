@@ -2,6 +2,7 @@ package modules
 
 import (
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -72,5 +73,8 @@ func TestEveryModuleLoads(t *testing.T) {
 	}
 	if !p.Claude.DisableConnectors || !p.Podman {
 		t.Error("claude and podman modules not applied")
+	}
+	if !slices.Contains(p.ContainerImages, "docker.io/library/*") || slices.Contains(p.ContainerImages, "*") {
+		t.Errorf("podman images %v, want the official images and not any image", p.ContainerImages)
 	}
 }

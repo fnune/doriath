@@ -229,11 +229,109 @@ func TestPushAsks(t *testing.T) {
 	}
 }
 
-func TestEmptyImagePolicyAllowsAny(t *testing.T) {
-	c := checker{}
-	v := c.decide(request{Method: "POST", Path: "/libpod/images/pull", Query: url.Values{"reference": {"quay.io/any/thing"}}})
-	if v.refusal != "" {
-		t.Fatal(v.refusal)
+// defaultImages is the list of the podman module.
+var defaultImages = []string{
+	"docker.io/library/*",
+	"localhost/*",
+	"mcr.microsoft.com/playwright",
+	"mcr.microsoft.com/playwright/*",
+	"docker.io/testcontainers/ryuk",
+	"docker.io/testcontainers/sshd",
+}
+
+func TestImagePatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		images  []string
+		ref     string
+		allowed bool
+	}{
+		{"short name", defaultImages, "postgres", true},
+		{"short name with tag", defaultImages, "postgres:16", true},
+		{"qualified official", defaultImages, "docker.io/library/postgres:16", true},
+		{"official by digest", defaultImages, "postgres@sha256:" + strings.Repeat("a", 64), true},
+		{"user image on docker hub", defaultImages, "someone/postgres:16", false},
+		{"other registry", defaultImages, "quay.io/evil/miner", false},
+		{"playwright", defaultImages, "mcr.microsoft.com/playwright:v1.50.0-noble", true},
+		{"playwright python", defaultImages, "mcr.microsoft.com/playwright/python:v1.50.0", true},
+		{"other mcr image", defaultImages, "mcr.microsoft.com/mssql/server:2022-latest", false},
+		{"ryuk", defaultImages, "testcontainers/ryuk:0.11.0", true},
+		{"other testcontainers image", defaultImages, "testcontainers/helper:1", false},
+		{"built locally", defaultImages, "localhost/app", true},
+		{"image ID", defaultImages, "0123456789abcdef", false},
+		{"empty list allows nothing", nil, "alpine", false},
+		{"any image", []string{AnyImage}, "quay.io/any/thing:1", true},
+		{"any image by ID", []string{AnyImage}, "0123456789abcdef", true},
+		{"any beside others", []string{"docker.io/library/*", AnyImage}, "ghcr.io/a/b", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := checker{policy: Policy{Images: tt.images}, profile: "dev"}
+			reason := c.image(tt.ref)
+			if (reason == "") != tt.allowed {
+				t.Fatalf("image(%q) = %q, want allowed %v", tt.ref, reason, tt.allowed)
+			}
+			if !tt.allowed && !strings.Contains(reason, `"*" allows any image`) && !strings.Contains(reason, "by name") {
+				t.Errorf("refusal %q does not say how to allow any image", reason)
+			}
+		})
+	}
+}
+
+func TestVerdictNamesTheTagToPin(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("b", 64)
+	tests := []struct {
+		name, path, query, body string
+		pull, image             string
+	}{
+		{"docker pull", "/images/create", "fromImage=postgres&tag=16", "", "docker.io/library/postgres:16", ""},
+		{"docker pull without tag", "/images/create", "fromImage=postgres", "", "docker.io/library/postgres:latest", ""},
+		{"docker pull by digest", "/images/create", "fromImage=postgres&tag=" + digest, "", "", ""},
+		{"libpod pull", "/libpod/images/pull", "reference=docker.io/library/postgres:16", "", "docker.io/library/postgres:16", ""},
+		{"libpod pull by digest", "/libpod/images/pull", "reference=postgres@" + digest, "", "", ""},
+		{"libpod pull all tags", "/libpod/images/pull", "reference=docker.io/library/postgres&allTags=true", "", "", ""},
+		{"docker create", "/containers/create", "", `{"Image":"postgres:16"}`, "", "docker.io/library/postgres:16"},
+		{"docker create with host config", "/containers/create", "", `{"Image":"postgres:16","HostConfig":{"NetworkMode":"host"}}`, "", "docker.io/library/postgres:16"},
+		{"docker create by digest", "/containers/create", "", `{"Image":"postgres@` + digest + `"}`, "", ""},
+		{"libpod create", "/libpod/containers/create", "", `{"image":"alpine"}`, "", "docker.io/library/alpine:latest"},
+		{"local pull", "/libpod/images/pull", "reference=localhost/app", "", "", ""},
+		{"local create", "/libpod/containers/create", "", `{"image":"localhost/app:dev"}`, "", ""},
+	}
+	c := testChecker()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q, _ := url.ParseQuery(tt.query)
+			v := c.decide(request{Method: "POST", Path: tt.path, Query: q, Body: []byte(tt.body)})
+			if v.refusal != "" {
+				t.Fatal(v.refusal)
+			}
+			if got := refName(v.pull); got != tt.pull {
+				t.Errorf("pull %q, want %q", got, tt.pull)
+			}
+			if got := refName(v.image); got != tt.image {
+				t.Errorf("image %q, want %q", got, tt.image)
+			}
+		})
+	}
+}
+
+func refName(r *imageRef) string {
+	if r == nil {
+		return ""
+	}
+	return r.full
+}
+
+func TestPullOfTwoImagesRefused(t *testing.T) {
+	c := testChecker()
+	for _, tt := range []struct{ path, query string }{
+		{"/images/create", "fromImage=alpine&fromImage=quay.io/evil/miner"},
+		{"/libpod/images/pull", "reference=alpine&Reference=busybox"},
+	} {
+		q, _ := url.ParseQuery(tt.query)
+		if v := c.decide(request{Method: "POST", Path: tt.path, Query: q}); !strings.Contains(v.refusal, "more than one image") {
+			t.Errorf("%s?%s: refusal %q", tt.path, tt.query, v.refusal)
+		}
 	}
 }
 
@@ -258,14 +356,16 @@ func TestNormalizeImage(t *testing.T) {
 		{"localhost:5000/app:2", "localhost:5000/app:2", "localhost:5000/app"},
 		{"ghcr.io/a/b@sha256:abc", "ghcr.io/a/b@sha256:abc", "ghcr.io/a/b"},
 		{"ghcr.io/a/b:1@sha256:abc", "ghcr.io/a/b:1@sha256:abc", "ghcr.io/a/b"},
+		{"postgres:16", "docker.io/library/postgres:16", "docker.io/library/postgres"},
+		{"mcr.microsoft.com/playwright:v1.50.0", "mcr.microsoft.com/playwright:v1.50.0", "mcr.microsoft.com/playwright"},
 	}
 	for _, tt := range tests {
-		full, repo, ok := normalizeImage(tt.in)
-		if !ok || full != tt.full || repo != tt.repo {
-			t.Errorf("normalizeImage(%q) = %q, %q, %v; want %q, %q", tt.in, full, repo, ok, tt.full, tt.repo)
+		r, ok := normalizeImage(tt.in)
+		if !ok || r.full != tt.full || r.repo != tt.repo {
+			t.Errorf("normalizeImage(%q) = %q, %q, %v; want %q, %q", tt.in, r.full, r.repo, ok, tt.full, tt.repo)
 		}
 	}
-	if _, _, ok := normalizeImage("sha256:0123456789abcdef0123"); ok {
+	if _, ok := normalizeImage("sha256:0123456789abcdef0123"); ok {
 		t.Error("an image ID normalized")
 	}
 }

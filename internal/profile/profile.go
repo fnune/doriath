@@ -217,7 +217,8 @@ type Profile struct {
 	SigningKey  string
 	Podman      bool
 	// ContainerImages limits which images containers may use, as globs over
-	// full references such as docker.io/library/*. Empty allows any.
+	// full references such as docker.io/library/*, or "*" for any image.
+	// Empty allows none.
 	ContainerImages []string
 	Hardening       Hardening
 	Limits          Limits

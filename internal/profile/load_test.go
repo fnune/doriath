@@ -120,6 +120,8 @@ func TestLoadRejects(t *testing.T) {
 		"bad memory limit":   {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
 		"bad cpu limit":      {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
 		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},
+		"bad image glob":     {profile: "[podman]\nimages = [\"docker.io/[\"]", want: "podman images"},
+		"short image name":   {profile: "[podman]\nimages = [\"postgres\"]", want: "name the registry"},
 		"module cycle": {
 			profile: `modules = ["a"]`,
 			modules: fstest.MapFS{"a.toml": file(`modules = ["b"]`), "b.toml": file(`modules = ["a"]`)},

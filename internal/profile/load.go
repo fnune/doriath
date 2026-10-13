@@ -334,6 +334,21 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	b.http[i] = cur
 }
 
+// imagePattern checks a [podman] images entry. Patterns match fully
+// qualified references, so one without a registry would match nothing.
+func imagePattern(p string) error {
+	if p == "*" {
+		return nil
+	}
+	if _, err := path.Match(p, ""); err != nil {
+		return fmt.Errorf("podman images %q: %w", p, err)
+	}
+	if !strings.Contains(p, "/") {
+		return fmt.Errorf("podman images %q: name the registry, as in docker.io/library/postgres, or use \"*\" for any image", p)
+	}
+	return nil
+}
+
 func appendNew(list []string, s string) []string {
 	if slices.Contains(list, s) {
 		return list
@@ -392,6 +407,11 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Ref: m.Ref, Live: m.Live})
+	}
+	for _, img := range b.images {
+		if err := imagePattern(img); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	for _, c := range b.caches {
 		path, err := b.expand(c)

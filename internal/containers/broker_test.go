@@ -24,12 +24,29 @@ type fakePodman struct {
 	paths []string
 	// more releases the second log line.
 	more chan struct{}
+	// image is the ID and digest that pulls store.
+	imageID, digest string
+	pullFails       bool
+	created         []string
 }
 
 func (f *fakePodman) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.paths = append(f.paths, r.URL.Path)
 	f.mu.Unlock()
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/images/create"), strings.HasSuffix(r.URL.Path, "/images/pull"):
+		f.pull(w, strings.Contains(r.URL.Path, "/libpod/"))
+		return
+	case strings.HasPrefix(r.URL.Path, "/v4.0.0/libpod/images/") && strings.HasSuffix(r.URL.Path, "/json"):
+		f.inspect(w, r)
+		return
+	case strings.HasSuffix(r.URL.Path, "/containers/create"):
+		body, _ := io.ReadAll(r.Body)
+		f.mu.Lock()
+		f.created = append(f.created, string(body))
+		f.mu.Unlock()
+	}
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/attach"):
 		f.attach(w, r)
@@ -47,6 +64,45 @@ func (f *fakePodman) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"ok":true}`)
 	}
+}
+
+// pull writes progress like podman does, ending with the stored image.
+func (f *fakePodman) pull(w http.ResponseWriter, libpodAPI bool) {
+	f.mu.Lock()
+	id, fails := f.imageID, f.pullFails
+	f.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	rc := http.NewResponseController(w)
+	if libpodAPI {
+		_, _ = io.WriteString(w, `{"stream":"Copying blob sha256:aaaa\n"}`+"\n")
+		_ = rc.Flush()
+		if fails {
+			_, _ = io.WriteString(w, `{"error":"manifest unknown"}`+"\n")
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"images":[%q],"id":%q}`+"\n", id, id)
+		return
+	}
+	_, _ = io.WriteString(w, `{"status":"Pulling fs layer","progressDetail":{},"id":"0123456789ab"}`+"\n")
+	_ = rc.Flush()
+	if fails {
+		_, _ = io.WriteString(w, `{"error":"manifest unknown","errorDetail":{"message":"manifest unknown"}}`+"\n")
+		return
+	}
+	_, _ = fmt.Fprintf(w, `{"status":"Download complete","progressDetail":{},"id":%q}`+"\n", id[:12])
+}
+
+func (f *fakePodman) inspect(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	id, digest := f.imageID, f.digest
+	f.mu.Unlock()
+	asked := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v4.0.0/libpod/images/"), "/json")
+	if !strings.HasPrefix(id, asked) {
+		http.Error(w, `{"message":"image not known"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = fmt.Fprintf(w, `{"Id":%q,"Digest":%q,"RepoTags":["docker.io/library/postgres:16"]}`, id, digest)
 }
 
 // attach echoes each line, as a container running cat would, until stdin
@@ -114,7 +170,28 @@ func (e *events) kinds() []string {
 	return out
 }
 
+// memPins keeps pins in memory.
+type memPins struct {
+	mu   sync.Mutex
+	pins map[string]string
+}
+
+func (m *memPins) Pinned(ref string) (string, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.pins[ref]
+	return d, ok, nil
+}
+
+func (m *memPins) Pin(ref, digest string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pins[ref] = digest
+	return nil
+}
+
 type harness struct {
+	pins     *memPins
 	podman   *fakePodman
 	approver *fakeApprover
 	events   *events
@@ -138,6 +215,7 @@ func newHarness(t *testing.T) *harness {
 		podman:   &fakePodman{more: make(chan struct{})},
 		approver: &fakeApprover{verdict: approval.VerdictAllow},
 		events:   &events{},
+		pins:     &memPins{pins: map[string]string{}},
 	}
 	up := listenUnix(t, "podman.sock")
 	srv := &http.Server{Handler: h.podman, ReadHeaderTimeout: 5 * time.Second}
@@ -148,7 +226,7 @@ func newHarness(t *testing.T) *harness {
 		Images: []string{"docker.io/library/*"},
 		Mounts: []Mount{{Path: "/work"}, {Path: "/ro", ReadOnly: true}},
 	}
-	b := New(policy, up.Addr().String(), h.approver, h.events, Config{Session: "s1", Profile: "dev", ApprovalTTL: time.Second})
+	b := New(policy, up.Addr().String(), h.approver, h.events, Config{Session: "s1", Profile: "dev", ApprovalTTL: time.Second, Pins: h.pins})
 	l := listenUnix(t, "broker.sock")
 	go func() { _ = b.Serve(l) }()
 	h.socket = l.Addr().String()

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/fnune/girdle/internal/containers"
+	"github.com/fnune/girdle/internal/imagepins"
 	"github.com/fnune/girdle/internal/jail"
 	"github.com/fnune/girdle/internal/profile"
 )
@@ -317,6 +318,7 @@ func (s *Session) startContainerBroker(raw string) error {
 		Profile:     p.Name,
 		ApprovalTTL: approvalTTL,
 		Resolver:    symlinks{},
+		Pins:        imagepins.NewFile(s.deps.Paths.ImagePins(p.Name)),
 	})
 	l, err := s.listen(PodmanSocket)
 	if err != nil {

@@ -6,7 +6,9 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -117,6 +119,14 @@ func (p *podmanEnv) refused(want string, args ...string) {
 	}
 }
 
+// mustContainer creates a container and returns its ID.
+func (p *podmanEnv) mustContainer(image string) string {
+	p.t.Helper()
+	id := strings.TrimSpace(p.mustRemote("", "create", image, "true"))
+	p.t.Cleanup(func() { _, _, _ = p.remote("", "rm", "-f", id) })
+	return id
+}
+
 func writeFiles(t *testing.T, files map[string]string) {
 	t.Helper()
 	for p, content := range files {
@@ -216,10 +226,10 @@ func startPodman(t *testing.T) *podmanEnv {
 	return p
 }
 
-func (p *podmanEnv) startBroker(policy Policy) *events {
+func (p *podmanEnv) startBroker(policy Policy, pins Pins) *events {
 	p.t.Helper()
 	rec := &events{}
-	b := New(policy, p.sock, &fakeApprover{verdict: approval.VerdictDeny}, rec, Config{Session: "it", Profile: "dev", ApprovalTTL: time.Second, Resolver: osPaths{}})
+	b := New(policy, p.sock, &fakeApprover{verdict: approval.VerdictDeny}, rec, Config{Session: "it", Profile: "dev", ApprovalTTL: time.Second, Resolver: osPaths{}, Pins: pins})
 	l, err := net.Listen("unix", p.broker)
 	if err != nil {
 		p.t.Fatal(err)
@@ -268,10 +278,11 @@ func TestPodmanThroughBroker(t *testing.T) {
 	allowed := t.TempDir()
 	writeFiles(t, map[string]string{filepath.Join(allowed, "file"): "from the worktree\n"})
 	outside := t.TempDir()
+	pins := &memPins{pins: map[string]string{}}
 	rec := p.startBroker(Policy{
 		Images: []string{"docker.io/library/*", "localhost/*"},
 		Mounts: []Mount{{Path: allowed}},
-	})
+	}, pins)
 
 	if out := p.mustRemote("", "info", "--format", "{{.Store.GraphRoot}}"); strings.TrimSpace(out) != p.root {
 		t.Fatalf("info reports graph root %q, want %q", out, p.root)
@@ -364,5 +375,42 @@ func TestPodmanThroughBroker(t *testing.T) {
 			t.Fatal(err)
 		}
 		p.refused("outside the mounts and caches", "run", "--rm", "-v", filepath.Join(home, ".ssh")+":/s", "alpine", "true")
+	})
+	t.Run("pins", func(t *testing.T) {
+		p := p.on(t)
+		pinned, ok, _ := pins.Pinned("docker.io/library/alpine:latest")
+		if !ok {
+			t.Fatal("alpine was not pinned")
+		}
+		out := p.mustRemote("", "inspect", "--format", "{{.ImageName}}", p.mustContainer("alpine"))
+		if strings.TrimSpace(out) != "docker.io/library/alpine@"+pinned {
+			t.Fatalf("container runs %q, want the pinned digest %s", out, pinned)
+		}
+		if err := pins.Pin("docker.io/library/alpine:latest", "sha256:"+strings.Repeat("0", 64)); err != nil {
+			t.Fatal(err)
+		}
+		p.refused("changed from sha256:000000000000", "pull", "alpine")
+		client := &http.Client{Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", p.broker)
+			},
+		}}
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://d/v1.41/images/create?fromImage=alpine&tag=latest", http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), `"errorDetail":{"message":"girdle: docker.io/library/alpine:latest changed from sha256:000000000000`) {
+			t.Fatalf("Docker pull stream %s", body)
+		}
 	})
 }
