@@ -23,6 +23,16 @@ test:
 test-integration:
     go test -race -tags integration -count=1 ./internal/session/
 
+# Searches for new inputs to each fuzz target. Their seeds already run with `just test`.
+fuzz time="30s":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in $(go list ./...); do
+        for target in $(go test -list '^Fuzz' "$pkg" | grep '^Fuzz' || true); do
+            go test -run '^$' -fuzz "^${target}\$" -fuzztime {{time}} "$pkg"
+        done
+    done
+
 vuln:
     govulncheck ./...
 

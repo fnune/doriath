@@ -716,6 +716,7 @@ func TestCanonicalPath(t *testing.T) {
 		"/repos/a/b/./pulls/1/merge":    false,
 		"/repos/a/x/../b/pulls/1/merge": false,
 		"/repos/a%2Fb/pulls/1/merge":    false,
+		"//":                            false,
 	} {
 		u, err := url.Parse("https://api.github.com" + raw)
 		if err != nil {

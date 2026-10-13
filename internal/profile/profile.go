@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -412,7 +413,8 @@ func ParseHostPattern(s string) (HostPattern, error) {
 func (p HostPattern) Match(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	if suffix, ok := strings.CutPrefix(string(p), "*."); ok {
-		return strings.HasSuffix(host, "."+suffix)
+		sub, ok := strings.CutSuffix(host, "."+suffix)
+		return ok && !slices.Contains(strings.Split(sub, "."), "")
 	}
 	return host == string(p)
 }

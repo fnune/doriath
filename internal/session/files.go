@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"software.sslmate.com/src/go-pkcs12"
@@ -29,6 +30,10 @@ func gitAllowed(key string) bool {
 	}
 	return true
 }
+
+// gitKey is the form git itself prints keys in. A key outside it, such as
+// one with a trailing space, could be read back by git as a denied key.
+var gitKey = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[^\n]*)?\.[A-Za-z][A-Za-z0-9-]*$`)
 
 type gitEntry struct{ key, value string }
 
@@ -55,7 +60,7 @@ type GitOptions struct {
 func GitConfig(o GitOptions) []byte {
 	var entries []gitEntry
 	for _, e := range parseGitList(o.Desktop) {
-		if gitAllowed(e.key) {
+		if gitKey.MatchString(e.key) && gitAllowed(e.key) {
 			entries = append(entries, e)
 		}
 	}

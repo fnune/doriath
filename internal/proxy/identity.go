@@ -66,16 +66,25 @@ func (l *IdentifyingListener) Accept() (net.Conn, error) {
 	r := bufio.NewReader(conn)
 	line, err := r.ReadString('\n')
 	_ = conn.SetReadDeadline(time.Time{})
-	if err != nil || !strings.HasPrefix(line, headerPrefix) {
+	id, ok := parsePeerHeader(line)
+	if err != nil || !ok {
 		_ = conn.Close()
 		return &identifiedConn{Conn: closedConn{conn}}, nil
+	}
+	return &identifiedConn{Conn: prefixed(conn, r), id: id}, nil
+}
+
+func parsePeerHeader(line string) (Identity, bool) {
+	data, ok := strings.CutPrefix(line, headerPrefix)
+	if !ok {
+		return Identity{}, false
 	}
 	var peer struct {
 		PID int    `json:"pid"`
 		Exe string `json:"exe"`
 	}
-	_ = json.Unmarshal([]byte(strings.TrimPrefix(line, headerPrefix)), &peer)
-	return &identifiedConn{Conn: prefixed(conn, r), id: Identity{PID: peer.PID, Exe: peer.Exe}}, nil
+	_ = json.Unmarshal([]byte(data), &peer)
+	return Identity{PID: peer.PID, Exe: peer.Exe}, true
 }
 
 type identifiedConn struct {

@@ -21,6 +21,7 @@ type seccompData struct {
 	nr   uint32
 	arch uint32
 	arg0 uint64
+	arg1 uint64
 }
 
 func (d seccompData) word(off uint32) (uint32, error) {
@@ -31,6 +32,8 @@ func (d seccompData) word(off uint32) (uint32, error) {
 		return d.arch, nil
 	case offsetArg0Low:
 		return uint32(d.arg0), nil
+	case offsetArg1Low:
+		return uint32(d.arg1), nil
 	default:
 		return 0, fmt.Errorf("load from unexpected offset %d", off)
 	}
@@ -65,6 +68,11 @@ func run(t *testing.T, filter []byte, d seccompData) uint32 {
 			} else {
 				pc += jf
 			}
+			if pc+1 >= n {
+				t.Fatalf("pc %d: jump past the end", pc)
+			}
+		case opJa:
+			pc += int(k)
 			if pc+1 >= n {
 				t.Fatalf("pc %d: jump past the end", pc)
 			}

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 func dockerPull(c checker, r request) verdict {
@@ -343,7 +344,7 @@ func walkValue(dec *json.Decoder) error {
 				return err
 			}
 			name, _ := k.(string)
-			key := strings.ToLower(name)
+			key := foldKey(name)
 			if seen[key] {
 				return fmt.Errorf("key %q appears twice", k)
 			}
@@ -364,4 +365,18 @@ func walkValue(dec *json.Decoder) error {
 		return err
 	}
 	return nil
+}
+
+// foldKey maps keys that encoding/json treats as the same field to one
+// string. Lower-casing is not enough: encoding/json also folds "ſ" into "s"
+// and the Kelvin sign into "k", which decoders on the podman side may not,
+// so two such keys could carry different values to each side.
+func foldKey(s string) string {
+	return strings.Map(func(r rune) rune {
+		least := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			least = min(least, f)
+		}
+		return least
+	}, s)
 }

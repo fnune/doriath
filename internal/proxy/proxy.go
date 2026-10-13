@@ -574,7 +574,7 @@ func canonicalPath(u *url.URL) bool {
 		return true
 	}
 	clean := path.Clean(p)
-	return p == clean || p == clean+"/"
+	return p == clean || (clean != "/" && p == clean+"/")
 }
 
 func identityEncoding(enc string) bool {
