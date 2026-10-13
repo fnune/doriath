@@ -151,7 +151,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: &hostPeers{exe: exe}}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe)}, nil
 }
 
 func (s *Session) ID() string { return s.id }
