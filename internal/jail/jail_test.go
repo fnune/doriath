@@ -190,3 +190,23 @@ func TestGitGuards(t *testing.T) {
 		t.Error("missing entries must not be bound")
 	}
 }
+
+func TestGitGuardsOnGitDirMount(t *testing.T) {
+	h := host()
+	h["/home/u/Development/project/.git"] = "dir"
+	h["/home/u/Development/project/.git/hooks"] = "dir"
+	p := testProfile()
+	p.Mounts = []profile.Mount{
+		{Path: "/home/u/Development/project", Mode: profile.ModeReadOnly},
+		{Path: "/home/u/Development/project/.git", Mode: profile.ModeReadWrite},
+	}
+	o := opts()
+	s, err := Plan(p, layout(), o, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == "/home/u/Development/project/.git/hooks" })
+	if i < 0 || !s.Binds[i].ReadOnly {
+		t.Fatal("hooks must be read-only when .git itself is the mount")
+	}
+}

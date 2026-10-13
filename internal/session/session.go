@@ -333,29 +333,11 @@ func (s *Session) writeGitFiles() error {
 func (s *Session) prepareClaude() error {
 	home := s.deps.Paths.Home
 	private := filepath.Join(s.cacheRoot(), "claude")
-	for _, name := range append(claude.Masked(), "projects") {
-		path := filepath.Join(private, name)
-		if claude.MaskIsFile(name) {
-			if err := os.MkdirAll(private, 0o700); err != nil {
-				return err
-			}
-			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
-			if err != nil {
-				return fmt.Errorf("create %s: %w", path, err)
-			}
-			_ = f.Close()
-			continue
-		}
-		if err := os.MkdirAll(path, 0o700); err != nil {
-			return fmt.Errorf("create %s: %w", path, err)
-		}
-	}
 	own := filepath.Join(home, ".claude", "projects", claude.ProjectDir(s.req.Cwd))
-	if err := os.MkdirAll(own, 0o700); err != nil {
-		return fmt.Errorf("create %s: %w", own, err)
-	}
-	if err := os.MkdirAll(filepath.Join(private, "projects", claude.ProjectDir(s.req.Cwd)), 0o700); err != nil {
-		return err
+	for _, d := range []string{filepath.Join(private, "home", "projects"), own} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return fmt.Errorf("create %s: %w", d, err)
+		}
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".claude.json"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -438,7 +420,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	var extra []jail.Bind
 	if claude.Matches(command) {
 		command = claude.Args(command, jail.InJail("claude-settings.json"))
-		st := claude.State{Home: home, Cwd: s.req.Cwd, Private: filepath.Join(s.cacheRoot(), "claude"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
+		st := claude.State{Home: home, Cwd: s.req.Cwd, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
 		extra = append(extra, st.Binds(osHost{})...)
 	}
 	argv := []string{jail.ExePath, "init"}
@@ -556,6 +538,8 @@ type osFiles struct{}
 func (osFiles) ReadFile(p string) ([]byte, error) { return os.ReadFile(p) }
 
 type osHost struct{}
+
+func (osHost) Resolve(p string) (string, error) { return filepath.EvalSymlinks(p) }
 
 func (osHost) Kind(p string) string {
 	info, err := os.Lstat(p)

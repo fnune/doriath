@@ -90,12 +90,20 @@ type fakeHost map[string]string
 
 func (h fakeHost) Kind(p string) string { return h[p] }
 
+func (h fakeHost) Resolve(p string) (string, error) {
+	if p == "/home/u/.claude/settings.json" {
+		return "/nix/store/x-home-manager-files/.claude/settings.json", nil
+	}
+	return p, nil
+}
+
 func TestStateBinds(t *testing.T) {
-	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude", ConfigCopy: "/c/claude.json"}
+	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home", ConfigCopy: "/c/claude.json"}
 	host := fakeHost{
-		"/home/u/.claude/history.jsonl": "file",
-		"/home/u/.claude/settings.json": "other",
-		"/home/u/.claude/plugins":       "dir",
+		"/home/u/.claude/.credentials.json": "file",
+		"/home/u/.claude/settings.json":     "other",
+		"/home/u/.claude/plugins":           "dir",
+		"/home/u/.claude/history.jsonl":     "file",
 	}
 	binds := st.Binds(host)
 	find := func(dest string) (jail.Bind, bool) {
@@ -105,28 +113,26 @@ func TestStateBinds(t *testing.T) {
 		}
 		return binds[i], true
 	}
-	if b, ok := find("/home/u/.claude"); !ok || b.ReadOnly {
-		t.Error("~/.claude must be writable for login tokens")
+	if b, ok := find("/home/u/.claude"); !ok || b.Source != "/c/claude/home" || b.ReadOnly {
+		t.Errorf("~/.claude must be the profile's own writable directory: %+v", b)
 	}
-	if b, ok := find("/home/u/.claude.json"); !ok || b.Source != "/c/claude.json" {
-		t.Error("~/.claude.json must be a copy")
+	if b, ok := find("/home/u/.claude/settings.json"); !ok || !b.ReadOnly || b.Source != "/nix/store/x-home-manager-files/.claude/settings.json" {
+		t.Errorf("settings must be the resolved file, read-only: %+v", b)
 	}
-	if b, ok := find("/home/u/.claude/projects"); !ok || b.Source != "/c/claude/projects" {
-		t.Error("other projects must be masked")
+	if b, ok := find("/home/u/.claude/plugins"); !ok || !b.ReadOnly {
+		t.Error("plugins must be read-only")
+	}
+	if b, ok := find("/home/u/.claude/.credentials.json"); !ok || b.ReadOnly {
+		t.Error("credentials must be shared and writable")
 	}
 	if _, ok := find("/home/u/.claude/projects/-home-u-k"); !ok {
 		t.Error("the session's own project must be visible")
 	}
-	if b, ok := find("/home/u/.claude/history.jsonl"); !ok || b.Source != "/c/claude/history.jsonl" {
-		t.Error("history must be masked")
+	if _, ok := find("/home/u/.claude/history.jsonl"); ok {
+		t.Error("history must stay private to the profile")
 	}
-	for _, p := range []string{"/home/u/.claude/settings.json", "/home/u/.claude/plugins"} {
-		if b, ok := find(p); !ok || !b.ReadOnly {
-			t.Errorf("%s must be read-only", p)
-		}
-	}
-	if _, ok := find("/home/u/.claude/skills"); ok {
-		t.Error("missing entries must not be bound")
+	if b, ok := find("/home/u/.claude.json"); !ok || b.Source != "/c/claude.json" {
+		t.Error("~/.claude.json must be a copy")
 	}
 }
 

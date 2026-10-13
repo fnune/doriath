@@ -197,6 +197,9 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 // on the desktop.
 func gitGuards(root string, host Host) []Bind {
 	gitDir := filepath.Join(root, ".git")
+	if filepath.Base(root) == ".git" {
+		gitDir = root
+	}
 	if host.Kind(gitDir) != "dir" {
 		return nil
 	}

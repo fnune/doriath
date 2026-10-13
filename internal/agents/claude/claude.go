@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/fnune/girdle/internal/jail"
@@ -144,61 +143,59 @@ func ProjectDir(cwd string) string {
 
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
-// State describes how the jail sees Claude's state. Shared is the real
-// ~/.claude, because login tokens must stay in sync with the desktop. Masks
-// hide what belongs to other projects. Frozen paths are read-only because
-// Claude outside the jail later runs or obeys what they contain.
+// State describes how the jail sees Claude's state. The jail's ~/.claude is a
+// directory that belongs to the profile, so nothing the agent writes there
+// reaches the desktop's Claude, which runs hooks, plugins and settings from
+// the real ~/.claude outside any jail. Into it go, read-only, the files that
+// configure Claude, and, writable, the login tokens (so a refresh in the jail
+// keeps the desktop logged in) and this project's transcripts.
 type State struct {
 	Home string
 	Cwd  string
-	// Private is a profile-owned directory for the masks.
+	// Private is the profile's own ~/.claude.
 	Private string
 	// ConfigCopy is a copy of ~/.claude.json made at session start.
 	ConfigCopy string
 }
 
-var masked = []string{
-	"backups", "daemon", "debug", "file-history", "history.jsonl", "ide", "jobs",
-	"paste-cache", "session-env", "sessions", "shell-snapshots", "todos",
+var shared = []string{
+	"CLAUDE.md", "agents", "chrome", "commands", "hooks", "keybindings.json", "output-styles",
+	"plugins", "settings.json", "skills", "statusline.sh",
 }
 
-var frozen = []string{
-	"CLAUDE.md", "agents", "chrome", "commands", "hooks", "plugins", "settings.json",
-	"settings.local.json", "skills",
-}
+const credentials = ".credentials.json"
 
-// Host tells existing paths apart, so the jail only binds what exists.
+// Host resolves symlinks, because bubblewrap cannot mount on a symlink and
+// home-manager links these files into the nix store.
 type Host interface {
 	Kind(path string) string
+	Resolve(path string) (string, error)
 }
 
-// MaskSource returns the profile-owned stand-in for a masked entry.
-func (st State) MaskSource(name string) string { return filepath.Join(st.Private, name) }
-
 func (st State) Binds(host Host) []jail.Bind {
-	dir := filepath.Join(st.Home, ".claude")
-	binds := []jail.Bind{{Source: dir, Dest: dir}}
+	real := filepath.Join(st.Home, ".claude")
+	binds := []jail.Bind{{Source: st.Private, Dest: real}}
 	if st.ConfigCopy != "" {
 		binds = append(binds, jail.Bind{Source: st.ConfigCopy, Dest: filepath.Join(st.Home, ".claude.json")})
 	}
-	binds = append(binds, jail.Bind{Source: st.MaskSource("projects"), Dest: filepath.Join(dir, "projects")})
-	own := ProjectDir(st.Cwd)
-	binds = append(binds, jail.Bind{Source: filepath.Join(dir, "projects", own), Dest: filepath.Join(dir, "projects", own)})
-	for _, name := range masked {
-		if host.Kind(filepath.Join(dir, name)) != "" {
-			binds = append(binds, jail.Bind{Source: st.MaskSource(name), Dest: filepath.Join(dir, name)})
+	for _, name := range shared {
+		src := filepath.Join(real, name)
+		if host.Kind(src) == "" {
+			continue
 		}
-	}
-	for _, name := range frozen {
-		if p := filepath.Join(dir, name); host.Kind(p) != "" {
-			binds = append(binds, jail.Bind{Source: p, Dest: p, ReadOnly: true})
+		target, err := host.Resolve(src)
+		if err != nil {
+			continue
 		}
+		binds = append(binds, jail.Bind{Source: target, Dest: filepath.Join(real, name), ReadOnly: true})
 	}
+	if cred := filepath.Join(real, credentials); host.Kind(cred) == "file" {
+		binds = append(binds, jail.Bind{Source: cred, Dest: cred})
+	}
+	own := filepath.Join(real, "projects", ProjectDir(st.Cwd))
+	binds = append(binds, jail.Bind{Source: own, Dest: own})
 	return binds
 }
 
-// MaskIsFile reports whether a masked entry is a file rather than a
-// directory, so the caller can create the right kind of stand-in.
-func MaskIsFile(name string) bool { return strings.HasSuffix(name, ".jsonl") }
-
-func Masked() []string { return slices.Clone(masked) }
+// Shared lists what the jail sees from the real ~/.claude, read-only.
+func Shared() []string { return slices.Clone(shared) }
