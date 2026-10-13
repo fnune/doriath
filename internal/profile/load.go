@@ -387,7 +387,11 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("mount %s: ref only applies to clone mounts", m.Path))
 			continue
 		}
-		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Ref: m.Ref})
+		if m.Live && mode != ModeReadWrite {
+			errs = append(errs, fmt.Errorf("mount %s: live only applies to rw mounts", m.Path))
+			continue
+		}
+		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Ref: m.Ref, Live: m.Live})
 	}
 	for _, c := range b.caches {
 		path, err := b.expand(c)

@@ -125,8 +125,8 @@ func TestStateBinds(t *testing.T) {
 	if b, ok := find("/home/u/.claude/.credentials.json"); !ok || b.ReadOnly {
 		t.Error("credentials must be shared and writable")
 	}
-	if _, ok := find("/home/u/.claude/projects/-home-u-k"); !ok {
-		t.Error("the session's own project must be visible")
+	if _, ok := find("/home/u/.claude/projects/-home-u-k"); ok {
+		t.Error("the real project directory must not be writable: the session works on a copy")
 	}
 	if _, ok := find("/home/u/.claude/history.jsonl"); ok {
 		t.Error("history must stay private to the profile")

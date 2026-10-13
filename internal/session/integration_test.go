@@ -331,6 +331,7 @@ func TestIsolation(t *testing.T) {
 test -e "$HOME/.ssh" && echo "FAIL ssh visible"
 test -z "$(ls -A /run/user/$(id -u))" || echo "FAIL runtime dir not empty"
 test -n "$GH_TOKEN" && test "$GH_TOKEN" = leak && echo "FAIL GH_TOKEN leaked"
+grep -q "BEGIN CERTIFICATE" "$NODE_EXTRA_CA_CERTS" || echo "FAIL NODE_EXTRA_CA_CERTS holds no certificate"
 test -n "$SSH_AUTH_SOCK" && echo "FAIL ssh agent leaked"
 test -n "$DBUS_SESSION_BUS_ADDRESS" && echo "FAIL session bus"
 ls /run/girdle/token* 2>/dev/null && echo "FAIL token file"
@@ -811,5 +812,31 @@ func TestLimitsRunTheSessionInAScope(t *testing.T) {
 	})
 	if code != 0 || tasksMax != "64" {
 		t.Fatalf("code %d, TasksMax %q:\n%s", code, tasksMax, out)
+	}
+}
+
+func TestWritableRepositoryBecomesAClone(t *testing.T) {
+	if lookPath("git") == "" {
+		t.Skip("git not installed")
+	}
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"rw\"\n", repo))
+	code, out := e.run(p, fmt.Sprintf("cd %q && echo agent > written && echo done\n", repo), nil)
+	if code != 0 || !strings.Contains(out, "done") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "written")); err == nil {
+		t.Fatal("the agent wrote into the checkout: a rw repository mount must be a clone")
 	}
 }

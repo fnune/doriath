@@ -29,6 +29,10 @@ type Mount struct {
 	Optional bool
 	// Ref is what a clone checks out. Empty means the repository's HEAD.
 	Ref string
+	// Live lets a rw mount of a repository stay the checkout itself. Without
+	// it, girdle gives the agent a clone, because the desktop runs files in
+	// a checkout that the agent could otherwise write.
+	Live bool
 }
 
 // Cache is a path that the jail sees as writable, backed by a directory that

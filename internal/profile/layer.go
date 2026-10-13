@@ -36,6 +36,7 @@ type mountLayer struct {
 	Mode     string `toml:"mode"`
 	Optional bool   `toml:"optional"`
 	Ref      string `toml:"ref"`
+	Live     bool   `toml:"live"`
 }
 
 type cacheLayer struct {

@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,8 +48,6 @@ const (
 	ControlSocket = "control.sock"
 	InfoFile      = "session.json"
 )
-
-const placeholderToken = "girdle-placeholder-token"
 
 // Informer shows a message that needs no decision.
 type Informer interface {
@@ -127,6 +126,9 @@ type Session struct {
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
+	// claudeProject is this project's directory under the real ~/.claude
+	// and its copy in the profile's own, when the session runs Claude.
+	claudeProject [2]string
 	// netnsPID is a process in the podman service's namespaces. When set,
 	// the agent joins its user and network namespaces.
 	netnsPID int
@@ -136,6 +138,9 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
+	req.Profile = cloneRepositories(req.Profile, osHost{}, func(repo string) bool {
+		return deps.Git != "" && exec.Command(deps.Git, "-C", repo, "rev-parse", "--verify", "--quiet", "HEAD").Run() == nil
+	})
 	id, err := newID()
 	if err != nil {
 		return nil, err
@@ -400,11 +405,10 @@ func (s *Session) writeGitFiles() error {
 func (s *Session) prepareClaude() error {
 	home := s.deps.Paths.Home
 	private := filepath.Join(s.cacheRoot(), "claude")
-	own := filepath.Join(home, ".claude", "projects", claude.ProjectDir(s.req.Cwd))
-	for _, d := range []string{filepath.Join(private, "home", "projects"), own} {
-		if err := os.MkdirAll(d, 0o700); err != nil {
-			return fmt.Errorf("create %s: %w", d, err)
-		}
+	project := claude.ProjectDir(s.req.Cwd)
+	s.claudeProject = [2]string{filepath.Join(home, ".claude", "projects", project), filepath.Join(private, "home", "projects", project)}
+	if err := copyProjectIn(s.claudeProject[0], s.claudeProject[1]); err != nil {
+		return fmt.Errorf("copy the Claude project directory: %w", err)
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".claude.json"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -453,18 +457,21 @@ func (s *Session) plan() (jail.Spec, error) {
 	home := s.deps.Paths.Home
 	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", jail.ProxyPort)
 	env := map[string]string{
-		"HTTP_PROXY":          proxyURL,
-		"HTTPS_PROXY":         proxyURL,
-		"http_proxy":          proxyURL,
-		"https_proxy":         proxyURL,
-		"NO_PROXY":            "localhost,127.0.0.1,::1",
-		"no_proxy":            "localhost,127.0.0.1,::1",
-		"SSL_CERT_FILE":       jail.InJail("ca-bundle.pem"),
-		"NIX_SSL_CERT_FILE":   jail.InJail("ca-bundle.pem"),
-		"CURL_CA_BUNDLE":      jail.InJail("ca-bundle.pem"),
-		"GIT_SSL_CAINFO":      jail.InJail("ca-bundle.pem"),
-		"REQUESTS_CA_BUNDLE":  jail.InJail("ca-bundle.pem"),
-		"NODE_EXTRA_CA_CERTS": jail.InJail("ca.pem"),
+		"HTTP_PROXY":         proxyURL,
+		"HTTPS_PROXY":        proxyURL,
+		"http_proxy":         proxyURL,
+		"https_proxy":        proxyURL,
+		"NO_PROXY":           "localhost,127.0.0.1,::1",
+		"no_proxy":           "localhost,127.0.0.1,::1",
+		"SSL_CERT_FILE":      jail.InJail("ca-bundle.pem"),
+		"NIX_SSL_CERT_FILE":  jail.InJail("ca-bundle.pem"),
+		"CURL_CA_BUNDLE":     jail.InJail("ca-bundle.pem"),
+		"GIT_SSL_CAINFO":     jail.InJail("ca-bundle.pem"),
+		"REQUESTS_CA_BUNDLE": jail.InJail("ca-bundle.pem"),
+		// The bundle rather than the session CA alone: a profile without
+		// intercepted hosts has no CA, and Bun-based tools such as Claude
+		// Code fail every connection when this file holds no certificate.
+		"NODE_EXTRA_CA_CERTS": jail.InJail("ca-bundle.pem"),
 		"GIT_CONFIG_GLOBAL":   jail.InJail("gitconfig"),
 		"JJ_CONFIG":           JJConfigPath(home, osHost{}.Kind, jail.InJail("jj.toml")),
 		"GIRDLE_SESSION":      s.id,
@@ -472,9 +479,6 @@ func (s *Session) plan() (jail.Spec, error) {
 	}
 	if p.SigningKey != "" {
 		env["SSH_AUTH_SOCK"] = jail.InJail(AgentSocket)
-	}
-	if _, ok := p.Intercepted("api.github.com"); ok {
-		env["GH_TOKEN"] = placeholderToken
 	}
 	if p.Podman {
 		env["CONTAINER_HOST"] = "unix://" + jail.InJail(PodmanSocket)
@@ -587,6 +591,11 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
+	if s.claudeProject[0] != "" {
+		if err := copyTranscriptsBack(s.claudeProject[1], s.claudeProject[0]); err != nil {
+			fmt.Fprintf(s.deps.Stderr, "girdle: could not copy Claude transcripts back: %v\n", err)
+		}
+	}
 	for _, line := range s.landClones(context.Background()) {
 		fmt.Fprintln(s.deps.Stderr, line)
 	}
@@ -807,4 +816,19 @@ func checkHelpers(deps Deps, p *profile.Profile) error {
 func within(path, root string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+}
+
+// cloneRepositories turns each rw mount of a repository into a clone mount,
+// unless the profile marks it live, so the agent never writes files that the
+// desktop's git and editors later run. A repository without commits has no
+// base to clone from, so it stays a rw mount and the jail notes that.
+func cloneRepositories(p *profile.Profile, host jail.Host, hasCommits func(repo string) bool) *profile.Profile {
+	out := *p
+	out.Mounts = slices.Clone(p.Mounts)
+	for i, m := range out.Mounts {
+		if m.Mode == profile.ModeReadWrite && !m.Live && host.Kind(filepath.Join(m.Path, ".git")) != "" && hasCommits(m.Path) {
+			out.Mounts[i].Mode = profile.ModeClone
+		}
+	}
+	return &out
 }

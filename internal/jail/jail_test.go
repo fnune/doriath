@@ -221,7 +221,7 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 	}
 }
 
-func TestWritableRepoMountSuggestsCloneMode(t *testing.T) {
+func TestWritableMountWithRepositoriesSuggestsMountingThem(t *testing.T) {
 	h := host()
 	p := testProfile()
 	p.Mounts = []profile.Mount{{Path: "/home/u/Development/project", Mode: profile.ModeReadWrite}}
@@ -237,8 +237,25 @@ func TestWritableRepoMountSuggestsCloneMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], `mode = "clone"`) {
+	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], "without commits") {
 		t.Fatalf("notes = %v", s.Notes)
+	}
+	delete(h, "/home/u/Development/project/.git")
+	h["/home/u/Development/project/site/.git"] = "dir"
+	s, err = Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], "mount each repository itself") {
+		t.Fatalf("notes = %v", s.Notes)
+	}
+	p.Mounts[0].Live = true
+	s, err = Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Notes) != 0 {
+		t.Fatalf("a live mount was asked for, so it needs no note: %v", s.Notes)
 	}
 }
 
@@ -322,5 +339,24 @@ func TestNestedRepositoriesAreGuarded(t *testing.T) {
 		if i < 0 || !s.Binds[i].ReadOnly {
 			t.Errorf("%s must be read-only", p)
 		}
+	}
+}
+
+func TestVarAndOptAreHidden(t *testing.T) {
+	h := host()
+	h["/var"], h["/opt"] = "dir", "dir"
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(s.Tmpfs, "/var") || !slices.Contains(s.Tmpfs, "/opt") {
+		t.Fatalf("tmpfs = %v", s.Tmpfs)
+	}
+	if slices.Index(s.Tmpfs, "/var") > slices.Index(s.Tmpfs, "/var/tmp") {
+		t.Error("/var must be emptied before /var/tmp, or it would hide it")
+	}
+	args := strings.Join(s.Args(), " ")
+	if !strings.Contains(args, "--symlink ../run /var/run") {
+		t.Errorf("/var/run must still lead to /run: %s", args)
 	}
 }

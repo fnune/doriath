@@ -6,7 +6,9 @@ package jail
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,6 +79,8 @@ type Spec struct {
 	Home     string
 	Tmpfs    []string
 	Dirs     []string
+	// Symlinks maps a path in the jail to the target it points at.
+	Symlinks map[string]string
 	Binds    []Bind
 	Env      map[string]string
 	Cwd      string
@@ -115,7 +119,14 @@ type Options struct {
 // bypass the egress allowlist.
 const nixDaemonDir = "/nix/var/nix/daemon-socket"
 
-var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var/tmp", "/mnt", "/media", "/srv", "/boot"}
+// hiddenRoots are empty in the jail. /var holds logs, package databases and
+// service state, and /opt holds programs such as password managers, none of
+// which a profile asked for. A profile mounts back what it needs.
+var hiddenRoots = []string{"/home", "/root", "/run", "/tmp", "/var", "/var/tmp", "/opt", "/mnt", "/media", "/srv", "/boot"}
+
+// varLinks keeps the /var paths that point into /run working once /var is
+// empty, since programs still open /var/run/... by that name.
+var varLinks = map[string]string{"/var/run": "../run", "/var/lock": "../run/lock"}
 
 func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, error) {
 	if !filepath.IsAbs(opts.Home) || !filepath.IsAbs(opts.Cwd) {
@@ -141,6 +152,14 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	for _, root := range hiddenRoots {
 		if host.Kind(root) == "dir" {
 			s.Tmpfs = append(s.Tmpfs, root)
+		}
+	}
+	for link, target := range varLinks {
+		if host.Kind("/var") == "dir" {
+			if s.Symlinks == nil {
+				s.Symlinks = map[string]string{}
+			}
+			s.Symlinks[link] = target
 		}
 	}
 	if !p.NixDaemon && host.Kind(nixDaemonDir) == "dir" {
@@ -173,8 +192,12 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
 		if m.Mode == profile.ModeReadWrite {
 			repos := repositories(m.Path, host)
-			if len(repos) > 0 {
-				s.Notes = append(s.Notes, fmt.Sprintf("%s is a writable mount with a git repository: mode = \"clone\" keeps the agent's commits out of it until the session lands them", m.Path))
+			switch {
+			case m.Live || len(repos) == 0:
+			case repos[0] == m.Path:
+				s.Notes = append(s.Notes, fmt.Sprintf("%s is a repository without commits, so the agent writes into your checkout: once it has a commit, girdle gives the agent a clone instead", m.Path))
+			default:
+				s.Notes = append(s.Notes, fmt.Sprintf("%s is a writable mount with git repositories inside: mount each repository itself, which gives the agent a clone, so its commits stay out of your checkouts until the session lands them", m.Path))
 			}
 			for _, repo := range repos {
 				binds = append(binds, gitGuards(repo, repo, host)...)
@@ -360,6 +383,9 @@ func (s Spec) Args() []string {
 	)
 	for _, t := range s.Tmpfs {
 		args = append(args, "--tmpfs", t)
+	}
+	for _, link := range slices.Sorted(maps.Keys(s.Symlinks)) {
+		args = append(args, "--symlink", s.Symlinks[link], link)
 	}
 	for _, d := range s.Dirs {
 		args = append(args, "--perms", "0700", "--dir", d)

@@ -159,8 +159,10 @@ var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 // directory that belongs to the profile, so nothing the agent writes there
 // reaches the desktop's Claude, which runs hooks, plugins and settings from
 // the real ~/.claude outside any jail. Into it go, read-only, the files that
-// configure Claude, and, writable, this project's transcripts. The profile
-// keeps its own claude.ai login unless it shares the desktop's.
+// configure Claude. This project's directory is copied in, and only its
+// transcripts are copied back, so memory files the agent writes never reach
+// desktop sessions. The profile keeps its own claude.ai login unless it shares
+// the desktop's.
 type State struct {
 	Home       string
 	Cwd        string
@@ -205,8 +207,6 @@ func (st State) Binds(host Host) []jail.Bind {
 	if cred := filepath.Join(real, credentials); st.ShareLogin && host.Kind(cred) == "file" {
 		binds = append(binds, jail.Bind{Source: cred, Dest: cred})
 	}
-	own := filepath.Join(real, "projects", ProjectDir(st.Cwd))
-	binds = append(binds, jail.Bind{Source: own, Dest: own})
 	return binds
 }
 
