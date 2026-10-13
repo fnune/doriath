@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -20,18 +21,20 @@ import (
 // run instead of one denial at a time.
 type livePolicy struct {
 	*profile.Profile
-	mu      sync.RWMutex
-	extra   map[string]bool
-	learn   bool
-	learned map[string]bool
+	mu    sync.RWMutex
+	extra map[string]bool
+	learn bool
+	// learned maps each host to the programs that reached it, so a person
+	// can tell hosts every program needs from hosts only one does.
+	learned map[string]map[string]bool
 }
 
 func newLivePolicy(p *profile.Profile, learn bool) *livePolicy {
-	return &livePolicy{Profile: p, extra: map[string]bool{}, learn: learn, learned: map[string]bool{}}
+	return &livePolicy{Profile: p, extra: map[string]bool{}, learn: learn, learned: map[string]map[string]bool{}}
 }
 
-func (l *livePolicy) AllowsHost(host string) bool {
-	if l.Profile.AllowsHost(host) {
+func (l *livePolicy) AllowsHostFor(host, exe string) bool {
+	if l.Profile.AllowsHostFor(host, exe) {
 		return true
 	}
 	host = strings.ToLower(host)
@@ -46,7 +49,10 @@ func (l *livePolicy) AllowsHost(host string) bool {
 		return false
 	}
 	if l.learn {
-		l.learned[host] = true
+		if l.learned[host] == nil {
+			l.learned[host] = map[string]bool{}
+		}
+		l.learned[host][programName(exe)] = true
 	}
 	return l.learn
 }
@@ -56,6 +62,27 @@ func (l *livePolicy) Learned() []string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return slices.Sorted(maps.Keys(l.learned))
+}
+
+// LearnedBy groups the learned hosts by the program that reached them. A
+// host reached by several programs is listed under each.
+func (l *livePolicy) LearnedBy() map[string][]string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	out := map[string][]string{}
+	for _, host := range slices.Sorted(maps.Keys(l.learned)) {
+		for prog := range l.learned[host] {
+			out[prog] = append(out[prog], host)
+		}
+	}
+	return out
+}
+
+func programName(exe string) string {
+	if exe == "" {
+		return "an unidentified program"
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(filepath.Base(exe), "."), "-wrapped")
 }
 
 func (l *livePolicy) allow(host string) {

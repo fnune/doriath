@@ -139,7 +139,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 
-	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example"}, time.Now)
+	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example", "programs.example"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -887,5 +887,28 @@ test -n "$HTTPS_PROXY" || echo "FAIL jail environment missing"
 	}
 	if _, err := os.Stat(filepath.Join(e.work, "from-exec")); err != nil {
 		t.Errorf("exec did not write in the session's working directory: %v", err)
+	}
+}
+
+func TestProgramEgressReachesOnlyNamedPrograms(t *testing.T) {
+	e := newEnv(t)
+	p := e.profile("\n[[egress.programs]]\nbinaries = [\"curl\"]\nallow = [\"programs.example\"]\n")
+	code, out := e.run(p, `
+curl -sS -o /dev/null -w "curl %{http_code}\n" https://programs.example/
+python3 -c '
+import urllib.request
+try:
+    urllib.request.urlopen("https://programs.example/", timeout=5)
+    print("FAIL python reached a curl-only host")
+except Exception as e:
+    print("python refused:", e)
+'
+`, nil)
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "curl 200") || !strings.Contains(out, "python refused") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	audit, _ := os.ReadFile(e.paths.AuditLog())
+	if !strings.Contains(string(audit), "host allowed only for curl") {
+		t.Errorf("the denial does not say which programs may reach the host:\n%s", audit)
 	}
 }

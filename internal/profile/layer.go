@@ -50,9 +50,15 @@ type envLayer struct {
 }
 
 type egressLayer struct {
+	Allow    []string        `toml:"allow"`
+	Ports    []int           `toml:"ports"`
+	TCPPorts []int           `toml:"tcp_ports"`
+	Programs []programsLayer `toml:"programs"`
+}
+
+type programsLayer struct {
+	Binaries []string `toml:"binaries"`
 	Allow    []string `toml:"allow"`
-	Ports    []int    `toml:"ports"`
-	TCPPorts []int    `toml:"tcp_ports"`
 }
 
 type httpLayer struct {

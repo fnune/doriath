@@ -52,11 +52,21 @@ type Env struct {
 
 type Egress struct {
 	Allow []HostPattern
+	// Programs lists hosts that only some programs may reach, such as the
+	// third-party hosts a browser under test loads.
+	Programs []ProgramEgress
 	// Ports are host loopback ports the jail reaches over HTTP, through a
 	// reverse proxy that only speaks HTTP and websockets.
 	Ports []int
 	// TCPPorts are passed as raw TCP, for protocols such as MySQL.
 	TCPPorts []int
+}
+
+// ProgramEgress lets the named programs, matched like credential binaries,
+// reach hosts that other programs in the jail may not.
+type ProgramEgress struct {
+	Binaries []string
+	Allow    []HostPattern
 }
 
 // Forwards lists every forwarded port with whether it is raw TCP.
@@ -105,18 +115,30 @@ func (c Credential) AllowsBinary(exe string) bool {
 	if len(c.Binaries) == 0 {
 		return true
 	}
+	return matchBinary(c.Binaries, exe)
+}
+
+// UnderTrustedRoot reports whether path lies under a system path that no
+// jail can write, such as /nix/store or /usr.
+func UnderTrustedRoot(path string) bool {
+	for _, root := range trustedRoots {
+		if strings.HasPrefix(path, root) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchBinary reports whether exe is one of the programs: a bare name matches
+// a program under a read-only system path, because anywhere else the agent
+// could put its own program under that name, and a path is a glob.
+func matchBinary(binaries []string, exe string) bool {
 	if exe == "" {
 		return false
 	}
 	name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(exe), "."), "-wrapped")
-	trusted := false
-	for _, root := range trustedRoots {
-		if strings.HasPrefix(exe, root) {
-			trusted = true
-			break
-		}
-	}
-	for _, pattern := range c.Binaries {
+	trusted := UnderTrustedRoot(exe)
+	for _, pattern := range binaries {
 		if strings.Contains(pattern, "/") {
 			if ok, _ := filepath.Match(pattern, exe); ok {
 				return true
@@ -251,7 +273,43 @@ func (p *Profile) Intercepted(host string) (HTTPHost, bool) {
 	return HTTPHost{}, false
 }
 
-// AllowsHost reports whether the proxy may open a connection to host.
+// AllowsHostFor reports whether the program exe may reach host: any program
+// may reach the hosts AllowsHost names, and the named programs their own.
+func (p *Profile) AllowsHostFor(host, exe string) bool {
+	if p.AllowsHost(host) {
+		return true
+	}
+	for _, prog := range p.Egress.Programs {
+		if matchBinary(prog.Binaries, exe) && matchAny(prog.Allow, host) {
+			return true
+		}
+	}
+	return false
+}
+
+// ProgramsFor lists the binaries that may reach a host only some programs
+// may reach, for a denial that says which.
+func (p *Profile) ProgramsFor(host string) []string {
+	var out []string
+	for _, prog := range p.Egress.Programs {
+		if matchAny(prog.Allow, host) {
+			out = append(out, prog.Binaries...)
+		}
+	}
+	return out
+}
+
+func matchAny(patterns []HostPattern, host string) bool {
+	for _, pattern := range patterns {
+		if pattern.Match(host) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllowsHost reports whether the proxy may open a connection to host for any
+// program in the jail.
 func (p *Profile) AllowsHost(host string) bool {
 	if _, ok := p.Intercepted(host); ok {
 		return true

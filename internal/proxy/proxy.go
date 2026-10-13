@@ -29,7 +29,10 @@ import (
 )
 
 type Policy interface {
-	AllowsHost(host string) bool
+	// AllowsHostFor reports whether the program exe may reach host.
+	AllowsHostFor(host, exe string) bool
+	// ProgramsFor names the programs that alone may reach host, if any.
+	ProgramsFor(host string) []string
 	Intercepted(host string) (profile.HTTPHost, bool)
 	SecretName(name string) string
 }
@@ -157,9 +160,9 @@ func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
 		return
 	}
-	if !s.policy.AllowsHost(host) {
-		s.record(Event{Kind: "denied", Host: host, Reason: "host not in the profile"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
+		s.record(Event{Kind: "denied", Host: host, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
+		s.denyHost(w, host)
 		return
 	}
 	r.Host = host
@@ -185,9 +188,9 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed; only HTTPS on 443 goes through the proxy", port))
 		return
 	}
-	if !s.policy.AllowsHost(host) {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: "host not in the profile"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
+		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
+		s.denyHost(w, host)
 		return
 	}
 	hj, ok := w.(http.Hijacker)
@@ -356,9 +359,9 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
 		return
 	}
-	if !s.policy.AllowsHost(host) {
-		s.record(Event{Kind: "denied", Host: host, Reason: "host not in the profile"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
+		s.record(Event{Kind: "denied", Host: host, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
+		s.denyHost(w, host)
 		return
 	}
 	s.firstSeen(host, "http")
@@ -592,4 +595,22 @@ func canonicalPath(u *url.URL) bool {
 func identityEncoding(enc string) bool {
 	enc = strings.TrimSpace(strings.ToLower(enc))
 	return enc == "" || enc == "identity"
+}
+
+// hostReason is why a host was refused. "host not in the profile" also
+// drafts a rule for the person, which a program-only host must not get:
+// the person already chose which programs reach it.
+func (s *Server) hostReason(host string) string {
+	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
+		return "host allowed only for " + strings.Join(progs, ", ")
+	}
+	return "host not in the profile"
+}
+
+func (s *Server) denyHost(w http.ResponseWriter, host string) {
+	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
+		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: profile %q lets only %s reach %s", s.cfg.Profile, strings.Join(progs, ", "), host))
+		return
+	}
+	deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
 }

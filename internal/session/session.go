@@ -170,7 +170,7 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	for _, note := range spec.Notes {
+	for _, note := range append(spec.Notes, programNotes(s.req.Profile)...) {
 		fmt.Fprintln(s.deps.Stderr, "girdle: "+note)
 	}
 	return s.exec(ctx, spec)
@@ -627,8 +627,13 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		fmt.Fprintln(s.deps.Stderr, line)
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
-		s.log.Write("learned", map[string]any{"hosts": learned})
-		fmt.Fprintf(s.deps.Stderr, "girdle: the session reached %d hosts the profile does not allow. To allow them: girdle profiles allow %s %s\n", len(learned), s.req.Profile.Name, strings.Join(learned, " "))
+		by := s.policy.LearnedBy()
+		s.log.Write("learned", map[string]any{"hosts": learned, "by_program": by})
+		fmt.Fprintf(s.deps.Stderr, "girdle: the session reached %d hosts the profile does not allow:\n", len(learned))
+		for _, prog := range slices.Sorted(maps.Keys(by)) {
+			fmt.Fprintf(s.deps.Stderr, "  %s: %s\n", prog, strings.Join(by[prog], " "))
+		}
+		fmt.Fprintf(s.deps.Stderr, "To allow them for every program: girdle profiles allow %s %s\nTo allow them for one program, list them under [[egress.programs]].\n", s.req.Profile.Name, strings.Join(learned, " "))
 	}
 	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
 		fmt.Fprintln(s.deps.Stderr, line)
@@ -918,4 +923,19 @@ func (s *Session) bazelrc(home string) (jail.Bind, bool) {
 		}
 	}
 	return jail.Bind{Source: s.jailPath("bazelrc"), Dest: dest, ReadOnly: true}, true
+}
+
+// programNotes warns about programs named by a path outside the read-only
+// system paths: the agent can write there, so a program it puts at that
+// path reaches the same hosts.
+func programNotes(p *profile.Profile) []string {
+	var out []string
+	for _, prog := range p.Egress.Programs {
+		for _, bin := range prog.Binaries {
+			if strings.Contains(bin, "/") && !profile.UnderTrustedRoot(bin) {
+				out = append(out, fmt.Sprintf("%s may be replaced by a program the agent writes there, which then reaches the hosts egress programs gives it", bin))
+			}
+		}
+	}
+	return out
 }

@@ -182,29 +182,30 @@ func (l *Loader) readModule(name string) ([]byte, error) {
 }
 
 type builder struct {
-	home    string
-	mounts  []mountLayer
-	caches  []string
-	devices []string
-	envSet  map[string]string
-	envPass []string
-	envPath []string
-	allow   []string
-	ports   []int
-	tcp     []int
-	http    []httpLayer
-	signing string
-	podman  bool
-	images  []string
-	nix     bool
-	harden  Hardening
-	limits  Limits
-	claude  claudeLayer
-	disable bool
-	mcp     *[]string
-	status  bool
-	share   bool
-	secrets map[string]string
+	home     string
+	mounts   []mountLayer
+	caches   []string
+	devices  []string
+	envSet   map[string]string
+	envPass  []string
+	envPath  []string
+	programs []programsLayer
+	allow    []string
+	ports    []int
+	tcp      []int
+	http     []httpLayer
+	signing  string
+	podman   bool
+	images   []string
+	nix      bool
+	harden   Hardening
+	limits   Limits
+	claude   claudeLayer
+	disable  bool
+	mcp      *[]string
+	status   bool
+	share    bool
+	secrets  map[string]string
 }
 
 func newBuilder(home string) *builder {
@@ -238,6 +239,7 @@ func (b *builder) apply(l layer) {
 	for _, h := range l.Egress.Allow {
 		b.allow = appendNew(b.allow, h)
 	}
+	b.programs = append(b.programs, l.Egress.Programs...)
 	for _, p := range l.Egress.Ports {
 		if !slices.Contains(b.ports, p) {
 			b.ports = append(b.ports, p)
@@ -466,6 +468,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		p.Egress.Allow = append(p.Egress.Allow, pattern)
 	}
+	for _, prog := range b.programs {
+		built, err := b.buildPrograms(prog)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("egress programs: %w", err))
+			continue
+		}
+		p.Egress.Programs = append(p.Egress.Programs, built)
+	}
 	for _, port := range b.ports {
 		if port < 1 || port > 65535 {
 			errs = append(errs, fmt.Errorf("egress port %d: out of range", port))
@@ -684,4 +694,32 @@ func (b *builder) expand(p string) (string, error) {
 		return "", fmt.Errorf("path %q: must be absolute or start with ~/", p)
 	}
 	return filepath.Clean(p), nil
+}
+
+func (b *builder) buildPrograms(l programsLayer) (ProgramEgress, error) {
+	if len(l.Binaries) == 0 || len(l.Allow) == 0 {
+		return ProgramEgress{}, errors.New("each entry needs binaries and allow")
+	}
+	var out ProgramEgress
+	for _, bin := range l.Binaries {
+		if bin == "" {
+			return ProgramEgress{}, errors.New("binaries entries must not be empty")
+		}
+		if strings.Contains(bin, "/") {
+			expanded, err := b.expand(bin)
+			if err != nil || !filepath.IsAbs(expanded) {
+				return ProgramEgress{}, fmt.Errorf("binary %q: a path must be absolute or start with ~/", bin)
+			}
+			bin = expanded
+		}
+		out.Binaries = append(out.Binaries, bin)
+	}
+	for _, h := range l.Allow {
+		pattern, err := ParseHostPattern(h)
+		if err != nil {
+			return ProgramEgress{}, err
+		}
+		out.Allow = append(out.Allow, pattern)
+	}
+	return out, nil
 }

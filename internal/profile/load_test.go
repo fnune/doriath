@@ -322,3 +322,48 @@ func TestLocalLayer(t *testing.T) {
 		t.Error("an invalid host must be refused")
 	}
 }
+
+func TestProgramEgress(t *testing.T) {
+	body := `
+[egress]
+allow = ["registry.npmjs.org"]
+
+[[egress.programs]]
+binaries = ["chrome", "~/.cache/ms-playwright/*/chrome-linux64/chrome"]
+allow = ["*.launchdarkly.com"]
+`
+	p, err := loader(fstest.MapFS{"p.toml": file(body)}, fstest.MapFS{}).Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		host, exe string
+		want      bool
+	}{
+		{"registry.npmjs.org", "/usr/bin/curl", true},
+		{"events.launchdarkly.com", "/nix/store/x-chromium/bin/chrome", true},
+		{"events.launchdarkly.com", "/home/u/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome", true},
+		{"events.launchdarkly.com", "/usr/bin/curl", false},
+		{"events.launchdarkly.com", "/home/u/bin/chrome", false},
+		{"events.launchdarkly.com", "", false},
+	} {
+		if got := p.AllowsHostFor(c.host, c.exe); got != c.want {
+			t.Errorf("AllowsHostFor(%s, %s) = %v, want %v", c.host, c.exe, got, c.want)
+		}
+	}
+	if p.AllowsHost("events.launchdarkly.com") {
+		t.Error("a program-only host must not be open to every program")
+	}
+	if got := p.ProgramsFor("events.launchdarkly.com"); len(got) != 2 {
+		t.Errorf("ProgramsFor = %v", got)
+	}
+	for _, bad := range []string{
+		"[[egress.programs]]\nallow = [\"a.com\"]",
+		"[[egress.programs]]\nbinaries = [\"rel/chrome\"]\nallow = [\"a.com\"]",
+		"[[egress.programs]]\nbinaries = [\"chrome\"]\nallow = [\"https://a.com\"]",
+	} {
+		if _, err := loader(fstest.MapFS{"p.toml": file(bad)}, fstest.MapFS{}).Load("p"); err == nil {
+			t.Errorf("accepted %q", bad)
+		}
+	}
+}
