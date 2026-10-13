@@ -189,6 +189,7 @@ func cmdRun(args []string) (int, error) {
 		Unshare:    lookPath("unshare"),
 		Nsenter:    lookPath("nsenter"),
 		Podman:     lookPath("podman"),
+		Git:        lookPath("git"),
 	}
 	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command})
 	if err != nil {

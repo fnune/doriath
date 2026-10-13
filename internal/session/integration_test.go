@@ -246,6 +246,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Unshare:       lookPath("unshare"),
 		Nsenter:       lookPath("nsenter"),
 		Podman:        lookPath("podman"),
+		Git:           lookPath("git"),
 	}
 	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}})
 	if err != nil {
@@ -630,5 +631,63 @@ done
 	local, err := os.ReadFile(filepath.Join(e.paths.Profiles(), "it.local.toml"))
 	if err != nil || !strings.Contains(string(local), "drafted.example") {
 		t.Fatalf("local layer: %s, %v", local, err)
+	}
+}
+
+func TestCloneMode(t *testing.T) {
+	if lookPath("git") == "" {
+		t.Skip("git not installed")
+	}
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	gitIn := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.org", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.org")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	gitIn("init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(repo, "README"), []byte("original\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitIn("add", "README")
+	gitIn("commit", "-q", "-m", "first")
+	base := gitIn("rev-parse", "HEAD")
+
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\n", repo))
+	code, out := e.run(p, fmt.Sprintf(`
+cd %q
+test "$(cat README)" = original || echo "FAIL clone content"
+git switch -q -c feature
+echo agent > README
+git -c user.name=Agent -c user.email=a@example.org commit -q -am "agent change" || echo "FAIL commit"
+echo x >> .git/config 2>/dev/null && echo "FAIL clone config writable"
+echo done
+`, repo), nil)
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "done") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if got, _ := os.ReadFile(filepath.Join(repo, "README")); string(got) != "original\n" {
+		t.Fatalf("the source checkout changed: %q", got)
+	}
+	if head := gitIn("rev-parse", "HEAD"); head != base {
+		t.Fatal("the source HEAD moved")
+	}
+	refs := gitIn("for-each-ref", "--format=%(refname)", "refs/girdle/")
+	if !strings.Contains(refs, "/feature") {
+		t.Fatalf("no landed branch: %q\noutput:\n%s", refs, out)
+	}
+	if !strings.Contains(out, "feature has 1 new commit(s)") {
+		t.Errorf("no landing summary in:\n%s", out)
+	}
+	if msg := gitIn("log", "-1", "--format=%s", strings.Fields(refs)[0]); msg != "agent change" && !strings.Contains(refs, "HEAD") {
+		t.Errorf("landed commit = %q", msg)
 	}
 }

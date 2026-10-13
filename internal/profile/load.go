@@ -354,11 +354,15 @@ func (b *builder) build(top layer) (*Profile, error) {
 		if m.Mode == "" {
 			mode = ModeReadOnly
 		}
-		if mode != ModeReadOnly && mode != ModeReadWrite {
-			errs = append(errs, fmt.Errorf("mount %s: mode %q: want ro or rw", m.Path, m.Mode))
+		if mode != ModeReadOnly && mode != ModeReadWrite && mode != ModeClone {
+			errs = append(errs, fmt.Errorf("mount %s: mode %q: want ro, rw or clone", m.Path, m.Mode))
 			continue
 		}
-		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
+		if m.Ref != "" && mode != ModeClone {
+			errs = append(errs, fmt.Errorf("mount %s: ref only applies to clone mounts", m.Path))
+			continue
+		}
+		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Ref: m.Ref})
 	}
 	for _, c := range b.caches {
 		path, err := b.expand(c)

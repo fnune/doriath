@@ -16,12 +16,18 @@ type Mode string
 const (
 	ModeReadOnly  Mode = "ro"
 	ModeReadWrite Mode = "rw"
+	// ModeClone shows the agent a private clone of a git repository at the
+	// repository's own path. The desktop's checkout never sees its writes;
+	// its branches come back as refs to review.
+	ModeClone Mode = "clone"
 )
 
 type Mount struct {
 	Path     string
 	Mode     Mode
 	Optional bool
+	// Ref is what a clone checks out. Empty means the repository's HEAD.
+	Ref string
 }
 
 // Cache is a path that the jail sees as writable, backed by a directory that

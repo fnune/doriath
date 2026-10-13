@@ -102,6 +102,8 @@ type Options struct {
 	// JailDirWritable lets a helper such as the podman service create its
 	// socket in the girdle directory.
 	JailDirWritable bool
+	// Clones maps a clone mount's path to the clone's directory on the host.
+	Clones map[string]string
 }
 
 // The nix daemon builds outside the jail, so its socket would let builds
@@ -145,6 +147,16 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	var errs []error
 	var binds []Bind
 	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeClone {
+			src, ok := opts.Clones[m.Path]
+			if !ok {
+				errs = append(errs, fmt.Errorf("clone mount %s has no clone", m.Path))
+				continue
+			}
+			binds = append(binds, Bind{Source: src, Dest: m.Path})
+			binds = append(binds, gitGuards(src, m.Path, host)...)
+			continue
+		}
 		kind := host.Kind(m.Path)
 		if kind == "" {
 			if m.Optional {
@@ -155,7 +167,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		}
 		binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
 		if m.Mode == profile.ModeReadWrite {
-			binds = append(binds, gitGuards(m.Path, host)...)
+			binds = append(binds, gitGuards(m.Path, m.Path, host)...)
 		}
 	}
 	for _, c := range p.Caches {
@@ -206,19 +218,18 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 // runs hooks and commands named in the config (core.fsmonitor,
 // core.hooksPath and others), so a writable copy would let the agent run code
 // on the desktop.
-func gitGuards(root string, host Host) []Bind {
-	gitDir := filepath.Join(root, ".git")
-	if filepath.Base(root) == ".git" {
-		gitDir = root
+func gitGuards(src, dest string, host Host) []Bind {
+	srcGit, destGit := filepath.Join(src, ".git"), filepath.Join(dest, ".git")
+	if filepath.Base(src) == ".git" {
+		srcGit, destGit = src, dest
 	}
-	if host.Kind(gitDir) != "dir" {
+	if host.Kind(srcGit) != "dir" {
 		return nil
 	}
 	var binds []Bind
 	for _, name := range []string{"config", "hooks", "info"} {
-		p := filepath.Join(gitDir, name)
-		if host.Kind(p) != "" {
-			binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+		if p := filepath.Join(srcGit, name); host.Kind(p) != "" {
+			binds = append(binds, Bind{Source: p, Dest: filepath.Join(destGit, name), ReadOnly: true})
 		}
 	}
 	return binds

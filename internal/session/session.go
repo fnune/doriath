@@ -80,6 +80,7 @@ type Deps struct {
 	Unshare string
 	Nsenter string
 	Podman  string
+	Git     string
 	// UpstreamRoots verifies upstream servers in tests. Nil means the system
 	// roots.
 	UpstreamRoots *x509.CertPool
@@ -111,6 +112,7 @@ type Session struct {
 	egress  *egressLog
 	policy  *livePolicy
 	peers   *hostPeers
+	clones  []repoClone
 	logFile io.Closer
 	manager *approval.Manager
 	closers []func()
@@ -176,6 +178,9 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 
+	if err := s.prepareClones(ctx); err != nil {
+		return err
+	}
 	if err := s.startProxy(); err != nil {
 		return err
 	}
@@ -460,6 +465,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		st := claude.State{Home: home, Cwd: s.req.Cwd, ShareLogin: s.req.Profile.Claude.ShareLogin, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
 		extra = append(extra, st.Binds(osHost{})...)
 	}
+	extra = append(extra, s.cloneBinds()...)
 	argv := []string{jail.ExePath, "init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
@@ -475,6 +481,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	argv = append(argv, command...)
 
 	return jail.Plan(p, s.layout(), jail.Options{
+		Clones:     s.cloneDirs(),
 		InfoFD:     3,
 		SeccompFD:  4,
 		SkipNetNS:  s.netnsPID != 0,
@@ -556,6 +563,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
+	for _, line := range s.landClones(context.Background()) {
+		fmt.Fprintln(s.deps.Stderr, line)
+	}
 	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
 		fmt.Fprintln(s.deps.Stderr, line)
 	}
@@ -639,7 +649,7 @@ func (s *Session) writable(extra []jail.Bind) []string {
 	home := s.deps.Paths.Home
 	out := []string{home, "/tmp", "/var/tmp", "/dev", "/proc", filepath.Join("/run/user", strconv.Itoa(os.Getuid()))}
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeReadWrite {
+		if m.Mode == profile.ModeReadWrite || m.Mode == profile.ModeClone {
 			out = append(out, m.Path)
 		}
 	}
