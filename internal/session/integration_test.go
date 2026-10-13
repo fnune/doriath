@@ -723,6 +723,9 @@ echo done
 	if strings.Contains(refs, "/wip") {
 		t.Errorf("the person's own branch landed: %q", refs)
 	}
+	if clones, _ := filepath.Glob(filepath.Join(e.paths.AgentCache(p.Name), "clones", "repo-*")); len(clones) != 0 {
+		t.Errorf("a clone whose work all landed must be removed: %v", clones)
+	}
 	if !strings.Contains(out, "feature has 1 new commit(s)") {
 		t.Errorf("no landing summary in:\n%s", out)
 	}
@@ -838,6 +841,9 @@ func TestWritableRepositoryBecomesAClone(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, "written")); err == nil {
 		t.Fatal("the agent wrote into the checkout: a rw repository mount must be a clone")
+	}
+	if !strings.Contains(out, "--clone-from "+e.lastID) {
+		t.Errorf("a clone with uncommitted changes must be kept and named for --clone-from:\n%s", out)
 	}
 }
 

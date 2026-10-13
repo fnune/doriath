@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/fnune/girdle/internal/ca"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 const desktopGit = "user.name\nTest User\x00user.email\nf@example.org\x00user.signingkey\n/home/u/.ssh/id_ed25519.pub\x00" +
@@ -89,5 +93,23 @@ func TestCABundle(t *testing.T) {
 	}
 	if _, err := CABundle(func(string) string { return "" }, func(string) ([]byte, error) { return nil, fs.ErrNotExist }, nil); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestJavaTrustStoreHoldsTheBundle(t *testing.T) {
+	authority, err := ca.New([]string{"github.com"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := JavaTrustStore(append([]byte("not a certificate\n"), authority.CertPEM()...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	certs, err := pkcs12.DecodeTrustStore(store, JavaTrustStorePassword)
+	if err != nil || len(certs) != 1 || !certs[0].IsCA {
+		t.Fatalf("trust store = %v, %v", certs, err)
+	}
+	if _, err := JavaTrustStore([]byte("nothing")); err == nil {
+		t.Error("an empty trust store would make Java trust nothing")
 	}
 }

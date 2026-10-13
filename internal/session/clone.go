@@ -200,15 +200,61 @@ func (s *Session) landClones(ctx context.Context) []string {
 				}
 			}
 			n, err := s.git(ctx, "-C", c.source, "rev-list", "--count", c.base+".."+ref)
-			if err != nil || n == "0" {
+			if err != nil {
+				continue
+			}
+			if n == "0" {
+				// Nothing new: a ref at the base would only clutter the repository.
+				_, _ = s.git(ctx, "-C", c.source, "update-ref", "-d", ref)
 				continue
 			}
 			lines = append(lines, fmt.Sprintf("girdle: %s has %s new commit(s) in %s. Review: git -C %s log -p %s..%s",
 				strings.TrimPrefix(ref, c.refPrefix), n, filepath.Base(c.source), c.source, c.base[:12], ref))
 		}
 		s.log.Write("clone-landed", map[string]string{"source": c.source, "refs": c.refPrefix})
+		lines = append(lines, s.retireClone(ctx, c)...)
 	}
 	return lines
+}
+
+// retireClone deletes a clone whose work has all landed, since each one is a
+// full checkout and they add up. A clone with uncommitted changes stays, for
+// girdle run --clone-from.
+func (s *Session) retireClone(ctx context.Context, c repoClone) []string {
+	status, err := s.gitInClone(ctx, c.dir, "status", "--porcelain", "--untracked-files=normal")
+	if err != nil {
+		return []string{fmt.Sprintf("girdle: kept %s: could not check it for uncommitted changes: %v", c.dir, err)}
+	}
+	if status != "" {
+		return []string{fmt.Sprintf("girdle: %s has uncommitted changes in %s. Resume them with: girdle run --clone-from %s", filepath.Base(c.source), c.dir, s.cloneOwner())}
+	}
+	if err := os.RemoveAll(c.dir); err != nil {
+		return []string{fmt.Sprintf("girdle: could not remove %s: %v", c.dir, err)}
+	}
+	_ = os.Remove(c.dir + ".base")
+	s.log.Write("clone-removed", map[string]string{"dir": c.dir})
+	return nil
+}
+
+func (s *Session) cloneOwner() string {
+	if s.req.CloneFrom != "" {
+		return s.req.CloneFrom
+	}
+	return s.id
+}
+
+// gitInClone runs git in a repository the agent could change, so neither
+// your git config nor the clone's may name programs for it to run.
+func (s *Session) gitInClone(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, s.deps.Git, append([]string{"-C", dir, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"}, args...)...)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func isObjectID(s string) bool {

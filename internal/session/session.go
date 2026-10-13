@@ -297,6 +297,13 @@ func (s *Session) startProxy() error {
 	if err := writeFile(s.jailPath("ca-bundle.pem"), bundle, 0o644); err != nil {
 		return err
 	}
+	store, err := JavaTrustStore(bundle)
+	if err != nil {
+		return err
+	}
+	if err := writeFile(s.jailPath("truststore.p12"), store, 0o644); err != nil {
+		return err
+	}
 	srv := proxy.New(proxy.Config{
 		Session:       s.id,
 		Profile:       p.Name,
@@ -480,6 +487,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		// intercepted hosts has no CA, and Bun-based tools such as Claude
 		// Code fail every connection when this file holds no certificate.
 		"NODE_EXTRA_CA_CERTS": jail.InJail("ca-bundle.pem"),
+		"JAVA_TOOL_OPTIONS":   javaToolOptions(p.Env.Set["JAVA_TOOL_OPTIONS"]),
 		"GIT_CONFIG_GLOBAL":   jail.InJail("gitconfig"),
 		"JJ_CONFIG":           JJConfigPath(home, osHost{}.Kind, jail.InJail("jj.toml")),
 		"GIRDLE_SESSION":      s.id,
@@ -881,4 +889,15 @@ func (s *Session) writeEntry(pid int, spec jail.Spec) {
 	if err != nil {
 		s.log.Write("entry-error", map[string]string{"error": err.Error()})
 	}
+}
+
+// javaToolOptions points every JVM in the jail at the session trust store,
+// after any options the profile sets.
+func javaToolOptions(profile string) string {
+	opts := "-Djavax.net.ssl.trustStore=" + jail.InJail("truststore.p12") +
+		" -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword
+	if profile != "" {
+		return profile + " " + opts
+	}
+	return opts
 }

@@ -2,12 +2,16 @@ package session
 
 import (
 	"bytes"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 // gitDenied are git settings from the desktop that must not reach the jail:
@@ -169,6 +173,37 @@ func CABundle(getenv func(string) string, read func(string) ([]byte, error), ses
 		return append(out, sessionCA...), nil
 	}
 	return nil, errors.New("no system CA bundle found: set SSL_CERT_FILE")
+}
+
+// JavaTrustStorePassword opens the Java trust store. It protects nothing,
+// since the store holds only public certificates, but Java wants one.
+const JavaTrustStorePassword = "changeit"
+
+// JavaTrustStore turns a PEM bundle into a PKCS12 trust store, because Java,
+// and so Bazel, Gradle and Maven, reads neither SSL_CERT_FILE nor PEM files.
+func JavaTrustStore(bundle []byte) ([]byte, error) {
+	var certs []*x509.Certificate
+	for rest := bundle; ; {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			// System bundles carry the odd certificate Go cannot parse;
+			// leaving it out only means Java does not trust that root.
+			continue
+		}
+		certs = append(certs, cert)
+	}
+	if len(certs) == 0 {
+		return nil, errors.New("the CA bundle holds no certificate")
+	}
+	return pkcs12.Modern.EncodeTrustStore(certs, JavaTrustStorePassword)
 }
 
 func writeFile(path string, data []byte, mode os.FileMode) error {
