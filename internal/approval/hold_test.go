@@ -2,6 +2,7 @@ package approval
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -85,5 +86,75 @@ func TestHoldJoinsAnIdenticalRequest(t *testing.T) {
 func TestWaitForAnUnknownRequest(t *testing.T) {
 	if _, err := holdSetup().Wait(context.Background(), "nope"); err == nil {
 		t.Fatal("want an error")
+	}
+}
+
+func TestWaitScopeAnswersWithTheNewestDecision(t *testing.T) {
+	m, _, _, _ := setup()
+	for _, verdict := range []Verdict{VerdictAllow, VerdictDeny} {
+		got := submitAsync(m, "rule egress a.example")
+		if err := m.Decide(waitPending(t, m).ID, Decision{Verdict: verdict, Lasting: LastingOnce}); err != nil {
+			t.Fatal(err)
+		}
+		<-got
+	}
+	if d, err := m.WaitScope(context.Background(), "rule egress a.example"); err != nil || d.Verdict != VerdictDeny {
+		t.Fatalf("WaitScope = %+v, %v", d, err)
+	}
+	if _, err := m.WaitScope(context.Background(), "rule egress b.example"); !errors.Is(err, ErrUnknownRequest) {
+		t.Fatalf("a scope nobody asked about: %v", err)
+	}
+}
+
+func TestWaitScopeWaitsForThePendingRequest(t *testing.T) {
+	m, _, _, _ := setup()
+	submitAsync(m, "path write /src")
+	req := waitPending(t, m)
+	waited := make(chan Decision, 1)
+	go func() {
+		d, _ := m.WaitScope(context.Background(), "path write /src")
+		waited <- d
+	}()
+	if err := m.Decide(req.ID, Decision{Verdict: VerdictAllow, Lasting: LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	if d := <-waited; d.Verdict != VerdictAllow {
+		t.Fatalf("WaitScope = %+v", d)
+	}
+}
+
+func TestWaitStopsWhenTheCallerGivesUp(t *testing.T) {
+	m, _, _, _ := setup()
+	submitAsync(m, "s")
+	req := waitPending(t, m)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d, err := m.Wait(ctx, req.ID)
+	if err != nil || d.Verdict != VerdictNone || d.Reason != "stopped waiting" {
+		t.Fatalf("Wait = %+v, %v", d, err)
+	}
+	if len(m.Pending()) != 1 {
+		t.Fatal("giving up on a wait must leave the request pending")
+	}
+}
+
+func TestHistoryKeepsDecidedAndExpiredRequestsInOrder(t *testing.T) {
+	m, clock, _, _ := setup()
+	decided := submitAsync(m, "first")
+	if err := m.Decide(waitPending(t, m).ID, Decision{Verdict: VerdictDeny}); err != nil {
+		t.Fatal(err)
+	}
+	<-decided
+	expired := submitAsync(m, "second")
+	waitPending(t, m)
+	clock.after <- clock.Now()
+	<-expired
+	h := m.History()
+	if len(h) != 2 || h[0].Request.Scope != "first" || h[0].Decision.Verdict != VerdictDeny || h[1].Request.Scope != "second" || h[1].Decision.Verdict != VerdictNone {
+		t.Fatalf("history = %+v", h)
+	}
+	h[0].Request.Scope = "changed"
+	if m.History()[0].Request.Scope != "first" {
+		t.Fatal("History must return a copy")
 	}
 }
