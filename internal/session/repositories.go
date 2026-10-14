@@ -92,6 +92,11 @@ func (s *Session) startRepositories(ctx context.Context) error {
 		}
 	}
 	rec := &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
+	for _, m := range s.req.Profile.Mounts {
+		if m.Mode == profile.ModeWrite {
+			rec.Writable = append(rec.Writable, m.Path)
+		}
+	}
 	if err := vcs.Start(ctx, s.vcsTools(), filepath.Join(s.deps.Paths.Backups(), s.id), rec, repos); err != nil {
 		return err
 	}

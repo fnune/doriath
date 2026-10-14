@@ -178,3 +178,70 @@ func TestFinishDropsForgedLFSObjects(t *testing.T) {
 		t.Errorf("output: %s", out.String())
 	}
 }
+
+func TestFinishRepairsAgentWorktrees(t *testing.T) {
+	r := repo(t)
+	trees := filepath.Join(filepath.Dir(r), "trees")
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	backup := filepath.Join(t.TempDir(), "b")
+	rec := &Record{Session: "s1", Writable: []string{trees}}
+	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"redirected", "replaced"} {
+		git(t, r, "worktree", "add", "-q", filepath.Join(trees, name), "-b", name)
+	}
+	evil := filepath.Join(t.TempDir(), "evil.git")
+	if err := os.WriteFile(filepath.Join(trees, "redirected", ".git"), []byte("gitdir: "+evil+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(trees, "replaced", ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(trees, "replaced", ".git", "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r, ".git", "worktrees", "redirected", "config.worktree"), []byte("[core]\nfsmonitor = /tmp/x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"redirected", "replaced"} {
+		if !pointsTo(filepath.Join(trees, name), filepath.Join(r, ".git", "worktrees", name)) {
+			t.Errorf("%s still points elsewhere:\n%s", name, out.String())
+		}
+	}
+	if _, err := os.Stat(filepath.Join(trees, "replaced", ".git.girdle-s1", "hooks")); err != nil {
+		t.Error("the agent's .git directory must be kept aside, not deleted")
+	}
+	if _, err := os.Stat(filepath.Join(r, ".git", "worktrees", "redirected", "config.worktree")); !os.IsNotExist(err) {
+		t.Error("a planted config.worktree stays")
+	}
+	if got := git(t, filepath.Join(trees, "redirected"), "rev-parse", "--abbrev-ref", "HEAD"); got != "redirected" {
+		t.Errorf("git in the repaired worktree: %q", got)
+	}
+}
+
+func TestFinishLeavesWorktreesOutsideTheSessionAlone(t *testing.T) {
+	r := repo(t)
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	backup := filepath.Join(t.TempDir(), "b")
+	rec := &Record{Session: "s1", Writable: []string{filepath.Join(t.TempDir(), "elsewhere")}}
+	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(filepath.Dir(r), "yours")
+	git(t, r, "worktree", "add", "-q", other, "-b", "yours")
+	if err := os.WriteFile(filepath.Join(other, ".git"), []byte("gitdir: /somewhere/else\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(other, ".git")); string(data) != "gitdir: /somewhere/else\n" || !strings.Contains(out.String(), "left it alone") {
+		t.Fatalf("a checkout outside the session must not be rewritten: %q\n%s", data, out.String())
+	}
+}

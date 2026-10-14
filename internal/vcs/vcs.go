@@ -37,6 +37,9 @@ type Record struct {
 	Started  time.Time `json:"started"`
 	Finished bool      `json:"finished"`
 	Repos    []Repo    `json:"repos"`
+	// Writable are the host paths the session could write, where the agent
+	// could have put a worktree's checkout.
+	Writable []string `json:"writable"`
 }
 
 type Repo struct {
@@ -290,10 +293,8 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 				continue
 			}
 			r.AgentWorktrees = append(r.AgentWorktrees, name)
-			if fixed, err := resetCommondir(filepath.Join(r.GitDir, "worktrees", name)); err != nil {
+			if err := repairWorktree(filepath.Join(r.GitDir, "worktrees", name), rec, r.Path, w); err != nil {
 				errs = append(errs, err)
-			} else if fixed {
-				fmt.Fprintf(w, "girdle: the agent pointed worktree %s of %s at another repository; girdle pointed it back\n", name, r.Path)
 			}
 		}
 		report(w, rec.Session, r)
@@ -485,6 +486,54 @@ func sha256File(p string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// repairWorktree makes an agent worktree safe to use with git on the host.
+// Its admin directory and its checkout's .git file are both the agent's
+// work, and git follows them: to another store, whose config and hooks it
+// runs, or to config.worktree settings such as core.fsmonitor.
+func repairWorktree(admin string, rec *Record, repo string, w io.Writer) error {
+	name := filepath.Base(admin)
+	if fixed, err := resetCommondir(admin); err != nil {
+		return err
+	} else if fixed {
+		fmt.Fprintf(w, "girdle: the agent pointed worktree %s of %s at another repository; girdle pointed it back\n", name, repo)
+	}
+	if err := os.Remove(filepath.Join(admin, "config.worktree")); err == nil {
+		fmt.Fprintf(w, "girdle: removed the config the agent wrote for worktree %s of %s\n", name, repo)
+	}
+	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+	if err != nil {
+		return nil
+	}
+	checkout := filepath.Dir(resolve(admin, strings.TrimSpace(string(data))))
+	if !slices.ContainsFunc(rec.Writable, func(root string) bool { return within(checkout, root) }) {
+		fmt.Fprintf(w, "girdle: worktree %s of %s says it is at %s, where the session could not write; girdle left it alone, so check it before you use it\n", name, repo, checkout)
+		return nil
+	}
+	if pointsTo(checkout, admin) {
+		return nil
+	}
+	dotgit := filepath.Join(checkout, ".git")
+	if info, err := os.Lstat(dotgit); err == nil && !info.Mode().IsRegular() {
+		aside := dotgit + ".girdle-" + rec.Session
+		if err := os.Rename(dotgit, aside); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "girdle: moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
+	} else if !errors.Is(err, fs.ErrNotExist) && err != nil {
+		return err
+	}
+	if err := os.WriteFile(dotgit, []byte("gitdir: "+admin+"\n"), 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "girdle: pointed worktree %s back at %s\n", checkout, repo)
+	return nil
+}
+
+func within(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
 // resetCommondir points an agent worktree's admin directory back at its own
