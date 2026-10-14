@@ -82,6 +82,25 @@ func helper(mode, allowed, denied string) error {
 			return fmt.Errorf("read denied dir: %q, %w", data, err)
 		}
 		return nil
+	case "file":
+		file := filepath.Join(allowed, "new")
+		if err := os.WriteFile(file, []byte("before"), 0o600); err != nil {
+			return err
+		}
+		runtime.LockOSThread()
+		if err := RestrictWrites([]string{file}); err != nil {
+			return err
+		}
+		if err := os.WriteFile(file, []byte("ok"), 0o600); err != nil {
+			return fmt.Errorf("overwrite the allowed file: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(allowed, "sibling"), []byte("no"), 0o600); !errors.Is(err, unix.EACCES) {
+			return fmt.Errorf("create next to the allowed file: got %w, want EACCES", err)
+		}
+		if err := os.WriteFile(filepath.Join(denied, "new"), []byte("no"), 0o600); !errors.Is(err, unix.EACCES) {
+			return fmt.Errorf("write to denied dir: got %w, want EACCES", err)
+		}
+		return nil
 	case "exec":
 		sh, err := exec.LookPath("sh")
 		if err != nil {
@@ -125,6 +144,33 @@ func runHelper(t *testing.T, mode string) string {
 
 func TestRestrictWrites(t *testing.T) {
 	runHelper(t, "restrict")
+}
+
+func TestRestrictWritesToASingleFile(t *testing.T) {
+	runHelper(t, "file")
+}
+
+func TestRestrictWritesRefusesAPathItCannotOpen(t *testing.T) {
+	if _, err := ABI(); errors.Is(err, ErrUnsupported) {
+		t.Skip(err)
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root opens any path")
+	}
+	locked := filepath.Join(t.TempDir(), "locked")
+	if err := os.Mkdir(locked, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	// The error comes before the ruleset applies, so this process stays
+	// unrestricted.
+	err := RestrictWrites([]string{filepath.Join(locked, "inside")})
+	if !errors.Is(err, unix.EACCES) || !strings.Contains(err.Error(), "inside") {
+		t.Fatalf("err = %v", err)
+	}
 }
 
 func TestExec(t *testing.T) {
