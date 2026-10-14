@@ -300,7 +300,7 @@ func TestComplete(t *testing.T) {
 	receive(t, decided)
 }
 
-func TestClean(t *testing.T) {
+func TestCleanCaches(t *testing.T) {
 	p := testPaths(t)
 	writeProfile(t, p, "kitchen", "")
 	cache := filepath.Join(p.AgentCache("kitchen"), "go")
