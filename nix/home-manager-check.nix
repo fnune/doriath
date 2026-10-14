@@ -28,7 +28,6 @@ let
   home = homeWith {
     enable = true;
     approvals.desktop = false;
-    zsh.agentShims = [ "claude" ];
     modules.team = {
       modules = [ "base" ];
       egress.allow = [ "team.example" ];
@@ -39,7 +38,6 @@ let
         "base"
         "team"
       ];
-      match = [ "~/Development/app" ];
       mounts = [
         {
           path = "~/Documents/notes";
@@ -114,7 +112,8 @@ pkgs.runCommand "girdle-home-manager-module"
     grep -qx 'desktop = false' $config/config.toml || { cat $config/config.toml; exit 1; }
     ! grep -q '^packages' $config/profiles/work.toml || { echo "packages is not a profile key"; exit 1; }
 
-    grep -q 'function claude()' $homeFiles/.zshrc || { echo "no claude shim in .zshrc"; exit 1; }
+    ! grep -q '^match' $config/profiles/work.toml || { echo "match is not a profile key"; exit 1; }
+    grep -q 'completion zsh' $homeFiles/.zshrc || { echo "no completion in .zshrc"; exit 1; }
 
     touch $out
   ''

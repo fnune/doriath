@@ -58,12 +58,6 @@ let
         ];
         description = "Built-in or user modules this profile builds on.";
       };
-      match = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [ ];
-        example = [ "~/Development/project" ];
-        description = "Directories where girdle run picks this profile without --profile.";
-      };
       secrets = lib.mkOption {
         type = lib.types.attrsOf secretType;
         default = { };
@@ -136,16 +130,6 @@ in
         defaultText = lib.literalExpression "config.programs.zsh.enable";
         description = "Load girdle's zsh completion.";
       };
-      agentShims = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [ ];
-        example = [ "claude" ];
-        description = ''
-          Commands to run through girdle wherever a profile matches the
-          working directory. Each becomes a zsh function; setting
-          GIRDLE_BYPASS=1 runs the command directly.
-        '';
-      };
     };
 
     approvals.desktop = lib.mkOption {
@@ -180,22 +164,9 @@ in
 
     home.packages = [ cfg.package ];
 
-    programs.zsh.initContent = lib.mkMerge [
-      (lib.mkIf cfg.zsh.completion ''
-        source <(${lib.getExe cfg.package} completion zsh)
-      '')
-      (lib.mkIf (cfg.zsh.agentShims != [ ]) (
-        lib.concatMapStrings (agent: ''
-          function ${agent}() {
-            if [[ -z $GIRDLE_BYPASS ]] && ${lib.getExe cfg.package} profiles which -q; then
-              ${lib.getExe cfg.package} run -- ${agent} "$@"
-            else
-              command ${agent} "$@"
-            fi
-          }
-        '') cfg.zsh.agentShims
-      ))
-    ];
+    programs.zsh.initContent = lib.mkIf cfg.zsh.completion ''
+      source <(${lib.getExe cfg.package} completion zsh)
+    '';
 
     xdg.configFile =
       {

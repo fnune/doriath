@@ -71,33 +71,17 @@ allow = ["example.com"]
 	}
 }
 
-func TestProfilesWhich(t *testing.T) {
-	p := testPaths(t)
-	work := filepath.Join(p.Home, "Development", "app")
-	writeProfile(t, p, "app", `match = ["~/Development/app"]`)
-
-	if out, err := profiles(t, "which", filepath.Join(work, "src")); err != nil || out != "app\n" {
-		t.Errorf("which = %q, %v", out, err)
-	}
-	if out, err := profiles(t, "which", "-q", work); err != nil || out != "" {
-		t.Errorf("which -q on a match = %q, %v", out, err)
-	}
-	if out, err := profiles(t, "which", "-q", p.Home); !errors.Is(err, errQuiet) || out != "" {
-		t.Errorf("which -q without a match = %q, %v", out, err)
-	}
-	if _, err := profiles(t, "which", p.Home); err == nil || !strings.Contains(err.Error(), "no profile matches") {
-		t.Errorf("which without a match = %v", err)
-	}
-}
-
 func TestRunExitStatus(t *testing.T) {
 	p := testPaths(t)
-	writeProfile(t, p, "app", `match = ["~/app"]`)
-	if code := run([]string{"profiles", "which", "-q", filepath.Join(p.Home, "app")}); code != 0 {
-		t.Errorf("which -q on a match exits %d", code)
+	writeProfile(t, p, "app", `modules = ["base"]`)
+	if code := run([]string{"profiles", "show", "app"}); code != 0 {
+		t.Errorf("show of a profile exits %d", code)
 	}
-	if code := run([]string{"profiles", "which", "-q", p.Home}); code != 1 {
-		t.Errorf("which -q without a match exits %d", code)
+	if code := run([]string{"profiles", "show", "missing"}); code != 1 {
+		t.Errorf("show of a missing profile exits %d", code)
+	}
+	if code := run([]string{"run", "--", "true"}); code != 2 {
+		t.Errorf("run without --profile exits %d", code)
 	}
 	if code := run([]string{"no-such-command"}); code != 2 {
 		t.Errorf("unknown command exits %d", code)

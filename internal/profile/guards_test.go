@@ -64,7 +64,6 @@ func TestLoadAcceptsEdgeSettings(t *testing.T) {
 
 func TestLocalLayerCannotWidenTheProfile(t *testing.T) {
 	for name, local := range map[string]string{
-		"match":   "match = [\"/\"]",
 		"modules": "modules = [\"base\"]",
 		"name":    "name = \"other\"",
 	} {

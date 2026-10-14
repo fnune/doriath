@@ -20,7 +20,6 @@ A profile says what one kind of work can reach. Save this as `~/.config/girdle/p
 ```toml
 description = "My app: Go API and React frontend"
 modules = ["base", "go", "node", "playwright", "github", "claude"]
-match = ["~/Development/my-app"]
 
 # The agent works on a clone. Its branches come back as refs/girdle/...
 [[mounts]]
@@ -39,11 +38,11 @@ command = ["rbw", "get", "github-my-app"]
 memory = "16G"
 ```
 
-Then run the agent from a directory that the profile matches:
+Then run the agent, naming the profile:
 
 ```sh
 cd ~/Development/my-app
-girdle run -- claude
+girdle run --profile my-app -- claude
 ```
 
 The modules hold the usual hosts, caches and rules for a toolchain: `go` allows the Go module proxy, `github` allows reads and routine pull request work and holds merges, releases and pushes for approval. [Configuration](docs/configuration.md) lists every key.

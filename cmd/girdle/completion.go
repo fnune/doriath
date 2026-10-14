@@ -42,7 +42,7 @@ _girdle() {
       fi ;;
     profiles)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list show edit which
+        _values 'subcommand' list show edit allow
       else
         _values 'profile' $(girdle __complete profiles)
       fi ;;

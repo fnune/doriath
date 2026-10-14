@@ -367,7 +367,7 @@ func FuzzLoad(f *testing.F) {
 	}
 	f.Add([]byte(fuzzGraphQLHost), []byte(""))
 	f.Add([]byte(graphQLProfile), []byte(`[egress]`+"\n"+`allow = ["*.example.com"]`))
-	f.Add([]byte("modules = [\"m\"]\nmatch = [\"~/x\"]\n[[mounts]]\npath = \"~/x\"\nmode = \"rw\"\n[[caches]]\npath = \"~/.cache/go\"\n[secrets.k]\nfile = \"~/k\"\n[signing]\nkey = \"k\"\n"),
+	f.Add([]byte("modules = [\"m\"]\n[[mounts]]\npath = \"~/x\"\nmode = \"rw\"\n[[caches]]\npath = \"~/.cache/go\"\n[secrets.k]\nfile = \"~/k\"\n[signing]\nkey = \"k\"\n"),
 		[]byte("[[mounts]]\npath = \"/nix/store\"\nmode = \"clone\"\n[limits]\nmemory = \"50%\"\ncpu = \"200%\"\n"))
 	f.Fuzz(func(t *testing.T, profileText, moduleText []byte) {
 		l := &Loader{

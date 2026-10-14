@@ -13,7 +13,6 @@ type layer struct {
 	Name        string                 `toml:"name"`
 	Description string                 `toml:"description"`
 	Modules     []string               `toml:"modules"`
-	Match       []string               `toml:"match"`
 	Mounts      []mountLayer           `toml:"mounts"`
 	Caches      []cacheLayer           `toml:"caches"`
 	Devices     []string               `toml:"devices"`

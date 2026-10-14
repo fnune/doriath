@@ -49,7 +49,6 @@ summary = "Create a release"
 	profiles := fstest.MapFS{
 		"project.toml": file(`
 modules = ["github", "base"]
-match = ["~/Development/project"]
 
 [secrets.github]
 command = ["rbw", "get", "github-project"]
@@ -138,10 +137,9 @@ func TestLoadRejects(t *testing.T) {
 			modules: fstest.MapFS{"a.toml": file(`modules = ["b"]`), "b.toml": file(`modules = ["a"]`)},
 			want:    "module cycle",
 		},
-		"module with match": {
-			profile: `modules = ["a"]`,
-			modules: fstest.MapFS{"a.toml": file(`match = ["/x"]`)},
-			want:    "belong in profiles",
+		"match, which profiles no longer have": {
+			profile: `match = ["~/x"]`,
+			want:    "unknown key",
 		},
 		"module with secrets": {
 			profile: `modules = ["a"]`,
@@ -160,25 +158,6 @@ func TestLoadRejects(t *testing.T) {
 				t.Fatalf("err = %v, want it to contain %q", err, tc.want)
 			}
 		})
-	}
-}
-
-func TestFindPrefersLongestMatch(t *testing.T) {
-	profiles := fstest.MapFS{
-		"dev.toml":      file(`match = ["~/Development"]`),
-		"project.toml": file(`match = ["~/Development/project"]`),
-	}
-	l := loader(profiles, fstest.MapFS{})
-	p, err := l.Find("/home/u/Development/project/site")
-	if err != nil || p.Name != "project" {
-		t.Fatalf("Find = %v, %v", p, err)
-	}
-	p, err = l.Find("/home/u/Development/other")
-	if err != nil || p.Name != "dev" {
-		t.Fatalf("Find = %v, %v", p, err)
-	}
-	if _, err := l.Find("/home/u/Development-other"); err == nil {
-		t.Fatal("a sibling directory with a shared prefix must not match")
 	}
 }
 

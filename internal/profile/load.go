@@ -88,32 +88,6 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	return p, nil
 }
 
-// Find returns the profile whose match paths contain dir, preferring the
-// longest match.
-func (l *Loader) Find(dir string) (*Profile, error) {
-	names, err := l.Names()
-	if err != nil {
-		return nil, err
-	}
-	var best *Profile
-	bestLen := -1
-	for _, name := range names {
-		p, err := l.Load(name)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range p.Match {
-			if within(dir, m) && len(m) > bestLen {
-				best, bestLen = p, len(m)
-			}
-		}
-	}
-	if best == nil {
-		return nil, fmt.Errorf("no profile matches %s: pass --profile or add the directory to a profile's match list", dir)
-	}
-	return best, nil
-}
-
 // exposesTooMuch refuses mounts that would undo the jail in any mode:
 // reading is what they expose.
 func (b *builder) exposesTooMuch(path string) error {
@@ -147,8 +121,8 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		if err != nil {
 			return err
 		}
-		if ly.Name != "" || len(ly.Match) > 0 || len(ly.Secrets) > 0 {
-			return fmt.Errorf("module %q: name, match and secrets belong in profiles", name)
+		if ly.Name != "" || len(ly.Secrets) > 0 {
+			return fmt.Errorf("module %q: name and secrets belong in profiles", name)
 		}
 		if err := l.collect(ly.Modules, out, append(stack, name), done); err != nil {
 			return err
@@ -175,8 +149,8 @@ func (l *Loader) localLayer(name string) (*layer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if ly.Name != "" || len(ly.Match) > 0 || len(ly.Modules) > 0 {
-		return nil, fmt.Errorf("%s: name, match and modules belong in the profile itself", LocalFile(name))
+	if ly.Name != "" || len(ly.Modules) > 0 {
+		return nil, fmt.Errorf("%s: name and modules belong in the profile itself", LocalFile(name))
 	}
 	return &ly, nil
 }
@@ -394,14 +368,6 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Hardening:       b.harden,
 		Limits:          b.limits,
 		Secrets:         map[string]secret.Backend{},
-	}
-	for _, m := range top.Match {
-		path, err := b.expand(m)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("match: %w", err))
-			continue
-		}
-		p.Match = append(p.Match, path)
 	}
 	for _, m := range b.mounts {
 		path, err := b.expand(m.Path)

@@ -402,9 +402,6 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return nil
 	}
-	if args[0] == "which" {
-		return profilesWhich(l, args[1:], stdout)
-	}
 	if args[0] == "allow" && len(args) >= 3 {
 		if _, err := l.Load(args[1]); err != nil {
 			return err
@@ -429,7 +426,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(prof)
 	}
-	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME | which [-q] [DIR]]")
+	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]")
 }
 
 func cmdDoctor(args []string, w io.Writer) int {
@@ -599,32 +596,6 @@ func cmdClean(args []string, w io.Writer) error {
 	return nil
 }
 
-func profilesWhich(l *profile.Loader, args []string, w io.Writer) error {
-	flags := flag.NewFlagSet("which", flag.ContinueOnError)
-	quiet := flags.Bool("q", false, "print nothing, only set the exit status")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	dir := flags.Arg(0)
-	if dir == "" {
-		var err error
-		if dir, err = os.Getwd(); err != nil {
-			return err
-		}
-	}
-	p, err := l.Find(dir)
-	if err != nil {
-		if *quiet {
-			return errQuiet
-		}
-		return err
-	}
-	if !*quiet {
-		fmt.Fprintln(w, p.Name)
-	}
-	return nil
-}
-
 type intList []int
 
 func (l *intList) String() string { return fmt.Sprint(*l) }
@@ -692,7 +663,6 @@ func cmdSandboxExec(args []string) error {
 
 const profileTemplate = `description = ""
 modules = ["base", "claude"]
-match = []
 
 [[mounts]]
 path = "~/Development/my-project"

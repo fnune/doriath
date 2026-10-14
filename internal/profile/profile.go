@@ -240,7 +240,6 @@ type Claude struct {
 type Profile struct {
 	Name        string
 	Description string
-	Match       []string
 	Mounts      []Mount
 	Caches      []Cache
 	Devices     []string

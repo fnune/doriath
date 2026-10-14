@@ -43,7 +43,7 @@ Usage:
   girdle clean PROFILE
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  girdle profiles [list | show NAME | edit NAME | which [-q] [DIR] | allow NAME HOST...]
+  girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]
   girdle doctor [--secrets]
   girdle completion zsh
   girdle version
@@ -109,9 +109,6 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "girdle: unknown command %q\n\n%s", args[0], usage)
 		return 2
 	}
-	if errors.Is(err, errQuiet) {
-		return 1
-	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "girdle:", err)
 		if code == 0 {
@@ -120,9 +117,6 @@ func run(args []string) int {
 	}
 	return code
 }
-
-// errQuiet fails a command that has nothing to say, such as profiles which -q.
-var errQuiet = errors.New("quiet failure")
 
 func paths() (config.Paths, error) { return config.DefaultPaths(os.Getenv) }
 
@@ -136,7 +130,7 @@ func loader(p config.Paths) *profile.Loader {
 
 func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	name := flags.String("profile", "", "profile to use (default: the one whose match paths contain the working directory)")
+	name := flags.String("profile", "", "the profile to use (required)")
 	cloneFrom := flags.String("clone-from", "", "reuse the clones of an earlier session, to resume its work")
 	learn := flags.Bool("learn", false, "let egress reach any public host, and list the hosts the profile does not allow when the session ends")
 	if err := flags.Parse(args); err != nil {
@@ -157,13 +151,10 @@ func cmdRun(args []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	l := loader(p)
-	var prof *profile.Profile
-	if *name != "" {
-		prof, err = l.Load(*name)
-	} else {
-		prof, err = l.Find(cwd)
+	if *name == "" {
+		return 2, errors.New("run: name the profile, for example: girdle run --profile my-app -- claude")
 	}
+	prof, err := loader(p).Load(*name)
 	if err != nil {
 		return 1, err
 	}
