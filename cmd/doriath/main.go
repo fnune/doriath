@@ -250,6 +250,7 @@ func cmdRun(args []string) (int, error) {
 		JJ:          lookPath("jj"),
 		HostWait:    hostWait(user.Approvals, notifier),
 		SystemdRun:  lookPath("systemd-run"),
+		Promote:     promote.Writable,
 	}
 	finishInterrupted(p, deps.Stderr)
 	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Current: start, Command: command, Learn: *learn})

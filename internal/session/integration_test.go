@@ -36,6 +36,7 @@ import (
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/notify"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/vcstools"
@@ -296,6 +297,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		HostWait:      e.hostWait,
 		SystemdRun:    e.systemdRun,
 		Resolver:      e.resolver,
+		Promote:       promote.Writable,
 	}
 	cwd := e.work
 	if e.cwd != "" {

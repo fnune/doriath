@@ -36,6 +36,7 @@ import (
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/jailinit"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/proxy"
 	"github.com/fnune/doriath/internal/seccomp"
 	"github.com/fnune/doriath/internal/secret"
@@ -101,6 +102,8 @@ type Deps struct {
 	// UpstreamRoots verifies upstream servers in tests. Nil means the system
 	// roots.
 	UpstreamRoots *x509.CertPool
+	// Promote makes a path writable in the running jail.
+	Promote func(context.Context, promote.Request) error
 }
 
 type Request struct {

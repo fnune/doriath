@@ -80,7 +80,7 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	if err := jail.CheckLinks(asWriteMount, osHost{}, guards...); err != nil {
 		return err
 	}
-	err = promote.Writable(ctx, promote.Request{
+	err = s.deps.Promote(ctx, promote.Request{
 		Reaper:  reaper,
 		JailExe: jail.ExePath,
 		HostExe: s.deps.Exe,
