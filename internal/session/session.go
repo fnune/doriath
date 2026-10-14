@@ -642,7 +642,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		for _, prog := range slices.Sorted(maps.Keys(by)) {
 			fmt.Fprintf(s.deps.Stderr, "  %s: %s\n", prog, strings.Join(by[prog], " "))
 		}
-		fmt.Fprintf(s.deps.Stderr, "To allow them for every program: girdle profiles allow %s %s\nTo allow them for one program, list them under [[egress.programs]].\n", s.req.Profile.Name, strings.Join(learned, " "))
+		fmt.Fprintf(s.deps.Stderr, "%s\nTo allow them for one program only, list them under [[egress.programs]] instead.\n", strings.Replace(keepHint(s.req.Profile.Name, learned), "To keep it for later sessions, add", "To allow them, add", 1))
 	}
 	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
 		fmt.Fprintln(s.deps.Stderr, line)

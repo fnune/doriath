@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -98,7 +99,7 @@ func (s *Session) proposeHost(e proxy.Event) {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindRule,
 		Summary: fmt.Sprintf("Allow %s for profile %s?", e.Host, s.req.Profile.Name),
-		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow.", who, e.Host) + uploadWarning(e.Host),
+		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, e.Host) + uploadWarning(e.Host) + "\n" + keepHint(s.req.Profile.Name, []string{e.Host}),
 		Scope:   "rule egress " + e.Host,
 	}
 	s.manager.Propose(req, ruleTTL, func(d approval.Decision) {
@@ -106,14 +107,17 @@ func (s *Session) proposeHost(e proxy.Event) {
 			return
 		}
 		s.policy.allow(e.Host)
-		if d.Lasting == approval.LastingProfile {
-			if err := profile.AddEgressHost(s.deps.Paths.Profiles(), s.req.Profile.Name, e.Host); err != nil {
-				s.log.Write("rule-error", map[string]string{"host": e.Host, "error": err.Error()})
-				return
-			}
-			s.log.Write("rule-added", map[string]string{"host": e.Host, "file": profile.LocalFile(s.req.Profile.Name)})
-		}
 	})
+}
+
+// keepHint says how to keep hosts for later sessions. girdle does not edit
+// profiles: they may come from nix, and you decide their shape.
+func keepHint(profile string, hosts []string) string {
+	quoted := make([]string, len(hosts))
+	for i, h := range hosts {
+		quoted[i] = strconv.Quote(h)
+	}
+	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n[egress]\nallow = [%s]", profile, strings.Join(quoted, ", "))
 }
 
 func publicAddr(ip netip.Addr) bool {

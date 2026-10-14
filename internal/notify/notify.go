@@ -26,7 +26,6 @@ const (
 )
 
 const (
-	actionAddProfile   = "add-profile"
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
@@ -38,7 +37,7 @@ const (
 func Actions(req approval.Request) []string {
 	switch req.Kind {
 	case approval.KindRule:
-		return []string{actionAllowSession, "Allow for this session", actionAddProfile, "Add to profile", actionDeny, "Ignore"}
+		return []string{actionAllowSession, "Allow for this session", actionDeny, "Ignore"}
 	case approval.KindPath:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	}
@@ -62,8 +61,6 @@ func DecisionFor(action string) (approval.Decision, bool) {
 		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "desktop"}, true
 	case actionAllowSession:
 		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}, true
-	case actionAddProfile:
-		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingProfile, By: "desktop"}, true
 	case actionDeny:
 		return approval.Decision{Verdict: approval.VerdictDeny, By: "desktop"}, true
 	}

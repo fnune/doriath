@@ -88,42 +88,6 @@ func TestRunExitStatus(t *testing.T) {
 	}
 }
 
-func TestProfilesAllow(t *testing.T) {
-	p := testPaths(t)
-	writeProfile(t, p, "app", `modules = ["base"]`)
-	local := filepath.Join(p.Profiles(), profile.LocalFile("app"))
-
-	out, err := profiles(t, "allow", "app", "proxy.example.com", "*.cdn.example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != "Added 2 hosts to "+local+".\n" {
-		t.Errorf("allow = %q", out)
-	}
-	if info, err := os.Stat(local); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("local layer: %v, %v", info, err)
-	}
-	prof, err := loader(p).Load("app")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, host := range []string{"proxy.example.com", "x.cdn.example.com"} {
-		if !prof.AllowsHost(host) {
-			t.Errorf("%s is not allowed after profiles allow", host)
-		}
-	}
-
-	if _, err := profiles(t, "allow", "app", "https://bad.example.com/"); err == nil || !strings.Contains(err.Error(), "host pattern") {
-		t.Errorf("a URL is not a host: %v", err)
-	}
-	if _, err := profiles(t, "allow", "missing", "example.com"); err == nil {
-		t.Error("allow for an unknown profile must fail")
-	}
-	if _, err := os.Stat(filepath.Join(p.Profiles(), profile.LocalFile("missing"))); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("allow for an unknown profile wrote a file: %v", err)
-	}
-}
-
 func TestProfilesEdit(t *testing.T) {
 	p := testPaths(t)
 	t.Setenv("VISUAL", "")
@@ -206,10 +170,7 @@ func TestApprovalsAllowFor(t *testing.T) {
 	if err != nil || d.Lasting != approval.LastingUntil || !d.Until.Equal(now.Add(30*time.Minute)) {
 		t.Errorf("30m = %+v, %v", d, err)
 	}
-	if d, err := allowDecision("profile", now); err != nil || d.Lasting != approval.LastingProfile {
-		t.Errorf("profile = %+v, %v", d, err)
-	}
-	for _, bad := range []string{"forever", "-5m", "0s"} {
+	for _, bad := range []string{"forever", "profile", "-5m", "0s"} {
 		if _, err := allowDecision(bad, now); err == nil {
 			t.Errorf("--for %s must fail", bad)
 		}

@@ -3,8 +3,6 @@ package profile
 import (
 	iofs "io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -282,38 +280,6 @@ func TestCredentialBinaries(t *testing.T) {
 	}
 	if !(Credential{}).AllowsBinary("") {
 		t.Error("no list means any program")
-	}
-}
-
-func TestLocalLayer(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "k.toml"), []byte("[egress]\nallow = [\"a.example\"]\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	for _, h := range []string{"pypi.org", "pypi.org", "files.pythonhosted.org"} {
-		if err := AddEgressHost(dir, "k", h); err != nil {
-			t.Fatal(err)
-		}
-	}
-	l := &Loader{Profiles: os.DirFS(dir), Home: "/home/u"}
-	p, err := l.Load("k")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, h := range []string{"a.example", "pypi.org", "files.pythonhosted.org"} {
-		if !p.AllowsHost(h) {
-			t.Errorf("%s not allowed: %v", h, p.Egress.Allow)
-		}
-	}
-	if len(p.Egress.Allow) != 3 {
-		t.Errorf("duplicates: %v", p.Egress.Allow)
-	}
-	names, _ := l.Names()
-	if len(names) != 1 {
-		t.Errorf("the local layer is not a profile of its own: %v", names)
-	}
-	if err := AddEgressHost(dir, "k", "https://bad"); err == nil {
-		t.Error("an invalid host must be refused")
 	}
 }
 

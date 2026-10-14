@@ -58,9 +58,6 @@ const (
 	LastingOnce    Lasting = "once"
 	LastingSession Lasting = "session"
 	LastingUntil   Lasting = "until"
-	// LastingProfile applies a drafted rule to the profile for later
-	// sessions too.
-	LastingProfile Lasting = "profile"
 )
 
 type Decision struct {
@@ -75,7 +72,7 @@ func (d Decision) Validate() error {
 	switch d.Verdict {
 	case VerdictAllow:
 		switch d.Lasting {
-		case LastingOnce, LastingSession, LastingProfile:
+		case LastingOnce, LastingSession:
 			return nil
 		case LastingUntil:
 			if d.Until.IsZero() {
@@ -83,7 +80,7 @@ func (d Decision) Validate() error {
 			}
 			return nil
 		}
-		return fmt.Errorf("lasting %q: want once, session, until or profile", d.Lasting)
+		return fmt.Errorf("lasting %q: want once, session or until", d.Lasting)
 	case VerdictDeny:
 		return nil
 	}

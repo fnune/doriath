@@ -62,27 +62,11 @@ func TestLoadAcceptsEdgeSettings(t *testing.T) {
 	}
 }
 
-func TestLocalLayerCannotWidenTheProfile(t *testing.T) {
-	for name, local := range map[string]string{
-		"modules": "modules = [\"base\"]",
-		"name":    "name = \"other\"",
-	} {
-		t.Run(name, func(t *testing.T) {
-			profiles := fstest.MapFS{"p.toml": file(""), LocalFile("p"): file(local)}
-			modules := fstest.MapFS{"base.toml": file("")}
-			if _, err := loader(profiles, modules).Load("p"); err == nil || !strings.Contains(err.Error(), "belong in the profile itself") {
-				t.Fatalf("err = %v", err)
-			}
-		})
-	}
-}
-
 func TestNamesListsOnlyProfileFiles(t *testing.T) {
 	profiles := fstest.MapFS{
-		"a.toml":       file(""),
-		"a.local.toml": file(""),
-		"README":       file(""),
-		"dir.toml/x":   file(""),
+		"a.toml":     file(""),
+		"README":     file(""),
+		"dir.toml/x": file(""),
 	}
 	names, err := loader(profiles, fstest.MapFS{}).Names()
 	if err != nil {

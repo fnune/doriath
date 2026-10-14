@@ -49,7 +49,7 @@ Usage:
   girdle direnv
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]
+  girdle profiles [list | show NAME | edit NAME]
   girdle doctor [--secrets]
   girdle completion zsh
   girdle version

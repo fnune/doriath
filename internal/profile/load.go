@@ -39,7 +39,7 @@ func (l *Loader) Names() ([]string, error) {
 	}
 	var names []string
 	for _, e := range entries {
-		if name, ok := strings.CutSuffix(e.Name(), ".toml"); ok && !e.IsDir() && !strings.HasSuffix(name, ".local") {
+		if name, ok := strings.CutSuffix(e.Name(), ".toml"); ok && !e.IsDir() {
 			names = append(names, name)
 		}
 	}
@@ -69,13 +69,6 @@ func (l *Loader) Load(name string) (*Profile, error) {
 		return nil, fmt.Errorf("profile %q: %w", name, err)
 	}
 	layers = append(layers, top)
-	local, err := l.localLayer(name)
-	if err != nil {
-		return nil, err
-	}
-	if local != nil {
-		layers = append(layers, *local)
-	}
 
 	b := newBuilder(l.Home)
 	for _, ly := range layers {
@@ -119,28 +112,6 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		*out = append(*out, ly)
 	}
 	return nil
-}
-
-// LocalFile is where girdle keeps changes the person approved from a session,
-// so the profile they wrote stays as they wrote it.
-func LocalFile(name string) string { return name + ".local.toml" }
-
-func (l *Loader) localLayer(name string) (*layer, error) {
-	data, err := fs.ReadFile(l.Profiles, LocalFile(name))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", LocalFile(name), err)
-	}
-	ly, err := decodeLayer(LocalFile(name), data)
-	if err != nil {
-		return nil, err
-	}
-	if ly.Name != "" || len(ly.Modules) > 0 {
-		return nil, fmt.Errorf("%s: name and modules belong in the profile itself", LocalFile(name))
-	}
-	return &ly, nil
 }
 
 func (l *Loader) readModule(name string) ([]byte, error) {

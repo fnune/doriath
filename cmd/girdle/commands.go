@@ -240,7 +240,7 @@ func cmdApprovals(args []string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	case "allow", "deny":
 		flags := flag.NewFlagSet(sub, flag.ContinueOnError)
-		lasting := flags.String("for", "once", "once, session, profile (for drafted rules), or a duration such as 30m")
+		lasting := flags.String("for", "once", "once, session, or a duration such as 30m")
 		reason := flags.String("reason", "", "a reason the agent sees")
 		if len(args) == 0 {
 			return fmt.Errorf("approvals %s: name the request id", sub)
@@ -270,8 +270,6 @@ func allowDecision(lasting string, now time.Time) (approval.Decision, error) {
 		d.Lasting = approval.LastingOnce
 	case "session":
 		d.Lasting = approval.LastingSession
-	case "profile":
-		d.Lasting = approval.LastingProfile
 	default:
 		dur, err := time.ParseDuration(lasting)
 		if err != nil || dur <= 0 {
@@ -402,18 +400,6 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return nil
 	}
-	if args[0] == "allow" && len(args) >= 3 {
-		if _, err := l.Load(args[1]); err != nil {
-			return err
-		}
-		for _, host := range args[2:] {
-			if err := profile.AddEgressHost(p.Profiles(), args[1], host); err != nil {
-				return err
-			}
-		}
-		fmt.Fprintf(stdout, "Added %d hosts to %s.\n", len(args)-2, filepath.Join(p.Profiles(), profile.LocalFile(args[1])))
-		return nil
-	}
 	if args[0] == "edit" && len(args) == 2 {
 		return profilesEdit(l, p.Profiles(), args[1], stdin, stdout)
 	}
@@ -426,7 +412,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(prof)
 	}
-	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]")
+	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME]")
 }
 
 func cmdDoctor(args []string, w io.Writer) int {

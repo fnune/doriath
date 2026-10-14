@@ -40,11 +40,11 @@ _girdle() {
       elif [[ "${words[3]}" == (allow|deny) ]] && (( CURRENT == 4 )); then
         _values 'request' $(girdle __complete approvals)
       elif [[ "${words[3]}" == allow ]]; then
-        _arguments '--for[how long the allow lasts]:lasting:(once session profile 15m 1h)'
+        _arguments '--for[how long the allow lasts]:lasting:(once session 15m 1h)'
       fi ;;
     profiles)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list show edit allow
+        _values 'subcommand' list show edit
       else
         _values 'profile' $(girdle __complete profiles)
       fi ;;

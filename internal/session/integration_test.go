@@ -661,7 +661,7 @@ for i in $(seq 1 60); do
 	sleep 0.25
 done
 `, func() {
-		req = e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingProfile, By: "test"})
+		req = e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
 	})
 	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "allowed after approval") {
 		t.Fatalf("code %d:\n%s", code, out)
@@ -669,9 +669,11 @@ done
 	if req.Kind != approval.KindRule || !strings.Contains(req.Summary, "drafted.example") || !strings.Contains(req.Details, "curl") {
 		t.Errorf("proposal = %+v", req)
 	}
-	local, err := os.ReadFile(filepath.Join(e.paths.Profiles(), "it.local.toml"))
-	if err != nil || !strings.Contains(string(local), "drafted.example") {
-		t.Fatalf("local layer: %s, %v", local, err)
+	if !strings.Contains(req.Details, `allow = ["drafted.example"]`) {
+		t.Errorf("the proposal must show how to keep the host: %s", req.Details)
+	}
+	if entries, _ := os.ReadDir(e.paths.Profiles()); len(entries) != 1 || entries[0].Name() != "it.toml" {
+		t.Errorf("girdle must not write profiles: %v", entries)
 	}
 }
 
