@@ -6,11 +6,13 @@ import (
 	"crypto/sha1" //nolint:gosec // git names objects by SHA-1
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"hash"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -79,21 +81,57 @@ func rebuiltIndex(name string) bool {
 	return strings.HasPrefix(name, "multi-pack-index")
 }
 
+// zlibMaxRatio bounds how much zlib can expand its input, so an object
+// that claims more than that is forged, and decompressing stops at the size
+// it claims instead of whatever the agent made it expand to.
+const zlibMaxRatio = 1032
+
 func looseObjectID(p string, newHash func() hash.Hash) (string, error) {
 	f, err := os.Open(p)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
 	z, err := zlib.NewReader(f)
 	if err != nil {
 		return "", err
 	}
-	h := newHash()
-	if _, err := io.Copy(h, z); err != nil {
+	header, err := readHeader(z)
+	if err != nil {
 		return "", err
 	}
+	_, size, _ := strings.Cut(strings.TrimSuffix(header, "\x00"), " ")
+	n, err := strconv.ParseInt(size, 10, 64)
+	if err != nil || n < 0 || n > zlibMaxRatio*info.Size() {
+		return "", errors.New("impossible object size")
+	}
+	h := newHash()
+	h.Write([]byte(header))
+	if copied, err := io.Copy(h, io.LimitReader(z, n)); err != nil || copied != n {
+		return "", errors.New("object shorter than its header says")
+	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// readHeader reads up to the NUL that ends an object's header, a byte at a
+// time so that the content after it stays unread.
+func readHeader(r io.Reader) (string, error) {
+	var header []byte
+	b := make([]byte, 1)
+	for len(header) < 64 {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return "", errors.New("no object header")
+		}
+		header = append(header, b[0])
+		if b[0] == 0 {
+			return string(header), nil
+		}
+	}
+	return "", errors.New("no object header")
 }
 
 func isHex(s string) bool {

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/girdle/internal/vcs"
 )
 
 // Paths inside the jail where girdle puts its own files and sockets.
@@ -368,7 +369,7 @@ func gitStore(gitDir string, host Host, depth int) []Bind {
 	}
 	binds = append(binds, packGuards(gitDir, host)...)
 	binds = append(binds, worktreeGuards(gitDir, host)...)
-	if depth >= maxSubmoduleDepth {
+	if depth >= vcs.MaxSubmoduleDepth {
 		return binds
 	}
 	modules := filepath.Join(gitDir, "modules")
@@ -404,8 +405,6 @@ func writable(host Host, path string) []Bind {
 // runs or which config it reads.
 var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates"}
 
-const maxSubmoduleDepth = 4
-
 func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 	var binds []Bind
 	for _, name := range GitControlFiles {
@@ -413,7 +412,9 @@ func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 			binds = append(binds, Bind{Source: p, Dest: filepath.Join(destGit, name), ReadOnly: true})
 		}
 	}
-	if depth >= maxSubmoduleDepth {
+	binds = append(binds, packGuards(srcGit, host)...)
+	binds = append(binds, worktreeGuards(srcGit, host)...)
+	if depth >= vcs.MaxSubmoduleDepth {
 		return binds
 	}
 	modules := filepath.Join(srcGit, "modules")
@@ -422,8 +423,7 @@ func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 			binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", name), host, depth+1)...)
 		}
 	}
-	binds = append(binds, packGuards(srcGit, host)...)
-	return append(binds, worktreeGuards(srcGit, host)...)
+	return binds
 }
 
 // packGuards bind each existing pack file read-only. Packs hold nearly all

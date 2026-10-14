@@ -240,8 +240,65 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 			}
 		}
 		rec.Repos = append(rec.Repos, r)
+		for _, sub := range submoduleStores(git, 1) {
+			branches, err := refs(ctx, t, sub)
+			if err != nil {
+				return fmt.Errorf("record the branches of submodule %s: %w", sub, err)
+			}
+			if err := mirror(filepath.Join(sub, "objects"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "objects")); err != nil {
+				return fmt.Errorf("keep the objects of submodule %s: %w", sub, err)
+			}
+			rec.Repos = append(rec.Repos, Repo{Path: submoduleCheckout(sub), GitDir: sub, Branches: branches, Worktrees: entries(filepath.Join(sub, "worktrees"))})
+		}
 	}
 	return nil
+}
+
+// MaxSubmoduleDepth is how deep the jail and the backup follow submodule
+// stores.
+const MaxSubmoduleDepth = 4
+
+// submoduleStores are the stores under a store's modules directory, as
+// deep as the jail makes them writable.
+func submoduleStores(gitDir string, depth int) []string {
+	if depth > MaxSubmoduleDepth {
+		return nil
+	}
+	var out []string
+	modules := filepath.Join(gitDir, "modules")
+	for _, name := range entries(modules) {
+		sub := filepath.Join(modules, name)
+		if isStore(sub) {
+			out = append(out, sub)
+			out = append(out, submoduleStores(sub, depth+1)...)
+		}
+	}
+	return out
+}
+
+// isStore reports a directory git would take for a repository, which
+// leaves out the rest of a modules directory.
+func isStore(dir string) bool {
+	head, err := os.Stat(filepath.Join(dir, "HEAD"))
+	if err != nil || !head.Mode().IsRegular() {
+		return false
+	}
+	objects, err := os.Stat(filepath.Join(dir, "objects"))
+	return err == nil && objects.IsDir()
+}
+
+func submoduleCheckout(store string) string {
+	data, err := os.ReadFile(filepath.Join(store, "config"))
+	if err != nil {
+		return store
+	}
+	for line := range strings.Lines(string(data)) {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if ok && strings.EqualFold(strings.TrimSpace(key), "worktree") {
+			return resolve(store, strings.TrimSpace(value))
+		}
+	}
+	return store
 }
 
 // Finish runs when the session ends, or on the next start if girdle exited

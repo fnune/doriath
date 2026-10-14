@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"crypto/sha1" //nolint:gosec // git names objects by SHA-1
 	"io"
 	"os"
 	"path/filepath"
@@ -87,5 +88,50 @@ func writeLoose(t *testing.T, p, content string) {
 	}
 	if err := os.WriteFile(p, buf.Bytes(), 0o444); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLooseObjectIDStopsAtTheDeclaredSize(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	writeLoose(t, real, "blob 5\x00hello")
+	if id, err := looseObjectID(real, sha1.New); err != nil || id != "b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0" {
+		t.Fatalf("id = %q, %v", id, err)
+	}
+	bomb := filepath.Join(dir, "bomb")
+	writeLoose(t, bomb, "blob 999999999999\x00"+strings.Repeat("\x00", 1<<20))
+	if _, err := looseObjectID(bomb, sha1.New); err == nil {
+		t.Fatal("an object claiming more than zlib can expand to must fail")
+	}
+}
+
+func TestFinishCoversSubmoduleStores(t *testing.T) {
+	lib := repo(t)
+	r := repo(t)
+	git(t, r, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "lib")
+	git(t, r, "commit", "-q", "-m", "add lib")
+	store := filepath.Join(r, ".git", "modules", "lib")
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	backup := filepath.Join(t.TempDir(), "b")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.Repos) != 2 || rec.Repos[1].GitDir != store || rec.Repos[1].Path != filepath.Join(r, "lib") {
+		t.Fatalf("repos: %+v", rec.Repos)
+	}
+	forged := filepath.Join(store, "objects", "11", strings.Repeat("1", 38))
+	writeLoose(t, forged, "blob 5\x00agent")
+	git(t, filepath.Join(r, "lib"), "commit", "-q", "--allow-empty", "-m", "agent")
+
+	var out strings.Builder
+	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(forged); !os.IsNotExist(err) {
+		t.Errorf("a forged object in the submodule store stays:\n%s", out.String())
+	}
+	if len(rec.Repos[1].Moved) != 1 {
+		t.Errorf("the submodule's moved branch is not kept: %+v\n%s", rec.Repos[1], out.String())
 	}
 }
