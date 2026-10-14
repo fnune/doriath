@@ -3,6 +3,7 @@ package sshagent
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/pem"
 	"errors"
 	"net"
@@ -81,6 +82,88 @@ func TestRejectsBadInput(t *testing.T) {
 	}
 	if _, err := New(newKey(t), "", nil); err == nil {
 		t.Fatal("want namespace error")
+	}
+}
+
+func TestKeyChangesAreRefusedOverTheSocket(t *testing.T) {
+	a, err := New(newKey(t), "agent", []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, server := net.Pipe()
+	defer client.Close()
+	go func() { _ = agent.ServeAgent(a, server) }()
+	c := agent.NewClient(client)
+
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
+	for name, change := range map[string]func() error{
+		"add":        func() error { return c.Add(agent.AddedKey{PrivateKey: other}) },
+		"remove":     func() error { return c.Remove(a.PublicKey()) },
+		"remove all": c.RemoveAll,
+		"lock":       func() error { return c.Lock([]byte("pw")) },
+		"unlock":     func() error { return c.Unlock([]byte("pw")) },
+	} {
+		if err := change(); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if _, err := c.Extension("session-bind@openssh.com", nil); err == nil {
+		t.Error("extension accepted")
+	}
+	keys, err := c.List()
+	if err != nil || len(keys) != 1 || keys[0].Comment != "agent" {
+		t.Fatalf("keys after the attempts = %v, %v", keys, err)
+	}
+	if _, err := c.Sign(a.PublicKey(), sshsig("git")); err != nil {
+		t.Fatalf("the agent stopped signing after a lock attempt: %v", err)
+	}
+	if _, err := a.Signers(); !errors.Is(err, ErrReadOnly) {
+		t.Fatal("Signers must not hand out the key")
+	}
+}
+
+func TestSignRefusesOtherKeysAndHashes(t *testing.T) {
+	a, err := New(newKey(t), "agent", []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stranger, err := New(newKey(t), "", []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sign(stranger.PublicKey(), sshsig("git")); err == nil || err.Error() != "unknown key" {
+		t.Fatalf("another key: err = %v", err)
+	}
+	md5 := append([]byte("SSHSIG"), ssh.Marshal(struct {
+		Namespace, Reserved, Hash string
+		Digest                    []byte
+	}{"git", "", "md5", make([]byte, 16)})...)
+	if _, err := a.Sign(a.PublicKey(), md5); !errors.Is(err, ErrNotSSHSIG) {
+		t.Fatalf("md5: err = %v", err)
+	}
+}
+
+func TestRSAKeySignsWithTheRequestedAlgorithm(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := ssh.MarshalPrivateKey(key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(pem.EncodeToMemory(block), "", []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for flags, want := range map[agent.SignatureFlags]string{
+		agent.SignatureFlagRsaSha512: ssh.KeyAlgoRSASHA512,
+		agent.SignatureFlagRsaSha256: ssh.KeyAlgoRSASHA256,
+	} {
+		sig, err := a.SignWithFlags(a.PublicKey(), sshsig("git"), flags)
+		if err != nil || sig.Format != want {
+			t.Errorf("flags %d: %v, %v; want %s", flags, sig, err, want)
+		}
 	}
 }
 
