@@ -230,9 +230,9 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := prefixed(conn, buf.Reader)
-	name, hello := peekServerName(client)
-	if name != "" && !strings.EqualFold(strings.TrimSuffix(name, "."), host) {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: fmt.Sprintf("TLS server name %s does not match the tunnel's host", name)})
+	name, hello, isTLS := peekServerName(client)
+	if reason := tunnelMismatch(host, name, isTLS); reason != "" {
+		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: reason})
 		_ = client.Close()
 		_ = upstream.Close()
 		return
@@ -631,4 +631,23 @@ func (s *Server) denyHost(w http.ResponseWriter, host string) {
 		return
 	}
 	deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+}
+
+// tunnelMismatch says why a tunnel's first bytes do not fit its host: they
+// must be a ClientHello for that host. Only an address may go without a
+// name, as clients send none for one; without a name, a shared front end
+// could route the request by its encrypted Host header instead.
+func tunnelMismatch(host, name string, isTLS bool) string {
+	switch {
+	case !isTLS:
+		return "the tunnel did not start with a TLS ClientHello"
+	case name == "":
+		if net.ParseIP(host) != nil {
+			return ""
+		}
+		return "the TLS ClientHello names no server"
+	case !strings.EqualFold(strings.TrimSuffix(name, "."), host):
+		return fmt.Sprintf("TLS server name %s does not match the tunnel's host", name)
+	}
+	return ""
 }

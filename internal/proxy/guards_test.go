@@ -71,3 +71,23 @@ func TestClosingTheConnectionClosesItsListener(t *testing.T) {
 		t.Fatal("Accept still blocks after the only connection closed")
 	}
 }
+
+func TestTunnelMismatch(t *testing.T) {
+	for _, tc := range []struct {
+		host, name string
+		tls        bool
+		ok         bool
+	}{
+		{"example.com", "example.com", true, true},
+		{"example.com", "EXAMPLE.com.", true, true},
+		{"example.com", "github.com", true, false},
+		{"example.com", "", true, false},
+		{"example.com", "", false, false},
+		{"203.0.113.7", "", true, true},
+		{"203.0.113.7", "", false, false},
+	} {
+		if got := tunnelMismatch(tc.host, tc.name, tc.tls) == ""; got != tc.ok {
+			t.Errorf("%s %q tls=%v: ok = %v", tc.host, tc.name, tc.tls, got)
+		}
+	}
+}

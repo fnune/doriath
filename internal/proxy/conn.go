@@ -85,25 +85,23 @@ func (c *notifyConn) Close() error {
 // peekServerName reads a TLS ClientHello far enough to learn its server
 // name, so that a tunnel to an allowed host cannot carry a handshake for
 // another name served from the same address. It returns the bytes it read,
-// which the caller sends on. A client that is not speaking TLS, or sends no
-// name, yields an empty name.
-func peekServerName(conn net.Conn) (string, []byte) {
+// which the caller sends on, and whether they were a ClientHello at all.
+func peekServerName(conn net.Conn) (name string, hello []byte, isTLS bool) {
 	_ = conn.SetReadDeadline(time.Now().Add(helloTimeout))
 	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
 	rec := &recordingConn{Conn: conn}
-	var name string
 	_ = tls.Server(rec, &tls.Config{
-		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-			name = hello.ServerName
+		GetConfigForClient: func(h *tls.ClientHelloInfo) (*tls.Config, error) {
+			name, isTLS = h.ServerName, true
 			return nil, errHelloRead
 		},
 	}).Handshake()
-	return name, rec.read.Bytes()
+	return name, rec.read.Bytes(), isTLS
 }
 
-// helloTimeout bounds the wait for a ClientHello. TLS clients send it at
-// once; a protocol where the server speaks first waits this long, then
-// passes through unchecked.
+// helloTimeout bounds the wait for a ClientHello. Tunnels go to port 443,
+// where the client speaks TLS first; a client that sends nothing in time is
+// refused, or it could wait out the check and then greet another name.
 const helloTimeout = 3 * time.Second
 
 var errHelloRead = errors.New("client hello read")
