@@ -530,8 +530,10 @@ func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error
 	return m, nil
 }
 
+// bookmarks leaves out conflicted bookmarks: they have no single target to
+// put back, and jj prints an error in place of one.
 func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, error) {
-	out, err := run(ctx, t.JJ, "--repository", repo, "--ignore-working-copy", "--color", "never", "bookmark", "list", "-T", `if(!remote, name ++ " " ++ normal_target.commit_id() ++ "\n")`)
+	out, err := run(ctx, t.JJ, "--repository", repo, "--ignore-working-copy", "--color", "never", "bookmark", "list", "-T", `if(!remote && normal_target, name ++ " " ++ normal_target.commit_id() ++ "\n")`)
 	if err != nil {
 		return nil, err
 	}

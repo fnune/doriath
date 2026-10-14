@@ -3,6 +3,7 @@ package vcs
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -194,5 +195,55 @@ func TestFinishBringsBackTheJJStoreTheSessionDeleted(t *testing.T) {
 	}
 	if got := jj(t, r, "log", "--no-graph", "-r", "main", "-T", "description"); got != "first" {
 		t.Errorf("jj cannot read main after the store came back: %q", got)
+	}
+}
+
+// conflictMain points main at two new commits in concurrent operations, as
+// two jj processes racing would, and returns one of them.
+func conflictMain(t *testing.T, r string) string {
+	t.Helper()
+	commit := func(message string) string {
+		jj(t, r, "new", "main", "-m", message)
+		return bookmarkTarget(t, r, "@")
+	}
+	a, b := commit("a"), commit("b")
+	op := jj(t, r, "op", "log", "--no-graph", "-n", "1", "-T", "id")
+	jj(t, r, "bookmark", "set", "main", "-r", a)
+	jj(t, r, "--at-op", op, "bookmark", "set", "main", "-r", b)
+	if !strings.Contains(jj(t, r, "bookmark", "list", "main"), "conflicted") {
+		t.Fatal("the test needs main conflicted")
+	}
+	return a
+}
+
+func TestRestoreSucceedsWhenABookmarkWasConflictedAtTheStart(t *testing.T) {
+	r := jjRepo(t, false)
+	a := conflictMain(t, r)
+	rec := &Record{Session: "s1"}
+	f := startWith(t, Tools{Git: "git", JJ: "jj"}, rec, r)
+
+	jj(t, r, "bookmark", "set", "main", "-r", a)
+	f.finish()
+	if err := Restore(f.ctx, f.tools, rec, io.Discard); err != nil {
+		t.Fatalf("a conflict cannot be put back, and must not fail the restore: %v", err)
+	}
+}
+
+func TestRestoreResolvesABookmarkTheSessionLeftConflicted(t *testing.T) {
+	r := jjRepo(t, false)
+	before := bookmarkTarget(t, r, "main")
+	rec := &Record{Session: "s1"}
+	f := startWith(t, Tools{Git: "git", JJ: "jj"}, rec, r)
+
+	conflictMain(t, r)
+	f.finish()
+	if got := rec.Repos[0].MovedBookmarks; !slices.Equal(got, []string{"main"}) {
+		t.Fatalf("moved bookmarks = %v", got)
+	}
+	if err := Restore(f.ctx, f.tools, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := bookmarkTarget(t, r, "main"); got != before {
+		t.Errorf("main = %s, want %s", got, before)
 	}
 }
