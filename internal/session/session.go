@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fnune/girdle/internal/agents/claude"
+	"github.com/fnune/girdle/internal/agents"
 	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/audit"
 	"github.com/fnune/girdle/internal/ca"
@@ -125,21 +125,24 @@ type Info struct {
 }
 
 type Session struct {
-	deps          Deps
-	req           Request
-	id            string
-	dir           string
-	jailDir       string
-	log           *audit.Log
-	egress        *egressLog
-	policy        *livePolicy
-	peers         *hostPeers
-	logFile       io.Closer
-	manager       *approval.Manager
-	closers       []func()
-	entry         Entry
-	claudeProject [2]string
-	netnsPID      int
+	deps    Deps
+	req     Request
+	id      string
+	dir     string
+	jailDir string
+	log     *audit.Log
+	egress  *egressLog
+	policy  *livePolicy
+	peers   *hostPeers
+	logFile io.Closer
+	manager *approval.Manager
+	closers []func()
+	entry   Entry
+	// agent adapts a known agent's permission prompts and transcripts.
+	agent    agents.Adapter
+	command  []string
+	agentEnv map[string]string
+	netnsPID int
 	// repository is the root of the repository the session started in.
 	repository      string
 	containerBroker *containers.Broker
@@ -265,10 +268,13 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.writeGitFiles(); err != nil {
 		return err
 	}
-	if claude.Matches(s.req.Command) {
-		if err := s.prepareClaude(); err != nil {
+	s.command = s.req.Command
+	if s.agent = adapterFor(s.req.Command); s.agent != nil {
+		command, env, err := s.agent.Start(s.agentSession(), s.req.Command)
+		if err != nil {
 			return err
 		}
+		s.command, s.agentEnv = command, env
 	}
 	return s.writeInfo()
 }
@@ -441,35 +447,6 @@ func (s *Session) writeGitFiles() error {
 	return writeFile(s.jailPath("jj.toml"), JJConfig(signing), 0o644)
 }
 
-func (s *Session) prepareClaude() error {
-	home := s.deps.Paths.Home
-	private := filepath.Join(s.cacheRoot(), "claude")
-	project := claude.ProjectDir(s.req.Cwd)
-	s.claudeProject = [2]string{filepath.Join(home, ".claude", "projects", project), filepath.Join(private, "home", "projects", project)}
-	if err := copyProjectIn(s.claudeProject[0], s.claudeProject[1]); err != nil {
-		return fmt.Errorf("copy the Claude project directory: %w", err)
-	}
-	data, err := os.ReadFile(filepath.Join(home, ".claude.json"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("read ~/.claude.json: %w", err)
-	}
-	if len(data) == 0 {
-		data = []byte("{}\n")
-	}
-	data, err = claude.FilterMCPServers(data, s.req.Profile.Claude.MCPServers)
-	if err != nil {
-		return err
-	}
-	if err := writeFile(filepath.Join(private, "claude.json"), data, 0o600); err != nil {
-		return err
-	}
-	settings, err := claude.Settings(s.req.Profile, s.req.Cwd, osFiles{})
-	if err != nil {
-		return err
-	}
-	return writeFile(s.jailPath("claude-settings.json"), settings, 0o644)
-}
-
 func (s *Session) writeInfo() error {
 	info := Info{ID: s.id, Profile: s.req.Profile.Name, Cwd: s.req.Cwd, Command: s.req.Command, PID: os.Getpid(), Started: s.deps.Clock.Now()}
 	data, err := json.MarshalIndent(info, "", "  ")
@@ -523,13 +500,11 @@ func (s *Session) plan() (jail.Spec, error) {
 	}
 
 	forwards := s.forwards()
-	command := s.req.Command
-	var extra []jail.Bind
-	if claude.Matches(command) {
-		command = claude.Args(command, jail.InJail("claude-settings.json"))
-		st := claude.State{Home: home, Cwd: s.req.Cwd, ShareLogin: s.req.Profile.Claude.ShareLogin, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
-		extra = append(extra, st.Binds(osHost{})...)
+	command := s.command
+	for k, v := range s.agentEnv {
+		env[k] = v
 	}
+	var extra []jail.Bind
 	if b, ok := s.bazelrc(home); ok {
 		extra = append(extra, b)
 	}
@@ -633,9 +608,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
 	s.finishRepositories()
-	if s.claudeProject[0] != "" {
-		if err := copyTranscriptsBack(s.claudeProject[1], s.claudeProject[0]); err != nil {
-			fmt.Fprintf(s.deps.Stderr, "girdle: could not copy Claude transcripts back: %v\n", err)
+	if s.agent != nil {
+		if err := s.agent.End(s.agentSession()); err != nil {
+			fmt.Fprintf(s.deps.Stderr, "girdle: %v\n", err)
 		}
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
@@ -693,10 +668,6 @@ type noIssuer struct{}
 func (noIssuer) Certificate(host string) (*tlsCertificate, error) {
 	return nil, fmt.Errorf("no intercepted hosts in this session: %s", host)
 }
-
-type osFiles struct{}
-
-func (osFiles) ReadFile(p string) ([]byte, error) { return os.ReadFile(p) }
 
 type osHost struct{}
 

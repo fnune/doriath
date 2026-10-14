@@ -8,6 +8,60 @@ set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1
 [egress]
 allow = ["console.anthropic.com", "claude.ai"]
 
+# The profile's own ~/.claude: its login, state and MCP servers, which the
+# claude adapter points Claude at with CLAUDE_CONFIG_DIR. Your servers and
+# login stay out; run claude mcp add or /login in a session to set them for
+# the profile. To share your login instead, a profile adds
+# ~/.claude/.credentials.json with mode = "write", which lets the agent read
+# the token or swap in another account.
+[[caches]]
+path = "~/.claude"
+
+# Your configuration, read-only, inside it.
+[[mounts]]
+path = "~/.claude/CLAUDE.md"
+optional = true
+
+[[mounts]]
+path = "~/.claude/settings.json"
+optional = true
+
+[[mounts]]
+path = "~/.claude/keybindings.json"
+optional = true
+
+[[mounts]]
+path = "~/.claude/statusline.sh"
+optional = true
+
+[[mounts]]
+path = "~/.claude/agents"
+optional = true
+
+[[mounts]]
+path = "~/.claude/commands"
+optional = true
+
+[[mounts]]
+path = "~/.claude/hooks"
+optional = true
+
+[[mounts]]
+path = "~/.claude/output-styles"
+optional = true
+
+[[mounts]]
+path = "~/.claude/plugins"
+optional = true
+
+[[mounts]]
+path = "~/.claude/skills"
+optional = true
+
+[[mounts]]
+path = "~/.claude/chrome"
+optional = true
+
 # Claude Code's own worktrees (claude --worktree, EnterWorktree). With the
 # vcs module, the agent adds them to a read-only repository and works there.
 [[mounts]]

@@ -3,11 +3,14 @@ package claude
 import (
 	"encoding/json"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fnune/girdle/internal/agents"
 	"github.com/fnune/girdle/internal/jail"
 	"github.com/fnune/girdle/internal/profile"
 )
@@ -27,7 +30,7 @@ func TestArgs(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v", got)
 	}
-	if !Matches([]string{"claude"}) || Matches([]string{"codex"}) || Matches(nil) {
+	if !(Adapter{}).Matches([]string{"claude"}) || (Adapter{}).Matches([]string{"codex"}) || (Adapter{}).Matches(nil) {
 		t.Fatal("Matches")
 	}
 }
@@ -86,56 +89,6 @@ func TestProjectDir(t *testing.T) {
 	}
 }
 
-type fakeHost map[string]string
-
-func (h fakeHost) Kind(p string) string { return h[p] }
-
-func (h fakeHost) Resolve(p string) (string, error) {
-	if p == "/home/u/.claude/settings.json" {
-		return "/nix/store/x-home-manager-files/.claude/settings.json", nil
-	}
-	return p, nil
-}
-
-func TestStateBinds(t *testing.T) {
-	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home", ConfigCopy: "/c/claude.json", ShareLogin: true}
-	host := fakeHost{
-		"/home/u/.claude/.credentials.json": "file",
-		"/home/u/.claude/settings.json":     "other",
-		"/home/u/.claude/plugins":           "dir",
-		"/home/u/.claude/history.jsonl":     "file",
-	}
-	binds := st.Binds(host)
-	find := func(dest string) (jail.Bind, bool) {
-		i := slices.IndexFunc(binds, func(b jail.Bind) bool { return b.Dest == dest })
-		if i < 0 {
-			return jail.Bind{}, false
-		}
-		return binds[i], true
-	}
-	if b, ok := find("/home/u/.claude"); !ok || b.Source != "/c/claude/home" || b.ReadOnly {
-		t.Errorf("~/.claude must be the profile's own writable directory: %+v", b)
-	}
-	if b, ok := find("/home/u/.claude/settings.json"); !ok || !b.ReadOnly || b.Source != "/nix/store/x-home-manager-files/.claude/settings.json" {
-		t.Errorf("settings must be the resolved file, read-only: %+v", b)
-	}
-	if b, ok := find("/home/u/.claude/plugins"); !ok || !b.ReadOnly {
-		t.Error("plugins must be read-only")
-	}
-	if b, ok := find("/home/u/.claude/.credentials.json"); !ok || b.ReadOnly {
-		t.Error("credentials must be shared and writable")
-	}
-	if _, ok := find("/home/u/.claude/projects/-home-u-k"); ok {
-		t.Error("the real project directory must not be writable: the session works on a copy")
-	}
-	if _, ok := find("/home/u/.claude/history.jsonl"); ok {
-		t.Error("history must stay private to the profile")
-	}
-	if b, ok := find("/home/u/.claude.json"); !ok || b.Source != "/c/claude.json" {
-		t.Error("~/.claude.json must be a copy")
-	}
-}
-
 func TestDescribe(t *testing.T) {
 	r, err := ParsePermissionRequest([]byte(`{"tool_name":"Bash","tool_input":{"command":"gh release create v1","description":"Create release"}}`))
 	if err != nil {
@@ -169,40 +122,57 @@ func TestPermissionDecision(t *testing.T) {
 	}
 }
 
-func TestFilterMCPServers(t *testing.T) {
-	in := []byte(`{"numStartups":3,"mcpServers":{"notion":{"type":"http"},"bazel":{"command":"bazel-mcp"}},"projects":{"/w":{"mcpServers":{"notion":{}},"allowedTools":[]}}}`)
-	out, err := FilterMCPServers(in, []string{"bazel"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got struct {
-		NumStartups int                        `json:"numStartups"`
-		MCPServers  map[string]json.RawMessage `json:"mcpServers"`
-		Projects    map[string]struct {
-			MCPServers   map[string]json.RawMessage `json:"mcpServers"`
-			AllowedTools []string                   `json:"allowedTools"`
-		} `json:"projects"`
-	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.NumStartups != 3 || len(got.MCPServers) != 1 || got.MCPServers["bazel"] == nil || len(got.Projects["/w"].MCPServers) != 0 || got.Projects["/w"].AllowedTools == nil {
-		t.Fatalf("got %s", out)
-	}
-	none, err := FilterMCPServers(in, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(none), "notion") || strings.Contains(string(none), "bazel") || !strings.Contains(string(none), `"numStartups":3`) {
-		t.Fatalf("without a list, no server of yours may reach the jail: %s", none)
-	}
-}
-
-func TestLoginIsPrivateByDefault(t *testing.T) {
-	st := State{Home: "/home/u", Cwd: "/home/u/k", Private: "/c/claude/home"}
-	for _, b := range st.Binds(fakeHost{"/home/u/.claude/.credentials.json": "file"}) {
-		if b.Dest == "/home/u/.claude/.credentials.json" {
-			t.Fatal("the desktop login must not be in the jail unless the profile shares it")
+func TestStartAndEnd(t *testing.T) {
+	root := t.TempDir()
+	home, private, jailDir := filepath.Join(root, "home"), filepath.Join(root, "cache", "claude"), filepath.Join(root, "jail")
+	for _, d := range []string{home, private, jailDir} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
 		}
+	}
+	cwd := filepath.Join(home, "app")
+	project := ProjectDir(cwd)
+	earlier := filepath.Join(home, ".claude", "projects", project, "earlier.jsonl")
+	if err := os.MkdirAll(filepath.Dir(earlier), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(earlier, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := agents.Session{
+		Profile: &profile.Profile{Claude: profile.Claude{ApprovalTimeout: time.Minute}},
+		Home:    home,
+		Cwd:     cwd,
+		HostPath: func(p string) string {
+			if p == filepath.Join(home, ".claude") {
+				return private
+			}
+			return ""
+		},
+		WriteFile: func(name string, data []byte) (string, error) {
+			return "/run/girdle/" + name, os.WriteFile(filepath.Join(jailDir, name), data, 0o644)
+		},
+	}
+	argv, env, err := Adapter{}.Start(s, []string{"claude", "-p", "hi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if argv[1] != "--settings" || argv[2] != "/run/girdle/claude-settings.json" || env["CLAUDE_CONFIG_DIR"] != filepath.Join(home, ".claude") {
+		t.Fatalf("argv %v, env %v", argv, env)
+	}
+	if _, err := os.Stat(filepath.Join(private, "projects", project, "earlier.jsonl")); err != nil {
+		t.Fatal("earlier transcripts must be there to resume")
+	}
+	if _, err := os.Stat(filepath.Join(jailDir, "claude-settings.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(private, "projects", project, "new.jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (Adapter{}).End(s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "projects", project, "new.jsonl")); err != nil {
+		t.Fatal("the session's transcript must come back")
 	}
 }
