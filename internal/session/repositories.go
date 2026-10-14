@@ -1,13 +1,16 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/fnune/girdle/internal/audit"
 	"github.com/fnune/girdle/internal/config"
 	"github.com/fnune/girdle/internal/jail"
 	"github.com/fnune/girdle/internal/profile"
@@ -100,10 +103,48 @@ func (s *Session) startRepositories(ctx context.Context) error {
 	if err := vcs.Start(ctx, s.vcsTools(), filepath.Join(s.deps.Paths.Backups(), s.id), rec, repos); err != nil {
 		return err
 	}
-	return rec.Save(recordPath(s.deps.Paths, s.id))
+	if err := rec.Save(recordPath(s.deps.Paths, s.id)); err != nil {
+		return err
+	}
+	s.watchWorktrees(rec)
+	return nil
+}
+
+// watchWorktrees repairs agent worktrees while the session runs, so git on
+// the host never follows pointers the agent wrote for longer than a moment.
+// Repairs go to the audit log, and to the terminal when the session ends,
+// since the agent owns the terminal until then.
+func (s *Session) watchWorktrees(rec *vcs.Record) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repairs := &repairLog{log: s.log}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := vcs.Watch(ctx, rec, repairs); err != nil {
+			fmt.Fprintf(s.deps.Stderr, "girdle: agent worktrees are repaired only when the session ends: %v\n", err)
+		}
+	}()
+	s.unwatch = func() {
+		cancel()
+		<-done
+		_, _ = s.deps.Stderr.Write(repairs.lines.Bytes())
+	}
+}
+
+type repairLog struct {
+	log   *audit.Log
+	lines bytes.Buffer
+}
+
+func (r *repairLog) Write(p []byte) (int, error) {
+	r.log.Write("worktree-repair", map[string]any{"message": strings.TrimSpace(string(p))})
+	return r.lines.Write(p)
 }
 
 func (s *Session) finishRepositories() {
+	if s.unwatch != nil {
+		s.unwatch()
+	}
 	path := recordPath(s.deps.Paths, s.id)
 	rec, err := vcs.Load(path)
 	if err != nil {

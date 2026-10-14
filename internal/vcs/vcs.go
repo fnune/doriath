@@ -293,7 +293,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 				continue
 			}
 			r.AgentWorktrees = append(r.AgentWorktrees, name)
-			if err := repairWorktree(filepath.Join(r.GitDir, "worktrees", name), rec, r.Path, w); err != nil {
+			if err := repairWorktree(filepath.Join(r.GitDir, "worktrees", name), rec, r.Path, w, false); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -492,8 +492,13 @@ func sha256File(p string) (string, error) {
 // Its admin directory and its checkout's .git file are both the agent's
 // work, and git follows them: to another store, whose config and hooks it
 // runs, or to config.worktree settings such as core.fsmonitor.
-func repairWorktree(admin string, rec *Record, repo string, w io.Writer) error {
+// While the session runs, a missing .git is left to git, which is still
+// creating the worktree.
+func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bool) error {
 	name := filepath.Base(admin)
+	if live && removing(admin) {
+		return nil
+	}
 	if fixed, err := resetCommondir(admin); err != nil {
 		return err
 	} else if fixed {
@@ -515,6 +520,9 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer) error {
 		return nil
 	}
 	dotgit := filepath.Join(checkout, ".git")
+	if _, err := os.Lstat(dotgit); live && errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
 	if info, err := os.Lstat(dotgit); err == nil && !info.Mode().IsRegular() {
 		aside := dotgit + ".girdle-" + rec.Session
 		if err := os.Rename(dotgit, aside); err != nil {
@@ -529,6 +537,18 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer) error {
 	}
 	fmt.Fprintf(w, "girdle: pointed worktree %s back at %s\n", checkout, repo)
 	return nil
+}
+
+// removing reports a worktree that git worktree remove is deleting: it
+// deletes the checkout before the admin directory, and recreating files in
+// the admin directory then would make that fail.
+func removing(admin string) bool {
+	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+	if err != nil {
+		return true
+	}
+	_, err = os.Stat(filepath.Dir(resolve(admin, strings.TrimSpace(string(data)))))
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 func within(path, root string) bool {

@@ -135,6 +135,7 @@ type Session struct {
 	policy  *livePolicy
 	peers   *hostPeers
 	logFile io.Closer
+	unwatch func()
 	manager *approval.Manager
 	closers []func()
 	entry   Entry
