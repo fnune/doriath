@@ -97,6 +97,32 @@ func TestLooseObjectIDStopsAtTheDeclaredSize(t *testing.T) {
 	}
 }
 
+func TestLooseObjectIDRejectsMalformedObjects(t *testing.T) {
+	for name, content := range map[string]string{
+		"no header end":                 "blob 5 " + strings.Repeat("x", 100),
+		"a size that is not a number":   "blob five\x00hello",
+		"a negative size":               "blob -1\x00hello",
+		"content shorter than its size": "blob 9\x00hello",
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := filepath.Join(t.TempDir(), "object")
+			writeLoose(t, p, content)
+			if id, err := looseObjectID(p, sha1.New); err == nil {
+				t.Fatalf("id = %q", id)
+			}
+		})
+	}
+	t.Run("not zlib", func(t *testing.T) {
+		p := filepath.Join(t.TempDir(), "object")
+		if err := os.WriteFile(p, []byte("blob 5\x00hello"), 0o444); err != nil {
+			t.Fatal(err)
+		}
+		if id, err := looseObjectID(p, sha1.New); err == nil {
+			t.Fatalf("id = %q", id)
+		}
+	})
+}
+
 func TestFinishCoversSubmoduleStores(t *testing.T) {
 	lib := repo(t)
 	r := repo(t)
