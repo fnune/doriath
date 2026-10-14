@@ -16,9 +16,7 @@ func TestWatchRepairsAgentWorktreesDuringTheSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &Record{Session: "s1", Writable: []string{trees}}
-	if err := Start(context.Background(), Tools{Git: "git"}, filepath.Join(t.TempDir(), "b"), rec, []string{r}); err != nil {
-		t.Fatal(err)
-	}
+	start(t, rec, r)
 	ctx, cancel := context.WithCancel(context.Background())
 	var out strings.Builder
 	done := make(chan struct{})

@@ -3,7 +3,6 @@ package vcs
 import (
 	"bytes"
 	"compress/zlib"
-	"context"
 	"crypto/sha1" //nolint:gosec // git names objects by SHA-1
 	"io"
 	"os"
@@ -15,12 +14,8 @@ import (
 
 func TestFinishDropsObjectsTheAgentForged(t *testing.T) {
 	r := repo(t)
-	ctx, tools := context.Background(), Tools{Git: "git"}
-	backup := filepath.Join(t.TempDir(), "b")
 	rec := &Record{Session: "s1", Started: time.Now()}
-	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
-		t.Fatal(err)
-	}
+	f := start(t, rec, r)
 	objects := filepath.Join(r, ".git", "objects")
 
 	git(t, r, "commit", "-q", "--allow-empty", "-m", "the agent's work")
@@ -56,13 +51,10 @@ func TestFinishDropsObjectsTheAgentForged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var out strings.Builder
-	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
-		t.Fatal(err)
-	}
+	out := f.finish()
 	for _, p := range []string{forgedLoose, badPack + ".pack", badPack + ".idx", graph} {
 		if _, err := os.Lstat(p); !os.IsNotExist(err) {
-			t.Errorf("%s stays:\n%s", p, out.String())
+			t.Errorf("%s stays:\n%s", p, out)
 		}
 	}
 	if _, err := os.Stat(goodPack); err != nil {
@@ -113,12 +105,8 @@ func TestFinishCoversSubmoduleStores(t *testing.T) {
 	git(t, r, "commit", "-q", "-m", "add lib")
 	store := filepath.Join(r, ".git", "modules", "lib")
 	nested := filepath.Join(r, ".git", "modules", "libs", "nested")
-	ctx, tools := context.Background(), Tools{Git: "git"}
-	backup := filepath.Join(t.TempDir(), "b")
 	rec := &Record{Session: "s1", Started: time.Now()}
-	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
-		t.Fatal(err)
-	}
+	f := start(t, rec, r)
 	if len(rec.Repos) != 3 || rec.Repos[1].GitDir != store || rec.Repos[1].Path != filepath.Join(r, "lib") || rec.Repos[2].GitDir != nested {
 		t.Fatalf("repos: %+v", rec.Repos)
 	}
@@ -128,16 +116,13 @@ func TestFinishCoversSubmoduleStores(t *testing.T) {
 	writeLoose(t, forged, "blob 5\x00agent")
 	git(t, filepath.Join(r, "lib"), "commit", "-q", "--allow-empty", "-m", "agent")
 
-	var out strings.Builder
-	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
-		t.Fatal(err)
-	}
+	out := f.finish()
 	for _, p := range []string{forged, forgedNested} {
 		if _, err := os.Lstat(p); !os.IsNotExist(err) {
-			t.Errorf("a forged object in a submodule store stays: %s\n%s", p, out.String())
+			t.Errorf("a forged object in a submodule store stays: %s\n%s", p, out)
 		}
 	}
 	if len(rec.Repos[1].Moved) != 1 {
-		t.Errorf("the submodule's moved branch is not kept: %+v\n%s", rec.Repos[1], out.String())
+		t.Errorf("the submodule's moved branch is not kept: %+v\n%s", rec.Repos[1], out)
 	}
 }
