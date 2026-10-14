@@ -78,6 +78,7 @@ type ruleLayer struct {
 	BodyContains []string      `toml:"body_contains"`
 	GraphQL      *graphQLLayer `toml:"graphql"`
 	Header       string        `toml:"header"`
+	HeaderPrefix string        `toml:"header_prefix"`
 	MCPTools     []string      `toml:"mcp_tools"`
 	MCPNone      bool          `toml:"-"`
 	Action       string        `toml:"action"`

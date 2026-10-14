@@ -82,6 +82,16 @@ header = "x-api-key"
 action = "deny"
 summary = "Use an API key instead of the profile's Claude login"
 
+# The same key sent as a bearer token. The profile's own login sends an
+# OAuth token, sk-ant-oat..., which this does not match.
+[[http.rules]]
+method = "*"
+path = "/**"
+header = "authorization"
+header_prefix = "Bearer sk-ant-a"
+action = "deny"
+summary = "Use an API key instead of the profile's Claude login"
+
 [claude]
 disable_connectors = true
 statusline = true

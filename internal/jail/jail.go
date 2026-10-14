@@ -363,6 +363,9 @@ func gitStore(gitDir string, host Host, depth int) []Bind {
 	for _, name := range gitStoreData {
 		binds = append(binds, writable(host, filepath.Join(gitDir, name))...)
 	}
+	if p := filepath.Join(gitDir, "objects", "info", "alternates"); host.Kind(p) == "file" {
+		binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+	}
 	binds = append(binds, worktreeGuards(gitDir, host)...)
 	if depth >= maxSubmoduleDepth {
 		return binds
@@ -398,7 +401,7 @@ func writable(host Host, path string) []Bind {
 
 // GitControlFiles are the entries of a .git directory that decide what git
 // runs or which config it reads.
-var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info"}
+var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates"}
 
 const maxSubmoduleDepth = 4
 

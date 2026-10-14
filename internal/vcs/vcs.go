@@ -113,6 +113,40 @@ func Root(repo string) string {
 	return repo
 }
 
+// guardAlternates gives a git store, and its submodules' stores, an empty
+// objects/info/alternates, which the jail binds read-only. An agent could
+// otherwise create one and make host git read objects from any directory.
+// An empty file names no alternates.
+func guardAlternates(gitDir string, depth int) error {
+	info := filepath.Join(gitDir, "objects", "info")
+	if err := os.MkdirAll(info, 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(info, "alternates"), os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if depth >= 4 {
+		return nil
+	}
+	for _, name := range entries(filepath.Join(gitDir, "modules")) {
+		if sub := filepath.Join(gitDir, "modules", name); isDir(sub) {
+			if err := guardAlternates(sub, depth+1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func isDir(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
+}
+
 func resolve(base, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
@@ -139,6 +173,9 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 			if err := os.MkdirAll(filepath.Join(git, name), 0o755); err != nil {
 				return nil, err
 			}
+		}
+		if err := guardAlternates(git, 0); err != nil {
+			return nil, err
 		}
 	}
 	if !hasJJ(repo) {
@@ -338,6 +375,10 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 		path = filepath.Join(r.GitDir, "worktrees", worktree, path)
 	}
 	dir = filepath.Dir(path)
+	admin := filepath.Join(r.GitDir, "worktrees", worktree)
+	if !pointsTo(dir, admin) {
+		return dir, false
+	}
 	status, err := run(ctx, t.Git, "-C", dir, "status", "--porcelain")
 	if err != nil || strings.TrimSpace(status) != "" {
 		return dir, false
@@ -586,4 +627,15 @@ func (r *Record) Save(path string) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// pointsTo reports whether the checkout's .git file names admin, so that
+// git run there uses this repository and nothing the agent pointed it at.
+func pointsTo(checkout, admin string) bool {
+	data, err := os.ReadFile(filepath.Join(checkout, ".git"))
+	if err != nil {
+		return false
+	}
+	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
+	return ok && filepath.Clean(resolve(checkout, target)) == filepath.Clean(admin)
 }

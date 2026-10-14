@@ -166,6 +166,10 @@ type Rule struct {
 	// Header narrows the rule to requests that carry this header, such as
 	// an API key the agent brought.
 	Header string
+	// HeaderPrefix narrows a header rule to values that start with it,
+	// ignoring case, such as "Bearer sk-ant-a" for an API key sent as a
+	// bearer token.
+	HeaderPrefix string
 	// MCPTools narrows the rule to MCP tools/call requests for tools whose
 	// names match these globs. An allow rule needs every call in the body to
 	// match; other actions need one.
@@ -477,5 +481,12 @@ func (p PathPattern) Match(path string) bool {
 }
 
 func (r Rule) matchHeader(header http.Header) bool {
-	return r.Header == "" || header.Get(r.Header) != ""
+	if r.Header == "" {
+		return true
+	}
+	v := header.Get(r.Header)
+	if r.HeaderPrefix == "" {
+		return v != ""
+	}
+	return len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix)
 }

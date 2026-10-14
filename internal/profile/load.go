@@ -595,12 +595,15 @@ func buildRule(r ruleLayer) (Rule, error) {
 	if r.Header != "" && !headerName.MatchString(r.Header) {
 		return Rule{}, fmt.Errorf("header %q: want a header name such as x-api-key", r.Header)
 	}
+	if r.HeaderPrefix != "" && r.Header == "" {
+		return Rule{}, fmt.Errorf("header_prefix needs header")
+	}
 	for _, g := range r.MCPTools {
 		if !validGlob(g) {
 			return Rule{}, fmt.Errorf("mcp_tools %q: want a tool name or a glob such as notion-create-*", g)
 		}
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {
