@@ -60,3 +60,39 @@ func TestEntryCwdKeepsYouWhereYouAreInsideTheSession(t *testing.T) {
 		}
 	}
 }
+
+func TestForwardChecksItsArgumentsBeforeLookingForASession(t *testing.T) {
+	testPaths(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{nil, "usage: girdle forward"},
+		{[]string{"3000", "4000"}, "usage: girdle forward"},
+		{[]string{"http"}, `port "http": want a number from 1 to 65535`},
+		{[]string{"3000"}, "no running sessions"},
+		{[]string{"--session", "s9", "3000"}, "no running session s9: see girdle sessions"},
+	} {
+		if err := cmdForward(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("forward %q = %v, want %q", tc.args, err, tc.want)
+		}
+	}
+}
+
+func TestParseInitMarksTheForwardsThatIdentifyTheCaller(t *testing.T) {
+	forwards, command, err := parseInit([]string{
+		"--forward", "3000=/run/a.sock", "--forward", "4000=/run/b.sock", "--identify", "4000", "--identify", "5000", "--", "claude", "--resume",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forwards) != 2 || forwards[0].Identify || !forwards[1].Identify || forwards[1].Socket != "/run/b.sock" {
+		t.Errorf("forwards = %+v", forwards)
+	}
+	if strings.Join(command, " ") != "claude --resume" {
+		t.Errorf("command = %q", command)
+	}
+	if _, _, err := parseInit([]string{"--identify", "http"}); err == nil || !strings.Contains(err.Error(), `"http" is not a port number`) {
+		t.Errorf("a named port = %v", err)
+	}
+}

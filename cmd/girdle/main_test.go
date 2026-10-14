@@ -28,6 +28,10 @@ func TestRunExitStatus(t *testing.T) {
 		{[]string{"run", "--", "true"}, 2},
 		{[]string{"run", "--profile", "app"}, 2},
 		{[]string{"run", "--no-such-flag"}, 2},
+		{[]string{"run", "--profile", "app", "--current", "/no/such/dir", "--", "true"}, 2},
+		{[]string{"run", "--profile", "missing", "--", "true"}, 1},
+		{[]string{"exec", "--no-such-flag"}, 2},
+		{[]string{"exec"}, 1},
 		{[]string{"doctor", "--no-such-flag"}, 2},
 	} {
 		if code := run(tc.args); code != tc.want {

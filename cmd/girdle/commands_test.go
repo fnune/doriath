@@ -314,6 +314,29 @@ file = "`+private+`"
 	}
 }
 
+func TestDoctorSaysHowToFixOAuthAndCommandSecrets(t *testing.T) {
+	p := testPaths(t)
+	t.Setenv("GIRDLE_BWRAP", filepath.Join(p.Home, "no-bwrap"))
+	writeProfile(t, p, "app", `modules = ["base"]
+
+[secrets.linear.oauth]
+mcp = "https://mcp.linear.app/mcp"
+
+[secrets.token]
+command = ["no-such-password-manager", "get", "token"]
+`)
+	var out bytes.Buffer
+	cmdDoctor(nil, &out)
+	for _, want := range []string{
+		"problem  secret app/linear (oauth): not signed in: run girdle login --profile app linear\n",
+		"problem  secret app/token (command no-such-password-manager): ",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("doctor lacks %q:\n%s", want, out.String())
+		}
+	}
+}
+
 func TestCompletionZsh(t *testing.T) {
 	var out bytes.Buffer
 	if err := cmdCompletion([]string{"zsh"}, &out); err != nil {
