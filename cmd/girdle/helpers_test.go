@@ -56,10 +56,11 @@ func writeProfile(t *testing.T, p config.Paths, name, body string) {
 	}
 }
 
-type noRecorder struct{}
+// requestedIDs tells a test when a request is pending.
+type requestedIDs chan string
 
-func (noRecorder) Requested(approval.Request)                  {}
-func (noRecorder) Decided(approval.Request, approval.Decision) {}
+func (r requestedIDs) Requested(req approval.Request)            { r <- req.ID }
+func (requestedIDs) Decided(approval.Request, approval.Decision) {}
 
 type prefixIDs struct {
 	mu     sync.Mutex
@@ -77,21 +78,24 @@ func (p *prefixIDs) New() string {
 // fakeSession serves a session's control socket in-process and writes the
 // info file the way a session does, so the CLI finds it.
 type fakeSession struct {
-	id      string
-	profile string
-	manager *approval.Manager
-	status  session.Status
-	mu      sync.Mutex
-	granted []string
+	id        string
+	profile   string
+	manager   *approval.Manager
+	requested requestedIDs
+	status    session.Status
+	mu        sync.Mutex
+	granted   []string
 }
 
 func startSession(t *testing.T, p config.Paths, id, profile string, started time.Time) *fakeSession {
 	t.Helper()
+	requested := make(requestedIDs, 1)
 	s := &fakeSession{
-		id:      id,
-		profile: profile,
-		manager: approval.NewManager(realClock{}, notify.None{}, noRecorder{}, &prefixIDs{prefix: id}),
-		status:  session.Status{Session: id, Profile: profile},
+		id:        id,
+		profile:   profile,
+		manager:   approval.NewManager(realClock{}, notify.None{}, requested, &prefixIDs{prefix: id}),
+		requested: requested,
+		status:    session.Status{Session: id, Profile: profile},
 	}
 	dir := filepath.Join(p.Sessions(), id)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -143,7 +147,6 @@ func startSession(t *testing.T, p config.Paths, id, profile string, started time
 // is pending.
 func (s *fakeSession) submit(t *testing.T, summary, details string) (string, <-chan approval.Decision) {
 	t.Helper()
-	before := len(s.manager.Pending())
 	out := make(chan approval.Decision, 1)
 	go func() {
 		d, _ := s.manager.Submit(context.Background(), approval.Request{
@@ -151,15 +154,13 @@ func (s *fakeSession) submit(t *testing.T, summary, details string) (string, <-c
 		}, time.Minute)
 		out <- d
 	}()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if reqs := s.manager.Pending(); len(reqs) > before {
-			return reqs[len(reqs)-1].ID, out
-		}
-		time.Sleep(time.Millisecond)
+	select {
+	case id := <-s.requested:
+		return id, out
+	case <-time.After(5 * time.Second):
+		t.Fatal("request never became pending")
+		return "", nil
 	}
-	t.Fatal("request never became pending")
-	return "", nil
 }
 
 func receive(t *testing.T, ch <-chan approval.Decision) approval.Decision {
