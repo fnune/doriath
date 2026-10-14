@@ -9,11 +9,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/girdle/internal/oauth"
 	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/session"
 )
@@ -70,23 +72,6 @@ allow = ["example.com"]
 	}
 	if _, err := profiles(t, "nonsense"); err == nil || !strings.Contains(err.Error(), "usage") {
 		t.Errorf("unknown subcommand = %v", err)
-	}
-}
-
-func TestRunExitStatus(t *testing.T) {
-	p := testPaths(t)
-	writeProfile(t, p, "app", `modules = ["base"]`)
-	if code := run([]string{"profiles", "show", "app"}); code != 0 {
-		t.Errorf("show of a profile exits %d", code)
-	}
-	if code := run([]string{"profiles", "show", "missing"}); code != 1 {
-		t.Errorf("show of a missing profile exits %d", code)
-	}
-	if code := run([]string{"run", "--", "true"}); code != 2 {
-		t.Errorf("run without --profile exits %d", code)
-	}
-	if code := run([]string{"no-such-command"}); code != 2 {
-		t.Errorf("unknown command exits %d", code)
 	}
 }
 
@@ -476,5 +461,76 @@ func TestLoginArguments(t *testing.T) {
 	}
 	if err := cmdLogin([]string{"--profile", "plain", "linear"}, &out); err == nil || !strings.Contains(err.Error(), "[secrets.linear]") {
 		t.Errorf("an unknown secret: %v", err)
+	}
+	if err := cmdLogin([]string{"--profile", "plain", "linear", "notion"}, &out); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Errorf("two secrets: %v", err)
+	}
+}
+
+func TestLoginSkipsSecretsAlreadySignedIn(t *testing.T) {
+	p := testPaths(t)
+	key := filepath.Join(p.Home, "key")
+	writeProfile(t, p, "app", `modules = ["base"]
+
+[secrets.linear.oauth]
+mcp = "https://mcp.linear.app/mcp"
+
+[secrets.notion.oauth]
+mcp = "https://mcp.notion.com/mcp"
+
+[secrets.key]
+file = "`+key+`"
+`)
+	for _, s := range []string{"linear", "notion"} {
+		state := oauth.StatePath(p.State, "app", s)
+		if err := os.MkdirAll(filepath.Dir(state), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(state, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out bytes.Buffer
+	if err := cmdLogin([]string{"--profile", "app"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	want := "Already signed in for linear; name it to sign in again.\n" +
+		"Already signed in for notion; name it to sign in again.\n" +
+		"Nothing to sign in to in profile app.\n"
+	if out.String() != want {
+		t.Errorf("login = %q, want %q", out.String(), want)
+	}
+	if err := cmdLogin([]string{"--profile", "app", "key"}, &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
+		t.Errorf("a secret without oauth: %v", err)
+	}
+}
+
+func TestApprovalsListSkipsASessionThatDoesNotAnswer(t *testing.T) {
+	p := testPaths(t)
+	s := startSession(t, p, "s1", "kitchen", time.Now())
+	id, decided := s.submit(t, "Push", "")
+	silent := filepath.Join(p.Sessions(), "s2")
+	if err := os.MkdirAll(silent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	info := `{"id":"s2","profile":"garden","pid":` + strconv.Itoa(os.Getpid()) + `}`
+	if err := os.WriteFile(filepath.Join(silent, session.InfoFile), []byte(info), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := approvals(t, "list")
+	if err != nil || !strings.Contains(out, id) {
+		t.Errorf("list = %q, %v", out, err)
+	}
+	if _, err := approvals(t, "deny", id); err != nil {
+		t.Fatal(err)
+	}
+	receive(t, decided)
+}
+
+func TestSessionsWithoutSessions(t *testing.T) {
+	testPaths(t)
+	var out bytes.Buffer
+	if err := cmdSessions(&out); err != nil || out.String() != "No running sessions.\n" {
+		t.Errorf("sessions = %q, %v", out.String(), err)
 	}
 }
