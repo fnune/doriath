@@ -47,7 +47,7 @@ Usage:
   girdle clean [--caches PROFILE]
   girdle restore SESSION
   girdle grant write PATH [--session ID]
-  girdle login PROFILE SECRET
+  girdle login --profile NAME [SECRET]
   girdle direnv
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]

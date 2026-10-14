@@ -388,3 +388,18 @@ func TestStartDirs(t *testing.T) {
 		t.Error("a missing --current must fail")
 	}
 }
+
+func TestLoginArguments(t *testing.T) {
+	p := testPaths(t)
+	writeProfile(t, p, "plain", `modules = ["base"]`)
+	var out bytes.Buffer
+	if err := cmdLogin(nil, &out); err == nil || !strings.Contains(err.Error(), "--profile") {
+		t.Errorf("without --profile: %v", err)
+	}
+	if err := cmdLogin([]string{"--profile", "plain"}, &out); err != nil || !strings.Contains(out.String(), "Nothing to sign in to") {
+		t.Errorf("a profile without OAuth secrets: %q, %v", out.String(), err)
+	}
+	if err := cmdLogin([]string{"--profile", "plain", "linear"}, &out); err == nil || !strings.Contains(err.Error(), "[secrets.linear]") {
+		t.Errorf("an unknown secret: %v", err)
+	}
+}

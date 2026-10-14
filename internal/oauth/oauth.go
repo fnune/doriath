@@ -104,7 +104,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		s, err := load(path)
 		if errors.Is(err, os.ErrNotExist) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run girdle login %s %s", name, t.profile, name)
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run girdle login --profile %s %s", name, t.profile, name)
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -116,7 +116,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run girdle login %s %s again", name, err, t.profile, name)
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run girdle login --profile %s %s again", name, err, t.profile, name)
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }

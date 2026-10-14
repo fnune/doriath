@@ -494,7 +494,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 			case b.OAuth != nil:
 				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
 				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run girdle login %s %s", prof.Name, name)
+					err = fmt.Errorf("not signed in: run girdle login --profile %s %s", prof.Name, name)
 				}
 				check(label+" (oauth)", err)
 			case b.File != "":

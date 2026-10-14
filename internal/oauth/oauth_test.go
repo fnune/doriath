@@ -165,7 +165,7 @@ func TestLoginWithAnIssuer(t *testing.T) {
 
 func TestTokenWithoutLoginNamesTheCommand(t *testing.T) {
 	_, err := NewTokens(t.TempDir(), "work").Token(context.Background(), "notion", secret.OAuth{})
-	if err == nil || !strings.Contains(err.Error(), "girdle login work notion") {
+	if err == nil || !strings.Contains(err.Error(), "girdle login --profile work notion") {
 		t.Fatalf("err = %v", err)
 	}
 }
