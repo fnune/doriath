@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -80,6 +81,8 @@ type fakeSession struct {
 	profile string
 	manager *approval.Manager
 	status  session.Status
+	mu      sync.Mutex
+	granted []string
 }
 
 func startSession(t *testing.T, p config.Paths, id, profile string, started time.Time) *fakeSession {
@@ -120,6 +123,16 @@ func startSession(t *testing.T, p config.Paths, id, profile string, started time
 		},
 		session.MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status, nil
+		},
+		session.MethodGrantWrite: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.GrantWriteParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.granted = append(s.granted, params.Path)
+			return session.GrantWriteResult{Hint: "add it to the profile to keep it"}, nil
 		},
 	})
 	go func() { _ = srv.Serve(context.Background(), l) }()
@@ -165,7 +178,10 @@ type fakeBroker struct {
 	mu       sync.Mutex
 	submits  []session.SubmitParams
 	informs  []session.InformParams
+	writes   []session.RequestWriteParams
+	waits    []session.WaitParams
 	decision approval.Decision
+	pending  string
 	fail     error
 	status   session.Status
 }
@@ -213,6 +229,32 @@ func startBroker(t *testing.T) *fakeBroker {
 			defer b.mu.Unlock()
 			return b.status, nil
 		},
+		session.MethodRequestWrite: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.RequestWriteParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.writes = append(b.writes, params)
+			if b.fail != nil {
+				return nil, b.fail
+			}
+			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+		},
+		session.MethodWait: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.WaitParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.waits = append(b.waits, params)
+			if b.fail != nil {
+				return nil, b.fail
+			}
+			return b.decision, nil
+		},
 	})
 	go func() { _ = srv.Serve(context.Background(), l) }()
 	t.Setenv("GIRDLE_BROKER", sock)
@@ -246,4 +288,28 @@ func hook(t *testing.T, event, input string, flags ...string) (string, error) {
 	var out bytes.Buffer
 	err := cmdHook(append([]string{"claude", event}, flags...), bytes.NewBufferString(input), &out)
 	return out.String(), err
+}
+
+func (s *fakeSession) grants() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.granted)
+}
+
+func (b *fakeBroker) setPending(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.pending = id
+}
+
+func (b *fakeBroker) sentWrites() []session.RequestWriteParams {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.writes)
+}
+
+func (b *fakeBroker) sentWaits() []session.WaitParams {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.waits)
 }
