@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -37,5 +38,37 @@ func TestFallback(t *testing.T) {
 	})
 	if err != nil || p != "/opt/bwrap" {
 		t.Fatalf("got %s, %v", p, err)
+	}
+}
+
+func TestExtractReplacesATamperedCopy(t *testing.T) {
+	dir := t.TempDir()
+	want := []byte("#!/bin/sh\necho hi\n")
+	p, err := extract(dir, "tool", want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(p, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("#!/bin/sh\nevil\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := extract(dir, "tool", want); err != nil || again != p {
+		t.Fatalf("extract = %s, %v", again, err)
+	}
+	if got, err := os.ReadFile(p); err != nil || string(got) != string(want) {
+		t.Fatalf("content = %q, %v", got, err)
+	}
+}
+
+func TestWithoutBwrapSaysHowToGetOne(t *testing.T) {
+	if Bundled() {
+		t.Skip("bundled build")
+	}
+	t.Setenv("PATH", t.TempDir())
+	_, err := Bwrap(t.TempDir(), func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "build with -tags bundled or set GIRDLE_BWRAP") {
+		t.Fatalf("err = %v", err)
 	}
 }
