@@ -21,11 +21,11 @@ func TestHelpersInsideWritableMountsAreRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	deps := Deps{Paths: config.Paths{Home: root, Cache: filepath.Join(root, "cache")}, Git: git}
-	p := &profile.Profile{Name: "p", Mounts: []profile.Mount{{Path: filepath.Join(root, "work"), Mode: profile.ModeReadOnly}}}
+	p := &profile.Profile{Name: "p", Mounts: []profile.Mount{{Path: filepath.Join(root, "work"), Mode: profile.ModeRead}}}
 	if err := checkHelpers(deps, p); err != nil {
 		t.Fatalf("a read-only mount is fine: %v", err)
 	}
-	p.Mounts[0].Mode = profile.ModeReadWrite
+	p.Mounts[0].Mode = profile.ModeWrite
 	if err := checkHelpers(deps, p); err == nil || !strings.Contains(err.Error(), "the jail can write") {
 		t.Fatalf("err = %v", err)
 	}

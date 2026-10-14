@@ -26,10 +26,10 @@ func testProfile() *profile.Profile {
 	return &profile.Profile{
 		Name: "project",
 		Mounts: []profile.Mount{
-			{Path: "/home/u/Development/project/site", Mode: profile.ModeReadOnly},
-			{Path: "/home/u/Development/project", Mode: profile.ModeReadWrite},
-			{Path: "/home/u/.nix-profile", Mode: profile.ModeReadOnly, Optional: true},
-			{Path: "/home/u/.missing", Mode: profile.ModeReadOnly, Optional: true},
+			{Path: "/home/u/Development/project/site", Mode: profile.ModeRead},
+			{Path: "/home/u/Development/project", Mode: profile.ModeWrite},
+			{Path: "/home/u/.nix-profile", Mode: profile.ModeRead, Optional: true},
+			{Path: "/home/u/.missing", Mode: profile.ModeRead, Optional: true},
 		},
 		Caches:  []profile.Cache{{Path: "/home/u/.cache/go-build"}},
 		Devices: []string{"/dev/tpmrm0"},
@@ -152,7 +152,7 @@ func TestArgsOrder(t *testing.T) {
 
 func TestPlanErrors(t *testing.T) {
 	p := testProfile()
-	p.Mounts = append(p.Mounts, profile.Mount{Path: "/home/u/required", Mode: profile.ModeReadWrite})
+	p.Mounts = append(p.Mounts, profile.Mount{Path: "/home/u/required", Mode: profile.ModeWrite})
 	if _, err := Plan(p, layout(), opts(), host()); err == nil || !strings.Contains(err.Error(), "/home/u/required does not exist") {
 		t.Errorf("err = %v", err)
 	}
@@ -207,8 +207,8 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 	h["/home/u/Development/project/.git/hooks"] = "dir"
 	p := testProfile()
 	p.Mounts = []profile.Mount{
-		{Path: "/home/u/Development/project", Mode: profile.ModeReadOnly},
-		{Path: "/home/u/Development/project/.git", Mode: profile.ModeReadWrite},
+		{Path: "/home/u/Development/project", Mode: profile.ModeRead},
+		{Path: "/home/u/Development/project/.git", Mode: profile.ModeWrite},
 	}
 	o := opts()
 	s, err := Plan(p, layout(), o, h)
@@ -218,44 +218,6 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == "/home/u/Development/project/.git/hooks" })
 	if i < 0 || !s.Binds[i].ReadOnly {
 		t.Fatal("hooks must be read-only when .git itself is the mount")
-	}
-}
-
-func TestWritableMountWithRepositoriesSuggestsMountingThem(t *testing.T) {
-	h := host()
-	p := testProfile()
-	p.Mounts = []profile.Mount{{Path: "/home/u/Development/project", Mode: profile.ModeReadWrite}}
-	s, err := Plan(p, layout(), opts(), h)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.Notes) != 0 {
-		t.Fatalf("a mount without a repository needs no note: %v", s.Notes)
-	}
-	h["/home/u/Development/project/.git"] = "dir"
-	s, err = Plan(p, layout(), opts(), h)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], "without commits") {
-		t.Fatalf("notes = %v", s.Notes)
-	}
-	delete(h, "/home/u/Development/project/.git")
-	h["/home/u/Development/project/site/.git"] = "dir"
-	s, err = Plan(p, layout(), opts(), h)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.Notes) != 1 || !strings.Contains(s.Notes[0], "mount each repository itself") {
-		t.Fatalf("notes = %v", s.Notes)
-	}
-	p.Mounts[0].Live = true
-	s, err = Plan(p, layout(), opts(), h)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.Notes) != 0 {
-		t.Fatalf("a live mount was asked for, so it needs no note: %v", s.Notes)
 	}
 }
 
@@ -371,5 +333,47 @@ func TestVarAndOptAreHidden(t *testing.T) {
 	args := strings.Join(s.Args(), " ")
 	if !strings.Contains(args, "--symlink ../run /var/run") {
 		t.Errorf("/var/run must still lead to /run: %s", args)
+	}
+}
+
+func TestHiddenPathsShowNothing(t *testing.T) {
+	p := testProfile()
+	p.Mounts = append(p.Mounts,
+		profile.Mount{Path: "/home/u/Development/project/secrets", Mode: profile.ModeHide},
+		profile.Mount{Path: "/home/u/Development/project/.env", Mode: profile.ModeHide},
+		profile.Mount{Path: "/home/u/Development/project/gone", Mode: profile.ModeHide},
+	)
+	h := host()
+	h["/home/u/Development/project/secrets"] = "dir"
+	h["/home/u/Development/project/.env"] = "file"
+	s, err := Plan(p, layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"/home/u/Development/project/secrets": layout().EmptyDir(),
+		"/home/u/Development/project/.env":    "/dev/null",
+	}
+	seen := map[string]int{}
+	for i, b := range s.Binds {
+		if source, ok := want[b.Dest]; ok {
+			if b.Source != source || !b.ReadOnly {
+				t.Errorf("hidden %s: %+v", b.Dest, b)
+			}
+			seen[b.Dest] = i
+		}
+		if b.Dest == "/home/u/Development/project/gone" {
+			t.Error("a hidden path that does not exist needs no mount")
+		}
+	}
+	for dest := range want {
+		if _, ok := seen[dest]; !ok {
+			t.Errorf("%s is not hidden", dest)
+		}
+	}
+	for i, b := range s.Binds {
+		if b.Dest == "/home/u/Development/project" && i > seen["/home/u/Development/project/secrets"] {
+			t.Error("the hiding mount must come after the mount it hides in")
+		}
 	}
 }

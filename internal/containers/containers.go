@@ -34,6 +34,9 @@ type Policy struct {
 type Mount struct {
 	Path     string
 	ReadOnly bool
+	// Hidden paths are empty in the jail, so no container may bind them or
+	// anything that contains them.
+	Hidden bool
 }
 
 type Approver interface {

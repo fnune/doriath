@@ -21,10 +21,11 @@ A profile says what one kind of work can reach. Save this as `~/.config/girdle/p
 description = "My app: Go API and React frontend"
 modules = ["base", "go", "node", "playwright", "github", "claude"]
 
-# The agent works on a clone. Its branches come back as refs/girdle/...
+# The agent changes the checkout in place. git's config and hooks stay
+# read-only.
 [[mounts]]
 path = "~/Development/my-app"
-mode = "clone"
+mode = "write"
 
 # Hosts the build and tests need beyond what the modules allow.
 [egress]
@@ -58,7 +59,7 @@ girdle protects you from an agent that does something you did not ask for, for e
 - read your home directory, your other projects, your SSH keys or your tokens.
 - read the credentials that girdle adds to its requests.
 - reach a host that the profile does not name, your local network or a cloud metadata service.
-- change files that run outside the jail, such as git hooks. The agent works on a clone of the repository.
+- change files that git runs outside the jail, such as hooks and config.
 - make a request that a rule holds for approval, until you approve it. The rules come from the profile and its modules. For example, the `github` module holds merges, releases and pushes.
 - approve its own requests.
 
@@ -77,8 +78,8 @@ flowchart LR
     subgraph jail["Jail: its own files, network and processes"]
         tech["Linux: bubblewrap, seccomp, Landlock<br/>macOS: Seatbelt, not supported yet"]
         agent["Agent<br/>(Claude Code, scripts, browsers)"]
-        clone[("Private clone<br/>of your repository")]
-        agent --> clone
+        repo[("Your repository<br/>read-only or writable")]
+        agent --> repo
     end
 
     proxy["girdle's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
@@ -95,17 +96,17 @@ flowchart LR
     style tech fill:none,stroke-dasharray:3 3
 ```
 
-| Part            | What it does                                                                                                                                                                                                                                                                                 |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Files           | bubblewrap mounts the system read-only. The home directory, `/run`, `/tmp`, `/var` and `/opt` are empty. The paths that the profile names are mounted at the same paths. A repository is mounted as a git clone, and its branches come back to your repository as refs under `refs/girdle/`. |
-| Kernel          | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules and terminal input injection. Landlock limits writes to the writable mounts.                                                                                                                                 |
-| Network         | The jail has only a loopback interface. Programs reach other hosts through the proxy, with `HTTPS_PROXY`. The proxy allows the hosts that the profile names and refuses other hosts, private addresses and metadata addresses. Each decision goes to an audit log.                           |
-| Credentials     | For a host with an `[[http]]` entry, the proxy terminates TLS with a per-session CA, adds the credential to requests from the programs that the profile names, and applies the request rules: allow, approve or deny.                                                                        |
-| Approvals       | A request that a rule holds waits until you allow or deny it in a desktop notification or with `girdle approvals`, for example over SSH on a server. Claude Code's permission prompts use the same queue.                                                                                    |
-| Commit signing  | An SSH agent with an agent-only key signs git commits. It refuses other uses of the key.                                                                                                                                                                                                     |
-| Containers      | A podman service runs in a separate user namespace and shares the jail's network. A broker checks each API call: mounts, privileges, images.                                                                                                                                                 |
-| Resource limits | Each session runs in a systemd user scope with a task limit and a memory limit.                                                                                                                                                                                                              |
-| Looking inside  | `girdle exec` runs a command in a running session. `girdle forward` makes a port in the jail reachable on the host's localhost.                                                                                                                                                              |
+| Part            | What it does                                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Files           | bubblewrap mounts the system read-only. The home directory, `/run`, `/tmp`, `/var` and `/opt` are empty. The paths that the profile names are mounted at the same paths, read-only, writable or hidden. In a writable repository, git's config, hooks and info stay read-only. |
+| Kernel          | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules and terminal input injection. Landlock limits writes to the writable mounts.                                                                                                                   |
+| Network         | The jail has only a loopback interface. Programs reach other hosts through the proxy, with `HTTPS_PROXY`. The proxy allows the hosts that the profile names and refuses other hosts, private addresses and metadata addresses. Each decision goes to an audit log.             |
+| Credentials     | For a host with an `[[http]]` entry, the proxy terminates TLS with a per-session CA, adds the credential to requests from the programs that the profile names, and applies the request rules: allow, approve or deny.                                                          |
+| Approvals       | A request that a rule holds waits until you allow or deny it in a desktop notification or with `girdle approvals`, for example over SSH on a server. Claude Code's permission prompts use the same queue.                                                                      |
+| Commit signing  | An SSH agent with an agent-only key signs git commits. It refuses other uses of the key.                                                                                                                                                                                       |
+| Containers      | A podman service runs in a separate user namespace and shares the jail's network. A broker checks each API call: mounts, privileges, images.                                                                                                                                   |
+| Resource limits | Each session runs in a systemd user scope with a task limit and a memory limit.                                                                                                                                                                                                |
+| Looking inside  | `girdle exec` runs a command in a running session. `girdle forward` makes a port in the jail reachable on the host's localhost.                                                                                                                                                |
 
 ## Docs
 

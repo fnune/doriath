@@ -78,3 +78,15 @@ func TestNonRecursiveBindOverWritableMountsAllowed(t *testing.T) {
 		t.Fatalf("refused: %s", reason)
 	}
 }
+
+func TestHiddenPathsCannotReachContainers(t *testing.T) {
+	c := checker{policy: Policy{Mounts: []Mount{{Path: "/a"}, {Path: "/a/secret", Hidden: true}}}, profile: "dev"}
+	for _, bind := range []string{"/a/secret:/x", "/a/secret/key:/x:ro", "/a:/x"} {
+		if reason := c.bindArgument(bind); !strings.Contains(reason, "hidden") {
+			t.Errorf("%s: %q", bind, reason)
+		}
+	}
+	if reason := c.bindArgument("/a/src:/x"); reason != "" {
+		t.Errorf("a sibling of the hidden path: %s", reason)
+	}
+}

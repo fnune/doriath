@@ -20,24 +20,16 @@ import (
 type Mode string
 
 const (
-	ModeReadOnly  Mode = "ro"
-	ModeReadWrite Mode = "rw"
-	// ModeClone shows the agent a private clone of a git repository at the
-	// repository's own path. The desktop's checkout never sees its writes;
-	// its branches come back as refs to review.
-	ModeClone Mode = "clone"
+	ModeRead  Mode = "read"
+	ModeWrite Mode = "write"
+	// ModeHide shows an empty directory, or an empty file, at the path.
+	ModeHide Mode = "hide"
 )
 
 type Mount struct {
 	Path     string
 	Mode     Mode
 	Optional bool
-	// Ref is what a clone checks out. Empty means the repository's HEAD.
-	Ref string
-	// Live lets a rw mount of a repository stay the checkout itself. Without
-	// it, girdle gives the agent a clone, because the desktop runs files in
-	// a checkout that the agent could otherwise write.
-	Live bool
 }
 
 // Cache is a path that the jail sees as writable, backed by a directory that

@@ -36,6 +36,10 @@ type Layout struct {
 	Exe string
 }
 
+// EmptyDir is the empty directory, inside the jail directory, that hidden
+// directories show.
+func (l Layout) EmptyDir() string { return filepath.Join(l.JailDir, "empty") }
+
 func CacheSource(root, path, home string) string {
 	rel, err := filepath.Rel(home, path)
 	if err != nil {
@@ -111,8 +115,6 @@ type Options struct {
 	// JailDirWritable lets a helper such as the podman service create its
 	// socket in the girdle directory.
 	JailDirWritable bool
-	// Clones maps a clone mount's path to the clone's directory on the host.
-	Clones map[string]string
 }
 
 const nixDaemonDir = "/nix/var/nix/daemon-socket"
@@ -164,38 +166,29 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	var errs []error
 	var binds []Bind
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeClone {
-			src, ok := opts.Clones[m.Path]
-			if !ok {
-				errs = append(errs, fmt.Errorf("clone mount %s has no clone", m.Path))
-				continue
-			}
-			binds = append(binds, Bind{Source: src, Dest: m.Path})
-			binds = append(binds, gitGuards(src, m.Path, host)...)
-			continue
-		}
 		kind := host.Kind(m.Path)
 		if kind == "" {
-			if m.Optional {
+			if m.Optional || m.Mode == profile.ModeHide {
 				continue
 			}
 			errs = append(errs, fmt.Errorf("mount %s does not exist: create it or mark it optional", m.Path))
 			continue
 		}
-		binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
-		if m.Mode == profile.ModeReadWrite {
-			repos := repositories(m.Path, host)
-			switch {
-			case m.Live || len(repos) == 0:
-			case repos[0] == m.Path:
-				s.Notes = append(s.Notes, fmt.Sprintf("%s is a repository without commits, so the agent writes into your checkout: once it has a commit, girdle gives the agent a clone instead", m.Path))
-			default:
-				s.Notes = append(s.Notes, fmt.Sprintf("%s is a writable mount with git repositories inside: mount each repository itself, which gives the agent a clone, so its commits stay out of your checkouts until the session lands them", m.Path))
+		switch m.Mode {
+		case profile.ModeHide:
+			source := layout.EmptyDir()
+			if kind != "dir" {
+				source = "/dev/null"
 			}
-			for _, repo := range repos {
+			binds = append(binds, Bind{Source: source, Dest: m.Path, ReadOnly: true})
+		case profile.ModeWrite:
+			binds = append(binds, Bind{Source: m.Path, Dest: m.Path})
+			for _, repo := range repositories(m.Path, host) {
 				binds = append(binds, gitGuards(repo, repo, host)...)
 				binds = append(binds, jjGuards(repo, host)...)
 			}
+		default:
+			binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: true})
 		}
 	}
 	for _, c := range p.Caches {

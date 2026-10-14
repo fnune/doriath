@@ -367,8 +367,8 @@ func FuzzLoad(f *testing.F) {
 	}
 	f.Add([]byte(fuzzGraphQLHost), []byte(""))
 	f.Add([]byte(graphQLProfile), []byte(`[egress]`+"\n"+`allow = ["*.example.com"]`))
-	f.Add([]byte("modules = [\"m\"]\n[[mounts]]\npath = \"~/x\"\nmode = \"rw\"\n[[caches]]\npath = \"~/.cache/go\"\n[secrets.k]\nfile = \"~/k\"\n[signing]\nkey = \"k\"\n"),
-		[]byte("[[mounts]]\npath = \"/nix/store\"\nmode = \"clone\"\n[limits]\nmemory = \"50%\"\ncpu = \"200%\"\n"))
+	f.Add([]byte("modules = [\"m\"]\n[[mounts]]\npath = \"~/x\"\nmode = \"write\"\n[[caches]]\npath = \"~/.cache/go\"\n[secrets.k]\nfile = \"~/k\"\n[signing]\nkey = \"k\"\n"),
+		[]byte("[[mounts]]\npath = \"/nix/store\"\nmode = \"write\"\n[limits]\nmemory = \"50%\"\ncpu = \"200%\"\n"))
 	f.Fuzz(func(t *testing.T, profileText, moduleText []byte) {
 		l := &Loader{
 			Profiles: fstest.MapFS{"p.toml": &fstest.MapFile{Data: profileText}},
@@ -393,7 +393,7 @@ func checkLoaded(t *testing.T, p *Profile) {
 		if !filepath.IsAbs(m.Path) || filepath.Clean(m.Path) != m.Path {
 			t.Fatalf("mount %q is not an absolute clean path", m.Path)
 		}
-		if m.Mode != ModeReadOnly && UnderTrustedRoot(m.Path+"/") {
+		if m.Mode != ModeRead && UnderTrustedRoot(m.Path+"/") {
 			t.Fatalf("mount %q is %s under a trusted root", m.Path, m.Mode)
 		}
 	}

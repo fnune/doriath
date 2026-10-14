@@ -32,7 +32,7 @@ var version = "dev"
 const usage = `girdle runs a coding agent in a jail that shows it only what its profile names.
 
 Usage:
-  girdle run [--profile NAME] [--clone-from SESSION] [--learn] [--] COMMAND [ARGS...]
+  girdle run --profile NAME [--learn] [--] COMMAND [ARGS...]
   girdle exec [--session ID] [--] [COMMAND [ARGS...]]
   girdle forward [--session ID] PORT[:JAIL_PORT]
   girdle approvals [list]
@@ -131,7 +131,6 @@ func loader(p config.Paths) *profile.Loader {
 func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	name := flags.String("profile", "", "the profile to use (required)")
-	cloneFrom := flags.String("clone-from", "", "reuse the clones of an earlier session, to resume its work")
 	learn := flags.Bool("learn", false, "let egress reach any public host, and list the hosts the profile does not allow when the session ends")
 	if err := flags.Parse(args); err != nil {
 		return 2, err
@@ -209,7 +208,7 @@ func cmdRun(args []string) (int, error) {
 		Git:         lookPath("git"),
 		SystemdRun:  lookPath("systemd-run"),
 	}
-	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, CloneFrom: *cloneFrom, Learn: *learn})
+	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, Learn: *learn})
 	if err != nil {
 		return 1, err
 	}

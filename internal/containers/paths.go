@@ -31,8 +31,16 @@ func (c checker) bindSource(src string, a access) string {
 	if !ok {
 		return fmt.Sprintf("binding %s into a container is not allowed: it is outside the mounts and caches of profile %q; add it to [[mounts]] to allow it", src, c.profile)
 	}
+	if m.Hidden {
+		return fmt.Sprintf("binding %s into a container is not allowed: it is hidden in profile %q", src, c.profile)
+	}
+	for _, inner := range c.policy.Mounts {
+		if p := c.resolve(path.Clean(inner.Path)); inner.Hidden && within(p, resolved) {
+			return fmt.Sprintf("binding %s into a container is not allowed: it contains %s, which is hidden in profile %q", src, inner.Path, c.profile)
+		}
+	}
 	if a.write && m.ReadOnly {
-		return fmt.Sprintf("binding %s writable is not allowed: it is read-only in profile %q; bind it read-only (:ro), or set mode = \"rw\" on its [[mounts]] entry", src, c.profile)
+		return fmt.Sprintf("binding %s writable is not allowed: it is read-only in profile %q; bind it read-only (:ro), or set mode = \"write\" on its [[mounts]] entry", src, c.profile)
 	}
 	if a.write && a.nonRecursive {
 		for _, inner := range c.policy.Mounts {

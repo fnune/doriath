@@ -23,7 +23,7 @@ import (
 //
 //	# threat: one line on what the agent would gain
 //	# expect: held | works | gap
-//	# setup: live-repo | host-listener | rebinding
+//	# setup: live-repo | host-listener | rebinding | hidden
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
@@ -127,7 +127,7 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 					t.Fatalf("git %v: %v\n%s", args, err, out)
 				}
 			}
-			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"rw\"\nlive = true\n", repo)
+			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
 			replacements = append(replacements, "{{LIVE_REPO}}", repo)
 		case "host-listener":
 			l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -146,6 +146,17 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 				}
 			}()
 			replacements = append(replacements, "{{HOST_PORT}}", fmt.Sprint(l.Addr().(*net.TCPAddr).Port))
+		case "hidden":
+			dir := filepath.Join(e.work, "hidden-dir")
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for _, f := range []string{filepath.Join(dir, "key"), filepath.Join(e.work, ".env")} {
+				if err := os.WriteFile(f, []byte("bait-from-the-host\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"hide\"\n\n[[mounts]]\npath = %q\nmode = \"hide\"\n", dir, filepath.Join(e.work, ".env"))
 		case "rebinding":
 			extra += "\n[[egress.programs]]\nbinaries = [\"curl\"]\nallow = [\"rebinding.example\"]\n"
 		default:

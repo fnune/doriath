@@ -56,7 +56,7 @@ command = ["rbw", "get", "github-project"]
 
 [[mounts]]
 path = "~/Development/project"
-mode = "rw"
+mode = "write"
 
 [env]
 set = { LANG = "en_US.UTF-8" }
@@ -74,7 +74,7 @@ action = "deny"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := p.Mounts; len(got) != 2 || got[0].Path != "/home/u/.nix-profile" || got[0].Mode != ModeReadOnly || !got[0].Optional || got[1].Mode != ModeReadWrite {
+	if got := p.Mounts; len(got) != 2 || got[0].Path != "/home/u/.nix-profile" || got[0].Mode != ModeRead || !got[0].Optional || got[1].Mode != ModeWrite {
 		t.Errorf("mounts = %+v", got)
 	}
 	if p.Env.Set["LANG"] != "en_US.UTF-8" {
@@ -125,8 +125,8 @@ func TestLoadRejects(t *testing.T) {
 		"undefined signing":  {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
 		"secret both":        {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "not both"},
 		"secret relative":    {profile: "[secrets.x]\nfile = \"rel\"", want: "must be absolute"},
-		"writable nix store": {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"rw\"", want: "must be read-only"},
-		"writable opt":       {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"rw\"", want: "must be read-only"},
+		"writable nix store": {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
+		"writable opt":       {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"write\"", want: "must not be writable"},
 		"bad memory limit":   {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
 		"bad cpu limit":      {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
 		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},

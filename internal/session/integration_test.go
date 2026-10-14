@@ -111,7 +111,6 @@ type env struct {
 	secrets    map[string]secret.Backend
 	roots      *ca.Authority
 	binaries   string
-	cloneFrom  string
 	systemdRun string
 	lastID     string
 	resolver   session.Resolver
@@ -186,7 +185,7 @@ modules = ["base"]
 
 [[mounts]]
 path = %q
-mode = "rw"
+mode = "write"
 
 [egress]
 allow = ["example.com"]
@@ -260,7 +259,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		SystemdRun:    e.systemdRun,
 		Resolver:      e.resolver,
 	}
-	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}, CloneFrom: e.cloneFrom})
+	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -527,7 +526,7 @@ func TestPodmanThroughProxy(t *testing.T) {
 	e.dialer = &net.Dialer{Timeout: 30 * time.Second}
 	e.roots = nil
 	e.bundle = "/etc/ssl/certs/ca-certificates.crt"
-	body := fmt.Sprintf("modules = [\"base\", \"podman\"]\n[[mounts]]\npath = %q\nmode = \"rw\"\n[egress]\nallow = [\"example.com\"]\n", e.work)
+	body := fmt.Sprintf("modules = [\"base\", \"podman\"]\n[[mounts]]\npath = %q\nmode = \"write\"\n[egress]\nallow = [\"example.com\"]\n", e.work)
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "net.toml"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -669,103 +668,6 @@ done
 	}
 }
 
-func TestCloneMode(t *testing.T) {
-	if lookPath("git") == "" {
-		t.Skip("git not installed")
-	}
-	e := newEnv(t)
-	repo := filepath.Join(e.home, "repo")
-	gitIn := func(args ...string) string {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.org", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.org")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-		return strings.TrimSpace(string(out))
-	}
-	if err := os.MkdirAll(repo, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	gitIn("init", "-q", "-b", "main")
-	if err := os.WriteFile(filepath.Join(repo, "README"), []byte("original\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	gitIn("add", "README")
-	gitIn("commit", "-q", "-m", "first")
-	const personsOwnBranch = "wip"
-	gitIn("switch", "-q", "-c", personsOwnBranch)
-	gitIn("commit", "-q", "--allow-empty", "-m", personsOwnBranch)
-	base := gitIn("rev-parse", "HEAD")
-
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\nref = \"main\"\n", repo))
-	code, out := e.run(p, fmt.Sprintf(`
-cd %q
-test "$(cat README)" = original || echo "FAIL clone content"
-git switch -q -c feature
-echo agent > README
-git -c user.name=Agent -c user.email=a@example.org commit -q -am "agent change" || echo "FAIL commit"
-echo x >> .git/config 2>/dev/null && echo "FAIL clone config writable"
-echo done
-`, repo), nil)
-	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "done") {
-		t.Fatalf("code %d:\n%s", code, out)
-	}
-	if got, _ := os.ReadFile(filepath.Join(repo, "README")); string(got) != "original\n" {
-		t.Fatalf("the source checkout changed: %q", got)
-	}
-	if head := gitIn("rev-parse", "HEAD"); head != base {
-		t.Fatal("the source HEAD moved")
-	}
-	refs := gitIn("for-each-ref", "--format=%(refname)", "refs/girdle/")
-	if !strings.Contains(refs, "/feature") {
-		t.Fatalf("no landed branch: %q\noutput:\n%s", refs, out)
-	}
-	if strings.Contains(refs, "/wip") {
-		t.Errorf("the person's own branch landed: %q", refs)
-	}
-	if clones, _ := filepath.Glob(filepath.Join(e.paths.AgentCache(p.Name), "clones", "repo-*")); len(clones) != 0 {
-		t.Errorf("a clone whose work all landed must be removed: %v", clones)
-	}
-	if !strings.Contains(out, "feature has 1 new commit(s)") {
-		t.Errorf("no landing summary in:\n%s", out)
-	}
-	if msg := gitIn("log", "-1", "--format=%s", strings.Fields(refs)[0]); msg != "agent change" && !strings.Contains(refs, "HEAD") {
-		t.Errorf("landed commit = %q", msg)
-	}
-}
-
-func TestCloneFromResumesWork(t *testing.T) {
-	if lookPath("git") == "" {
-		t.Skip("git not installed")
-	}
-	e := newEnv(t)
-	repo := filepath.Join(e.home, "repo")
-	if err := os.MkdirAll(repo, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
-		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v: %s", err, out)
-		}
-	}
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"clone\"\n", repo))
-	if code, out := e.run(p, fmt.Sprintf("echo draft > %q/notes\n", repo), nil); code != 0 {
-		t.Fatalf("first session: %d\n%s", code, out)
-	}
-	e.cloneFrom = e.lastID
-	code, out := e.run(p, fmt.Sprintf("cat %q/notes\n", repo), nil)
-	if code != 0 || !strings.Contains(out, "draft") {
-		t.Fatalf("the resumed session must see uncommitted work: %d\n%s", code, out)
-	}
-	if _, err := os.Stat(filepath.Join(repo, "notes")); err == nil {
-		t.Fatal("the source checkout must not see the clone's files")
-	}
-}
-
 func TestForgedIdentityHeaderIsIgnored(t *testing.T) {
 	if lookPath("python3") == "" {
 		t.Skip("python3 not installed")
@@ -816,35 +718,6 @@ func TestLimitsRunTheSessionInAScope(t *testing.T) {
 	})
 	if code != 0 || tasksMax != "64" {
 		t.Fatalf("code %d, TasksMax %q:\n%s", code, tasksMax, out)
-	}
-}
-
-func TestWritableRepositoryBecomesAClone(t *testing.T) {
-	if lookPath("git") == "" {
-		t.Skip("git not installed")
-	}
-	e := newEnv(t)
-	repo := filepath.Join(e.home, "repo")
-	if err := os.MkdirAll(repo, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
-		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"rw\"\n", repo))
-	code, out := e.run(p, fmt.Sprintf("cd %q && echo agent > written && echo done\n", repo), nil)
-	if code != 0 || !strings.Contains(out, "done") {
-		t.Fatalf("code %d:\n%s", code, out)
-	}
-	if _, err := os.Stat(filepath.Join(repo, "written")); err == nil {
-		t.Fatal("the agent wrote into the checkout: a rw repository mount must be a clone")
-	}
-	if !strings.Contains(out, "--clone-from "+e.lastID) {
-		t.Errorf("a clone with uncommitted changes must be kept and named for --clone-from:\n%s", out)
 	}
 }
 

@@ -41,12 +41,11 @@ let
       mounts = [
         {
           path = "~/Documents/notes";
-          mode = "ro";
+          mode = "read";
         }
         {
           path = "~/Development/app";
-          mode = "clone";
-          ref = "origin/main";
+          mode = "write";
         }
       ];
       secrets = {
@@ -103,7 +102,7 @@ pkgs.runCommand "girdle-home-manager-module"
       jq -e "$@" profile.json > /dev/null || { echo "profile work: expected $*"; cat profile.json; exit 1; }
     }
     expect --arg hello "$hello" '.Env.PathPrepend | index($hello) != null'
-    expect '[.Mounts[] | select(.Mode == "clone")] | length == 1'
+    expect '[.Mounts[] | select(.Mode == "write")] | length == 1'
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
     expect '.Secrets.signing.File == "/run/secrets/signing"'
 

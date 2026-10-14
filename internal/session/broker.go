@@ -182,9 +182,10 @@ func (s *Session) status() Status {
 		Denied:  s.egress.Denials(),
 	}
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeReadWrite || m.Mode == profile.ModeClone {
+		switch m.Mode {
+		case profile.ModeWrite:
 			st.Writable = append(st.Writable, m.Path)
-		} else {
+		case profile.ModeRead:
 			st.ReadOnly = append(st.ReadOnly, m.Path)
 		}
 	}

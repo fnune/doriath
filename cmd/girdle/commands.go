@@ -666,7 +666,7 @@ modules = ["base", "claude"]
 
 [[mounts]]
 path = "~/Development/my-project"
-mode = "clone"
+mode = "read"
 `
 
 func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer) error {

@@ -98,9 +98,6 @@ type Request struct {
 	Profile *profile.Profile
 	Cwd     string
 	Command []string
-	// CloneFrom reuses the clones of an earlier session, so that resumed
-	// work keeps its uncommitted changes.
-	CloneFrom string
 	// Learn lets egress reach any public host and reports the hosts the
 	// profile does not allow when the session ends.
 	Learn bool
@@ -126,7 +123,6 @@ type Session struct {
 	egress        *egressLog
 	policy        *livePolicy
 	peers         *hostPeers
-	clones        []repoClone
 	logFile       io.Closer
 	manager       *approval.Manager
 	closers       []func()
@@ -139,9 +135,6 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
-	req.Profile = cloneRepositories(req.Profile, osHost{}, func(repo string) bool {
-		return deps.Git != "" && exec.Command(deps.Git, "-C", repo, "rev-parse", "--verify", "--quiet", "HEAD").Run() == nil
-	})
 	id, err := newID()
 	if err != nil {
 		return nil, err
@@ -178,7 +171,7 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 
 func (s *Session) prepare(ctx context.Context) error {
 	p := s.req.Profile
-	if err := os.MkdirAll(s.jailDir, 0o700); err != nil {
+	if err := os.MkdirAll(s.layout().EmptyDir(), 0o700); err != nil {
 		return fmt.Errorf("create session directory: %w", err)
 	}
 	if err := os.Chmod(filepath.Dir(s.dir), 0o700); err != nil {
@@ -213,9 +206,6 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 
-	if err := s.prepareClones(ctx); err != nil {
-		return err
-	}
 	if err := s.startProxy(); err != nil {
 		return err
 	}
@@ -505,7 +495,6 @@ func (s *Session) plan() (jail.Spec, error) {
 		st := claude.State{Home: home, Cwd: s.req.Cwd, ShareLogin: s.req.Profile.Claude.ShareLogin, Private: filepath.Join(s.cacheRoot(), "claude", "home"), ConfigCopy: filepath.Join(s.cacheRoot(), "claude", "claude.json")}
 		extra = append(extra, st.Binds(osHost{})...)
 	}
-	extra = append(extra, s.cloneBinds()...)
 	if b, ok := s.bazelrc(home); ok {
 		extra = append(extra, b)
 	}
@@ -528,7 +517,6 @@ func (s *Session) plan() (jail.Spec, error) {
 	argv = append(argv, command...)
 
 	return jail.Plan(p, s.layout(), jail.Options{
-		Clones:     s.cloneDirs(),
 		InfoFD:     3,
 		SeccompFD:  4,
 		SkipNetNS:  s.netnsPID != 0,
@@ -613,9 +601,6 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		if err := copyTranscriptsBack(s.claudeProject[1], s.claudeProject[0]); err != nil {
 			fmt.Fprintf(s.deps.Stderr, "girdle: could not copy Claude transcripts back: %v\n", err)
 		}
-	}
-	for _, line := range s.landClones(context.Background()) {
-		fmt.Fprintln(s.deps.Stderr, line)
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
 		by := s.policy.LearnedBy()
@@ -719,7 +704,7 @@ func (s *Session) writable(extra []jail.Bind) []string {
 	home := s.deps.Paths.Home
 	out := []string{home, "/tmp", "/var/tmp", "/dev", "/proc", filepath.Join("/run/user", strconv.Itoa(os.Getuid()))}
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeReadWrite || m.Mode == profile.ModeClone {
+		if m.Mode == profile.ModeWrite {
 			out = append(out, m.Path)
 		}
 	}
@@ -806,7 +791,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 func checkHelpers(deps Deps, p *profile.Profile) error {
 	writable := []string{deps.Paths.AgentCache(p.Name)}
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeReadWrite {
+		if m.Mode == profile.ModeWrite {
 			writable = append(writable, m.Path)
 		}
 	}
@@ -830,17 +815,6 @@ func checkHelpers(deps Deps, p *profile.Profile) error {
 func within(path, root string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
-}
-
-func cloneRepositories(p *profile.Profile, host jail.Host, hasCommits func(repo string) bool) *profile.Profile {
-	out := *p
-	out.Mounts = slices.Clone(p.Mounts)
-	for i, m := range out.Mounts {
-		if m.Mode == profile.ModeReadWrite && !m.Live && host.Kind(filepath.Join(m.Path, ".git")) != "" && hasCommits(m.Path) {
-			out.Mounts[i].Mode = profile.ModeClone
-		}
-	}
-	return &out
 }
 
 // EntryFile, in the session directory, tells girdle exec how to join the

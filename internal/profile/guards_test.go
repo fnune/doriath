@@ -27,15 +27,15 @@ func mustLoad(t *testing.T, profile string, modules fstest.MapFS) *Profile {
 func TestLoadRejectsUnsafeSettings(t *testing.T) {
 	cases := map[string]struct{ profile, want string }{
 		"cache is the home":     {"[[caches]]\npath = \"~\"", "inside the home"},
-		"ref on a ro mount":     {"[[mounts]]\npath = \"/x\"\nref = \"main\"", "ref only applies"},
-		"live on a ro mount":    {"[[mounts]]\npath = \"/x\"\nlive = true", "live only applies"},
+		"old mode name":         {"[[mounts]]\npath = \"/x\"\nmode = \"rw\"", "want read, write or hide"},
+		"live, which is gone":   {"[[mounts]]\npath = \"/x\"\nlive = true", "unknown key"},
 		"port above range":      {"[egress]\nports = [65536]", "out of range"},
 		"tcp port above range":  {"[egress]\ntcp_ports = [65536]", "out of range"},
 		"zero approval timeout": {"[claude]\napproval_timeout = \"0s\"", "approval_timeout"},
 		"mount of the root":     {"[[mounts]]\npath = \"/\"", "whole filesystem"},
 		"mount of the home":     {"[[mounts]]\npath = \"~\"", "whole home"},
 		"mount above the home":  {"[[mounts]]\npath = \"/home\"", "whole home"},
-		"writable home mount":   {"[[mounts]]\npath = \"~/\"\nmode = \"rw\"", "whole home"},
+		"writable home mount":   {"[[mounts]]\npath = \"~/\"\nmode = \"write\"", "whole home"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -49,8 +49,8 @@ func TestLoadRejectsUnsafeSettings(t *testing.T) {
 func TestLoadAcceptsEdgeSettings(t *testing.T) {
 	for name, profile := range map[string]string{
 		"name field matches file": "name = \"p\"",
-		"ref on a clone mount":    "[[mounts]]\npath = \"/x\"\nmode = \"clone\"\nref = \"main\"",
-		"live on a rw mount":      "[[mounts]]\npath = \"/x\"\nmode = \"rw\"\nlive = true",
+		"hidden path":             "[[mounts]]\npath = \"/x/secret\"\nmode = \"hide\"",
+		"writable mount":          "[[mounts]]\npath = \"/x\"\nmode = \"write\"",
 		"lowest and highest port": "[egress]\nports = [1, 65535]\ntcp_ports = [2, 65534]",
 		"nix without daemon":      "[nix]",
 	} {
@@ -104,9 +104,9 @@ func TestNixDaemonFollowsTheLastLayer(t *testing.T) {
 }
 
 func TestLaterMountReplacesTheFirst(t *testing.T) {
-	modules := fstest.MapFS{"rw.toml": file("[[mounts]]\npath = \"/x\"\nmode = \"rw\"")}
+	modules := fstest.MapFS{"rw.toml": file("[[mounts]]\npath = \"/x\"\nmode = \"write\"")}
 	p := mustLoad(t, "modules = [\"rw\"]\n[[mounts]]\npath = \"/x\"", modules)
-	if len(p.Mounts) != 1 || p.Mounts[0].Mode != ModeReadOnly {
+	if len(p.Mounts) != 1 || p.Mounts[0].Mode != ModeRead {
 		t.Fatalf("mounts = %+v", p.Mounts)
 	}
 }

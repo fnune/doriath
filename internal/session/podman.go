@@ -159,7 +159,6 @@ func (s *Session) startPodman() error {
 		},
 		SkipUserNS: true,
 		InfoFD:     3,
-		Clones:     s.cloneDirs(),
 	}, osHost{})
 	if err != nil {
 		return fmt.Errorf("plan podman service: %w", err)
@@ -289,8 +288,8 @@ func (s *Session) startContainerBroker(raw string) error {
 	p := s.req.Profile
 	var mounts []containers.Mount
 	for _, m := range p.Mounts {
-		mounts = append(mounts, containers.Mount{Path: m.Path, ReadOnly: m.Mode == profile.ModeReadOnly})
-		if m.Mode != profile.ModeReadOnly {
+		mounts = append(mounts, containers.Mount{Path: m.Path, ReadOnly: m.Mode != profile.ModeWrite, Hidden: m.Mode == profile.ModeHide})
+		if m.Mode == profile.ModeWrite {
 			for _, name := range jail.GitControlFiles {
 				mounts = append(mounts, containers.Mount{Path: filepath.Join(m.Path, ".git", name), ReadOnly: true})
 			}

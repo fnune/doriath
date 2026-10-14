@@ -381,25 +381,17 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		mode := Mode(m.Mode)
 		if m.Mode == "" {
-			mode = ModeReadOnly
+			mode = ModeRead
 		}
-		if mode != ModeReadOnly && mode != ModeReadWrite && mode != ModeClone {
-			errs = append(errs, fmt.Errorf("mount %s: mode %q: want ro, rw or clone", m.Path, m.Mode))
+		if mode != ModeRead && mode != ModeWrite && mode != ModeHide {
+			errs = append(errs, fmt.Errorf("mount %s: mode %q: want read, write or hide", m.Path, m.Mode))
 			continue
 		}
-		if m.Ref != "" && mode != ModeClone {
-			errs = append(errs, fmt.Errorf("mount %s: ref only applies to clone mounts", m.Path))
+		if mode == ModeWrite && UnderTrustedRoot(path+"/") {
+			errs = append(errs, fmt.Errorf("mount %s: must not be writable, because credentials and egress programs trust programs under it by name", m.Path))
 			continue
 		}
-		if mode != ModeReadOnly && UnderTrustedRoot(path+"/") {
-			errs = append(errs, fmt.Errorf("mount %s: must be read-only, because credentials and egress programs trust programs under it by name", m.Path))
-			continue
-		}
-		if m.Live && mode != ModeReadWrite {
-			errs = append(errs, fmt.Errorf("mount %s: live only applies to rw mounts", m.Path))
-			continue
-		}
-		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Ref: m.Ref, Live: m.Live})
+		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
 	}
 	for _, img := range b.images {
 		if err := imagePattern(img); err != nil {
