@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,6 +164,79 @@ func TestApprovalsListAllowDeny(t *testing.T) {
 	if _, err := approvals(t, "frobnicate"); err == nil {
 		t.Error("unknown subcommand must fail")
 	}
+}
+
+func TestApprovalsWatchAsksAboutEachRequestOnce(t *testing.T) {
+	p := testPaths(t)
+	s := startSession(t, p, "s1", "kitchen", time.Now())
+	pushID, push := s.submit(t, "Push to origin", "git push origin main")
+	dropID, drop := s.submit(t, "Drop the table", "")
+	migrateID, migrate := s.submit(t, "Run the migration", "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := newStepClock(time.Now())
+	answers, answer := io.Pipe()
+	var out bytes.Buffer
+	done := make(chan error, 1)
+	go func() { done <- cmdApprovals(ctx, []string{"watch"}, c, answers, &out) }()
+
+	for _, a := range []string{"o\n", "d\n", "\n"} {
+		if _, err := io.WriteString(answer, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d := receive(t, push); d.Verdict != approval.VerdictAllow || d.Lasting != approval.LastingOnce || d.By != "cli" {
+		t.Errorf("o = %+v", d)
+	}
+	if d := receive(t, drop); d.Verdict != approval.VerdictDeny || d.By != "cli" {
+		t.Errorf("d = %+v", d)
+	}
+	tick := c.waiting(t)
+	installID, install := s.submit(t, "Install a package", "")
+	tick <- c.now
+	if _, err := io.WriteString(answer, "S\n"); err != nil {
+		t.Fatal(err)
+	}
+	if d := receive(t, install); d.Verdict != approval.VerdictAllow || d.Lasting != approval.LastingSession {
+		t.Errorf("S = %+v", d)
+	}
+	c.waiting(t)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []string{
+		"Watching for requests. Press Ctrl+C to stop.\n",
+		"\n[" + pushID + "] Push to origin (profile kitchen)\n    git push origin main\nAllow [o]nce, allow for this [s]ession, [d]eny, or [Enter] to skip: ",
+		"\n[" + dropID + "] Drop the table (profile kitchen)\nAllow",
+		"\n[" + installID + "] Install a package (profile kitchen)\nAllow",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("watch lacks %q:\n%s", want, out.String())
+		}
+	}
+	if n := strings.Count(out.String(), migrateID); n != 1 {
+		t.Errorf("a skipped request is asked about %d times:\n%s", n, out.String())
+	}
+	if err := s.manager.Decide(migrateID, approval.Decision{Verdict: approval.VerdictDeny}); err != nil {
+		t.Fatalf("skipping decided the request: %v", err)
+	}
+	receive(t, migrate)
+}
+
+func TestApprovalsWatchStopsAtTheEndOfInput(t *testing.T) {
+	p := testPaths(t)
+	s := startSession(t, p, "s1", "kitchen", time.Now())
+	id, decided := s.submit(t, "Push", "")
+	if err := cmdApprovals(context.Background(), []string{"watch"}, newStepClock(time.Now()), strings.NewReader(""), &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.manager.Decide(id, approval.Decision{Verdict: approval.VerdictDeny}); err != nil {
+		t.Fatalf("the request was decided without an answer: %v", err)
+	}
+	receive(t, decided)
 }
 
 func TestApprovalsAllowFor(t *testing.T) {
