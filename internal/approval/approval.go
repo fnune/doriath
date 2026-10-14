@@ -131,6 +131,19 @@ type Outcome struct {
 type pending struct {
 	req      Request
 	decision chan Decision
+	// done closes once the request is decided or expires, after result is
+	// set, for everyone else who waits on it.
+	done   chan struct{}
+	result Decision
+}
+
+func newPending(req Request) *pending {
+	return &pending{req: req, decision: make(chan Decision, 1), done: make(chan struct{})}
+}
+
+func (p *pending) finish(d Decision) {
+	p.result = d
+	close(p.done)
 }
 
 type grant struct {
@@ -153,6 +166,10 @@ func NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Man
 // Submit blocks until the request is decided, expires, or ctx ends. An
 // existing grant for the same scope answers at once.
 func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (Decision, error) {
+	return m.submit(ctx, req, ttl, nil)
+}
+
+func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, registered func(*pending)) (Decision, error) {
 	now := m.clock.Now()
 	m.mu.Lock()
 	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
@@ -165,9 +182,12 @@ func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (D
 	req.ID = m.ids.New()
 	req.Created = now
 	req.Expires = now.Add(ttl)
-	p := &pending{req: req, decision: make(chan Decision, 1)}
+	p := newPending(req)
 	m.pending[req.ID] = p
 	m.mu.Unlock()
+	if registered != nil {
+		registered(p)
+	}
 
 	m.recorder.Requested(req)
 	withdraw, err := m.notifier.Notify(ctx, req, func(d Decision) {
@@ -208,6 +228,7 @@ func (m *Manager) expire(id string) Decision {
 	m.history = append(m.history, Outcome{Request: p.req, Decision: d})
 	m.mu.Unlock()
 	m.recorder.Decided(p.req, d)
+	p.finish(d)
 	return d
 }
 
@@ -234,6 +255,7 @@ func (m *Manager) Decide(id string, d Decision) error {
 	m.mu.Unlock()
 	m.recorder.Decided(p.req, d)
 	p.decision <- d
+	p.finish(d)
 	return nil
 }
 
@@ -263,6 +285,94 @@ func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)
 			decided(d)
 		}
 	}()
+}
+
+// Hold shows a request, or joins an identical one already pending, and
+// waits up to wait for the answer. The request stays pending after that,
+// until it is decided or ttl passes, and decided runs when it is decided.
+// Hold returns the request's id, for Wait, unless a grant answered at once.
+func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decision)) (Decision, string) {
+	var p *pending
+	if req.Scope != "" {
+		m.mu.Lock()
+		for _, q := range m.pending {
+			if grantKey(q.req) == grantKey(req) {
+				p = q
+				break
+			}
+		}
+		m.mu.Unlock()
+	}
+	if p == nil {
+		type started struct {
+			p *pending
+			d Decision
+		}
+		ch := make(chan started, 1)
+		go func() {
+			sent := false
+			d, err := m.submit(context.Background(), req, ttl, func(p *pending) {
+				sent = true
+				ch <- started{p: p}
+			})
+			if !sent {
+				ch <- started{d: d}
+				return
+			}
+			if err == nil && d.Verdict != VerdictNone && decided != nil {
+				decided(d)
+			}
+		}()
+		s := <-ch
+		if s.p == nil {
+			return s.d, ""
+		}
+		p = s.p
+	}
+	select {
+	case <-p.done:
+		return p.result, p.req.ID
+	case <-m.clock.After(wait):
+		return Decision{Verdict: VerdictNone, Reason: "still waiting for a decision"}, p.req.ID
+	}
+}
+
+// Wait blocks until the request with id is decided or expires, or ctx ends.
+func (m *Manager) Wait(ctx context.Context, id string) (Decision, error) {
+	return m.waitFor(ctx, id, func(r Request) bool { return r.ID == id })
+}
+
+// WaitScope waits for the request with scope, the newest one when there
+// were several, as Wait does.
+func (m *Manager) WaitScope(ctx context.Context, scope string) (Decision, error) {
+	return m.waitFor(ctx, scope, func(r Request) bool { return r.Scope == scope })
+}
+
+func (m *Manager) waitFor(ctx context.Context, name string, match func(Request) bool) (Decision, error) {
+	m.mu.Lock()
+	var p *pending
+	for _, q := range m.pending {
+		if match(q.req) {
+			p = q
+			break
+		}
+	}
+	if p == nil {
+		defer m.mu.Unlock()
+		for i := len(m.history) - 1; i >= 0; i-- {
+			if match(m.history[i].Request) {
+				return m.history[i].Decision, nil
+			}
+		}
+		return Decision{}, fmt.Errorf("request %s: %w", name, ErrUnknownRequest)
+	}
+	m.mu.Unlock()
+	select {
+	case <-p.done:
+		return p.result, nil
+	case <-ctx.Done():
+		return Decision{Verdict: VerdictNone, Reason: "stopped waiting"}, nil
+	}
 }
 
 func grantKey(r Request) string { return string(r.Kind) + "\x00" + r.Scope }

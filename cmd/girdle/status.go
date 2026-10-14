@@ -107,9 +107,11 @@ func describeStatus(st session.Status) string {
 			fmt.Fprintf(&b, "  - %s: %s (%d times)\n", d.Host, d.Reason, d.Count)
 		}
 	}
-	b.WriteString("There is no other network access. Requests to other hosts fail, often only as \"CONNECT tunnel failed, response 403\". " +
+	b.WriteString("There is no other network access. A request to another host fails, often only as \"CONNECT tunnel failed, response 403\", " +
+		"and asks the user whether to allow the host. To wait for the answer, run girdle request wait HOST, in the background if you can, then try again. " +
+		"To write a path that is read-only here, run girdle request write PATH --reason TEXT, which asks the user and waits. " +
 		"Errors that start with \"girdle:\" come from this sandbox. Do not look for another way around a block. " +
-		"Tell the user what was blocked and why the task needs it, so they can change the profile. Run girdle status to see this again.\n")
+		"If the user denies a request, tell them what was blocked and why the task needs it. Run girdle status to see this again.\n")
 	return b.String()
 }
 

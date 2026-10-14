@@ -36,6 +36,12 @@ type Policy interface {
 	Intercepted(host string) (profile.HTTPHost, bool)
 }
 
+// HostHolder asks you about a host the profile does not allow, and waits a
+// while for your answer. pending names the request when it is still open.
+type HostHolder interface {
+	HoldHost(ctx context.Context, host, exe string) (allowed bool, pending string)
+}
+
 type Approver interface {
 	Submit(ctx context.Context, req approval.Request, ttl time.Duration) (approval.Decision, error)
 }
@@ -76,6 +82,9 @@ type Config struct {
 	ApprovalTTL time.Duration
 	// UpstreamRoots verifies upstream servers. Nil means the system roots.
 	UpstreamRoots *x509.CertPool
+	// Holder, when set, asks you about hosts the profile does not name
+	// instead of refusing them at once.
+	Holder HostHolder
 }
 
 type Server struct {
@@ -156,9 +165,7 @@ func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
 		return
 	}
-	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
-		s.record(Event{Kind: "denied", Host: host, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
-		s.denyHost(w, host)
+	if !s.admit(w, r, host, "") {
 		return
 	}
 	r.Host = host
@@ -184,9 +191,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed; only HTTPS on 443 goes through the proxy", port))
 		return
 	}
-	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
-		s.denyHost(w, host)
+	if !s.admit(w, r, host, port) {
 		return
 	}
 	hj, ok := w.(http.Hijacker)
@@ -365,9 +370,7 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
 		return
 	}
-	if !s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Exe) {
-		s.record(Event{Kind: "denied", Host: host, Exe: IdentityFrom(r.Context()).Exe, Reason: s.hostReason(host)})
-		s.denyHost(w, host)
+	if !s.admit(w, r, host, "") {
 		return
 	}
 	s.firstSeen(host, "http")
@@ -582,11 +585,38 @@ func identityEncoding(enc string) bool {
 	return enc == "" || enc == "identity"
 }
 
+const reasonNotInProfile = "host not in the profile"
+
+// admit reports whether the request's program may reach host. For a host
+// the profile does not name, it asks you and waits a while, when it can,
+// and otherwise refuses with the reason.
+func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string) bool {
+	exe := IdentityFrom(r.Context()).Exe
+	if s.policy.AllowsHostFor(host, exe) {
+		return true
+	}
+	reason := s.hostReason(host)
+	if reason == reasonNotInProfile && s.cfg.Holder != nil {
+		allowed, id := s.cfg.Holder.HoldHost(r.Context(), host, exe)
+		if allowed {
+			return true
+		}
+		if id != "" {
+			s.record(Event{Kind: "denied", Host: host, Port: port, Exe: exe, Reason: reason})
+			deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q, and approval %s is pending. To wait for the answer, run: girdle request wait %s", host, s.cfg.Profile, id, host))
+			return false
+		}
+	}
+	s.record(Event{Kind: "denied", Host: host, Port: port, Exe: exe, Reason: reason})
+	s.denyHost(w, host)
+	return false
+}
+
 func (s *Server) hostReason(host string) string {
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		return "host allowed only for " + strings.Join(progs, ", ")
 	}
-	return "host not in the profile"
+	return reasonNotInProfile
 }
 
 func (s *Server) denyHost(w http.ResponseWriter, host string) {

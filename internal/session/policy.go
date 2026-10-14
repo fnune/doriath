@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/proxy"
 )
 
 type livePolicy struct {
@@ -84,30 +84,39 @@ func (l *livePolicy) allow(host string) {
 	l.mu.Unlock()
 }
 
-const ruleTTL = 30 * time.Minute
+// pendingTTL keeps a request open for as long as a session plausibly runs:
+// you may answer it long after the agent stopped waiting.
+const pendingTTL = 12 * time.Hour
 
-func (s *Session) proposeHost(e proxy.Event) {
-	if e.Reason != "host not in the profile" {
-		return
-	}
+// HoldHost asks you about a host the profile does not name, and waits up to
+// the configured time. An allow lasts for the session, also when it comes
+// after the agent stopped waiting.
+func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 	who := "A program"
-	if e.Exe != "" {
-		who = e.Exe
+	if exe != "" {
+		who = exe
 	}
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindRule,
-		Summary: fmt.Sprintf("Allow %s for profile %s?", e.Host, s.req.Profile.Name),
-		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, e.Host) + uploadWarning(e.Host) + "\n" + keepHint(s.req.Profile.Name, []string{e.Host}),
-		Scope:   "rule egress " + e.Host,
+		Summary: fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name),
+		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, host) + uploadWarning(host) + "\n" + keepHint(s.req.Profile.Name, []string{host}),
+		Scope:   "rule egress " + host,
 	}
-	s.manager.Propose(req, ruleTTL, func(d approval.Decision) {
-		if d.Verdict != approval.VerdictAllow {
-			return
+	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
+		if d.Verdict == approval.VerdictAllow {
+			s.policy.allow(host)
 		}
-		s.policy.allow(e.Host)
 	})
+	if d.Verdict == approval.VerdictAllow {
+		s.policy.allow(host)
+		return true, ""
+	}
+	if d.Verdict == approval.VerdictDeny {
+		return false, ""
+	}
+	return false, id
 }
 
 // keepHint says how to keep hosts for later sessions. girdle does not edit

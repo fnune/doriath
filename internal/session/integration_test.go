@@ -115,6 +115,7 @@ type env struct {
 	lastID     string
 	// cwd is where sessions start; empty means the work directory.
 	cwd      string
+	hostWait time.Duration
 	resolver session.Resolver
 }
 
@@ -259,6 +260,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Podman:        lookPath("podman"),
 		Git:           lookPath("git"),
 		JJ:            lookPath("jj"),
+		HostWait:      e.hostWait,
 		SystemdRun:    e.systemdRun,
 		Resolver:      e.resolver,
 	}

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/jail"
@@ -16,33 +15,41 @@ import (
 	"github.com/fnune/girdle/internal/promote"
 )
 
-// hostWait bounds how long a request from the agent waits for your
-// decision.
-const hostWait = 2 * time.Minute
-
 // requestWrite asks you whether the agent may write path, and makes it
 // writable when you allow it.
-func (s *Session) requestWrite(ctx context.Context, path, reason string) (approval.Decision, error) {
+func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) {
 	path, err := s.checkPromotion(path)
 	if err != nil {
-		return approval.Decision{}, err
+		return RequestWriteResult{}, err
 	}
 	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.\n" + s.profileHint(path)
 	if reason != "" {
 		details += "\nIts reason, written by the agent: " + reason
 	}
-	d, err := s.manager.Submit(ctx, approval.Request{
+	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindPath,
 		Summary: "Let the agent write " + path,
 		Details: details,
 		Scope:   "path write " + path,
-	}, hostWait)
-	if err != nil || d.Verdict != approval.VerdictAllow {
-		return d, err
 	}
-	return d, s.grantWrite(ctx, path)
+	granted := make(chan error, 1)
+	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
+		if d.Verdict == approval.VerdictAllow {
+			granted <- s.grantWrite(context.Background(), path)
+		}
+	})
+	res := RequestWriteResult{Decision: d}
+	switch {
+	case d.Verdict == approval.VerdictAllow && id == "":
+		return res, nil
+	case d.Verdict == approval.VerdictAllow:
+		return res, <-granted
+	case d.Verdict == approval.VerdictNone:
+		res.Pending = id
+	}
+	return res, nil
 }
 
 // grantWrite makes path writable in the running jail until the session

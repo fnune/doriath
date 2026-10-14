@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fnune/girdle/internal/approval"
@@ -23,7 +24,23 @@ const (
 	MethodInform       = "inform"
 	MethodStatus       = "status"
 	MethodRequestWrite = "path.request_write"
+	MethodWait         = "approval.wait"
 )
+
+// WaitParams names a request by its id, or by what it asks for: a host or
+// an absolute path.
+type WaitParams struct {
+	ID   string `json:"id,omitempty"`
+	Host string `json:"host,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
+// RequestWriteResult is the decision, or the id of the request that is
+// still pending once the wait is over.
+type RequestWriteResult struct {
+	Decision approval.Decision `json:"decision"`
+	Pending  string            `json:"pending,omitempty"`
+}
 
 // Methods on the control socket, which only the host can reach.
 const (
@@ -103,12 +120,25 @@ func (s *Session) startBroker(ctx context.Context) error {
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status(), nil
 		},
-		MethodRequestWrite: func(ctx context.Context, raw json.RawMessage) (any, error) {
+		MethodRequestWrite: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestWriteParams](raw)
 			if err != nil {
 				return nil, err
 			}
-			return s.requestWrite(ctx, p.Path, p.Reason)
+			return s.requestWrite(p.Path, p.Reason)
+		},
+		MethodWait: func(ctx context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[WaitParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			switch {
+			case p.Host != "":
+				return s.manager.WaitScope(ctx, "rule egress "+strings.ToLower(p.Host))
+			case p.Path != "":
+				return s.manager.WaitScope(ctx, "path write "+filepath.Clean(p.Path))
+			}
+			return s.manager.Wait(ctx, p.ID)
 		},
 		MethodInform: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[InformParams](raw)

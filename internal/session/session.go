@@ -87,6 +87,9 @@ type Deps struct {
 	Nsenter string
 	Podman  string
 	Git     string
+	// HostWait is how long a refused request waits for your decision
+	// before the agent gets an error. The request stays pending after.
+	HostWait time.Duration
 	// JJ records and restores bookmarks of jj repositories that are not
 	// colocated with git. Empty skips them.
 	JJ string
@@ -214,7 +217,6 @@ func (s *Session) prepare(ctx context.Context) error {
 		fmt.Fprintln(s.deps.Stderr, "girdle: learning mode: any public host is reachable this session, and girdle lists the ones the profile does not allow when it ends")
 	}
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
-	s.egress.firstDenial = s.proposeHost
 
 	for _, d := range []string{s.cacheRoot(), s.tmp()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
@@ -332,6 +334,7 @@ func (s *Session) startProxy() error {
 		Profile:       p.Name,
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
+		Holder:        s,
 	}, s.policy, s.manager, s.deps.Secrets, issuer, s.upstreamDialer(), s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -91,11 +92,27 @@ type User struct {
 
 type Approvals struct {
 	Desktop bool
+	// HostWait is how long a request girdle refused waits for your
+	// decision before the agent gets an error. Nil means the default.
+	HostWait *time.Duration
+}
+
+// DefaultHostWait holds requests while desktop notifications can show them,
+// and not at all without them, where nobody sees the request in time.
+func (a Approvals) DefaultHostWait() time.Duration {
+	switch {
+	case a.HostWait != nil:
+		return *a.HostWait
+	case a.Desktop:
+		return 2 * time.Minute
+	}
+	return 0
 }
 
 type userFile struct {
 	Approvals struct {
-		Desktop *bool `toml:"desktop"`
+		Desktop  *bool   `toml:"desktop"`
+		HostWait *string `toml:"host_wait"`
 	} `toml:"approvals"`
 }
 
@@ -123,6 +140,13 @@ func LoadUser(path string) (User, error) {
 	}
 	if f.Approvals.Desktop != nil {
 		u.Approvals.Desktop = *f.Approvals.Desktop
+	}
+	if f.Approvals.HostWait != nil {
+		d, err := time.ParseDuration(*f.Approvals.HostWait)
+		if err != nil || d < 0 || d > time.Hour {
+			return User{}, fmt.Errorf("%s: approvals.host_wait %q: want a duration from 0s to 1h, such as 2m", path, *f.Approvals.HostWait)
+		}
+		u.Approvals.HostWait = &d
 	}
 	return u, nil
 }

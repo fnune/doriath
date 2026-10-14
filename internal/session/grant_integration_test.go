@@ -21,6 +21,7 @@ import (
 // jail could not see before.
 func TestRequestAndGrantWrite(t *testing.T) {
 	e := newEnv(t)
+	e.hostWait = 30 * time.Second
 	repo := filepath.Join(e.home, "app")
 	outside := filepath.Join(e.home, "videos")
 	for _, d := range []string{filepath.Join(repo, "assets"), outside} {
