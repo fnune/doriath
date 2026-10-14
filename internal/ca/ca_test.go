@@ -2,6 +2,7 @@ package ca
 
 import (
 	"crypto/x509"
+	"encoding/pem"
 	"testing"
 	"time"
 )
@@ -35,6 +36,40 @@ func TestRefusesHostsOutsideTheSession(t *testing.T) {
 		if _, err := a.Certificate(host); err == nil {
 			t.Errorf("%s: expected refusal", host)
 		}
+	}
+}
+
+func TestWildcardCoversOnlySubdomains(t *testing.T) {
+	a, err := New([]string{"*.githubusercontent.com"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for host, ok := range map[string]bool{
+		"objects.githubusercontent.com":   true,
+		"a.b.githubusercontent.com":       true,
+		"OBJECTS.githubusercontent.com":   true,
+		"githubusercontent.com":           false,
+		"evilgithubusercontent.com":       false,
+		"githubusercontent.com.evil.test": false,
+	} {
+		if _, err := a.Certificate(host); (err == nil) != ok {
+			t.Errorf("%s: err = %v, want issued = %v", host, err, ok)
+		}
+	}
+}
+
+func TestCertPEMIsTheRoot(t *testing.T) {
+	a, err := New([]string{"api.github.com"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(a.CertPEM())
+	if block == nil || block.Type != "CERTIFICATE" {
+		t.Fatalf("CertPEM = %q", a.CertPEM())
+	}
+	root, err := x509.ParseCertificate(block.Bytes)
+	if err != nil || !root.IsCA || !root.Equal(a.cert) {
+		t.Fatalf("root = %+v, %v", root, err)
 	}
 }
 
