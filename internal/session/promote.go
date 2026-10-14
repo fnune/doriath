@@ -22,6 +22,9 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 	if err != nil {
 		return RequestWriteResult{}, err
 	}
+	if !s.visible(path) {
+		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run girdle grant write on the host", path)
+	}
 	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.\n" + s.profileHint(path)
 	if reason != "" {
 		details += "\nIts reason, written by the agent: " + reason
@@ -114,10 +117,15 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	if err := profile.CheckMount(path, s.deps.Paths.Home); err != nil {
 		return "", fmt.Errorf("%s: %w", path, err)
 	}
+	for _, private := range s.privatePaths() {
+		if within(path, private) {
+			return "", fmt.Errorf("%s: girdle does not make %s writable: it holds keys, logins or girdle's own state", path, private)
+		}
+	}
 	if profile.UnderTrustedRoot(path + "/") {
 		return "", fmt.Errorf("%s: credentials and egress programs trust programs under it by name", path)
 	}
-	for _, system := range []string{"/dev", "/proc", "/sys", "/run"} {
+	for _, system := range []string{"/dev", "/proc", "/sys", "/run", "/var/tmp"} {
 		if within(path, system) {
 			return "", fmt.Errorf("%s: girdle does not make system paths writable", path)
 		}
@@ -153,6 +161,18 @@ func deepestExisting(path string) string {
 			return ""
 		}
 	}
+}
+
+// privatePaths hold keys, logins or girdle's own configuration and state,
+// and also the read-only files the claude module layers over a writable
+// cache, which a grant would make writable on the host.
+func (s *Session) privatePaths() []string {
+	home := s.deps.Paths.Home
+	out := []string{s.deps.Paths.Config, s.deps.Paths.State, s.deps.Paths.Cache}
+	for _, rel := range []string{".ssh", ".gnupg", ".aws", ".config/gh", ".claude", ".local/share/keyrings", ".password-store"} {
+		out = append(out, filepath.Join(home, rel))
+	}
+	return out
 }
 
 func (s *Session) visible(path string) bool {
