@@ -113,7 +113,9 @@ type env struct {
 	binaries   string
 	systemdRun string
 	lastID     string
-	resolver   session.Resolver
+	// cwd is where sessions start; empty means the work directory.
+	cwd      string
+	resolver session.Resolver
 }
 
 func newEnv(t *testing.T) *env {
@@ -260,7 +262,11 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		SystemdRun:    e.systemdRun,
 		Resolver:      e.resolver,
 	}
-	s, err := session.New(deps, session.Request{Profile: p, Cwd: e.work, Command: []string{scriptPath}})
+	cwd := e.work
+	if e.cwd != "" {
+		cwd = e.cwd
+	}
+	s, err := session.New(deps, session.Request{Profile: p, Cwd: cwd, Command: []string{scriptPath}})
 	if err != nil {
 		e.t.Fatal(err)
 	}

@@ -389,12 +389,22 @@ func FuzzLoad(f *testing.F) {
 
 func checkLoaded(t *testing.T, p *Profile) {
 	t.Helper()
-	for _, m := range p.Mounts {
+	resolved, err := p.Resolve(Start{Current: "/home/u/work/app", Repository: "/home/u/work"}, "/home/u")
+	if err != nil {
+		resolved = &Profile{}
+	}
+	for _, m := range append(slices.Clone(p.Mounts), resolved.Mounts...) {
+		if _, placeholder := placeholderPath(m.Path); placeholder {
+			continue
+		}
 		if !filepath.IsAbs(m.Path) || filepath.Clean(m.Path) != m.Path {
 			t.Fatalf("mount %q is not an absolute clean path", m.Path)
 		}
-		if m.Mode != ModeRead && UnderTrustedRoot(m.Path+"/") {
-			t.Fatalf("mount %q is %s under a trusted root", m.Path, m.Mode)
+		if m.Mode == ModeWrite && UnderTrustedRoot(m.Path+"/") {
+			t.Fatalf("mount %q is writable under a trusted root", m.Path)
+		}
+		if m.Path == "/" || within("/home/u", m.Path) {
+			t.Fatalf("mount %q exposes the home directory", m.Path)
 		}
 	}
 	for _, c := range p.Caches {

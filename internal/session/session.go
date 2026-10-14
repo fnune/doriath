@@ -135,6 +135,14 @@ type Session struct {
 }
 
 func New(deps Deps, req Request) (*Session, error) {
+	resolved, err := req.Profile.Resolve(profile.Start{
+		Current:    req.Cwd,
+		Repository: profile.FindRepository(req.Cwd, func(p string) bool { return osHost{}.Kind(p) != "" }),
+	}, deps.Paths.Home)
+	if err != nil {
+		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
+	}
+	req.Profile = resolved
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
@@ -209,6 +217,13 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 
+	for _, m := range p.Mounts {
+		if m.Create {
+			if err := os.MkdirAll(m.Path, 0o755); err != nil {
+				return fmt.Errorf("create %s: %w", m.Path, err)
+			}
+		}
+	}
 	if err := s.startRepositories(ctx); err != nil {
 		return err
 	}

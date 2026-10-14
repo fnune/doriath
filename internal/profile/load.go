@@ -88,18 +88,6 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	return p, nil
 }
 
-// exposesTooMuch refuses mounts that would undo the jail in any mode:
-// reading is what they expose.
-func (b *builder) exposesTooMuch(path string) error {
-	switch {
-	case path == "/":
-		return errors.New("the agent would see the whole filesystem")
-	case within(b.home, path):
-		return errors.New("the agent would see your whole home directory: your keys, tokens and other projects")
-	}
-	return nil
-}
-
 func within(dir, root string) bool {
 	rel, err := filepath.Rel(root, dir)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
@@ -204,14 +192,7 @@ func newBuilder(home string) *builder {
 }
 
 func (b *builder) apply(l layer) {
-	for _, m := range l.Mounts {
-		i := slices.IndexFunc(b.mounts, func(x mountLayer) bool { return x.Path == m.Path })
-		if i >= 0 {
-			b.mounts[i] = m
-		} else {
-			b.mounts = append(b.mounts, m)
-		}
-	}
+	b.mounts = append(b.mounts, l.Mounts...)
 	for _, c := range l.Caches {
 		b.caches = appendNew(b.caches, c.Path)
 	}
@@ -375,14 +356,17 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Secrets:         map[string]secret.Backend{},
 	}
 	for _, m := range b.mounts {
-		path, err := b.expand(m.Path)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("mount: %w", err))
-			continue
-		}
-		if err := b.exposesTooMuch(path); err != nil {
-			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
-			continue
+		path, placeholder := placeholderPath(m.Path)
+		if !placeholder {
+			var err error
+			if path, err = b.expand(m.Path); err != nil {
+				errs = append(errs, fmt.Errorf("mount: %w", err))
+				continue
+			}
+			if err := checkMount(path, b.home); err != nil {
+				errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
+				continue
+			}
 		}
 		mode := Mode(m.Mode)
 		if m.Mode == "" {
@@ -392,11 +376,11 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("mount %s: mode %q: want read, write or hide", m.Path, m.Mode))
 			continue
 		}
-		if mode == ModeWrite && UnderTrustedRoot(path+"/") {
-			errs = append(errs, fmt.Errorf("mount %s: must not be writable, because credentials and egress programs trust programs under it by name", m.Path))
+		if err := checkMode(path, mode); err != nil {
+			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
-		p.Mounts = append(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
+		p.Mounts = mergeMount(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
 	}
 	for _, img := range b.images {
 		if err := imagePattern(img); err != nil {

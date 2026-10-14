@@ -19,12 +19,13 @@ A profile says what one kind of work can reach. Save this as `~/.config/girdle/p
 
 ```toml
 description = "My app: Go API and React frontend"
-modules = ["base", "go", "node", "playwright", "github", "claude"]
+modules = ["base", "vcs", "go", "node", "playwright", "github", "claude"]
 
-# The agent changes the checkout in place. git's config and hooks stay
-# read-only.
+# The agent sees the repository you start in, read-only. vcs lets it commit
+# and add worktrees there, and claude gives it .claude/worktrees to work in.
+# Build output outside a worktree needs its own entry:
 [[mounts]]
-path = "~/Development/my-app"
+path = "{repository}/web/dist"
 mode = "write"
 
 # Hosts the build and tests need beyond what the modules allow.

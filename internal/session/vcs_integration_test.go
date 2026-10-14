@@ -156,3 +156,38 @@ echo done
 		t.Errorf("the agent's bookmark is missing:\n%s", jjRun("bookmark", "list"))
 	}
 }
+
+// TestProjectFromTheStartDirectory starts in a package of a repository: the
+// agent sees the whole repository read-only, and adds a worktree under a
+// path the profile grants.
+func TestProjectFromTheStartDirectory(t *testing.T) {
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "app")
+	if err := os.MkdirAll(filepath.Join(repo, "pkg"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "README"), []byte("top\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "add", "README")
+	git(t, repo, "commit", "-q", "-m", "first")
+	e.cwd = filepath.Join(repo, "pkg")
+	p := e.profile("\n[[mounts]]\npath = \"{repository}/.agent/worktrees\"\nmode = \"write\"\n\n[vcs]\nstore = true\n")
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
+test "$PWD" = %[1]s/pkg || echo "FAIL started in $PWD"
+grep -q top ../README || echo "FAIL the repository root is not visible"
+touch ../new 2>/dev/null && echo "FAIL the checkout is writable"
+git worktree add -q %[1]s/.agent/worktrees/w -b agent || echo "FAIL worktree add"
+cd %[1]s/.agent/worktrees/w && echo x > f && git add f && git commit -qm agent || echo "FAIL commit"
+echo done
+`, repo), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if got := git(t, repo, "log", "-1", "--format=%s", "agent"); got != "agent" {
+		t.Errorf("agent branch head = %q", got)
+	}
+}

@@ -8,6 +8,12 @@ set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1
 [egress]
 allow = ["console.anthropic.com", "claude.ai"]
 
+# Claude Code's own worktrees (claude --worktree, EnterWorktree). With the
+# vcs module, the agent adds them to a read-only repository and works there.
+[[mounts]]
+path = "{repository}/.claude/worktrees"
+mode = "write"
+
 # Claude uses the profile's login. A request that carries an API key, such as
 # one the agent found or brought, could send the project to another account,
 # so it is refused. A profile that runs Claude with ANTHROPIC_API_KEY allows

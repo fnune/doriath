@@ -103,11 +103,18 @@ func TestNixDaemonFollowsTheLastLayer(t *testing.T) {
 	}
 }
 
-func TestLaterMountReplacesTheFirst(t *testing.T) {
-	modules := fstest.MapFS{"rw.toml": file("[[mounts]]\npath = \"/x\"\nmode = \"write\"")}
-	p := mustLoad(t, "modules = [\"rw\"]\n[[mounts]]\npath = \"/x\"", modules)
-	if len(p.Mounts) != 1 || p.Mounts[0].Mode != ModeRead {
-		t.Fatalf("mounts = %+v", p.Mounts)
+func TestSamePathKeepsTheLowerPrivilege(t *testing.T) {
+	for name, tc := range map[string]struct{ module, profile string }{
+		"module writes, profile reads": {"write", "read"},
+		"module reads, profile writes": {"read", "write"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			modules := fstest.MapFS{"m.toml": file("[[mounts]]\npath = \"/x\"\nmode = \"" + tc.module + "\"")}
+			p := mustLoad(t, "modules = [\"m\"]\n[[mounts]]\npath = \"/x\"\nmode = \""+tc.profile+"\"", modules)
+			if len(p.Mounts) != 1 || p.Mounts[0].Mode != ModeRead {
+				t.Fatalf("mounts = %+v", p.Mounts)
+			}
+		})
 	}
 }
 

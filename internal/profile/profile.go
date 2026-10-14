@@ -30,6 +30,10 @@ type Mount struct {
 	Path     string
 	Mode     Mode
 	Optional bool
+	// Create makes girdle create the directory before the session when it
+	// is missing, for writable entries inside the repository, such as an
+	// agent's worktrees.
+	Create bool
 }
 
 // Cache is a path that the jail sees as writable, backed by a directory that
