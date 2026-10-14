@@ -72,3 +72,29 @@ func TestPlantCopiesOnlyTheListedKeysOnce(t *testing.T) {
 		t.Error("a missing source must plant nothing")
 	}
 }
+
+func TestPlantNeverWritesThroughALinkOrFromBadJSON(t *testing.T) {
+	dir := t.TempDir()
+	good, bad := filepath.Join(dir, "you.json"), filepath.Join(dir, "broken.json")
+	for path, body := range map[string]string{good: `{"theme":"dark"}`, bad: `{"theme":`} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	elsewhere, link := filepath.Join(dir, "elsewhere.json"), filepath.Join(dir, "link.json")
+	if err := os.Symlink(elsewhere, link); err != nil {
+		t.Fatal(err)
+	}
+	fromBad := filepath.Join(dir, "from-bad.json")
+	if err := Plant([]Seed{
+		{Source: good, Dest: link, Keys: []string{"theme"}},
+		{Source: bad, Dest: fromBad, Keys: []string{"theme"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{elsewhere, fromBad} {
+		if _, err := os.Stat(path); err == nil {
+			t.Errorf("%s was planted", path)
+		}
+	}
+}
