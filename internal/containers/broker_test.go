@@ -101,6 +101,12 @@ func (f *fakePodman) inspect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakePodman) attach(w http.ResponseWriter, r *http.Request) {
+	if strings.Contains(r.URL.Path, "/containers/gone/") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"message":"no container with name or ID \"gone\" found"}`)
+		return
+	}
 	conn, brw, err := http.NewResponseController(w).Hijack()
 	if err != nil {
 		return
@@ -183,6 +189,7 @@ func (m *memPins) Pin(ref, digest string) error {
 }
 
 type harness struct {
+	broker   *Broker
 	pins     *memPins
 	podman   *fakePodman
 	approver *fakeApprover
@@ -219,19 +226,34 @@ func newHarness(t *testing.T) *harness {
 		Mounts: []Mount{{Path: "/work"}, {Path: "/ro", ReadOnly: true}},
 	}
 	b := New(policy, up.Addr().String(), h.approver, h.events, Config{Session: "s1", Profile: "dev", ApprovalTTL: time.Second, Pins: h.pins})
-	l := listenUnix(t, "broker.sock")
-	go func() { _ = b.Serve(l) }()
-	h.socket = l.Addr().String()
-	h.client = &http.Client{Transport: &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", h.socket)
-		},
-	}}
+	h.broker = b
+	h.socket = serveBroker(t, b)
+	h.client = unixClient(h.socket)
 	return h
 }
 
+func serveBroker(t *testing.T, b *Broker) string {
+	t.Helper()
+	l := listenUnix(t, "broker.sock")
+	go func() { _ = b.Serve(l) }()
+	return l.Addr().String()
+}
+
+func unixClient(socket string) *http.Client {
+	return &http.Client{Transport: &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socket)
+		},
+	}}
+}
+
 func (h *harness) do(t *testing.T, method, path, body string) (int, string) {
+	t.Helper()
+	return do(t, h.client, method, path, body)
+}
+
+func do(t *testing.T, client *http.Client, method, path, body string) (int, string) {
 	t.Helper()
 	var r io.Reader
 	if body != "" {
@@ -241,7 +263,7 @@ func (h *harness) do(t *testing.T, method, path, body string) (int, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := h.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,25 +362,30 @@ func TestBodyTooLarge(t *testing.T) {
 }
 
 func TestPushApproval(t *testing.T) {
-	for _, v := range []approval.Verdict{approval.VerdictAllow, approval.VerdictDeny} {
-		t.Run(string(v), func(t *testing.T) {
+	const summary = "Push container image localhost/app:1 to ghcr.io/acme/app:1"
+	for verdict, want := range map[approval.Verdict]string{
+		approval.VerdictAllow: "",
+		approval.VerdictDeny:  "girdle: " + summary + " was denied",
+		approval.VerdictNone:  "girdle: " + summary + " was not approved in time",
+	} {
+		t.Run(string(verdict), func(t *testing.T) {
 			h := newHarness(t)
-			h.approver.verdict = v
+			h.approver.verdict = verdict
 			status, body := h.do(t, http.MethodPost, "/v5.0.0/libpod/images/localhost/app:1/push?destination=ghcr.io/acme/app:1", "")
 			if len(h.approver.asked) != 1 {
 				t.Fatalf("asked %d times", len(h.approver.asked))
 			}
 			req := h.approver.asked[0]
-			if req.Summary != "Push container image localhost/app:1 to ghcr.io/acme/app:1" || req.Scope != "containers push ghcr.io/acme/app:1" || req.Session != "s1" || req.Kind != KindContainers {
+			if req.Summary != summary || req.Scope != "containers push ghcr.io/acme/app:1" || req.Session != "s1" || req.Kind != KindContainers {
 				t.Fatalf("request %+v", req)
 			}
-			if v == approval.VerdictAllow {
+			if want == "" {
 				if status != http.StatusOK || len(h.podman.seen()) != 1 {
 					t.Fatalf("status %d: %s", status, body)
 				}
 				return
 			}
-			if status != http.StatusForbidden || !strings.Contains(message(t, body), "was denied") || len(h.podman.seen()) != 0 {
+			if status != http.StatusForbidden || message(t, body) != want || len(h.podman.seen()) != 0 {
 				t.Fatalf("status %d: %s", status, body)
 			}
 		})
