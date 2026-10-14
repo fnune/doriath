@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -112,7 +113,7 @@ func TestProfilesEdit(t *testing.T) {
 func approvals(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	err := cmdApprovals(args, strings.NewReader(""), &out)
+	err := cmdApprovals(context.Background(), args, realClock{}, strings.NewReader(""), &out)
 	return out.String(), err
 }
 

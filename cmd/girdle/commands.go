@@ -221,12 +221,11 @@ func pending(ctx context.Context, p config.Paths) ([]pendingRequest, error) {
 	return out, nil
 }
 
-func cmdApprovals(args []string, stdin io.Reader, stdout io.Writer) error {
+func cmdApprovals(ctx context.Context, args []string, c clock, stdin io.Reader, stdout io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	sub := "list"
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
@@ -237,7 +236,7 @@ func cmdApprovals(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		printPending(stdout, reqs, time.Now())
+		printPending(stdout, reqs, c.Now())
 		return nil
 	case "allow", "deny":
 		flags := flag.NewFlagSet(sub, flag.ContinueOnError)
@@ -252,14 +251,14 @@ func cmdApprovals(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		d := approval.Decision{Verdict: approval.VerdictDeny, By: "cli", Reason: *reason}
 		if sub == "allow" {
-			d, err = allowDecision(*lasting, time.Now())
+			d, err = allowDecision(*lasting, c.Now())
 			if err != nil {
 				return err
 			}
 		}
 		return decide(ctx, p, id, d)
 	case "watch":
-		return watch(ctx, p, stdin, stdout)
+		return watch(ctx, p, c, stdin, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }
@@ -314,7 +313,7 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 
 func indent(s string) string { return strings.ReplaceAll(s, "\n", "\n    ") }
 
-func watch(ctx context.Context, p config.Paths, in io.Reader, out io.Writer) error {
+func watch(ctx context.Context, p config.Paths, c clock, in io.Reader, out io.Writer) error {
 	asked := map[string]bool{}
 	lines := bufio.NewScanner(in)
 	fmt.Fprintln(out, "Watching for requests. Press Ctrl+C to stop.")
@@ -351,7 +350,11 @@ func watch(ctx context.Context, p config.Paths, in io.Reader, out io.Writer) err
 				fmt.Fprintln(out, "Could not decide:", err)
 			}
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-c.After(time.Second):
+		}
 	}
 }
 

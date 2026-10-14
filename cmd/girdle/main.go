@@ -74,6 +74,7 @@ func run(args []string) int {
 		fmt.Fprint(os.Stderr, usage)
 		return 2
 	}
+	ctx := context.Background()
 	var err error
 	code := 0
 	switch args[0] {
@@ -92,7 +93,7 @@ func run(args []string) int {
 	case "hook":
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":
-		err = cmdApprovals(args[1:], os.Stdin, os.Stdout)
+		err = cmdApprovals(ctx, args[1:], realClock{}, os.Stdin, os.Stdout)
 	case "sessions":
 		err = cmdSessions(os.Stdout)
 	case "clean":
@@ -114,7 +115,7 @@ func run(args []string) int {
 	case "statusline":
 		err = cmdStatusline(os.Stdout)
 	case "log":
-		err = cmdLog(args[1:], os.Stdout)
+		err = cmdLog(ctx, args[1:], realClock{}, os.Stdout)
 	case "completion":
 		err = cmdCompletion(args[1:], os.Stdout)
 	case "__complete":
@@ -253,6 +254,13 @@ func lookPath(name string) string {
 		return ""
 	}
 	return p
+}
+
+// clock is what the commands that wait or read the time need, so tests
+// decide when time passes.
+type clock interface {
+	Now() time.Time
+	After(d time.Duration) <-chan time.Time
 }
 
 type realClock struct{}

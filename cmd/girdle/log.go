@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -44,7 +45,7 @@ func (f logFilter) keep(r auditRecord) bool {
 	return true
 }
 
-func cmdLog(args []string, out io.Writer) error {
+func cmdLog(ctx context.Context, args []string, c clock, out io.Writer) error {
 	flags := flag.NewFlagSet("log", flag.ContinueOnError)
 	var f logFilter
 	flags.StringVar(&f.session, "session", "", "only this session")
@@ -57,7 +58,7 @@ func cmdLog(args []string, out io.Writer) error {
 		return err
 	}
 	if *since > 0 {
-		f.since = time.Now().Add(-*since)
+		f.since = c.Now().Add(-*since)
 	}
 	p, err := paths()
 	if err != nil {
@@ -93,7 +94,11 @@ func cmdLog(args []string, out io.Writer) error {
 			if len(line) > 0 {
 				r = resumeAfterPartialLine(line, file)
 			}
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-c.After(500 * time.Millisecond):
+			}
 			continue
 		}
 		if err != nil {
