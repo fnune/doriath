@@ -151,7 +151,7 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 			if err := os.MkdirAll(repo, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
+			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}, {"gc", "-q"}} {
 				cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
 				cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
 				if out, err := cmd.CombinedOutput(); err != nil {

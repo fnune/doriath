@@ -245,3 +245,27 @@ func TestFinishLeavesWorktreesOutsideTheSessionAlone(t *testing.T) {
 		t.Fatalf("a checkout outside the session must not be rewritten: %q\n%s", data, out.String())
 	}
 }
+
+func TestFinishRestoresARewrittenLooseObject(t *testing.T) {
+	r := repo(t)
+	head := git(t, r, "rev-parse", "HEAD")
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	backup := filepath.Join(t.TempDir(), "b")
+	rec := &Record{Session: "s1"}
+	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	obj := filepath.Join(r, ".git", "objects", head[:2], head[2:])
+	if err := os.Chmod(obj, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(obj, []byte("corrupt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Finish(ctx, tools, backup, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "cat-file", "-t", head); got != "commit" {
+		t.Fatalf("the rewritten object was not restored: %q", got)
+	}
+}

@@ -568,8 +568,10 @@ func run(ctx context.Context, name string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// mirror hardlinks every file under src into dst, copying when the two are
-// on different filesystems.
+// mirror keeps every file under src in dst: packs as hardlinks, since the
+// jail binds them read-only for the session, and everything else, such as
+// loose objects, as copies, since a hardlink shares the file the agent can
+// rewrite.
 func mirror(src, dst string) error {
 	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -586,11 +588,15 @@ func mirror(src, dst string) error {
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		return linkOrCopy(p, target)
+		if filepath.Dir(rel) == "pack" {
+			return linkOrCopy(p, target)
+		}
+		return copyFile(p, target)
 	})
 }
 
-// unmirror puts back every file of a mirror that is missing from dst.
+// unmirror puts back every file of a mirror that is missing from dst, or,
+// apart from packs, which the jail kept read-only, changed in it.
 func unmirror(src, dst string) error {
 	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -605,16 +611,34 @@ func unmirror(src, dst string) error {
 			return os.MkdirAll(target, 0o755)
 		}
 		if _, err := os.Lstat(target); err == nil {
-			return nil
+			if filepath.Dir(rel) == "pack" || sameContent(p, target) {
+				return nil
+			}
+			if err := os.Remove(target); err != nil {
+				return err
+			}
 		}
 		return linkOrCopy(p, target)
 	})
+}
+
+func sameContent(a, b string) bool {
+	x, err := os.ReadFile(a)
+	if err != nil {
+		return false
+	}
+	y, err := os.ReadFile(b)
+	return err == nil && bytes.Equal(x, y)
 }
 
 func linkOrCopy(src, dst string) error {
 	if err := os.Link(src, dst); err == nil || errors.Is(err, fs.ErrExist) {
 		return nil
 	}
+	return copyFile(src, dst)
+}
+
+func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err

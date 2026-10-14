@@ -366,6 +366,7 @@ func gitStore(gitDir string, host Host, depth int) []Bind {
 	if p := filepath.Join(gitDir, "objects", "info", "alternates"); host.Kind(p) == "file" {
 		binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
 	}
+	binds = append(binds, packGuards(gitDir, host)...)
 	binds = append(binds, worktreeGuards(gitDir, host)...)
 	if depth >= maxSubmoduleDepth {
 		return binds
@@ -421,7 +422,23 @@ func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 			binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", name), host, depth+1)...)
 		}
 	}
+	binds = append(binds, packGuards(srcGit, host)...)
 	return append(binds, worktreeGuards(srcGit, host)...)
+}
+
+// packGuards bind each existing pack file read-only. Packs hold nearly all
+// of a repository's history, and the files belong to you, so an agent could
+// chmod one and overwrite it in place, which no backup by hardlink survives.
+// New packs stay writable; git gc in the jail cannot drop the old ones.
+func packGuards(gitDir string, host Host) []Bind {
+	var binds []Bind
+	dir := filepath.Join(gitDir, "objects", "pack")
+	for _, name := range host.Entries(dir) {
+		if p := filepath.Join(dir, name); host.Kind(p) == "file" {
+			binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+		}
+	}
+	return binds
 }
 
 func checkCwd(cwd string, binds []Bind) error {
