@@ -557,11 +557,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	return 0
 }
 
-func cmdClean(args []string, w io.Writer) error {
-	if len(args) != 1 {
-		return errors.New("clean: usage: girdle clean PROFILE")
-	}
-	name := args[0]
+func cleanCaches(name string, w io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err

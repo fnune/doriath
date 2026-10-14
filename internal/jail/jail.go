@@ -183,12 +183,17 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 			binds = append(binds, Bind{Source: source, Dest: m.Path, ReadOnly: true})
 		case profile.ModeWrite:
 			binds = append(binds, Bind{Source: m.Path, Dest: m.Path})
-			for _, repo := range repositories(m.Path, host) {
+			for _, repo := range Repositories(m.Path, host) {
 				binds = append(binds, gitGuards(repo, repo, host)...)
 				binds = append(binds, jjGuards(repo, host)...)
 			}
 		default:
 			binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: true})
+			if p.VCSStore {
+				for _, repo := range Repositories(m.Path, host) {
+					binds = append(binds, storeBinds(repo, host)...)
+				}
+			}
 		}
 	}
 	for _, c := range p.Caches {
@@ -254,7 +259,9 @@ func gitGuards(src, dest string, host Host) []Bind {
 	return nil
 }
 
-func repositories(root string, host Host) []string {
+// Repositories lists the git and jj repositories at or below root, a few levels
+// deep.
+func Repositories(root string, host Host) []string {
 	var out []string
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
@@ -281,12 +288,95 @@ const repositoryDepth = 3
 
 var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
 
+// jjControlFiles decide what jj runs or which git store it uses.
+var jjControlFiles = []string{"config.toml", "store/git_target", "store/type"}
+
 func jjGuards(repo string, host Host) []Bind {
-	p := filepath.Join(repo, ".jj", "repo", "config.toml")
-	if host.Kind(p) == "" {
+	var binds []Bind
+	for _, name := range jjControlFiles {
+		if p := filepath.Join(repo, ".jj", "repo", name); host.Kind(p) != "" {
+			binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+		}
+	}
+	if g := filepath.Join(repo, ".jj", "repo", "store", "git"); host.Kind(g) == "dir" {
+		binds = append(binds, gitDirGuards(g, g, host, 0)...)
+	}
+	return binds
+}
+
+// storeBinds make a repository's store writable inside a read-only mount.
+// The control directories themselves stay read-only, so no control file can
+// appear in them; only their data subdirectories become writable.
+func storeBinds(repo string, host Host) []Bind {
+	var binds []Bind
+	if git := filepath.Join(repo, ".git"); host.Kind(git) == "dir" {
+		binds = append(binds, gitStore(git, host, 0)...)
+	}
+	jj := filepath.Join(repo, ".jj")
+	if host.Kind(filepath.Join(jj, "repo")) == "dir" {
+		binds = append(binds, writable(host, filepath.Join(jj, "working_copy"))...)
+		for _, name := range jjRepoData {
+			binds = append(binds, writable(host, filepath.Join(jj, "repo", name))...)
+		}
+		for _, name := range JJLockFiles {
+			if p := filepath.Join(jj, "repo", name); host.Kind(p) == "file" {
+				binds = append(binds, Bind{Source: p, Dest: p})
+			}
+		}
+		if g := filepath.Join(jj, "repo", "store", "git"); host.Kind(g) == "dir" {
+			binds = append(binds, gitStore(g, host, 0)...)
+		}
+	}
+	return binds
+}
+
+var (
+	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs", "rr-cache"}
+	jjRepoData   = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
+	// JJLockFiles are locks jj takes in .jj/repo itself. jj keeps the files
+	// and only locks them, so girdle creates them before the session.
+	JJLockFiles = []string{"git_import_export.lock"}
+	// worktreeControlFiles, in a worktree's admin directory, decide which
+	// repository and config git uses in that worktree.
+	worktreeControlFiles = []string{"commondir", "gitdir", "config.worktree"}
+)
+
+func gitStore(gitDir string, host Host, depth int) []Bind {
+	var binds []Bind
+	for _, name := range gitStoreData {
+		binds = append(binds, writable(host, filepath.Join(gitDir, name))...)
+	}
+	binds = append(binds, worktreeGuards(gitDir, host)...)
+	if depth >= maxSubmoduleDepth {
+		return binds
+	}
+	modules := filepath.Join(gitDir, "modules")
+	for _, name := range host.Entries(modules) {
+		if sub := filepath.Join(modules, name); host.Kind(sub) == "dir" {
+			binds = append(binds, gitStore(sub, host, depth+1)...)
+		}
+	}
+	return binds
+}
+
+func worktreeGuards(gitDir string, host Host) []Bind {
+	var binds []Bind
+	worktrees := filepath.Join(gitDir, "worktrees")
+	for _, name := range host.Entries(worktrees) {
+		for _, file := range worktreeControlFiles {
+			if p := filepath.Join(worktrees, name, file); host.Kind(p) != "" {
+				binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+			}
+		}
+	}
+	return binds
+}
+
+func writable(host Host, path string) []Bind {
+	if host.Kind(path) != "dir" {
 		return nil
 	}
-	return []Bind{{Source: p, Dest: p, ReadOnly: true}}
+	return []Bind{{Source: path, Dest: path}}
 }
 
 // GitControlFiles are the entries of a .git directory that decide what git
@@ -311,7 +401,7 @@ func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 			binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", name), host, depth+1)...)
 		}
 	}
-	return binds
+	return append(binds, worktreeGuards(srcGit, host)...)
 }
 
 func checkCwd(cwd string, binds []Bind) error {

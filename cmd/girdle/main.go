@@ -40,7 +40,8 @@ Usage:
   girdle approvals deny ID [--reason TEXT]
   girdle approvals watch
   girdle sessions
-  girdle clean PROFILE
+  girdle clean [--caches PROFILE]
+  girdle restore SESSION
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
   girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]
@@ -86,7 +87,9 @@ func run(args []string) int {
 	case "sessions":
 		err = cmdSessions(os.Stdout)
 	case "clean":
-		err = cmdClean(args[1:], os.Stdout)
+		err = cmdClean(args[1:], os.Stdin, os.Stdout)
+	case "restore":
+		err = cmdRestore(args[1:], os.Stdout)
 	case "status":
 		err = cmdStatus(args[1:], os.Stdout)
 	case "statusline":
@@ -206,8 +209,10 @@ func cmdRun(args []string) (int, error) {
 		Nsenter:     lookPath("nsenter"),
 		Podman:      lookPath("podman"),
 		Git:         lookPath("git"),
+		JJ:          lookPath("jj"),
 		SystemdRun:  lookPath("systemd-run"),
 	}
+	finishInterrupted(p, deps.Stderr)
 	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, Learn: *learn})
 	if err != nil {
 		return 1, err

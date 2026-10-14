@@ -22,6 +22,7 @@ type layer struct {
 	Signing     *signingLayer          `toml:"signing"`
 	Podman      *podmanLayer           `toml:"podman"`
 	Nix         *nixLayer              `toml:"nix"`
+	VCS         *vcsLayer              `toml:"vcs"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Limits      *limitsLayer           `toml:"limits"`
 	Claude      *claudeLayer           `toml:"claude"`
@@ -103,6 +104,10 @@ type hardeningLayer struct {
 
 type nixLayer struct {
 	Daemon *bool `toml:"daemon"`
+}
+
+type vcsLayer struct {
+	Store *bool `toml:"store"`
 }
 
 type podmanLayer struct {

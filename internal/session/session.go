@@ -86,6 +86,9 @@ type Deps struct {
 	Nsenter string
 	Podman  string
 	Git     string
+	// JJ records and restores bookmarks of jj repositories that are not
+	// colocated with git. Empty skips them.
+	JJ string
 	// SystemdRun puts each jail in a systemd user scope with the profile's
 	// limits. Empty runs without limits.
 	SystemdRun string
@@ -206,6 +209,9 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 
+	if err := s.startRepositories(ctx); err != nil {
+		return err
+	}
 	if err := s.startProxy(); err != nil {
 		return err
 	}
@@ -597,6 +603,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
+	s.finishRepositories()
 	if s.claudeProject[0] != "" {
 		if err := copyTranscriptsBack(s.claudeProject[1], s.claudeProject[0]); err != nil {
 			fmt.Fprintf(s.deps.Stderr, "girdle: could not copy Claude transcripts back: %v\n", err)

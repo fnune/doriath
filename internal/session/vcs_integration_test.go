@@ -1,0 +1,158 @@
+//go:build integration
+
+package session_test
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/fnune/girdle/internal/vcs"
+)
+
+func git(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// TestStoreOfAReadOnlyRepository runs an agent against a read-only
+// repository whose store the vcs module makes writable: it can add a
+// worktree, commit, and move or delete branches, but not touch the checkout
+// or anything git runs, and girdle keeps the moved branches recoverable.
+func TestStoreOfAReadOnlyRepository(t *testing.T) {
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "first")
+	git(t, repo, "branch", "feature")
+	git(t, repo, "branch", "spare")
+	git(t, repo, "checkout", "-q", "-b", "gone")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "only on gone")
+	gone := git(t, repo, "rev-parse", "HEAD")
+	git(t, repo, "checkout", "-q", "main")
+	git(t, repo, "worktree", "add", "-q", filepath.Join(e.home, "user-wt"), "feature")
+	spare := git(t, repo, "rev-parse", "spare")
+
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n\n[vcs]\nstore = true\n", repo))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+R=%[1]s
+export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
+git -C $R worktree add -q /tmp/wt -b agent || echo "FAIL worktree add"
+cd /tmp/wt && echo x > f && git add f && git commit -qm agent || echo "FAIL commit"
+git -C $R branch -f spare agent || echo "FAIL move a branch"
+rm $R/.git/refs/heads/gone || echo "FAIL delete a branch"
+git -C $R prune --expire=now || echo "FAIL prune"
+echo x >> $R/.git/config 2>/dev/null && echo "FAIL config writable"
+touch $R/.git/hooks/post-checkout 2>/dev/null && echo "FAIL hooks writable"
+echo /tmp > $R/.git/commondir 2>/dev/null && echo "FAIL commondir created"
+echo /tmp > $R/.git/worktrees/user-wt/commondir 2>/dev/null && echo "FAIL user worktree commondir"
+echo x > $R/README 2>/dev/null && echo "FAIL checkout writable"
+echo /tmp/elsewhere > $R/.git/worktrees/wt/commondir || echo "FAIL own worktree admin"
+echo done
+`, repo), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "moved or deleted gone, spare") || !strings.Contains(out, "girdle restore "+e.lastID) {
+		t.Errorf("the session must report the moved branches:\n%s", out)
+	}
+	if got := git(t, repo, "rev-parse", "agent"); got == "" {
+		t.Error("the agent's branch is missing")
+	}
+	if got := git(t, repo, "rev-parse", vcs.BackupRef(e.lastID, "refs/heads/gone")); got != gone {
+		t.Errorf("start value of gone = %q, want %q", got, gone)
+	}
+	if got := git(t, repo, "cat-file", "-t", gone); got != "commit" {
+		t.Errorf("the pruned commit must be back: %q", got)
+	}
+	if data, _ := os.ReadFile(filepath.Join(repo, ".git", "worktrees", "wt", "commondir")); strings.TrimSpace(string(data)) != "../.." {
+		t.Errorf("the agent worktree's commondir must be reset, is %q", data)
+	}
+
+	rec, err := vcs.Load(filepath.Join(e.paths.Backups(), e.lastID+".json"))
+	if err != nil || !rec.Finished {
+		t.Fatalf("record: %+v, %v", rec, err)
+	}
+	if err := vcs.Restore(context.Background(), vcs.Tools{Git: "git"}, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, repo, "rev-parse", "spare"); got != spare {
+		t.Errorf("spare after restore = %q, want %q", got, spare)
+	}
+	if got := git(t, repo, "rev-parse", "gone"); got != gone {
+		t.Errorf("gone after restore = %q, want %q", got, gone)
+	}
+	if got := git(t, repo, "rev-parse", "agent"); got == "" {
+		t.Error("restore must leave the agent's own branch")
+	}
+}
+
+// TestStoreOfAReadOnlyJJRepository does the same for a colocated jj
+// repository: the agent works in a workspace of its own.
+func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
+	jj, err := exec.LookPath("jj")
+	if err != nil {
+		t.Skip("jj not available")
+	}
+	if real, err := filepath.EvalSymlinks(jj); err == nil {
+		jj = real
+	}
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	jjRun := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(jj, append([]string{"--repository", repo, "--config", "user.name=t", "--config", "user.email=t@e"}, args...)...)
+		cmd.Env = append(os.Environ(), "JJ_CONFIG=/dev/null")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("jj %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	cmd := exec.Command(jj, "git", "init", "--colocate", repo)
+	cmd.Env = append(os.Environ(), "JJ_CONFIG=/dev/null")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("jj git init: %v\n%s", err, out)
+	}
+	jjRun("describe", "-m", "first")
+	jjRun("bookmark", "create", "main", "-r", "@")
+	jjRun("new")
+
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n\n[vcs]\nstore = true\n", repo))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+J="%[1]s --config user.name=a --config user.email=a@b"
+R=%[2]s
+$J --repository $R log -r 'all()' --no-graph -T 'description' >/dev/null || echo "FAIL log in the read-only checkout"
+$J --repository $R workspace add /tmp/ws || echo "FAIL workspace add"
+cd /tmp/ws && echo x > f && $J describe -m agent && $J new && $J bookmark create agent -r @- || echo "FAIL commit in the workspace"
+echo x >> $R/.jj/repo/store/git_target 2>/dev/null && echo "FAIL git_target writable"
+echo '[ui]' > $R/.jj/repo/config.toml 2>/dev/null && echo "FAIL repo config created"
+echo x > $R/README 2>/dev/null && echo "FAIL checkout writable"
+echo done
+`, jj, repo), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if !strings.Contains(jjRun("bookmark", "list"), "agent") {
+		t.Errorf("the agent's bookmark is missing:\n%s", jjRun("bookmark", "list"))
+	}
+}

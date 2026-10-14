@@ -188,6 +188,7 @@ type builder struct {
 	podman   bool
 	images   []string
 	nix      bool
+	vcsStore bool
 	harden   Hardening
 	limits   Limits
 	claude   claudeLayer
@@ -256,6 +257,9 @@ func (b *builder) apply(l layer) {
 	}
 	if l.Nix != nil && l.Nix.Daemon != nil {
 		b.nix = *l.Nix.Daemon
+	}
+	if l.VCS != nil && l.VCS.Store != nil {
+		b.vcsStore = *l.VCS.Store
 	}
 	if lim := l.Limits; lim != nil {
 		if lim.Tasks != nil {
@@ -365,6 +369,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Podman:          b.podman,
 		ContainerImages: b.images,
 		NixDaemon:       b.nix,
+		VCSStore:        b.vcsStore,
 		Hardening:       b.harden,
 		Limits:          b.limits,
 		Secrets:         map[string]secret.Backend{},

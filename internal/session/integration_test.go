@@ -256,6 +256,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 		Nsenter:       lookPath("nsenter"),
 		Podman:        lookPath("podman"),
 		Git:           lookPath("git"),
+		JJ:            lookPath("jj"),
 		SystemdRun:    e.systemdRun,
 		Resolver:      e.resolver,
 	}

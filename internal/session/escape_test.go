@@ -23,7 +23,7 @@ import (
 //
 //	# threat: one line on what the agent would gain
 //	# expect: held | works | gap
-//	# setup: live-repo | host-listener | rebinding | hidden
+//	# setup: live-repo | store-repo | host-listener | rebinding | hidden
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
@@ -146,6 +146,29 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 				}
 			}()
 			replacements = append(replacements, "{{HOST_PORT}}", fmt.Sprint(l.Addr().(*net.TCPAddr).Port))
+		case "store-repo":
+			repo := filepath.Join(e.home, "store")
+			if err := os.MkdirAll(repo, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "first"}} {
+				cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+				cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v\n%s", args, err, out)
+				}
+			}
+			lib := filepath.Join(repo, ".git", "modules", "lib")
+			for _, d := range []string{filepath.Join(lib, "hooks"), filepath.Join(lib, "objects"), filepath.Join(lib, "refs")} {
+				if err := os.MkdirAll(d, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(lib, "config"), []byte("[core]\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n\n[vcs]\nstore = true\n", repo)
+			replacements = append(replacements, "{{STORE_REPO}}", repo)
 		case "hidden":
 			dir := filepath.Join(e.work, "hidden-dir")
 			if err := os.MkdirAll(dir, 0o700); err != nil {

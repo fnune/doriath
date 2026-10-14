@@ -347,17 +347,17 @@ func TestClean(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := cmdClean([]string{"missing"}, &out); err == nil {
+	if err := cmdClean([]string{"--caches", "missing"}, strings.NewReader(""), &out); err == nil {
 		t.Error("clean of an unknown profile must fail")
 	}
 	startSession(t, p, "s1", "kitchen", time.Now())
-	if err := cmdClean([]string{"kitchen"}, &out); err == nil || !strings.Contains(err.Error(), "is running") {
+	if err := cmdClean([]string{"--caches", "kitchen"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "is running") {
 		t.Errorf("clean while a session runs = %v", err)
 	}
 	if err := os.RemoveAll(filepath.Join(p.Sessions(), "s1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmdClean([]string{"kitchen"}, &out); err != nil || out.String() != "Removed the caches of profile kitchen.\n" {
+	if err := cmdClean([]string{"--caches", "kitchen"}, strings.NewReader(""), &out); err != nil || out.String() != "Removed the caches of profile kitchen.\n" {
 		t.Fatalf("clean = %q, %v", out.String(), err)
 	}
 	if _, err := os.Stat(p.AgentCache("kitchen")); !errors.Is(err, os.ErrNotExist) {

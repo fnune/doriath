@@ -249,7 +249,11 @@ type Profile struct {
 	// NixDaemon gives the jail the system nix daemon's socket. The daemon
 	// runs builds outside the jail, so they bypass the egress allowlist.
 	NixDaemon bool
-	Claude    Claude
+	// VCSStore makes the stores of the repositories in read-only mounts
+	// writable, so agents commit and add worktrees there while the
+	// checkout and the files git runs stay read-only.
+	VCSStore bool
+	Claude   Claude
 	// Secrets says where each secret this profile uses comes from. They live
 	// in the profile, not in a shared table, so a profile reaches only the
 	// secrets written into it, and reusing one elsewhere is a deliberate copy.

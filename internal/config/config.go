@@ -45,6 +45,11 @@ func (p Paths) AgentCache(profile string) string {
 
 func (p Paths) Bundle() string { return filepath.Join(p.Cache, "bundle") }
 
+// Backups holds, per session, the record of the branches it started with and
+// the objects that keep them alive. It is state: girdle restore reads it
+// after the session ends.
+func (p Paths) Backups() string { return filepath.Join(p.State, "backups") }
+
 // DefaultPaths follows the XDG base directory specification. GIRDLE_CONFIG_DIR
 // overrides the config directory, for example to point at a generated one.
 func DefaultPaths(getenv func(string) string) (Paths, error) {

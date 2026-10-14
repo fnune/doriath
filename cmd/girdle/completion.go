@@ -20,7 +20,8 @@ _girdle() {
     'status:show what a session allows'
     'log:show the audit log'
     'profiles:list, show or edit profiles'
-    'clean:remove the caches of a profile'
+    'clean:remove merged agent worktrees and old branch backups'
+    'restore:put back the branches a session moved'
     'doctor:check this machine'
     'completion:print a shell completion script'
     'version:print the version'
@@ -47,7 +48,7 @@ _girdle() {
         _values 'profile' $(girdle __complete profiles)
       fi ;;
     clean)
-      _values 'profile' $(girdle __complete profiles) ;;
+      _arguments '--caches[remove the caches of a profile]:profile:($(girdle __complete profiles))' ;;
     status)
       _values 'session' $(girdle __complete sessions) ;;
     log)
