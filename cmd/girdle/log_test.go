@@ -162,6 +162,10 @@ func TestFormatRecord(t *testing.T) {
 			"session-start", `{"cwd":"/work","command":["claude","--prompt","` + long + `"]}`,
 			"started in /work: claude --prompt " + long[:40] + "…",
 		},
+		{
+			"session-start", `{"cwd":"/work","command":["claude","x` + strings.Repeat("é", 40) + `"]}`,
+			"started in /work: claude x" + strings.Repeat("é", 39) + "…",
+		},
 		{"session-end", `{"exit":3}`, "ended with exit code 3"},
 		{"new-event", `{"a":1}`, `new-event {"a":1}`},
 	} {

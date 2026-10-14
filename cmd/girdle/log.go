@@ -149,8 +149,8 @@ func formatRecord(r auditRecord) string {
 		words := make([]string, 0, len(cmd))
 		for _, c := range cmd {
 			if s, ok := c.(string); ok {
-				if len(s) > 40 {
-					s = s[:40] + "…"
+				if r := []rune(s); len(r) > 40 {
+					s = string(r[:40]) + "…"
 				}
 				words = append(words, s)
 			}
