@@ -1,9 +1,11 @@
 package control
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"path/filepath"
 	"strings"
@@ -72,5 +74,51 @@ func TestCall(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(2 * time.Second):
 		t.Fatal("closing the client must cancel the handler")
+	}
+}
+
+func TestServerAnswersMalformedRequests(t *testing.T) {
+	sock := serve(t, map[string]Handler{
+		"unencodable": func(context.Context, json.RawMessage) (any, error) { return func() {}, nil },
+	})
+	send := func(message string) string {
+		t.Helper()
+		conn, err := net.Dial("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		go func() { _, _ = io.WriteString(conn, message) }()
+		line, err := bufio.NewReader(conn).ReadString('\n')
+		if err != nil {
+			t.Fatalf("no answer to %.40q: %v", message, err)
+		}
+		var resp struct{ Error string }
+		if err := json.Unmarshal([]byte(line), &resp); err != nil {
+			t.Fatal(err)
+		}
+		return resp.Error
+	}
+	for name, tc := range map[string]struct{ message, want string }{
+		"too large":      {strings.Repeat("a", maxMessage+1), "message too large"},
+		"not JSON":       {"hello\n", "invalid request: "},
+		"no result JSON": {`{"method":"unencodable"}` + "\n", "encode result: "},
+	} {
+		if got := send(tc.message); !strings.HasPrefix(got, tc.want) {
+			t.Errorf("%s: error %q, want %q", name, got, tc.want)
+		}
+	}
+}
+
+func TestCallWithoutServerNamesTheSocket(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "gone.sock")
+	if err := Call(context.Background(), sock, "status", struct{}{}, nil); err == nil || !strings.HasPrefix(err.Error(), "connect to "+sock+": ") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestDecodeNeedsParams(t *testing.T) {
+	if _, err := Decode[echoParams](nil); err == nil || err.Error() != "missing params" {
+		t.Fatalf("err = %v", err)
 	}
 }
