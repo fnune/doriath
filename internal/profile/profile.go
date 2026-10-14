@@ -170,14 +170,17 @@ type Rule struct {
 	// names match these globs. An allow rule needs every call in the body to
 	// match; other actions need one.
 	MCPTools []string
-	Action   Action
-	Summary  string
+	// MCPNone narrows the rule to JSON-RPC bodies that call no tool, such as
+	// listing tools. A body that is not JSON-RPC does not match.
+	MCPNone bool
+	Action  Action
+	Summary string
 }
 
 // NeedsBody reports whether any rule for this host looks at request bodies.
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
@@ -340,7 +343,10 @@ func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
 // DecideRequest is Decide for a request whose headers rules may look at.
 func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []byte) (Rule, bool) {
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
-	tools := sync.OnceValue(func() []string { return MCPToolCalls(body) })
+	tools := sync.OnceValue(func() mcpCalls {
+		t, ok := MCPToolCalls(body)
+		return mcpCalls{t, ok}
+	})
 	for _, r := range h.Rules {
 		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) {
 			return r, true

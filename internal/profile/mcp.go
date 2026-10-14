@@ -15,13 +15,13 @@ type jsonRPCMessage struct {
 }
 
 // MCPToolCalls returns the tools that a JSON-RPC body, single or batched,
-// calls with tools/call.
-func MCPToolCalls(body []byte) []string {
+// calls with tools/call, and whether the body is JSON-RPC at all.
+func MCPToolCalls(body []byte) ([]string, bool) {
 	var messages []jsonRPCMessage
 	if err := json.Unmarshal(body, &messages); err != nil {
 		var one jsonRPCMessage
-		if json.Unmarshal(body, &one) != nil {
-			return nil
+		if json.Unmarshal(body, &one) != nil || one.Method == "" {
+			return nil, false
 		}
 		messages = []jsonRPCMessage{one}
 	}
@@ -31,14 +31,23 @@ func MCPToolCalls(body []byte) []string {
 			tools = append(tools, m.Params.Name)
 		}
 	}
-	return tools
+	return tools, true
 }
 
-func (r Rule) matchMCP(calls func() []string) bool {
+type mcpCalls struct {
+	tools []string
+	ok    bool
+}
+
+func (r Rule) matchMCP(calls func() mcpCalls) bool {
+	if r.MCPNone {
+		c := calls()
+		return c.ok && len(c.tools) == 0
+	}
 	if len(r.MCPTools) == 0 {
 		return true
 	}
-	tools := calls()
+	tools := calls().tools
 	if len(tools) == 0 {
 		return false
 	}
@@ -56,5 +65,6 @@ func (r Rule) matchMCP(calls func() []string) bool {
 
 // DescribeMCP names the tools a body calls, for approvals and grants.
 func DescribeMCP(body []byte) string {
-	return strings.Join(MCPToolCalls(body), ", ")
+	tools, _ := MCPToolCalls(body)
+	return strings.Join(tools, ", ")
 }

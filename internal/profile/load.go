@@ -600,7 +600,7 @@ func buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("mcp_tools %q: want a tool name or a glob such as notion-create-*", g)
 		}
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), MCPTools: r.MCPTools, Action: action, Summary: r.Summary}
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {
@@ -757,13 +757,17 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 		b.http[i].Rules = append(b.http[i].Rules, rules...)
 		return server, nil
 	}
-	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionAllow), Rules: rules})
+	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionApprove), Rules: rules})
 	return server, nil
 }
 
-// mcpRules turns a server's tool lists into rules for its endpoint: deny
-// first, then approve, then allow, then the server's default for other
-// tools. Requests that call no tool, such as listing them, are allowed.
+// mcpRules turns a server's tool lists into rules for its host: deny,
+// approve and allow lists first, then the server's default for every other
+// tool, all on any path, since a server may answer on more than one. Then
+// the endpoint's own traffic that calls no tool: opening and closing its
+// stream, and JSON-RPC such as listing tools. Anything else on the host,
+// including a body girdle cannot read as JSON-RPC, falls to the host's
+// default, which is approve.
 func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 	if endpoint == "" {
 		endpoint = "/"
@@ -775,17 +779,23 @@ func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 		action Action
 	}{{m.Deny, ActionDeny}, {m.Approve, ActionApprove}, {m.Allow, ActionAllow}} {
 		if len(l.tools) > 0 {
-			rules = append(rules, ruleLayer{Method: "POST", Path: endpoint, MCPTools: l.tools, Action: string(l.action), Summary: summary})
+			rules = append(rules, ruleLayer{Method: "POST", Path: "/**", MCPTools: l.tools, Action: string(l.action), Summary: summary})
 		}
 	}
+	other := ActionAllow
 	switch Action(m.Default) {
 	case "", ActionAllow:
 	case ActionApprove, ActionDeny:
-		rules = append(rules, ruleLayer{Method: "POST", Path: endpoint, MCPTools: []string{"*"}, Action: m.Default, Summary: summary})
+		other = Action(m.Default)
 	default:
 		return nil, fmt.Errorf("mcp %s: default %q: want allow, approve or deny", m.Name, m.Default)
 	}
-	return rules, nil
+	return append(rules,
+		ruleLayer{Method: "POST", Path: "/**", MCPTools: []string{"*"}, Action: string(other), Summary: summary},
+		ruleLayer{Method: "POST", Path: endpoint, MCPNone: true, Action: string(ActionAllow)},
+		ruleLayer{Method: "GET", Path: endpoint, Action: string(ActionAllow)},
+		ruleLayer{Method: "DELETE", Path: endpoint, Action: string(ActionAllow)},
+	), nil
 }
 
 func validGlob(g string) bool {

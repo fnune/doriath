@@ -18,7 +18,7 @@ func TestRemoteMCPServerGetsItsTokenAtTheProxy(t *testing.T) {
 grep -q '"url": "https://example.com/mcp"' /run/girdle/mcp.json || echo "FAIL no remote server in the config"
 grep -q '"command": "true"' /run/girdle/mcp.json || echo "FAIL no local server in the config"
 grep -rq real-token /run/girdle/ 2>/dev/null && echo "FAIL the token is in the jail"
-curl -sS -o /dev/null -w "mcp %{http_code}\n" -X POST -d '{"jsonrpc":"2.0"}' https://example.com/mcp
+curl -sS -o /dev/null -w "mcp %{http_code}\n" -X POST -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' https://example.com/mcp
 `, nil)
 	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "mcp 200") {
 		t.Fatalf("code %d:\n%s", code, out)

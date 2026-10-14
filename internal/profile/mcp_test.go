@@ -29,7 +29,7 @@ url = "https://docs.example.com/mcp"
 		t.Fatalf("mcp = %+v", p.MCP)
 	}
 	notion, ok := p.Intercepted("mcp.notion.com")
-	if !ok || notion.Credential == nil || notion.Credential.Secret != "notion" || notion.Credential.Scheme != SchemeBearer || notion.Default != ActionAllow {
+	if !ok || notion.Credential == nil || notion.Credential.Secret != "notion" || notion.Credential.Scheme != SchemeBearer || notion.Default != ActionApprove {
 		t.Errorf("a remote server with a secret is intercepted and gets its token at the proxy: %+v", notion)
 	}
 	if _, ok := p.Intercepted("docs.example.com"); ok || !p.AllowsHost("docs.example.com") {
@@ -106,7 +106,7 @@ allow = ["notion-search", "notion-fetch"]
 deny = ["notion-delete-*"]
 `, nil)
 	h, ok := p.Intercepted("mcp.notion.com")
-	if !ok || h.Credential != nil {
+	if !ok || h.Credential != nil || h.Default != ActionApprove {
 		t.Fatalf("holds without a secret still intercept the host, without a credential: %+v", h)
 	}
 	call := func(names ...string) string {
@@ -123,9 +123,25 @@ deny = ["notion-delete-*"]
 		call("notion-search", "notion-create-x"):    ActionApprove,
 		call("notion-search", "notion-delete-page"): ActionDeny,
 		`{"method":"tools/list"}`:                   ActionAllow,
+		`not json-rpc`:                              ActionApprove,
+		`[{"method":"tools/list"}, 1]`:              ActionApprove,
 	} {
 		if r, _ := h.DecideRequest("POST", "/mcp", nil, []byte(body)); r.Action != want {
 			t.Errorf("%s: %s, want %s", body, r.Action, want)
+		}
+	}
+	if r, _ := h.DecideRequest("POST", "/sse", nil, []byte(call("notion-create-pages"))); r.Action != ActionApprove {
+		t.Errorf("a tool call on another path of the host must be held too: %s", r.Action)
+	}
+	if r, _ := h.DecideRequest("POST", "/sse", nil, []byte(call("notion-delete-x"))); r.Action != ActionDeny {
+		t.Errorf("a denied tool on another path: %s", r.Action)
+	}
+	for _, tc := range []struct {
+		method, path string
+		want         Action
+	}{{"GET", "/mcp", ActionAllow}, {"DELETE", "/mcp", ActionAllow}, {"GET", "/admin", ActionApprove}} {
+		if r, _ := h.DecideRequest(tc.method, tc.path, nil, nil); r.Action != tc.want {
+			t.Errorf("%s %s: %s, want %s", tc.method, tc.path, r.Action, tc.want)
 		}
 	}
 	if !h.NeedsBody("POST", "/mcp") {

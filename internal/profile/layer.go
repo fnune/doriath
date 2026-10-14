@@ -79,6 +79,7 @@ type ruleLayer struct {
 	GraphQL      *graphQLLayer `toml:"graphql"`
 	Header       string        `toml:"header"`
 	MCPTools     []string      `toml:"mcp_tools"`
+	MCPNone      bool          `toml:"-"`
 	Action       string        `toml:"action"`
 	Summary      string        `toml:"summary"`
 }
