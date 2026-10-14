@@ -413,3 +413,12 @@ func TestParseForward(t *testing.T) {
 		}
 	}
 }
+
+func TestRunRefusesRoot(t *testing.T) {
+	if err := refuseRoot(0); err == nil || !strings.Contains(err.Error(), "root") {
+		t.Errorf("root: %v", err)
+	}
+	if err := refuseRoot(1000); err != nil {
+		t.Errorf("a user: %v", err)
+	}
+}

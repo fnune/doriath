@@ -114,6 +114,18 @@ func (l *Loader) Find(dir string) (*Profile, error) {
 	return best, nil
 }
 
+// exposesTooMuch refuses mounts that would undo the jail in any mode:
+// reading is what they expose.
+func (b *builder) exposesTooMuch(path string) error {
+	switch {
+	case path == "/":
+		return errors.New("the agent would see the whole filesystem")
+	case within(b.home, path):
+		return errors.New("the agent would see your whole home directory: your keys, tokens and other projects")
+	}
+	return nil
+}
+
 func within(dir, root string) bool {
 	rel, err := filepath.Rel(root, dir)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
@@ -395,6 +407,10 @@ func (b *builder) build(top layer) (*Profile, error) {
 		path, err := b.expand(m.Path)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("mount: %w", err))
+			continue
+		}
+		if err := b.exposesTooMuch(path); err != nil {
+			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
 		mode := Mode(m.Mode)

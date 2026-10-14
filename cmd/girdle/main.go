@@ -146,6 +146,9 @@ func cmdRun(args []string) (int, error) {
 	if len(command) == 0 {
 		return 2, errors.New("run: name the command to run, for example: girdle run -- claude")
 	}
+	if err := refuseRoot(os.Geteuid()); err != nil {
+		return 1, err
+	}
 	p, err := paths()
 	if err != nil {
 		return 1, err
@@ -262,4 +265,11 @@ func (opener) Open(url string) error {
 	cmd := exec.Command("xdg-open", url)
 	cmd.Stdout, cmd.Stderr = io.Discard, io.Discard
 	return cmd.Start()
+}
+
+func refuseRoot(euid int) error {
+	if euid == 0 {
+		return errors.New("run: girdle does not run as root: the files the agent writes and the podman service would belong to root. Run it as your own user")
+	}
+	return nil
 }
