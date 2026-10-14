@@ -109,17 +109,21 @@ func TestFinishCoversSubmoduleStores(t *testing.T) {
 	lib := repo(t)
 	r := repo(t)
 	git(t, r, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "lib")
+	git(t, r, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "libs/nested")
 	git(t, r, "commit", "-q", "-m", "add lib")
 	store := filepath.Join(r, ".git", "modules", "lib")
+	nested := filepath.Join(r, ".git", "modules", "libs", "nested")
 	ctx, tools := context.Background(), Tools{Git: "git"}
 	backup := filepath.Join(t.TempDir(), "b")
 	rec := &Record{Session: "s1", Started: time.Now()}
 	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
 		t.Fatal(err)
 	}
-	if len(rec.Repos) != 2 || rec.Repos[1].GitDir != store || rec.Repos[1].Path != filepath.Join(r, "lib") {
+	if len(rec.Repos) != 3 || rec.Repos[1].GitDir != store || rec.Repos[1].Path != filepath.Join(r, "lib") || rec.Repos[2].GitDir != nested {
 		t.Fatalf("repos: %+v", rec.Repos)
 	}
+	forgedNested := filepath.Join(nested, "objects", "11", strings.Repeat("1", 38))
+	writeLoose(t, forgedNested, "blob 5\x00agent")
 	forged := filepath.Join(store, "objects", "11", strings.Repeat("1", 38))
 	writeLoose(t, forged, "blob 5\x00agent")
 	git(t, filepath.Join(r, "lib"), "commit", "-q", "--allow-empty", "-m", "agent")
@@ -128,8 +132,10 @@ func TestFinishCoversSubmoduleStores(t *testing.T) {
 	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Lstat(forged); !os.IsNotExist(err) {
-		t.Errorf("a forged object in the submodule store stays:\n%s", out.String())
+	for _, p := range []string{forged, forgedNested} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("a forged object in a submodule store stays: %s\n%s", p, out.String())
+		}
 	}
 	if len(rec.Repos[1].Moved) != 1 {
 		t.Errorf("the submodule's moved branch is not kept: %+v\n%s", rec.Repos[1], out.String())

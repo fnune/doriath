@@ -79,3 +79,42 @@ func TestRepositoryAfterASkippedDirectoryIsGuarded(t *testing.T) {
 		t.Fatal("the repository listed after node_modules must be guarded")
 	}
 }
+
+func TestSubmoduleStoresWithSlashedNamesAreCovered(t *testing.T) {
+	git := "/home/u/repo/.git"
+	foo := git + "/modules/libs/foo"
+	h := fakeHost{
+		git:                          "dir",
+		git + "/HEAD":                "file",
+		git + "/objects":             "dir",
+		git + "/modules":             "dir",
+		git + "/modules/libs":        "dir",
+		foo:                          "dir",
+		foo + "/HEAD":                "file",
+		foo + "/config":              "file",
+		foo + "/objects":             "dir",
+		foo + "/objects/pack":        "dir",
+		foo + "/objects/pack/p.pack": "file",
+	}
+	binds := storeBinds(git, h)
+	binds = append(binds, gitDirGuards(git, git, h, 0)...)
+	mode := func(p string) string {
+		i := slices.IndexFunc(binds, func(b Bind) bool { return b.Dest == p })
+		switch {
+		case i < 0:
+			return "none"
+		case binds[i].ReadOnly:
+			return "read"
+		}
+		return "write"
+	}
+	for p, want := range map[string]string{
+		foo + "/objects":             "write",
+		foo + "/objects/pack/p.pack": "read",
+		foo + "/config":              "read",
+	} {
+		if got := mode(p); got != want {
+			t.Errorf("%s: %s, want %s", p, got, want)
+		}
+	}
+}

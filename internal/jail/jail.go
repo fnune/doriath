@@ -372,11 +372,8 @@ func gitStore(gitDir string, host Host, depth int) []Bind {
 	if depth >= vcs.MaxSubmoduleDepth {
 		return binds
 	}
-	modules := filepath.Join(gitDir, "modules")
-	for _, name := range host.Entries(modules) {
-		if sub := filepath.Join(modules, name); host.Kind(sub) == "dir" {
-			binds = append(binds, gitStore(sub, host, depth+1)...)
-		}
+	for _, sub := range vcs.ModuleStores(filepath.Join(gitDir, "modules"), host) {
+		binds = append(binds, gitStore(sub, host, depth+1)...)
 	}
 	return binds
 }
@@ -418,10 +415,20 @@ func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
 		return binds
 	}
 	modules := filepath.Join(srcGit, "modules")
+	var subs []string
 	for _, name := range host.Entries(modules) {
 		if sub := filepath.Join(modules, name); host.Kind(sub) == "dir" {
-			binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", name), host, depth+1)...)
+			subs = append(subs, sub)
 		}
+	}
+	for _, sub := range vcs.ModuleStores(modules, host) {
+		if !slices.Contains(subs, sub) {
+			subs = append(subs, sub)
+		}
+	}
+	for _, sub := range subs {
+		rel, _ := filepath.Rel(modules, sub)
+		binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", rel), host, depth+1)...)
 	}
 	return binds
 }

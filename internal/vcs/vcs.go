@@ -258,34 +258,65 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 // stores.
 const MaxSubmoduleDepth = 4
 
-// submoduleStores are the stores under a store's modules directory, as
-// deep as the jail makes them writable.
+// submoduleStores are the stores of a store's submodules, nested ones
+// included, as deep as the jail makes them writable.
 func submoduleStores(gitDir string, depth int) []string {
 	if depth > MaxSubmoduleDepth {
 		return nil
 	}
 	var out []string
-	modules := filepath.Join(gitDir, "modules")
-	for _, name := range entries(modules) {
-		sub := filepath.Join(modules, name)
-		if isStore(sub) {
-			out = append(out, sub)
-			out = append(out, submoduleStores(sub, depth+1)...)
+	for _, sub := range ModuleStores(filepath.Join(gitDir, "modules"), osDirs{}) {
+		out = append(out, sub)
+		out = append(out, submoduleStores(sub, depth+1)...)
+	}
+	return out
+}
+
+// Dirs is what ModuleStores reads of the filesystem.
+type Dirs interface {
+	// Kind returns "dir", "file", "other" or "" when the path does not exist.
+	Kind(path string) string
+	Entries(dir string) []string
+}
+
+// ModuleStores lists the stores in a modules directory. A submodule's name
+// can contain slashes, which puts its store several directories down.
+func ModuleStores(modules string, dirs Dirs) []string {
+	var out []string
+	for _, name := range dirs.Entries(modules) {
+		p := filepath.Join(modules, name)
+		switch {
+		case dirs.Kind(p) != "dir":
+		case IsStore(p, dirs):
+			out = append(out, p)
+		default:
+			out = append(out, ModuleStores(p, dirs)...)
 		}
 	}
 	return out
 }
 
-// isStore reports a directory git would take for a repository, which
-// leaves out the rest of a modules directory.
-func isStore(dir string) bool {
-	head, err := os.Stat(filepath.Join(dir, "HEAD"))
-	if err != nil || !head.Mode().IsRegular() {
-		return false
-	}
-	objects, err := os.Stat(filepath.Join(dir, "objects"))
-	return err == nil && objects.IsDir()
+// IsStore reports a directory git would take for a repository.
+func IsStore(dir string, dirs Dirs) bool {
+	return dirs.Kind(filepath.Join(dir, "HEAD")) == "file" && dirs.Kind(filepath.Join(dir, "objects")) == "dir"
 }
+
+type osDirs struct{}
+
+func (osDirs) Kind(p string) string {
+	info, err := os.Lstat(p)
+	switch {
+	case err != nil:
+		return ""
+	case info.IsDir():
+		return "dir"
+	case info.Mode().IsRegular():
+		return "file"
+	}
+	return "other"
+}
+
+func (osDirs) Entries(dir string) []string { return entries(dir) }
 
 func submoduleCheckout(store string) string {
 	data, err := os.ReadFile(filepath.Join(store, "config"))
