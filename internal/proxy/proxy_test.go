@@ -188,7 +188,12 @@ credential = { secret = "github", scheme = "basic", username = "x-access-token" 
 
 func loadPolicy(t *testing.T) *profile.Profile {
 	t.Helper()
-	l := &profile.Loader{Profiles: mapFS{"t.toml": testProfile}, Home: "/home/u"}
+	return loadProfile(t, testProfile)
+}
+
+func loadProfile(t *testing.T, toml string) *profile.Profile {
+	t.Helper()
+	l := &profile.Loader{Profiles: mapFS{"t.toml": toml}, Home: "/home/u"}
 	p, err := l.Load("t")
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +204,7 @@ func loadPolicy(t *testing.T) *profile.Profile {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	up := &upstream{}
-	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com"}, time.Now)
+	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
