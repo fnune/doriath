@@ -313,3 +313,33 @@ func (b *fakeBroker) sentWaits() []session.WaitParams {
 	defer b.mu.Unlock()
 	return slices.Clone(b.waits)
 }
+
+// stepClock lets a test see each wait and decide when it ends.
+type stepClock struct {
+	now   time.Time
+	waits chan chan time.Time
+}
+
+func newStepClock(now time.Time) *stepClock {
+	return &stepClock{now: now, waits: make(chan chan time.Time)}
+}
+
+func (c *stepClock) Now() time.Time { return c.now }
+
+func (c *stepClock) After(time.Duration) <-chan time.Time {
+	tick := make(chan time.Time, 1)
+	c.waits <- tick
+	return tick
+}
+
+// waiting blocks until the code under test waits on the clock.
+func (c *stepClock) waiting(t *testing.T) chan<- time.Time {
+	t.Helper()
+	select {
+	case tick := <-c.waits:
+		return tick
+	case <-time.After(5 * time.Second):
+		t.Fatal("nothing waited on the clock")
+		return nil
+	}
+}
