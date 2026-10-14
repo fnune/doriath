@@ -1,6 +1,6 @@
 # Girdle of Melian
 
-girdle runs a coding agent, such as Claude Code, in a jail on a Linux host, such as a workstation or a server. The jail has its own files, network and processes. A proxy outside the jail decides which hosts the agent reaches and adds credentials to requests.
+girdle runs a coding agent, such as Claude Code, in a jail on a Linux workstation or server. The jail has its own files, network and processes. A proxy outside it decides which hosts the agent reaches and adds credentials to requests.
 
 Pre-alpha. Linux only.
 
@@ -11,7 +11,7 @@ nix profile install github:fnune/girdle
 girdle doctor
 ```
 
-girdle is one static binary that bundles bubblewrap. It needs a Linux kernel with unprivileged user namespaces, and podman for containers. With home-manager, import `girdle.homeManagerModules.default` and write profiles as nix. The [install guide](docs/install.md) has both ways, the credentials to create and how to find the hosts a build needs.
+girdle is one static binary that bundles bubblewrap. It needs unprivileged user namespaces, and podman for containers. The [install guide](docs/install.md) also covers home-manager, credentials and Claude Code.
 
 ## Quick start
 
@@ -19,58 +19,38 @@ A profile says what one kind of work can reach. Save this as `~/.config/girdle/p
 
 ```toml
 description = "My app: Go API and React frontend"
-modules = ["base", "vcs", "docs", "go", "node", "playwright", "github", "claude"]
+modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
 
-# The agent sees the repository you start in, read-only. vcs lets it commit
-# and add worktrees there, and claude gives it .claude/worktrees to work in.
-# Build output outside a worktree needs its own entry:
-[[mounts]]
-path = "{repository}/web/dist"
-mode = "write"
-
-# Hosts the build and tests need beyond what the modules allow.
+# Hosts the build needs beyond what the modules allow.
 [egress]
 allow = ["api.stripe.com"]
 
-# A token for the github module. girdle adds it to gh and git requests.
+# The token the github module adds to gh and git requests.
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]
-
-[limits]
-memory = "16G"
 ```
 
-Then run the agent, naming the profile:
+Then run the agent from the repository:
 
 ```sh
 cd ~/Development/my-app
 girdle run --profile my-app -- claude
 ```
 
-The modules hold the usual hosts, caches and rules for a toolchain: `go` allows the Go module proxy, `github` allows reads and routine pull request work and holds merges, releases and pushes for approval. [Configuration](docs/configuration.md) lists every key.
+The agent sees the repository read-only and commits in worktrees of its own. Modules hold the hosts, caches and rules of a toolchain: `go` allows the Go module proxy, and `github` holds merges, releases and pushes for your approval. [Configuration](docs/configuration.md) lists every key.
 
 ## What girdle is for
 
-girdle is for running coding agents on a host that you work on, with that host's tools, repositories and logins, without approving each step of the agent's work.
+girdle lets coding agents work on your own host, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes such as [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell), which run the agent in a container or virtual machine with an image of its own: girdle shares your toolchain, checkouts and kernel, so the agent works as you do.
 
-By design, girdle isolates less than sandboxes such as [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell), which run the agent in a container or a virtual machine with only its own image. girdle shares the host's toolchain, checkouts and kernel with the agent, so that the agent can work like you do.
+It protects you from an agent that does what you did not ask for, for example after a prompt injection. The agent cannot:
 
-girdle protects you from an agent that does something you did not ask for, for example after a prompt injection in a web page, an issue or a dependency. In a girdle session, the agent cannot:
+- read your home directory, other projects, SSH keys or tokens, or the credentials girdle adds to its requests.
+- reach a host the profile does not name, your local network or a cloud metadata service.
+- change your checkout or anything git runs, unless the profile makes it writable.
+- make a request that a rule holds, such as a merge, until you approve it, and it cannot approve its own requests.
 
-- read your home directory, your other projects, your SSH keys or your tokens.
-- read the credentials that girdle adds to its requests.
-- reach a host that the profile does not name, your local network or a cloud metadata service.
-- change files that git runs outside the jail, such as hooks and config.
-- make a request that a rule holds for approval, until you approve it. The rules come from the profile and its modules. For example, the `github` module holds merges, releases and pushes.
-- approve its own requests.
-
-girdle does not protect you from:
-
-- an agent that sends the project to a host that the profile allows. Allow only the hosts that the task needs.
-- operations that an allowed program, such as `gh`, can do under the rules, for example a comment on GitHub.
-- a bug in the Linux kernel. The jail shares the kernel with the host.
-
-[Security limits](docs/security-limits.md) gives the full list and the reasons.
+It does not protect you from an agent that sends the project to a host the profile allows, from what an allowed program such as `gh` may do under the rules, or from a kernel bug. [Security limits](docs/security-limits.md) has the full list.
 
 ## How it works
 
@@ -79,7 +59,7 @@ flowchart LR
     subgraph jail["Jail: its own files, network and processes"]
         tech["Linux: bubblewrap, seccomp, Landlock<br/>macOS: Seatbelt, not supported yet"]
         agent["Agent<br/>(Claude Code, scripts, browsers)"]
-        repo[("Your repository<br/>read-only or writable")]
+        repo[("Your repository<br/>read-only, store writable")]
         agent --> repo
     end
 
@@ -91,30 +71,27 @@ flowchart LR
 
     agent -- "every request" --> proxy
     proxy -- "allowed hosts,<br/>token added" --> internet
-    proxy -. "requests a rule holds<br/>wait for approval" .-> you
+    proxy -. "held requests<br/>wait for you" .-> you
     secrets --> proxy
 
     style tech fill:none,stroke-dasharray:3 3
 ```
 
-| Part            | What it does                                                                                                                                                                                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Files           | bubblewrap mounts the system read-only. The home directory, `/run`, `/tmp`, `/var` and `/opt` are empty. The paths that the profile names are mounted at the same paths, read-only, writable or hidden. In a writable repository, git's config, hooks and info stay read-only. |
-| Kernel          | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules and terminal input injection. Landlock limits writes to the writable mounts.                                                                                                                   |
-| Network         | The jail has only a loopback interface. Programs reach other hosts through the proxy, with `HTTPS_PROXY`. The proxy allows the hosts that the profile names and refuses other hosts, private addresses and metadata addresses. Each decision goes to an audit log.             |
-| Credentials     | For a host with an `[[http]]` entry, the proxy terminates TLS with a per-session CA, adds the credential to requests from the programs that the profile names, and applies the request rules: allow, approve or deny.                                                          |
-| Approvals       | A request that a rule holds waits until you allow or deny it in a desktop notification or with `girdle approvals`, for example over SSH on a server. Claude Code's permission prompts, and `girdle request write` for a path the agent cannot write, use the same queue.       |
-| Commit signing  | An SSH agent with an agent-only key signs git commits. It refuses other uses of the key.                                                                                                                                                                                       |
-| Containers      | A podman service runs in a separate user namespace and shares the jail's network. A broker checks each API call: mounts, privileges, images.                                                                                                                                   |
-| Resource limits | Each session runs in a systemd user scope with a task limit and a memory limit.                                                                                                                                                                                                |
-| Looking inside  | `girdle exec` runs a command in a running session. `girdle forward` makes a port in the jail reachable on the host's localhost.                                                                                                                                                |
+| Part        | What it does                                                                                                                                                                                                               |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files       | The system is read-only, and the home directory, `/run`, `/tmp` and `/var` start empty. The repository you start in is read-only, with its git and jj store writable. Other paths appear only when the profile names them. |
+| Kernel      | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes.                                                                                                            |
+| Network     | The jail has only loopback. The proxy allows the hosts the profile names, holds others for your approval, and refuses private and metadata addresses. Every decision goes to an audit log.                                 |
+| Credentials | For an `[[http]]` host, the proxy terminates TLS, adds the credential for the programs the profile names, and applies request rules.                                                                                       |
+| Approvals   | Held requests wait for you in a desktop notification or `girdle approvals`. An allow lasts at most for the session.                                                                                                        |
+| Extras      | An SSH agent that only signs commits, a podman service behind a broker that checks each API call, systemd limits, and `girdle exec` and `girdle forward` to look inside.                                                   |
 
 ## Docs
 
-- [Install](docs/install.md): setup, credentials, Claude Code in the jail, known issues
-- [Configuration](docs/configuration.md): every profile and module key
+- [Install](docs/install.md): setup, credentials, running agents, Claude Code
+- [Configuration](docs/configuration.md): every key, mounts, repositories, approvals
 - [Security limits](docs/security-limits.md): what girdle leaves open, and why
 
 ## Development
 
-`nix develop` gives the toolchain. `just check` runs formatting, lint and unit tests, and `just test-integration` runs the tests that start real jails. [Engineering principles](docs/engineering.md) describes how the code is written.
+`nix develop` gives the toolchain. `just check` runs formatting, lint and unit tests, and `just test-integration` the tests that start real jails. [Engineering principles](docs/engineering.md) describes how the code is written.

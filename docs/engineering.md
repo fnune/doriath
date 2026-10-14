@@ -12,7 +12,7 @@ Girdle sits between a person and their agents. It must feel calm: simple, clear,
 
 - Simplicity is the default. A feature earns its place or it does not ship.
 - Clarity over cleverness. Plain output, ordinary words, predictable defaults.
-- Quiet by default. A successful command prints nothing it does not need to. Detail lives behind `--verbose` and in the logs.
+- Quiet by default. A successful command prints nothing it does not need to. Detail lives in the audit log.
 - Respect the person's agency. They decide what an agent can reach. Girdle never widens access on its own and never hides what it granted.
 - Failures are shown calmly. Error messages are accurate and plain, say what was blocked and how to allow it, and never blame the person.
 - An approval request earns the interruption or it does not happen. Routine grants last for a session. Only rare, sensitive actions ask each time.
@@ -21,7 +21,7 @@ Girdle sits between a person and their agents. It must feel calm: simple, clear,
 
 - Deny by default. A host, socket, credential, environment variable or path under the home is in the jail only if a profile names it. The system directories (`/etc`, `/usr`, `/var`, `/opt`, `/nix/store`) stay readable so that tools work, and nothing outside the writable paths can be changed.
 - Hide rather than deny. What the agent must not reach is not mounted, not forwarded, and not in its environment.
-- Widen by config, never in the session. An agent can propose a change to a profile. Only the person applies it.
+- Widen only by the person's decision. An agent can ask for a host or a writable path, and the person allows it for the session. Only the person edits a profile; girdle prints the lines and never writes them.
 - Secrets never enter logs, errors, test fixtures, or the agent's environment unless a profile grants them. Redact at the boundary that writes output.
 - Every grant and every denial goes to the audit log.
 
@@ -29,7 +29,7 @@ Girdle sits between a person and their agents. It must feel calm: simple, clear,
 
 Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Principles, Practices, and Patterns_](https://www.manning.com/books/dependency-injection-principles-practices-patterns).
 
-- Constructor injection is the default: `NewBroker(store GrantStore, clock Clock, approver Approver) *Broker`. Functional options only when a constructor has many optional settings.
+- Constructor injection is the default: `NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Manager`. Functional options only when a constructor has many optional settings.
 - Inject volatile dependencies: anything with side effects (process execution, file system, sockets, network, D-Bus), nondeterminism (time, randomness), or runtime configuration.
 - Do not inject stable dependencies: the standard library's pure functions, value types, and deterministic helpers.
 - The composition root is `cmd/girdle/main.go`. It is the only place that knows the concrete implementations of volatile dependencies.
@@ -41,8 +41,8 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 
 ### Layered architecture and abstraction ownership
 
-- Packages live under `internal/`. The domain (`profile`, `grant`, `policy`, `approval`) holds the rules and declares the interfaces it needs.
-- Adapters (`bwrap`, `proxy`, `sshagent`, `notify`, `agents/claude`) import the domain and implement its interfaces. The domain never imports an adapter.
+- Packages live under `internal/`. The domain (`profile`, `approval`) holds the rules and declares the interfaces it needs.
+- Adapters (`jail`, `proxy`, `containers`, `promote`, `vcs`, `sshagent`, `notify`, `agents/claude`) import the domain and implement its interfaces. The domain never imports an adapter.
 - The interface belongs to the consumer, not to the implementer. Accept interfaces, return concrete types.
 - Reject naive layering where each package depends on the one below it. That is not dependency inversion.
 
@@ -50,7 +50,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 
 - No `any` or `interface{}` in domain code. Use them only at a decoding boundary, and convert to concrete types at once.
 - Validate at every process boundary: profile TOML, socket requests, hook payloads, environment variables, agent output. Decode strictly (unknown fields are errors), then validate, then build domain values. Never trust a value because it type-checks.
-- Use distinct types for distinct concepts: `HostPattern`, `MountPath`, `GrantID`, not bare strings.
+- Use distinct types for distinct concepts, such as `HostPattern`, `PathPattern` and `Mode`, not bare strings.
 - `golangci-lint` runs with a shared config. A `//nolint` without a reason on the same line is a bug.
 
 ### Code comments

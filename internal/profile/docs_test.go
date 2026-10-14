@@ -65,8 +65,8 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 // copies one gets a file girdle accepts.
 func TestDocExamplesLoad(t *testing.T) {
 	var snippets []snippet
-	for _, doc := range []string{"configuration.md", "install.md"} {
-		snippets = append(snippets, tomlSnippets(t, filepath.Join("..", "..", "docs", doc))...)
+	for _, doc := range []string{"docs/configuration.md", "docs/install.md", "README.md"} {
+		snippets = append(snippets, tomlSnippets(t, filepath.Join("..", "..", doc))...)
 	}
 	if len(snippets) < 3 {
 		t.Fatalf("found %d toml examples in the docs; the extraction is broken", len(snippets))
