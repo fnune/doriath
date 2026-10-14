@@ -122,3 +122,16 @@ func mkdirAll(t *testing.T, dirs ...string) {
 		}
 	}
 }
+
+// waitFor polls for the effect of a callback that runs on a goroutine of
+// its own and signals nothing when it is done.
+func waitFor(t *testing.T, done func() bool, failure string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !done() {
+		if time.Now().After(deadline) {
+			t.Fatal(failure)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}

@@ -1,9 +1,13 @@
 package session
 
 import (
+	"context"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
 )
 
@@ -56,5 +60,79 @@ func TestARefusedHostStaysRefusedWhileLearningUnlessAllowed(t *testing.T) {
 	p.Egress.Allow = []profile.HostPattern{"downloads.claude.ai"}
 	if !newLivePolicy(p, false).AllowsHostFor("downloads.claude.ai", "") || p.Refuses("downloads.claude.ai") {
 		t.Error("an allow entry does not win over a deny")
+	}
+}
+
+func TestHoldHostAllowsTheHostForTheRestOfTheSession(t *testing.T) {
+	notifier := allowing()
+	notifier.seen = make(chan approval.Request, 1)
+	s := newTestSession(t, notifier)
+	allowed, pending := s.HoldHost(context.Background(), "drafted.example", "/usr/bin/curl")
+	if !allowed || pending != "" {
+		t.Fatalf("HoldHost = %v, %q", allowed, pending)
+	}
+	if !s.policy.AllowsHostFor("DRAFTED.example", "") {
+		t.Error("an allowed host is still refused")
+	}
+	req := <-notifier.seen
+	if req.Kind != approval.KindHost || req.Scope != "host egress drafted.example" || req.Summary != "Allow drafted.example for profile p?" {
+		t.Errorf("request = %+v", req)
+	}
+	if !strings.Contains(req.Details, "/usr/bin/curl tried to reach drafted.example") {
+		t.Errorf("details:\n%s", req.Details)
+	}
+	if req.Keep != "[egress]\nallow = [\"drafted.example\"]" {
+		t.Errorf("keep = %q", req.Keep)
+	}
+}
+
+// A grant answers without the decided callback, so HoldHost itself must
+// open the policy before the proxy retries.
+func TestHoldHostAppliesAnEarlierGrantAtOnce(t *testing.T) {
+	s := newTestSession(t, allowing())
+	if _, err := s.manager.Submit(context.Background(), approval.Request{Kind: approval.KindHost, Scope: "host egress Drafted.Example"}, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if allowed, _ := s.HoldHost(context.Background(), "Drafted.Example", ""); !allowed {
+		t.Fatal("the grant did not answer")
+	}
+	if !s.policy.AllowsHostFor("drafted.example", "") {
+		t.Error("the granted host is still refused")
+	}
+}
+
+func TestHoldHostRefusesWhatYouDeny(t *testing.T) {
+	s := newTestSession(t, denying())
+	if allowed, pending := s.HoldHost(context.Background(), "drafted.example", ""); allowed || pending != "" {
+		t.Fatalf("HoldHost = %v, %q", allowed, pending)
+	}
+	if s.policy.AllowsHostFor("drafted.example", "") {
+		t.Error("a denied host is allowed")
+	}
+}
+
+func TestHoldHostNamesTheRequestThatIsStillPending(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1)}
+	s := newTestSession(t, notifier)
+	s.deps.HostWait = 0
+	allowed, pending := s.HoldHost(context.Background(), "webhook.site", "")
+	if allowed || pending == "" {
+		t.Fatalf("HoldHost = %v, %q", allowed, pending)
+	}
+	req := <-notifier.seen
+	if !strings.HasPrefix(req.Details, "A program tried to reach webhook.site") || !strings.Contains(req.Details, "anyone can upload to webhook.site") {
+		t.Errorf("details:\n%s", req.Details)
+	}
+	if err := s.manager.Decide(pending, approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s.policy.AllowsHostFor("webhook.site", "") }, "an allow after the agent stopped waiting must still apply")
+}
+
+func TestEgressLinesQuoteEveryHost(t *testing.T) {
+	got := egressLines([]string{"a.example", `b"c`})
+	want := "[egress]\nallow = [\"a.example\", \"b\\\"c\"]"
+	if got != want {
+		t.Errorf("egressLines =\n%s\nwant\n%s", got, want)
 	}
 }
