@@ -110,8 +110,10 @@ func (b browser) Open(u string) error {
 			b.t.Errorf("browser: %v", err)
 			return
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
+		defer resp.Body.Close()
+		if page, err := io.ReadAll(resp.Body); err != nil || !strings.Contains(string(page), "You can close this tab.") {
+			b.t.Errorf("browser: the callback page %q did not arrive whole: %v", page, err)
+		}
 	}()
 	return nil
 }

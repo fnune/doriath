@@ -275,7 +275,13 @@ func awaitCallback(ctx context.Context, l net.Listener) (*auth.AuthorizationResu
 		results <- &auth.AuthorizationResult{Code: q.Get("code"), State: q.Get("state"), Iss: q.Get("iss")}
 	})}
 	go func() { _ = srv.Serve(l) }()
-	defer func() { _ = srv.Close() }()
+	// Shutdown, unlike Close, lets the browser receive the page that says
+	// whether the sign-in worked.
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	}()
 	select {
 	case r := <-results:
 		return r, nil
