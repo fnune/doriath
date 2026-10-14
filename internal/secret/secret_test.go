@@ -126,3 +126,48 @@ func TestOAuthBackendValidation(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestFailedCommandRunsAgainOnTheNextGet(t *testing.T) {
+	run := &fakeRunner{err: errors.New("exit status 1")}
+	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run, mapFiles{})
+	if _, err := s.Get(context.Background(), "gh"); err == nil || err.Error() != `secret "gh": command rbw: exit status 1` {
+		t.Fatalf("err = %v", err)
+	}
+	run.err, run.stdout = nil, "tok"
+	if v, err := s.Get(context.Background(), "gh"); err != nil || string(v.Reveal()) != "tok" {
+		t.Fatalf("after unlocking: %q, %v", v.Reveal(), err)
+	}
+}
+
+func TestSecretKeepsAllButOneTrailingLineEnding(t *testing.T) {
+	for out, want := range map[string]string{
+		"tok\n":     "tok",
+		"tok\r\n":   "tok",
+		"tok":       "tok",
+		"tok\n\n":   "tok\n",
+		" tok \n":   " tok ",
+		"a\nb\n":    "a\nb",
+		"pass word": "pass word",
+	} {
+		s := NewConfigured(map[string]Backend{"s": {Command: []string{"cat"}}}, &fakeRunner{stdout: out}, mapFiles{})
+		if v, err := s.Get(context.Background(), "s"); err != nil || string(v.Reveal()) != want {
+			t.Errorf("%q: got %q, %v; want %q", out, v.Reveal(), err, want)
+		}
+	}
+}
+
+func TestErrorsSayWhatToDo(t *testing.T) {
+	s := NewConfigured(map[string]Backend{
+		"absent": {File: "/absent"},
+		"login":  {OAuth: &OAuth{MCP: "https://mcp.example.com/mcp"}},
+	}, &fakeRunner{}, mapFiles{fstest.MapFS{}})
+	for name, want := range map[string]string{
+		"missing": `secret "missing": unknown secret: add [secrets.missing] to the profile`,
+		"absent":  `secret "absent": open absent: file does not exist`,
+		"login":   `secret "login": OAuth logins are not available here`,
+	} {
+		if _, err := s.Get(context.Background(), name); err == nil || err.Error() != want {
+			t.Errorf("%s: err = %v, want %s", name, err, want)
+		}
+	}
+}
