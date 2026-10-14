@@ -68,6 +68,12 @@ func TestRejects(t *testing.T) {
 			if _, _, err := NewFile(path).Pinned("docker.io/library/a:1"); err == nil {
 				t.Fatal("read a bad pin file")
 			}
+			if err := NewFile(path).Pin("docker.io/library/b:1", digest("b")); err == nil {
+				t.Fatal("pinned into a bad pin file")
+			}
+			if got, _ := os.ReadFile(path); string(got) != content {
+				t.Fatalf("a bad pin file was rewritten: %q", got)
+			}
 		})
 	}
 	if err := NewFile(filepath.Join(dir, "x.json")).Pin("docker.io/library/a:1", "sha256:short"); err == nil {
