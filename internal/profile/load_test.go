@@ -130,6 +130,40 @@ func TestLoadRejects(t *testing.T) {
 		"negative tasks":     {profile: "[limits]\ntasks = -1", want: "limits tasks"},
 		"bad image glob":     {profile: "[podman]\nimages = [\"docker.io/[\"]", want: "podman images"},
 		"short image name":   {profile: "[podman]\nimages = [\"postgres\"]", want: "name the registry"},
+		"name field differs": {profile: `name = "q"`, want: `name field says "q"`},
+		"bad env name":       {profile: "[env]\nset = { \"1X\" = \"a\" }", want: `env set "1X": invalid variable name`},
+		"bad env pass":       {profile: "[env]\npass = [\"A-B\"]", want: `env pass "A-B": invalid variable name`},
+		"port twice":         {profile: "[egress]\nports = [5432]\ntcp_ports = [5432]", want: "listed both as HTTP and as TCP"},
+		"bad host label":     {profile: "[egress]\nallow = [\"a_b.com\"]", want: `invalid label "a_b"`},
+		"bad secret name":    {profile: "[secrets.\"g h\"]\nfile = \"/a\"", want: "use lowercase letters"},
+		"bad credential secret": {
+			profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"G\" }",
+			want:    `secret "G": use lowercase letters`,
+		},
+		"username without basic": {
+			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", username = \"x\" }",
+			want:    "username is only used with the basic scheme",
+		},
+		"unknown scheme": {
+			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"digest\" }",
+			want:    "want bearer, token or basic",
+		},
+		"empty credential binary": {
+			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"\"] }",
+			want:    "binaries entries must not be empty",
+		},
+		"relative credential binary": {
+			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"bin/gh\"] }",
+			want:    `binary "bin/gh": a path must be absolute`,
+		},
+		"lower-case method":         {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"get\"\npath = \"/\"\naction = \"deny\"", want: "want an uppercase HTTP method"},
+		"relative rule path":        {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"a\"\naction = \"deny\"", want: "must start with /"},
+		"double star in the middle": {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/**/a\"\naction = \"deny\"", want: "** is only allowed at the end"},
+		"bad header name":           {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/\"\nheader = \"x api\"\naction = \"deny\"", want: "want a header name"},
+		"header prefix alone":       {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/\"\nheader_prefix = \"Bearer \"\naction = \"deny\"", want: "header_prefix needs header"},
+		"empty program binary":      {profile: "[[egress.programs]]\nbinaries = [\"\"]\nallow = [\"a.com\"]", want: "binaries entries must not be empty"},
+		"env on a remote mcp":       {profile: "[[mcp]]\nname = \"n\"\nurl = \"https://a.com/mcp\"\nenv = { A = \"1\" }", want: "env is for local servers"},
+		"bad mcp secret":            {profile: "[[mcp]]\nname = \"n\"\nurl = \"https://a.com/mcp\"\nsecret = \"N\"", want: `secret "N": use lowercase letters`},
 		"module cycle": {
 			profile: `modules = ["a"]`,
 			modules: fstest.MapFS{"a.toml": file(`modules = ["b"]`), "b.toml": file(`modules = ["a"]`)},
@@ -156,6 +190,16 @@ func TestLoadRejects(t *testing.T) {
 				t.Fatalf("err = %v, want it to contain %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestLoadRejectsBadNames(t *testing.T) {
+	l := loader(fstest.MapFS{"p.toml": file(`modules = ["Base"]`)}, fstest.MapFS{})
+	if _, err := l.Load("P"); err == nil || err.Error() != `profile name "P": use lowercase letters, digits and dashes` {
+		t.Errorf("profile: err = %v", err)
+	}
+	if _, err := l.Load("p"); err == nil || !strings.Contains(err.Error(), `module name "Base": use lowercase letters, digits and dashes`) {
+		t.Errorf("module: err = %v", err)
 	}
 }
 
