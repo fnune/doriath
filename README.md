@@ -19,7 +19,7 @@ A profile says what one kind of work can reach. Save this as `~/.config/girdle/p
 
 ```toml
 description = "My app: Go API and React frontend"
-modules = ["base", "vcs", "go", "node", "playwright", "github", "claude"]
+modules = ["base", "vcs", "docs", "go", "node", "playwright", "github", "claude"]
 
 # The agent sees the repository you start in, read-only. vcs lets it commit
 # and add worktrees there, and claude gives it .claude/worktrees to work in.

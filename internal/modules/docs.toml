@@ -1,0 +1,24 @@
+# Documentation sites, so agents read docs with WebFetch, curl or a docs
+# tool without asking you. Each host serves documentation and accepts no
+# writes without a login, so allowing it gives the agent nowhere to send
+# what it reads. Requests pass through as sent: Accept: text/markdown and
+# llms.txt work wherever the site offers them.
+
+[egress]
+allow = [
+  "go.dev",
+  "pkg.go.dev",
+  "docs.rs",
+  "doc.rust-lang.org",
+  "developer.mozilla.org",
+  "docs.python.org",
+  "nodejs.org",
+  "www.typescriptlang.org",
+  "*.readthedocs.io",
+  "nixos.org",
+  "search.nixos.org",
+  "man7.org",
+  "kubernetes.io",
+  "docs.docker.com",
+  "raw.githubusercontent.com",
+]

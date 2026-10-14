@@ -360,8 +360,9 @@ func TestEgressAndInjection(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
 curl -sS -o /dev/null -w "tunnel %{http_code}\n" https://example.com/t
+curl -sS -o /dev/null -H "Accept: text/markdown" https://example.com/markdown
 curl -sS -o /dev/null -w "denied %{http_code}\n" https://example.org/ 2>/dev/null || true
-curl -sS -H "Authorization: token $GH_TOKEN" -o /dev/null -w "api %{http_code}\n" https://api.github.com/user
+curl -sS -H "Authorization: token $GH_TOKEN" -H "Accept: text/markdown" -o /dev/null -w "api %{http_code}\n" https://api.github.com/user
 curl -sS -m 3 --noproxy '*' https://example.com/ >/dev/null 2>&1 && echo "FAIL direct network"
 exit 0
 `, nil)
@@ -376,8 +377,11 @@ exit 0
 	if strings.Contains(out, "FAIL") || !strings.Contains(out, "denied") || strings.Contains(out, "denied 200") {
 		t.Errorf("output:\n%s", out)
 	}
+	if md := e.upstream.find("/markdown"); md == nil || md.Header.Get("Accept") != "text/markdown" {
+		t.Errorf("content negotiation must reach the site as sent: %+v", md)
+	}
 	req := e.upstream.find("/user")
-	if req == nil || req.Header.Get("Authorization") != "Bearer real-token" {
+	if req == nil || req.Header.Get("Authorization") != "Bearer real-token" || req.Header.Get("Accept") != "text/markdown" {
 		t.Fatalf("upstream request: %+v", req)
 	}
 	audit, _ := os.ReadFile(e.paths.AuditLog())
