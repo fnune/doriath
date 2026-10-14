@@ -320,6 +320,9 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		if summary == "" {
 			summary = fmt.Sprintf("%s %s%s", r.Method, host, r.URL.Path)
 		}
+		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
+			summary += " " + tools
+		}
 		d, err := s.approver.Submit(r.Context(), approval.Request{
 			Session: s.cfg.Session,
 			Profile: s.cfg.Profile,
@@ -444,6 +447,9 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte)
 	}
 	if r.GraphQL != nil {
 		s += " " + r.GraphQL.String()
+	}
+	if len(r.MCPTools) > 0 {
+		s += " mcp " + profile.DescribeMCP(body)
 	}
 	if repo := repoPrefix(path); repo != "" {
 		s += " in " + repo

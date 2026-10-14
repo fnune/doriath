@@ -592,7 +592,12 @@ func buildRule(r ruleLayer) (Rule, error) {
 	if r.Header != "" && !headerName.MatchString(r.Header) {
 		return Rule{}, fmt.Errorf("header %q: want a header name such as x-api-key", r.Header)
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), Action: action, Summary: r.Summary}
+	for _, g := range r.MCPTools {
+		if !validGlob(g) {
+			return Rule{}, fmt.Errorf("mcp_tools %q: want a tool name or a glob such as notion-create-*", g)
+		}
+	}
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), MCPTools: r.MCPTools, Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {
@@ -703,13 +708,17 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 	if !namePattern.MatchString(m.Name) {
 		return MCPServer{}, fmt.Errorf("mcp %q: name it with lowercase letters, digits and dashes", m.Name)
 	}
-	server := MCPServer(m)
+	server := MCPServer{Name: m.Name, Command: m.Command, Env: m.Env, URL: m.URL, Secret: m.Secret}
+	holds := len(m.Allow) > 0 || len(m.Approve) > 0 || len(m.Deny) > 0 || m.Default != ""
 	switch {
 	case len(m.Command) > 0 && m.URL != "":
 		return MCPServer{}, fmt.Errorf("mcp %s: set command for a local server or url for a remote one, not both", m.Name)
 	case len(m.Command) > 0:
 		if m.Secret != "" {
 			return MCPServer{}, fmt.Errorf("mcp %s: secret is for remote servers; a local one reads its own config", m.Name)
+		}
+		if holds {
+			return MCPServer{}, fmt.Errorf("mcp %s: allow, approve, deny and default need a remote server: a local one talks to the agent where girdle cannot see", m.Name)
 		}
 		return server, nil
 	case m.URL == "":
@@ -723,20 +732,60 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 		return MCPServer{}, fmt.Errorf("mcp %s: env is for local servers", m.Name)
 	}
 	host := strings.ToLower(u.Hostname())
-	if m.Secret == "" {
+	rules, err := mcpRules(m, u.EscapedPath())
+	if err != nil {
+		return MCPServer{}, err
+	}
+	if m.Secret == "" && !holds {
 		b.allow = appendNew(b.allow, host)
 		return server, nil
 	}
-	if !namePattern.MatchString(m.Secret) {
-		return MCPServer{}, fmt.Errorf("mcp %s: secret %q: use lowercase letters, digits and dashes", m.Name, m.Secret)
+	var cred *credentialLayer
+	if m.Secret != "" {
+		if !namePattern.MatchString(m.Secret) {
+			return MCPServer{}, fmt.Errorf("mcp %s: secret %q: use lowercase letters, digits and dashes", m.Name, m.Secret)
+		}
+		cred = &credentialLayer{Secret: m.Secret, Scheme: string(SchemeBearer)}
 	}
-	cred := &credentialLayer{Secret: m.Secret, Scheme: string(SchemeBearer)}
 	if i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, host) }); i >= 0 {
 		if b.http[i].Credential == nil {
 			b.http[i].Credential = cred
 		}
+		b.http[i].Rules = append(b.http[i].Rules, rules...)
 		return server, nil
 	}
-	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionAllow)})
+	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionAllow), Rules: rules})
 	return server, nil
+}
+
+// mcpRules turns a server's tool lists into rules for its endpoint: deny
+// first, then approve, then allow, then the server's default for other
+// tools. Requests that call no tool, such as listing them, are allowed.
+func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
+	if endpoint == "" {
+		endpoint = "/"
+	}
+	summary := "Call " + m.Name + " tool"
+	var rules []ruleLayer
+	for _, l := range []struct {
+		tools  []string
+		action Action
+	}{{m.Deny, ActionDeny}, {m.Approve, ActionApprove}, {m.Allow, ActionAllow}} {
+		if len(l.tools) > 0 {
+			rules = append(rules, ruleLayer{Method: "POST", Path: endpoint, MCPTools: l.tools, Action: string(l.action), Summary: summary})
+		}
+	}
+	switch Action(m.Default) {
+	case "", ActionAllow:
+	case ActionApprove, ActionDeny:
+		rules = append(rules, ruleLayer{Method: "POST", Path: endpoint, MCPTools: []string{"*"}, Action: m.Default, Summary: summary})
+	default:
+		return nil, fmt.Errorf("mcp %s: default %q: want allow, approve or deny", m.Name, m.Default)
+	}
+	return rules, nil
+}
+
+func validGlob(g string) bool {
+	_, err := path.Match(g, "")
+	return g != "" && err == nil
 }

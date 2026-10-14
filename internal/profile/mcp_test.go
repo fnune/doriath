@@ -82,3 +82,67 @@ func TestMCPServerErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPToolCalls(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"create-page"}}`:                                               "create-page",
+		`[{"method":"tools/call","params":{"name":"a"}},{"method":"tools/list"},{"method":"tools/call","params":{"name":"b"}}]`: "a, b",
+		`{"method":"initialize"}`: "",
+		`not json`:                "",
+	} {
+		if got := DescribeMCP([]byte(body)); got != want {
+			t.Errorf("%s: %q, want %q", body, got, want)
+		}
+	}
+}
+
+func TestMCPToolHolds(t *testing.T) {
+	p := mustLoad(t, `
+[[mcp]]
+name = "notion"
+url = "https://mcp.notion.com/mcp"
+default = "approve"
+allow = ["notion-search", "notion-fetch"]
+deny = ["notion-delete-*"]
+`, nil)
+	h, ok := p.Intercepted("mcp.notion.com")
+	if !ok || h.Credential != nil {
+		t.Fatalf("holds without a secret still intercept the host, without a credential: %+v", h)
+	}
+	call := func(names ...string) string {
+		var parts []string
+		for _, n := range names {
+			parts = append(parts, `{"method":"tools/call","params":{"name":"`+n+`"}}`)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	for body, want := range map[string]Action{
+		call("notion-search"):                       ActionAllow,
+		call("notion-search", "notion-fetch"):       ActionAllow,
+		call("notion-create-pages"):                 ActionApprove,
+		call("notion-search", "notion-create-x"):    ActionApprove,
+		call("notion-search", "notion-delete-page"): ActionDeny,
+		`{"method":"tools/list"}`:                   ActionAllow,
+	} {
+		if r, _ := h.DecideRequest("POST", "/mcp", nil, []byte(body)); r.Action != want {
+			t.Errorf("%s: %s, want %s", body, r.Action, want)
+		}
+	}
+	if !h.NeedsBody("POST", "/mcp") {
+		t.Error("tool holds need the body")
+	}
+}
+
+func TestMCPToolHoldErrors(t *testing.T) {
+	for name, tc := range map[string]struct{ body, want string }{
+		"local server": {"[[mcp]]\nname = \"x\"\ncommand = [\"x\"]\napprove = [\"a\"]", "need a remote server"},
+		"bad default":  {"[[mcp]]\nname = \"x\"\nurl = \"https://a.example/mcp\"\ndefault = \"maybe\"", "want allow, approve or deny"},
+		"bad glob":     {"[[mcp]]\nname = \"x\"\nurl = \"https://a.example/mcp\"\napprove = [\"[\"]", "glob"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := load(t, tc.body, nil); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

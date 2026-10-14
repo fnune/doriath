@@ -78,6 +78,7 @@ type ruleLayer struct {
 	BodyContains []string      `toml:"body_contains"`
 	GraphQL      *graphQLLayer `toml:"graphql"`
 	Header       string        `toml:"header"`
+	MCPTools     []string      `toml:"mcp_tools"`
 	Action       string        `toml:"action"`
 	Summary      string        `toml:"summary"`
 }
@@ -113,6 +114,10 @@ type mcpLayer struct {
 	Env     map[string]string `toml:"env"`
 	URL     string            `toml:"url"`
 	Secret  string            `toml:"secret"`
+	Default string            `toml:"default"`
+	Allow   []string          `toml:"allow"`
+	Approve []string          `toml:"approve"`
+	Deny    []string          `toml:"deny"`
 }
 
 type vcsLayer struct {

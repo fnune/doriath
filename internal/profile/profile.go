@@ -165,15 +165,19 @@ type Rule struct {
 	GraphQL *GraphQLRule
 	// Header narrows the rule to requests that carry this header, such as
 	// an API key the agent brought.
-	Header  string
-	Action  Action
-	Summary string
+	Header string
+	// MCPTools narrows the rule to MCP tools/call requests for tools whose
+	// names match these globs. An allow rule needs every call in the body to
+	// match; other actions need one.
+	MCPTools []string
+	Action   Action
+	Summary  string
 }
 
 // NeedsBody reports whether any rule for this host looks at request bodies.
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || r.GraphQL != nil) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
@@ -336,8 +340,9 @@ func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
 // DecideRequest is Decide for a request whose headers rules may look at.
 func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []byte) (Rule, bool) {
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
+	tools := sync.OnceValue(func() []string { return MCPToolCalls(body) })
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchBody(body) && r.matchGraphQL(graphql) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) {
 			return r, true
 		}
 	}
