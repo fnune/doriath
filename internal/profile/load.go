@@ -363,7 +363,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 				errs = append(errs, fmt.Errorf("mount: %w", err))
 				continue
 			}
-			if err := checkMount(path, b.home); err != nil {
+			if err := CheckMount(path, b.home); err != nil {
 				errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 				continue
 			}

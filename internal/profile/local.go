@@ -19,6 +19,29 @@ func AddEgressHost(dir, profile, host string) error {
 	if _, err := ParseHostPattern(host); err != nil {
 		return err
 	}
+	return editLocal(dir, profile, func(doc map[string]any) bool {
+		egress, _ := doc["egress"].(map[string]any)
+		if egress == nil {
+			egress = map[string]any{}
+		}
+		var allow []string
+		if list, ok := egress["allow"].([]any); ok {
+			for _, h := range list {
+				if s, ok := h.(string); ok {
+					allow = append(allow, s)
+				}
+			}
+		}
+		if slices.Contains(allow, host) {
+			return false
+		}
+		egress["allow"] = append(allow, host)
+		doc["egress"] = egress
+		return true
+	})
+}
+
+func editLocal(dir, profile string, change func(doc map[string]any) bool) error {
 	path := filepath.Join(dir, LocalFile(profile))
 	doc := map[string]any{}
 	data, err := os.ReadFile(path)
@@ -31,23 +54,9 @@ func AddEgressHost(dir, profile, host string) error {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 	}
-	egress, _ := doc["egress"].(map[string]any)
-	if egress == nil {
-		egress = map[string]any{}
-	}
-	var allow []string
-	if list, ok := egress["allow"].([]any); ok {
-		for _, h := range list {
-			if s, ok := h.(string); ok {
-				allow = append(allow, s)
-			}
-		}
-	}
-	if slices.Contains(allow, host) {
+	if !change(doc) {
 		return nil
 	}
-	egress["allow"] = append(allow, host)
-	doc["egress"] = egress
 	var buf bytes.Buffer
 	buf.WriteString(localHeader)
 	if err := toml.NewEncoder(&buf).Encode(doc); err != nil {

@@ -36,8 +36,11 @@ const (
 // Actions are the buttons, as key and label pairs in the order the
 // specification wants.
 func Actions(req approval.Request) []string {
-	if req.Kind == approval.KindRule {
+	switch req.Kind {
+	case approval.KindRule:
 		return []string{actionAllowSession, "Allow for this session", actionAddProfile, "Add to profile", actionDeny, "Ignore"}
+	case approval.KindPath:
+		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	}
 	a := []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	if safeURL(req.URL) {

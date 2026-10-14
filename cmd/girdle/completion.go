@@ -22,6 +22,7 @@ _girdle() {
     'profiles:list, show or edit profiles'
     'clean:remove merged agent worktrees and old branch backups'
     'restore:put back the branches a session moved'
+    'grant:make a path writable in a running session'
     'doctor:check this machine'
     'completion:print a shell completion script'
     'version:print the version'

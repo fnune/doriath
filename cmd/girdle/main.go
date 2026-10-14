@@ -23,6 +23,7 @@ import (
 	"github.com/fnune/girdle/internal/modules"
 	"github.com/fnune/girdle/internal/notify"
 	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/girdle/internal/promote"
 	"github.com/fnune/girdle/internal/secret"
 	"github.com/fnune/girdle/internal/session"
 )
@@ -42,6 +43,7 @@ Usage:
   girdle sessions
   girdle clean [--caches PROFILE]
   girdle restore SESSION
+  girdle grant write PATH [--session ID]
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
   girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]
@@ -50,6 +52,7 @@ Usage:
   girdle version
 
 Inside a jail:
+  girdle request write PATH [--reason TEXT]
   girdle init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
   girdle sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
   girdle hook claude session-start|permission-request|notification
@@ -90,6 +93,12 @@ func run(args []string) int {
 		err = cmdClean(args[1:], os.Stdin, os.Stdout)
 	case "restore":
 		err = cmdRestore(args[1:], os.Stdout)
+	case "request":
+		err = cmdRequest(args[1:], os.Stdout)
+	case "grant":
+		err = cmdGrant(args[1:], os.Stdout)
+	case "__promote":
+		err = promote.Inner(args[1:])
 	case "status":
 		err = cmdStatus(args[1:], os.Stdout)
 	case "statusline":

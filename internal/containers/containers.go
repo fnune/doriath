@@ -14,8 +14,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fnune/girdle/internal/approval"
@@ -82,12 +84,21 @@ const maxInspectedBody = 2 << 20
 
 type Broker struct {
 	cfg       Config
+	mu        sync.RWMutex
 	checker   checker
 	upstream  string
 	approver  Approver
 	recorder  Recorder
 	transport http.RoundTripper
 	proxy     *httputil.ReverseProxy
+}
+
+// AllowWrite lets later containers bind path writable, after the session
+// made it writable in the jail. Running containers keep their mounts.
+func (b *Broker) AllowWrite(path string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.checker.policy.Mounts = append(slices.Clone(b.checker.policy.Mounts), Mount{Path: path})
 }
 
 func New(policy Policy, upstream string, approver Approver, recorder Recorder, cfg Config) *Broker {
@@ -159,7 +170,10 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.Body = body
 	}
 
-	v := b.checker.decide(req)
+	b.mu.RLock()
+	c := b.checker
+	b.mu.RUnlock()
+	v := c.decide(req)
 	if v.refusal != "" {
 		b.refuse(w, r, http.StatusForbidden, v.refusal)
 		return

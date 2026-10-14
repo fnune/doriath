@@ -309,6 +309,7 @@ func (s *Session) startContainerBroker(raw string) error {
 	if err != nil {
 		return err
 	}
+	s.containerBroker = broker
 	go func() { _ = broker.Serve(l) }()
 	return nil
 }

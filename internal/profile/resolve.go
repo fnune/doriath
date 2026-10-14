@@ -32,9 +32,9 @@ func placeholderPath(p string) (string, bool) {
 	return p, false
 }
 
-// checkMount refuses mounts that would undo the jail in any mode: reading
+// CheckMount refuses mounts that would undo the jail in any mode: reading
 // is what they expose.
-func checkMount(path, home string) error {
+func CheckMount(path, home string) error {
 	switch {
 	case path == "/":
 		return errors.New("the agent would see the whole filesystem")
@@ -120,7 +120,7 @@ func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 		_, rest, _ := strings.Cut(path, "}")
 		m.Path = filepath.Clean(root + rest)
 		m.Create = m.Mode == ModeWrite && rest != ""
-		if err := checkMount(m.Path, home); err != nil {
+		if err := CheckMount(m.Path, home); err != nil {
 			errs = append(errs, fmt.Errorf("mount %s, which is %s here: %w", path, m.Path, err))
 			return m, false
 		}

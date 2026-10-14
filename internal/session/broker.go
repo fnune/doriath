@@ -19,17 +19,34 @@ type tlsCertificate = tls.Certificate
 // Methods on the broker socket, which the jail can reach. They can ask for
 // decisions but never make them.
 const (
-	MethodSubmit = "approval.submit"
-	MethodInform = "inform"
-	MethodStatus = "status"
+	MethodSubmit       = "approval.submit"
+	MethodInform       = "inform"
+	MethodStatus       = "status"
+	MethodRequestWrite = "path.request_write"
 )
 
 // Methods on the control socket, which only the host can reach.
 const (
-	MethodList   = "approvals.list"
-	MethodDecide = "approvals.decide"
-	MethodInfo   = "session.info"
+	MethodList       = "approvals.list"
+	MethodDecide     = "approvals.decide"
+	MethodInfo       = "session.info"
+	MethodGrantWrite = "path.grant_write"
 )
+
+type RequestWriteParams struct {
+	Path string `json:"path"`
+	// Reason is the agent's own text, shown to you as such.
+	Reason string `json:"reason,omitempty"`
+}
+
+type GrantWriteParams struct {
+	Path string `json:"path"`
+}
+
+// GrantWriteResult tells you how to keep the grant for later sessions.
+type GrantWriteResult struct {
+	Hint string `json:"hint"`
+}
 
 type SubmitParams struct {
 	Agent   string `json:"agent"`
@@ -86,6 +103,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status(), nil
 		},
+		MethodRequestWrite: func(ctx context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestWriteParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestWrite(ctx, p.Path, p.Reason)
+		},
 		MethodInform: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[InformParams](raw)
 			if err != nil {
@@ -127,6 +151,16 @@ func (s *Session) startControl(ctx context.Context) error {
 		},
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status(), nil
+		},
+		MethodGrantWrite: func(ctx context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[GrantWriteParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.grantWrite(ctx, p.Path); err != nil {
+				return nil, err
+			}
+			return GrantWriteResult{Hint: s.profileHint(filepath.Clean(p.Path))}, nil
 		},
 		MethodInfo: func(context.Context, json.RawMessage) (any, error) {
 			data, err := os.ReadFile(filepath.Join(s.dir, InfoFile))

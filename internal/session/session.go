@@ -31,6 +31,7 @@ import (
 	"github.com/fnune/girdle/internal/audit"
 	"github.com/fnune/girdle/internal/ca"
 	"github.com/fnune/girdle/internal/config"
+	"github.com/fnune/girdle/internal/containers"
 	"github.com/fnune/girdle/internal/jail"
 	"github.com/fnune/girdle/internal/jailinit"
 	"github.com/fnune/girdle/internal/profile"
@@ -132,13 +133,16 @@ type Session struct {
 	entry         Entry
 	claudeProject [2]string
 	netnsPID      int
+	// repository is the root of the repository the session started in.
+	repository      string
+	containerBroker *containers.Broker
+	// mu guards the profile's mounts, which promotion extends.
+	mu sync.Mutex
 }
 
 func New(deps Deps, req Request) (*Session, error) {
-	resolved, err := req.Profile.Resolve(profile.Start{
-		Current:    req.Cwd,
-		Repository: profile.FindRepository(req.Cwd, func(p string) bool { return osHost{}.Kind(p) != "" }),
-	}, deps.Paths.Home)
+	repository := profile.FindRepository(req.Cwd, func(p string) bool { return osHost{}.Kind(p) != "" })
+	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Cwd, Repository: repository}, deps.Paths.Home)
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}
@@ -155,7 +159,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe)}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository}, nil
 }
 
 func (s *Session) ID() string { return s.id }
