@@ -214,11 +214,10 @@ func Shared() []string { return slices.Clone(shared) }
 
 // FilterMCPServers keeps only the named MCP servers in a ~/.claude.json
 // document, at the top level and per project. Other keys are left as they
-// are. A nil list keeps everything.
+// are. Servers in your own configuration reach hosts and tools the profile
+// was not written for, so a profile names the ones it wants; the rest stay
+// out of the jail.
 func FilterMCPServers(data []byte, keep []string) ([]byte, error) {
-	if keep == nil {
-		return data, nil
-	}
 	var doc map[string]json.RawMessage
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("parse ~/.claude.json: %w", err)

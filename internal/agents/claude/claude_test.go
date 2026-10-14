@@ -189,9 +189,12 @@ func TestFilterMCPServers(t *testing.T) {
 	if got.NumStartups != 3 || len(got.MCPServers) != 1 || got.MCPServers["bazel"] == nil || len(got.Projects["/w"].MCPServers) != 0 || got.Projects["/w"].AllowedTools == nil {
 		t.Fatalf("got %s", out)
 	}
-	same, _ := FilterMCPServers(in, nil)
-	if string(same) != string(in) {
-		t.Fatal("a nil list must keep the document as is")
+	none, err := FilterMCPServers(in, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(none), "notion") || strings.Contains(string(none), "bazel") || !strings.Contains(string(none), `"numStartups":3`) {
+		t.Fatalf("without a list, no server of yours may reach the jail: %s", none)
 	}
 }
 

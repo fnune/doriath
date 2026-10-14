@@ -218,8 +218,8 @@ type Hardening struct {
 
 type Claude struct {
 	DisableConnectors bool
-	// MCPServers, when set, keeps only these MCP servers from ~/.claude.json
-	// in the jail's copy. Nil keeps them all.
+	// MCPServers are the MCP servers from ~/.claude.json the jail's copy
+	// keeps. The others stay out of the jail.
 	MCPServers []string
 	StatusLine bool
 	// ShareLogin gives the jail the desktop's claude.ai login, writable so
