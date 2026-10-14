@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +51,17 @@ func TestActionsAndBody(t *testing.T) {
 	body := Body(req, time.Unix(40, 0))
 	if !strings.Contains(body, "POST &lt;x&gt; &amp; y") || !strings.Contains(body, "Expires in 1m0s") {
 		t.Errorf("body = %q", body)
+	}
+}
+
+func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
+	for kind, want := range map[approval.Kind][]string{
+		approval.KindRule: {"allow-session", "Allow for this session", "deny", "Ignore"},
+		approval.KindPath: {"allow-session", "Allow for this session", "deny", "Deny"},
+	} {
+		if got := Actions(approval.Request{Kind: kind, URL: "https://example.com"}); !slices.Equal(got, want) {
+			t.Errorf("%s: actions = %v, want %v", kind, got, want)
+		}
 	}
 }
 
