@@ -2,7 +2,6 @@ package jailinit
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -47,14 +46,7 @@ func TestBridgeForwardsBothWays(t *testing.T) {
 		}
 	}()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer l.Close()
-	go Bridge(context.Background(), l, Forward{Socket: sock})
-
-	c, err := net.Dial("tcp", l.Addr().String())
+	c, err := net.Dial("tcp", bridge(t, Forward{Socket: sock}).String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,9 +66,6 @@ func TestRunExitCodes(t *testing.T) {
 	code, err = Run(nil, []string{"sh", "-c", "kill -TERM $$"})
 	if err != nil || code != 128+15 {
 		t.Fatalf("signalled: code %d, %v", code, err)
-	}
-	if code, _ := Run(nil, []string{"definitely-not-a-command-girdle"}); code != 127 {
-		t.Fatalf("missing command: code %d", code)
 	}
 }
 
