@@ -158,6 +158,9 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 					t.Fatalf("git %v: %v\n%s", args, err, out)
 				}
 			}
+			if err := os.MkdirAll(filepath.Join(repo, ".git", "rr-cache"), 0o700); err != nil {
+				t.Fatal(err)
+			}
 			lib := filepath.Join(repo, ".git", "modules", "lib")
 			for _, d := range []string{filepath.Join(lib, "hooks"), filepath.Join(lib, "objects"), filepath.Join(lib, "refs")} {
 				if err := os.MkdirAll(d, 0o700); err != nil {

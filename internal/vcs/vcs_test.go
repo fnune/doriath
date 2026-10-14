@@ -2,6 +2,8 @@ package vcs
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
 	"os/exec"
@@ -139,5 +141,40 @@ func TestRecordRoundTrip(t *testing.T) {
 	got, err := Load(path)
 	if err != nil || got.Repos[0].Branches["refs/heads/main"] != "abc" {
 		t.Fatalf("Load = %+v, %v", got, err)
+	}
+}
+
+func TestFinishDropsForgedLFSObjects(t *testing.T) {
+	r := repo(t)
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	rec := &Record{Session: "s1", Started: time.Now().Add(-time.Second)}
+	if err := Start(ctx, tools, filepath.Join(t.TempDir(), "b"), rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("real content\n")
+	sum := sha256.Sum256(content)
+	good := hex.EncodeToString(sum[:])
+	forged := strings.Repeat("ab", 32)
+	for name, data := range map[string][]byte{good: content, forged: []byte("agent content\n")} {
+		p := filepath.Join(r, ".git", "lfs", "objects", name[:2], name[2:4], name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out strings.Builder
+	if err := Finish(ctx, tools, filepath.Join(t.TempDir(), "b"), rec, &out); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r, ".git", "lfs", "objects", forged[:2], forged[2:4], forged)); !os.IsNotExist(err) {
+		t.Error("the forged object stays")
+	}
+	if _, err := os.Stat(filepath.Join(r, ".git", "lfs", "objects", good[:2], good[2:4], good)); err != nil {
+		t.Error("the genuine object must stay")
+	}
+	if !strings.Contains(out.String(), "does not match its name") {
+		t.Errorf("output: %s", out.String())
 	}
 }

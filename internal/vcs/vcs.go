@@ -6,6 +6,8 @@ package vcs
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -242,6 +244,9 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 				}
 			}
 		}
+		for _, bad := range dropForgedLFS(filepath.Join(r.GitDir, "lfs", "objects"), rec.Started) {
+			fmt.Fprintf(w, "girdle: removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
+		}
 		r.AgentWorktrees = nil
 		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
 			if slices.Contains(r.Worktrees, name) {
@@ -402,6 +407,43 @@ func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, er
 		}
 	}
 	return m, nil
+}
+
+// dropForgedLFS removes LFS objects written since the session started whose
+// content does not hash to their name. Your checkout takes an LFS file's
+// content from the object with its name, so a forged one would put the
+// agent's content into your tree outside any commit.
+func dropForgedLFS(dir string, since time.Time) []string {
+	var forged []string
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil || info.ModTime().Before(since) {
+			return nil
+		}
+		if sum, err := sha256File(p); err == nil && sum != d.Name() {
+			if os.Remove(p) == nil {
+				forged = append(forged, d.Name())
+			}
+		}
+		return nil
+	})
+	return forged
+}
+
+func sha256File(p string) (string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // resetCommondir points an agent worktree's admin directory back at its own

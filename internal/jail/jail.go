@@ -348,7 +348,7 @@ func jjRepoStore(jjRepo string, host Host) []Bind {
 }
 
 var (
-	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs", "rr-cache"}
+	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs"}
 	jjRepoData   = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
 	// JJLockFiles are locks jj takes in .jj/repo itself. jj keeps the files
 	// and only locks them, so girdle creates them before the session.
