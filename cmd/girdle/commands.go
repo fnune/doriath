@@ -55,13 +55,21 @@ func (f *forwardFlags) Set(s string) error {
 }
 
 func cmdInit(args []string) (int, error) {
+	forwards, command, err := parseInit(args)
+	if err != nil {
+		return 2, err
+	}
+	return jailinit.Run(forwards, command)
+}
+
+func parseInit(args []string) ([]jailinit.Forward, []string, error) {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	var forwards forwardFlags
 	var identify intList
 	flags.Var(&forwards, "forward", "PORT=SOCKET to listen on 127.0.0.1:PORT and forward to SOCKET")
 	flags.Var(&identify, "identify", "PORT whose forwarded connections start with the calling program's identity")
 	if err := flags.Parse(args); err != nil {
-		return 2, err
+		return nil, nil, err
 	}
 	for i := range forwards {
 		for _, p := range identify {
@@ -70,7 +78,7 @@ func cmdInit(args []string) (int, error) {
 			}
 		}
 	}
-	return jailinit.Run(forwards, flags.Args())
+	return forwards, flags.Args(), nil
 }
 
 const maxHookInput = 1 << 20
