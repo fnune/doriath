@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,7 +35,7 @@ var version = "dev"
 const usage = `girdle runs a coding agent in a jail that shows it only what its profile names.
 
 Usage:
-  girdle run --profile NAME [--learn] [--] COMMAND [ARGS...]
+  girdle run --profile NAME [--current DIR] [--learn] [--] COMMAND [ARGS...]
   girdle exec [--session ID] [--] [COMMAND [ARGS...]]
   girdle forward [--session ID] PORT[:JAIL_PORT]
   girdle approvals [list]
@@ -44,6 +46,7 @@ Usage:
   girdle clean [--caches PROFILE]
   girdle restore SESSION
   girdle grant write PATH [--session ID]
+  girdle direnv
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
   girdle profiles [list | show NAME | edit NAME | allow NAME HOST...]
@@ -97,6 +100,8 @@ func run(args []string) int {
 		err = cmdRequest(args[1:], os.Stdout)
 	case "grant":
 		err = cmdGrant(args[1:], os.Stdout)
+	case "direnv":
+		err = cmdDirenv(os.Stdout)
 	case "__promote":
 		err = promote.Inner(args[1:])
 	case "status":
@@ -143,6 +148,7 @@ func loader(p config.Paths) *profile.Loader {
 func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	name := flags.String("profile", "", "the profile to use (required)")
+	current := flags.String("current", "", "the directory the session is for, as {current}, instead of the working directory")
 	learn := flags.Bool("learn", false, "let egress reach any public host, and list the hosts the profile does not allow when the session ends")
 	if err := flags.Parse(args); err != nil {
 		return 2, err
@@ -161,6 +167,10 @@ func cmdRun(args []string) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return 1, err
+	}
+	start, cwd, err := startDirs(*current, cwd)
+	if err != nil {
+		return 2, err
 	}
 	if *name == "" {
 		return 2, errors.New("run: name the profile, for example: girdle run --profile my-app -- claude")
@@ -222,7 +232,7 @@ func cmdRun(args []string) (int, error) {
 		SystemdRun:  lookPath("systemd-run"),
 	}
 	finishInterrupted(p, deps.Stderr)
-	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Command: command, Learn: *learn})
+	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Current: start, Command: command, Learn: *learn})
 	if err != nil {
 		return 1, err
 	}
@@ -276,4 +286,23 @@ func refuseRoot(euid int) error {
 		return errors.New("run: girdle does not run as root: the files the agent writes and the podman service would belong to root. Run it as your own user")
 	}
 	return nil
+}
+
+// startDirs returns {current} and the directory the command starts in: where
+// you are when that is inside --current, else --current itself.
+func startDirs(current, cwd string) (string, string, error) {
+	if current == "" {
+		return cwd, cwd, nil
+	}
+	abs, err := filepath.Abs(current)
+	if err != nil {
+		return "", "", err
+	}
+	if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+		return "", "", fmt.Errorf("run: --current %s is not a directory", current)
+	}
+	if rel, err := filepath.Rel(abs, cwd); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+		return abs, cwd, nil
+	}
+	return abs, abs, nil
 }

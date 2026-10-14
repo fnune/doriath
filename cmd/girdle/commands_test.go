@@ -406,3 +406,24 @@ func TestRunRefusesRoot(t *testing.T) {
 		t.Errorf("a user: %v", err)
 	}
 }
+
+func TestStartDirs(t *testing.T) {
+	project := t.TempDir()
+	sub := filepath.Join(project, "pkg")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ current, cwd, wantCurrent, wantCwd string }{
+		{"", sub, sub, sub},
+		{project, sub, project, sub},
+		{project, "/elsewhere", project, project},
+	} {
+		current, cwd, err := startDirs(tc.current, tc.cwd)
+		if err != nil || current != tc.wantCurrent || cwd != tc.wantCwd {
+			t.Errorf("startDirs(%q, %q) = %q, %q, %v", tc.current, tc.cwd, current, cwd, err)
+		}
+	}
+	if _, _, err := startDirs(filepath.Join(project, "missing"), sub); err == nil {
+		t.Error("a missing --current must fail")
+	}
+}

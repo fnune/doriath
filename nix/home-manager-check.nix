@@ -28,6 +28,7 @@ let
   home = homeWith {
     enable = true;
     approvals.desktop = false;
+    direnv = true;
     modules.team = {
       modules = [ "base" ];
       egress.allow = [ "team.example" ];
@@ -112,6 +113,7 @@ pkgs.runCommand "girdle-home-manager-module"
     ! grep -q '^packages' $config/profiles/work.toml || { echo "packages is not a profile key"; exit 1; }
 
     ! grep -q '^match' $config/profiles/work.toml || { echo "match is not a profile key"; exit 1; }
+    grep -q 'use_girdle()' $config/../direnv/lib/girdle.sh || { echo "no direnv library"; exit 1; }
     grep -q 'completion zsh' $homeFiles/.zshrc || { echo "no completion in .zshrc"; exit 1; }
 
     touch $out

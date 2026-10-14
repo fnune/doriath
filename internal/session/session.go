@@ -100,7 +100,11 @@ type Deps struct {
 
 type Request struct {
 	Profile *profile.Profile
-	Cwd     string
+	// Cwd is where the command starts in the jail.
+	Cwd string
+	// Current is {current}: the directory the session is for. Empty means
+	// Cwd.
+	Current string
 	Command []string
 	// Learn lets egress reach any public host and reports the hosts the
 	// profile does not allow when the session ends.
@@ -141,8 +145,11 @@ type Session struct {
 }
 
 func New(deps Deps, req Request) (*Session, error) {
-	repository := profile.FindRepository(req.Cwd, func(p string) bool { return osHost{}.Kind(p) != "" })
-	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Cwd, Repository: repository}, deps.Paths.Home)
+	if req.Current == "" {
+		req.Current = req.Cwd
+	}
+	repository := profile.FindRepository(req.Current, func(p string) bool { return osHost{}.Kind(p) != "" })
+	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Current, Repository: repository}, deps.Paths.Home)
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}

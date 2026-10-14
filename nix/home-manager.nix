@@ -123,6 +123,16 @@ in
       description = "Which build of girdle to install.";
     };
 
+    direnv = lib.mkOption {
+      type = lib.types.bool;
+      default = config.programs.direnv.enable;
+      defaultText = lib.literalExpression "config.programs.direnv.enable";
+      description = ''
+        Install girdle's direnv library, so that `use girdle PROFILE` in a
+        project's .envrc starts its agent command in a girdle session.
+      '';
+    };
+
     zsh = {
       completion = lib.mkOption {
         type = lib.types.bool;
@@ -169,7 +179,10 @@ in
     '';
 
     xdg.configFile =
-      {
+      lib.optionalAttrs cfg.direnv {
+        "direnv/lib/girdle.sh".source = pkgs.runCommand "girdle-direnv.sh" { } "${lib.getExe cfg.package} direnv > $out";
+      }
+      // {
         "girdle/config.toml".source = configFile;
       }
       // lib.mapAttrs' (
