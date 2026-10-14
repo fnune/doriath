@@ -46,6 +46,13 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - The interface belongs to the consumer, not to the implementer. Accept interfaces, return concrete types.
 - Reject naive layering where each package depends on the one below it. That is not dependency inversion.
 
+### Supporting agents
+
+- An agent is a module first: its config, state, provider hosts and credentials are mounts, caches, `[egress]` and `[[http]]` entries, as for any tool.
+- girdle teaches every agent the same way: the `girdle status` text, built from the live session, and errors that say what was blocked and what to run. The text goes where the agent reads instructions, never into the repository's AGENTS.md.
+- A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach girdle's approval queue, and its transcripts come back to your own config when the session ends.
+- An agent without an adapter still works in a jail with a one-line instruction: "When something is blocked, run `girdle status`."
+
 ### Strict typing and validated boundaries
 
 - No `any` or `interface{}` in domain code. Use them only at a decoding boundary, and convert to concrete types at once.
