@@ -111,14 +111,33 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
-func TestPermissionDecision(t *testing.T) {
-	out, err := PermissionDecision(false, "denied by the user")
-	if err != nil {
-		t.Fatal(err)
+func TestDescribeNamesWhatTheToolTouches(t *testing.T) {
+	for input, want := range map[string]string{
+		`{"tool_name":"Bash","tool_input":{"command":"ls"}}`:                  "Run a command",
+		`{"tool_name":"Edit","tool_input":{"file_path":"/src/main.go"}}`:      "Edit /src/main.go",
+		`{"tool_name":"Write","tool_input":{"file_path":"/src/new.go"}}`:      "Write /src/new.go",
+		`{"tool_name":"WebFetch","tool_input":{"url":"https://example.com"}}`: "Fetch https://example.com",
+		`{"tool_name":"Task","tool_input":{"prompt":"x"}}`:                    "Use Task",
+	} {
+		r, err := ParsePermissionRequest([]byte(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s, _ := r.Describe(); s != want {
+			t.Errorf("%s: summary %q, want %q", input, s, want)
+		}
 	}
-	want := `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"denied by the user"}}}`
-	if string(out) != want {
-		t.Fatalf("got %s", out)
+}
+
+func TestPermissionDecision(t *testing.T) {
+	for allow, want := range map[bool]string{
+		false: `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"answered in girdle"}}}`,
+		true:  `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","message":"answered in girdle"}}}`,
+	} {
+		out, err := PermissionDecision(allow, "answered in girdle")
+		if err != nil || string(out) != want {
+			t.Errorf("allow=%v: got %s, %v", allow, out, err)
+		}
 	}
 }
 
