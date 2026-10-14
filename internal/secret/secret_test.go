@@ -91,3 +91,38 @@ func TestBackendValidate(t *testing.T) {
 		t.Fatal("file alone is valid")
 	}
 }
+
+type fakeOAuth struct{ calls int }
+
+func (f *fakeOAuth) Token(_ context.Context, name string, _ OAuth) (Value, error) {
+	f.calls++
+	return NewValue([]byte(fmt.Sprintf("%s-%d", name, f.calls))), nil
+}
+
+func TestOAuthSecretsAreNotCached(t *testing.T) {
+	tokens := &fakeOAuth{}
+	c := NewConfigured(map[string]Backend{"notion": {OAuth: &OAuth{MCP: "https://mcp.notion.com/mcp"}}}, nil, nil).WithOAuth(tokens)
+	for want := 1; want <= 2; want++ {
+		v, err := c.Get(context.Background(), "notion")
+		if err != nil || string(v.Reveal()) != fmt.Sprintf("notion-%d", want) {
+			t.Fatalf("Get = %q, %v: a refreshed token must reach the proxy", v.Reveal(), err)
+		}
+	}
+}
+
+func TestOAuthBackendValidation(t *testing.T) {
+	for name, b := range map[string]Backend{
+		"mcp and issuer":       {OAuth: &OAuth{MCP: "https://a/", Issuer: "https://b/", ClientID: "c"}},
+		"issuer without id":    {OAuth: &OAuth{Issuer: "https://b/"}},
+		"mcp with a client id": {OAuth: &OAuth{MCP: "https://a/", ClientID: "c"}},
+		"plain http":           {OAuth: &OAuth{MCP: "http://a/"}},
+		"oauth and a file":     {File: "/x", OAuth: &OAuth{MCP: "https://a/"}},
+	} {
+		if b.Validate() == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+	if err := (Backend{OAuth: &OAuth{Issuer: "https://accounts.example.com", ClientID: "c"}}).Validate(); err != nil {
+		t.Error(err)
+	}
+}

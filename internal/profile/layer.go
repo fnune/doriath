@@ -183,6 +183,14 @@ func tomlFieldNames(t reflect.Type, names map[string]bool) map[string]bool {
 }
 
 type secretLayer struct {
-	File    string   `toml:"file"`
-	Command []string `toml:"command"`
+	File    string      `toml:"file"`
+	Command []string    `toml:"command"`
+	OAuth   *oauthLayer `toml:"oauth"`
+}
+
+type oauthLayer struct {
+	MCP      string   `toml:"mcp"`
+	Issuer   string   `toml:"issuer"`
+	ClientID string   `toml:"client_id"`
+	Scopes   []string `toml:"scopes"`
 }

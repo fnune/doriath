@@ -455,6 +455,9 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		backend := secret.Backend{File: s.File, Command: s.Command}
+		if o := s.OAuth; o != nil {
+			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, ClientID: o.ClientID, Scopes: o.Scopes}
+		}
 		if s.File != "" {
 			file, err := b.expand(s.File)
 			if err != nil || !filepath.IsAbs(file) {

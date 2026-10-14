@@ -33,20 +33,56 @@ type Store interface {
 
 var ErrUnknown = errors.New("unknown secret")
 
-// Backend is the configuration for one secret: a file or a command.
+// Backend is the configuration for one secret: a file, a command, or an
+// OAuth login that girdle refreshes.
 type Backend struct {
 	File    string
 	Command []string
+	OAuth   *OAuth
+}
+
+// OAuth is a login you complete once with girdle login. The server either is
+// an MCP server, which tells girdle where to sign in and lets it register,
+// or names an issuer and the client girdle signs in as.
+type OAuth struct {
+	MCP      string
+	Issuer   string
+	ClientID string
+	Scopes   []string
 }
 
 func (b Backend) Validate() error {
-	switch {
-	case b.File != "" && len(b.Command) > 0:
-		return errors.New("set file or command, not both")
-	case b.File == "" && len(b.Command) == 0:
-		return errors.New("set file or command")
+	set := 0
+	for _, ok := range []bool{b.File != "", len(b.Command) > 0, b.OAuth != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set != 1 {
+		return errors.New("set exactly one of file, command or oauth")
+	}
+	if o := b.OAuth; o != nil {
+		switch {
+		case (o.MCP == "") == (o.Issuer == ""):
+			return errors.New("oauth: set mcp or issuer")
+		case o.Issuer != "" && o.ClientID == "":
+			return errors.New("oauth: an issuer needs the client_id girdle signs in as")
+		case o.MCP != "" && o.ClientID != "":
+			return errors.New("oauth: an MCP server registers girdle itself; leave out client_id")
+		}
+		for _, u := range []string{o.MCP, o.Issuer} {
+			if u != "" && !strings.HasPrefix(u, "https://") {
+				return fmt.Errorf("oauth: %q: want an https URL", u)
+			}
+		}
 	}
 	return nil
+}
+
+// OAuthTokens returns a current access token for an OAuth secret, refreshing
+// it when it has expired.
+type OAuthTokens interface {
+	Token(ctx context.Context, name string, o OAuth) (Value, error)
 }
 
 type Runner interface {
@@ -67,8 +103,16 @@ type Configured struct {
 	run      Runner
 	files    FileReader
 
+	oauth OAuthTokens
+
 	mu    sync.Mutex
 	cache map[string]Value
+}
+
+// WithOAuth lets the store serve OAuth secrets.
+func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
+	c.oauth = t
+	return c
 }
 
 func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
@@ -84,6 +128,12 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	b, ok := c.backends[name]
 	if !ok {
 		return Value{}, fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile", name, ErrUnknown, name)
+	}
+	if b.OAuth != nil {
+		if c.oauth == nil {
+			return Value{}, fmt.Errorf("secret %q: OAuth logins are not available here", name)
+		}
+		return c.oauth.Token(ctx, name, *b.OAuth)
 	}
 	v, err := c.fetch(ctx, name, b)
 	if err != nil {

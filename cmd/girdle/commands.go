@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/fnune/girdle/internal/notify"
+	"github.com/fnune/girdle/internal/oauth"
 	"github.com/fnune/girdle/internal/seccomp"
 	"github.com/fnune/girdle/internal/secret"
 
@@ -479,7 +480,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 
 	secrets := 0
 	for _, prof := range profiles {
-		store := secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{})
+		store := secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokens(p.State, prof.Name))
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -490,6 +491,12 @@ func cmdDoctor(args []string, w io.Writer) int {
 				_, err := store.Get(ctx, name)
 				cancel()
 				check(label, err)
+			case b.OAuth != nil:
+				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
+				if errors.Is(err, os.ErrNotExist) {
+					err = fmt.Errorf("not signed in: run girdle login %s %s", prof.Name, name)
+				}
+				check(label+" (oauth)", err)
 			case b.File != "":
 				info, err := os.Stat(b.File)
 				if err == nil && info.Mode().Perm()&0o077 != 0 {

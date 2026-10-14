@@ -24,6 +24,7 @@ import (
 	"github.com/fnune/girdle/internal/config"
 	"github.com/fnune/girdle/internal/modules"
 	"github.com/fnune/girdle/internal/notify"
+	"github.com/fnune/girdle/internal/oauth"
 	"github.com/fnune/girdle/internal/profile"
 	"github.com/fnune/girdle/internal/promote"
 	"github.com/fnune/girdle/internal/secret"
@@ -46,6 +47,7 @@ Usage:
   girdle clean [--caches PROFILE]
   girdle restore SESSION
   girdle grant write PATH [--session ID]
+  girdle login PROFILE SECRET
   girdle direnv
   girdle status [SESSION]
   girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
@@ -101,6 +103,8 @@ func run(args []string) int {
 		err = cmdRequest(args[1:], os.Stdout)
 	case "grant":
 		err = cmdGrant(args[1:], os.Stdout)
+	case "login":
+		err = cmdLogin(args[1:], os.Stdout)
 	case "direnv":
 		err = cmdDirenv(os.Stdout)
 	case "__promote":
@@ -210,7 +214,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokens(p.State, prof.Name)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

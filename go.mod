@@ -10,4 +10,13 @@ require (
 	golang.org/x/sys v0.49.0
 )
 
-require software.sslmate.com/src/go-pkcs12 v0.6.0
+require (
+	github.com/modelcontextprotocol/go-sdk v1.8.0
+	golang.org/x/oauth2 v0.37.0
+	software.sslmate.com/src/go-pkcs12 v0.6.0
+)
+
+require (
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
+)

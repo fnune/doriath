@@ -121,7 +121,7 @@ func TestLoadRejects(t *testing.T) {
 		"missing module":     {profile: `modules = ["nope"]`, want: `module "nope" not found`},
 		"undefined secret":   {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
 		"undefined signing":  {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
-		"secret both":        {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "not both"},
+		"secret both":        {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "exactly one of file, command or oauth"},
 		"secret relative":    {profile: "[secrets.x]\nfile = \"rel\"", want: "must be absolute"},
 		"writable nix store": {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
 		"writable opt":       {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"write\"", want: "must not be writable"},
