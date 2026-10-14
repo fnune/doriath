@@ -89,7 +89,8 @@ type Start struct {
 }
 
 // Defaults are the entries girdle adds on its own. Each yields to any entry
-// of the profile or its modules for the same path.
+// of the profile or its modules for the same path or a directory above it:
+// there, you already said what the agent sees.
 func (p *Profile) Defaults() []Mount {
 	out := []Mount{{Path: Current, Mode: ModeRead}}
 	if p.VCSStore {
@@ -138,7 +139,7 @@ func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 	}
 	for _, d := range p.Defaults() {
 		r, ok := resolve(d)
-		if ok && !slices.ContainsFunc(explicit, func(m Mount) bool { return m.Path == r.Path }) {
+		if ok && !slices.ContainsFunc(explicit, func(m Mount) bool { return within(r.Path, m.Path) }) {
 			out.Mounts = mergeMount(out.Mounts, r)
 		}
 	}

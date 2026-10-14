@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/fnune/girdle/internal/config"
@@ -13,19 +14,58 @@ import (
 	"github.com/fnune/girdle/internal/vcs"
 )
 
-// storeRepositories are the repositories whose store the jail can write:
-// those inside read-only mounts, when the profile asks for it.
+// storeRepositories are the main repositories whose store the jail can
+// write, when the profile asks for it: those in its mounts, and those whose
+// linked worktrees or workspaces are there.
 func storeRepositories(p *profile.Profile) []string {
 	if !p.VCSStore {
 		return nil
 	}
 	var out []string
 	for _, m := range p.Mounts {
-		if m.Mode == profile.ModeRead {
-			out = append(out, jail.Repositories(m.Path, osHost{})...)
+		if m.Mode == profile.ModeHide {
+			continue
+		}
+		for _, repo := range jail.Repositories(m.Path, osHost{}) {
+			if root := vcs.Root(repo); !slices.Contains(out, root) {
+				out = append(out, root)
+			}
 		}
 	}
 	return out
+}
+
+// withLinkedStores adds, read-only, the main repository's store of each
+// linked git worktree and secondary jj workspace in a read mount, so git and
+// jj work there, and the vcs module makes the store's data writable.
+func withLinkedStores(p *profile.Profile) *profile.Profile {
+	if !p.VCSStore {
+		return p
+	}
+	visible := func(path string) bool {
+		for _, m := range p.Mounts {
+			if m.Mode != profile.ModeHide && within(path, m.Path) {
+				return true
+			}
+		}
+		return false
+	}
+	out := *p
+	out.Mounts = slices.Clone(p.Mounts)
+	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeHide {
+			continue
+		}
+		for _, repo := range jail.Repositories(m.Path, osHost{}) {
+			git, jj := vcs.Linked(repo)
+			for _, store := range []string{git, jj} {
+				if store != "" && (osHost{}).Kind(store) == "dir" && !visible(store) {
+					out.Mounts = append(out.Mounts, profile.Mount{Path: store, Mode: profile.ModeRead})
+				}
+			}
+		}
+	}
+	return &out
 }
 
 func (s *Session) vcsTools() vcs.Tools { return vcs.Tools{Git: s.deps.Git, JJ: s.deps.JJ} }

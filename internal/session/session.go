@@ -156,7 +156,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}
-	req.Profile = resolved
+	req.Profile = withLinkedStores(resolved)
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}

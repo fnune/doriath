@@ -265,7 +265,7 @@ func Repositories(root string, host Host) []string {
 	var out []string
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
-		if host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != "" || filepath.Base(dir) == ".git" {
+		if host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != "" || filepath.Base(dir) == ".git" || isJJRepo(dir) {
 			out = append(out, dir)
 		}
 		if depth == repositoryDepth {
@@ -308,24 +308,41 @@ func jjGuards(repo string, host Host) []Bind {
 // The control directories themselves stay read-only, so no control file can
 // appear in them; only their data subdirectories become writable.
 func storeBinds(repo string, host Host) []Bind {
+	switch {
+	case filepath.Base(repo) == ".git":
+		return gitStore(repo, host, 0)
+	case isJJRepo(repo):
+		return jjRepoStore(repo, host)
+	}
 	var binds []Bind
 	if git := filepath.Join(repo, ".git"); host.Kind(git) == "dir" {
 		binds = append(binds, gitStore(git, host, 0)...)
 	}
-	jj := filepath.Join(repo, ".jj")
-	if host.Kind(filepath.Join(jj, "repo")) == "dir" {
-		binds = append(binds, writable(host, filepath.Join(jj, "working_copy"))...)
-		for _, name := range jjRepoData {
-			binds = append(binds, writable(host, filepath.Join(jj, "repo", name))...)
+	binds = append(binds, writable(host, filepath.Join(repo, ".jj", "working_copy"))...)
+	if jjRepo := filepath.Join(repo, ".jj", "repo"); host.Kind(jjRepo) == "dir" {
+		binds = append(binds, jjRepoStore(jjRepo, host)...)
+	}
+	return binds
+}
+
+// isJJRepo reports whether dir is a jj repository directory itself, as
+// mounted for a secondary workspace whose .jj/repo points at it.
+func isJJRepo(dir string) bool {
+	return filepath.Base(dir) == "repo" && filepath.Base(filepath.Dir(dir)) == ".jj"
+}
+
+func jjRepoStore(jjRepo string, host Host) []Bind {
+	var binds []Bind
+	for _, name := range jjRepoData {
+		binds = append(binds, writable(host, filepath.Join(jjRepo, name))...)
+	}
+	for _, name := range JJLockFiles {
+		if p := filepath.Join(jjRepo, name); host.Kind(p) == "file" {
+			binds = append(binds, Bind{Source: p, Dest: p})
 		}
-		for _, name := range JJLockFiles {
-			if p := filepath.Join(jj, "repo", name); host.Kind(p) == "file" {
-				binds = append(binds, Bind{Source: p, Dest: p})
-			}
-		}
-		if g := filepath.Join(jj, "repo", "store", "git"); host.Kind(g) == "dir" {
-			binds = append(binds, gitStore(g, host, 0)...)
-		}
+	}
+	if g := filepath.Join(jjRepo, "store", "git"); host.Kind(g) == "dir" {
+		binds = append(binds, gitStore(g, host, 0)...)
 	}
 	return binds
 }

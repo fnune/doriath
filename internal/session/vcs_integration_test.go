@@ -191,3 +191,77 @@ echo done
 		t.Errorf("agent branch head = %q", got)
 	}
 }
+
+// TestStartInALinkedWorktree starts where a linked git worktree is, whose
+// .git points at the main repository's store elsewhere.
+func TestStartInALinkedWorktree(t *testing.T) {
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	trees := filepath.Join(e.home, ".worktrees", "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "first")
+	git(t, repo, "worktree", "add", "-q", filepath.Join(trees, "feat"), "-b", "feat")
+	e.cwd = filepath.Join(trees, "feat")
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n\n[vcs]\nstore = true\n", trees))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
+git log --oneline -1 >/dev/null || echo "FAIL git in the linked worktree"
+git worktree add -q %[1]s/agent -b agent || echo "FAIL worktree add"
+cd %[1]s/agent && echo x > f && git add f && git commit -qm agent || echo "FAIL commit"
+echo x >> %[2]s/.git/config 2>/dev/null && echo "FAIL the main config is writable"
+echo done
+`, trees, repo), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if got := git(t, repo, "log", "-1", "--format=%s", "agent"); got != "agent" {
+		t.Errorf("agent branch head = %q", got)
+	}
+}
+
+// TestStartInAJJWorkspace starts in a secondary workspace of a colocated jj
+// repository.
+func TestStartInAJJWorkspace(t *testing.T) {
+	jj, err := exec.LookPath("jj")
+	if err != nil {
+		t.Skip("jj not available")
+	}
+	if real, err := filepath.EvalSymlinks(jj); err == nil {
+		jj = real
+	}
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	trees := filepath.Join(e.home, ".worktrees", "repo")
+	for _, d := range []string{repo, trees} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(jj, append([]string{"--config", "user.name=t", "--config", "user.email=t@e"}, args...)...)
+		cmd.Dir, cmd.Env = dir, append(os.Environ(), "JJ_CONFIG=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("jj %v: %v\n%s", args, err, out)
+		}
+	}
+	run(e.home, "git", "init", "--colocate", repo)
+	run(repo, "describe", "-m", "first")
+	run(repo, "workspace", "add", filepath.Join(trees, "feat"))
+	e.cwd = filepath.Join(trees, "feat")
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n\n[vcs]\nstore = true\n", trees))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+J="%[1]s --config user.name=a --config user.email=a@b"
+$J log -r @ --no-graph -T 'change_id' >/dev/null || echo "FAIL jj in the workspace"
+echo x > f && $J describe -m agent || echo "FAIL describe"
+echo done
+`, jj), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}

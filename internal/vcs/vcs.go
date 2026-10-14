@@ -57,16 +57,65 @@ func BackupRef(session, branch string) string {
 	return "refs/girdle/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
 }
 
-// Store finds the git store of a repository: its .git directory, or the git
-// directory inside jj's store when jj is not colocated with git.
+// Store finds the git store of a repository: its .git directory, the main
+// repository's for a linked worktree, or the git directory inside jj's
+// store when jj is not colocated with git.
 func Store(repo string) string {
 	if info, err := os.Stat(filepath.Join(repo, ".git")); err == nil && info.IsDir() {
 		return filepath.Join(repo, ".git")
+	}
+	if git, _ := Linked(repo); git != "" {
+		return git
 	}
 	if info, err := os.Stat(filepath.Join(repo, ".jj", "repo", "store", "git")); err == nil && info.IsDir() {
 		return filepath.Join(repo, ".jj", "repo", "store", "git")
 	}
 	return ""
+}
+
+// Linked returns the main repository's git directory and jj repository
+// when repo is a linked git worktree or a secondary jj workspace, whose
+// .git and .jj/repo are files that point there.
+func Linked(repo string) (git, jj string) {
+	if data, err := os.ReadFile(filepath.Join(repo, ".git")); err == nil {
+		if admin, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: "); ok {
+			admin = resolve(repo, admin)
+			if common, err := os.ReadFile(filepath.Join(admin, "commondir")); err == nil {
+				git = resolve(admin, strings.TrimSpace(string(common)))
+			}
+		}
+	}
+	if info, err := os.Lstat(filepath.Join(repo, ".jj", "repo")); err == nil && info.Mode().IsRegular() {
+		if data, err := os.ReadFile(filepath.Join(repo, ".jj", "repo")); err == nil {
+			jj = resolve(filepath.Join(repo, ".jj"), strings.TrimSpace(string(data)))
+		}
+	}
+	return git, jj
+}
+
+// Root returns the root of the main repository that repo belongs to: repo
+// itself, or the main checkout of a linked worktree or secondary workspace,
+// or the repository whose store repo is.
+func Root(repo string) string {
+	switch {
+	case filepath.Base(repo) == ".git":
+		return filepath.Dir(repo)
+	case filepath.Base(repo) == "repo" && filepath.Base(filepath.Dir(repo)) == ".jj":
+		return filepath.Dir(filepath.Dir(repo))
+	}
+	if git, jj := Linked(repo); git != "" {
+		return filepath.Dir(git)
+	} else if jj != "" {
+		return filepath.Dir(filepath.Dir(jj))
+	}
+	return repo
+}
+
+func resolve(base, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	return filepath.Join(base, path)
 }
 
 func hasJJ(repo string) bool {
@@ -121,11 +170,13 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 // and hardlinks its objects under backup, so that a git gc in the session
 // cannot drop what your branches point at.
 func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []string) error {
+	seen := map[string]bool{}
 	for i, path := range repos {
 		git := Store(path)
-		if git == "" {
+		if git == "" || seen[git] {
 			continue
 		}
+		seen[git] = true
 		branches, err := refs(ctx, t, git)
 		if err != nil {
 			return fmt.Errorf("record the branches of %s: %w", path, err)

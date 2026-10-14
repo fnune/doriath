@@ -53,6 +53,14 @@ func TestDefaultsYieldToTheProfile(t *testing.T) {
 	}
 }
 
+func TestDefaultsYieldToAnEntryAbove(t *testing.T) {
+	p := &Profile{VCSStore: true, Mounts: []Mount{{Path: "/home/u/src", Mode: ModeWrite}}}
+	got := resolve(t, p, inRepo)
+	if len(got) != 1 || got[0].Mode != ModeWrite {
+		t.Fatalf("a writable parent must not be cut by a read-only default below it: %+v", got)
+	}
+}
+
 func TestEntriesForTheSamePathKeepTheLowerPrivilege(t *testing.T) {
 	p := &Profile{Mounts: []Mount{{Path: "{repository}", Mode: ModeWrite}, {Path: "/home/u/src/app", Mode: ModeRead}}}
 	if got := resolve(t, p, inRepo); mode(got, "/home/u/src/app") != ModeRead {
