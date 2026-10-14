@@ -191,8 +191,7 @@ func TestGitGuards(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{"/home/u/Development/project/.git/config", "/home/u/Development/project/.git/hooks"} {
-		i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == p })
-		if i < 0 || !s.Binds[i].ReadOnly {
+		if mode(s.Binds, p) != "read" {
 			t.Errorf("%s must be bound read-only", p)
 		}
 	}
@@ -215,8 +214,7 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == "/home/u/Development/project/.git/hooks" })
-	if i < 0 || !s.Binds[i].ReadOnly {
+	if mode(s.Binds, "/home/u/Development/project/.git/hooks") != "read" {
 		t.Fatal("hooks must be read-only when .git itself is the mount")
 	}
 }
@@ -262,8 +260,7 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{".git/commondir", ".git/config.worktree", ".git/modules/emu/config", ".git/modules/emu/hooks"} {
-		i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == repo+"/"+p })
-		if i < 0 || !s.Binds[i].ReadOnly {
+		if mode(s.Binds, repo+"/"+p) != "read" {
 			t.Errorf("%s must be read-only", p)
 		}
 	}
@@ -273,8 +270,7 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == repo+"/.git" })
-	if i < 0 || !s.Binds[i].ReadOnly {
+	if mode(s.Binds, repo+"/.git") != "read" {
 		t.Error("a worktree's .git pointer file must be read-only")
 	}
 }
@@ -297,8 +293,7 @@ func TestNestedRepositoriesAreGuarded(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{nested + "/.git/config", "/home/u/Development/project/.jj/repo/config.toml"} {
-		i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == p })
-		if i < 0 || !s.Binds[i].ReadOnly {
+		if mode(s.Binds, p) != "read" {
 			t.Errorf("%s must be read-only", p)
 		}
 	}

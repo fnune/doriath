@@ -74,8 +74,7 @@ func TestRepositoryAfterASkippedDirectoryIsGuarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	i := slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == root+"/zrepo/.git/config" })
-	if i < 0 || !s.Binds[i].ReadOnly {
+	if mode(s.Binds, root+"/zrepo/.git/config") != "read" {
 		t.Fatal("the repository listed after node_modules must be guarded")
 	}
 }
@@ -98,23 +97,9 @@ func TestSubmoduleStoresWithSlashedNamesAreCovered(t *testing.T) {
 	}
 	binds := storeBinds(git, h)
 	binds = append(binds, gitDirGuards(git, git, h, 0)...)
-	mode := func(p string) string {
-		i := slices.IndexFunc(binds, func(b Bind) bool { return b.Dest == p })
-		switch {
-		case i < 0:
-			return "none"
-		case binds[i].ReadOnly:
-			return "read"
-		}
-		return "write"
-	}
-	for p, want := range map[string]string{
+	expectModes(t, binds, map[string]string{
 		foo + "/objects":             "write",
 		foo + "/objects/pack/p.pack": "read",
 		foo + "/config":              "read",
-	} {
-		if got := mode(p); got != want {
-			t.Errorf("%s: %s, want %s", p, got, want)
-		}
-	}
+	})
 }
