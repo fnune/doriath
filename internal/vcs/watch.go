@@ -71,7 +71,7 @@ type watcher struct {
 }
 
 func (wt *watcher) add(dir string, what watched) {
-	wd, err := unix.InotifyAddWatch(wt.fd, dir, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_CLOSE_WRITE|unix.IN_DELETE)
+	wd, err := unix.InotifyAddWatch(wt.fd, dir, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_MODIFY|unix.IN_CLOSE_WRITE|unix.IN_DELETE)
 	if err == nil {
 		wt.dirs[int32(wd)] = what
 	}

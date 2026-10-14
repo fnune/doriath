@@ -20,6 +20,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Tools are the host programs this package runs. An empty JJ skips jj
@@ -258,6 +260,9 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			errs = append(errs, fmt.Errorf("bring back the jj store of %s: %w", r.Path, err))
 			continue
 		}
+		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects")) {
+			fmt.Fprintf(w, "girdle: removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
+		}
 		now, err := refs(ctx, t, r.GitDir)
 		if err != nil {
 			errs = append(errs, err)
@@ -451,28 +456,37 @@ func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, er
 	return m, nil
 }
 
-// dropForgedLFS removes LFS objects written since the session started whose
-// content does not hash to their name. Your checkout takes an LFS file's
-// content from the object with its name, so a forged one would put the
-// agent's content into your tree outside any commit.
+// dropForgedLFS removes LFS objects the session wrote or changed whose
+// content does not hash to their name, and anything there that is not a
+// regular file. Your checkout takes an LFS file's content from the object
+// with its name, so a forged one would put the agent's content into your
+// tree outside any commit. The change time, unlike the modification time,
+// is one the agent cannot set back.
 func dropForgedLFS(dir string, since time.Time) []string {
 	var forged []string
 	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || !d.Type().IsRegular() {
+		if err != nil || d.IsDir() || !changedSince(p, since) {
 			return nil
 		}
-		info, err := d.Info()
-		if err != nil || info.ModTime().Before(since) {
-			return nil
-		}
-		if sum, err := sha256File(p); err == nil && sum != d.Name() {
-			if os.Remove(p) == nil {
-				forged = append(forged, d.Name())
+		if d.Type().IsRegular() {
+			if sum, err := sha256File(p); err == nil && sum == d.Name() {
+				return nil
 			}
+		}
+		if os.Remove(p) == nil {
+			forged = append(forged, d.Name())
 		}
 		return nil
 	})
 	return forged
+}
+
+func changedSince(p string, since time.Time) bool {
+	var st unix.Stat_t
+	if err := unix.Lstat(p, &st); err != nil {
+		return true
+	}
+	return !time.Unix(st.Ctim.Unix()).Before(since)
 }
 
 func sha256File(p string) (string, error) {

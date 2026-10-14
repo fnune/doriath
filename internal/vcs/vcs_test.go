@@ -163,13 +163,28 @@ func TestFinishDropsForgedLFSObjects(t *testing.T) {
 		if err := os.WriteFile(p, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
+		long := time.Now().Add(-24 * time.Hour)
+		if err := os.Chtimes(p, long, long); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linked := strings.Repeat("cd", 32)
+	linkPath := filepath.Join(r, ".git", "lfs", "objects", linked[:2], linked[2:4], linked)
+	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc/passwd", linkPath); err != nil {
+		t.Fatal(err)
 	}
 	var out strings.Builder
 	if err := Finish(ctx, tools, filepath.Join(t.TempDir(), "b"), rec, &out); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(r, ".git", "lfs", "objects", forged[:2], forged[2:4], forged)); !os.IsNotExist(err) {
-		t.Error("the forged object stays")
+		t.Error("the forged object stays, though the agent set its time back")
+	}
+	if _, err := os.Lstat(linkPath); !os.IsNotExist(err) {
+		t.Error("a symlink among LFS objects stays")
 	}
 	if _, err := os.Stat(filepath.Join(r, ".git", "lfs", "objects", good[:2], good[2:4], good)); err != nil {
 		t.Error("the genuine object must stay")
