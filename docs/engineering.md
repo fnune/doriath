@@ -50,7 +50,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 
 - An agent is a module first: its config, state, provider hosts and credentials are mounts, caches, `[egress]` and `[[http]]` entries, as for any tool.
 - girdle teaches every agent the same way: the `girdle status` text, built from the live session, and errors that say what was blocked and what to run. The text goes where the agent reads instructions, never into the repository's AGENTS.md.
-- A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach girdle's approval queue, and its transcripts come back to your own config when the session ends.
+- A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach girdle's approval queue, its own permission rules cannot be loosened mid-session, the session text reaches it through its own channel, and its transcripts come back to your own config when the session ends.
 - An agent without an adapter still works in a jail with a one-line instruction: "When something is blocked, run `girdle status`."
 
 ### Strict typing and validated boundaries
