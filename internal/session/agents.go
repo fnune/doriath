@@ -12,6 +12,21 @@ import (
 // them. Any other command runs as is.
 var adapters = []agents.Adapter{claude.Adapter{}}
 
+const mcpConfigFile = "mcp.json"
+
+// writeMCPConfig puts the profile's MCP servers where every agent's adapter
+// can point the agent at them.
+func (s *Session) writeMCPConfig() error {
+	if len(s.req.Profile.MCP) == 0 {
+		return nil
+	}
+	data, err := agents.MCPConfig(s.req.Profile.MCP)
+	if err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(s.jailDir, mcpConfigFile), data, 0o644)
+}
+
 func adapterFor(argv []string) agents.Adapter {
 	for _, a := range adapters {
 		if a.Matches(argv) {
@@ -23,10 +38,15 @@ func adapterFor(argv []string) agents.Adapter {
 
 func (s *Session) agentSession() agents.Session {
 	home := s.deps.Paths.Home
+	mcp := ""
+	if len(s.req.Profile.MCP) > 0 {
+		mcp = jail.InJail(mcpConfigFile)
+	}
 	return agents.Session{
-		Profile: s.req.Profile,
-		Home:    home,
-		Cwd:     s.req.Cwd,
+		MCPConfig: mcp,
+		Profile:   s.req.Profile,
+		Home:      home,
+		Cwd:       s.req.Cwd,
 		HostPath: func(p string) string {
 			for _, c := range s.req.Profile.Caches {
 				if c.Path == p {

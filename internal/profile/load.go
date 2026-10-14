@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"maps"
 	"net/http"
+	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -148,6 +149,7 @@ type builder struct {
 	images   []string
 	nix      bool
 	vcsStore bool
+	mcp      []mcpLayer
 	harden   Hardening
 	limits   Limits
 	claude   claudeLayer
@@ -162,6 +164,13 @@ func newBuilder(home string) *builder {
 
 func (b *builder) apply(l layer) {
 	b.mounts = append(b.mounts, l.Mounts...)
+	for _, m := range l.MCP {
+		if i := slices.IndexFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }); i >= 0 {
+			b.mcp[i] = m
+		} else {
+			b.mcp = append(b.mcp, m)
+		}
+	}
 	for _, c := range l.Caches {
 		b.caches = appendNew(b.caches, c.Path)
 	}
@@ -389,6 +398,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Env.PathPrepend = append(p.Env.PathPrepend, filepath.Clean(d))
+	}
+	for _, m := range b.mcp {
+		server, err := b.buildMCP(m)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		p.MCP = append(p.MCP, server)
 	}
 	for _, h := range b.allow {
 		pattern, err := ParseHostPattern(h)
@@ -677,4 +694,49 @@ func (b *builder) buildPrograms(l programsLayer) (ProgramEgress, error) {
 		out.Allow = append(out.Allow, pattern)
 	}
 	return out, nil
+}
+
+// buildMCP checks one MCP server. A remote server's host is reached through
+// the proxy: with a secret, as an intercepted host whose requests carry it
+// and are allowed unless a rule of the profile says otherwise.
+func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
+	if !namePattern.MatchString(m.Name) {
+		return MCPServer{}, fmt.Errorf("mcp %q: name it with lowercase letters, digits and dashes", m.Name)
+	}
+	server := MCPServer(m)
+	switch {
+	case len(m.Command) > 0 && m.URL != "":
+		return MCPServer{}, fmt.Errorf("mcp %s: set command for a local server or url for a remote one, not both", m.Name)
+	case len(m.Command) > 0:
+		if m.Secret != "" {
+			return MCPServer{}, fmt.Errorf("mcp %s: secret is for remote servers; a local one reads its own config", m.Name)
+		}
+		return server, nil
+	case m.URL == "":
+		return MCPServer{}, fmt.Errorf("mcp %s: set command or url", m.Name)
+	}
+	u, err := url.Parse(m.URL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || (u.Port() != "" && u.Port() != "443") {
+		return MCPServer{}, fmt.Errorf("mcp %s: url %q: want an https URL on port 443", m.Name, m.URL)
+	}
+	if len(m.Env) > 0 {
+		return MCPServer{}, fmt.Errorf("mcp %s: env is for local servers", m.Name)
+	}
+	host := strings.ToLower(u.Hostname())
+	if m.Secret == "" {
+		b.allow = appendNew(b.allow, host)
+		return server, nil
+	}
+	if !namePattern.MatchString(m.Secret) {
+		return MCPServer{}, fmt.Errorf("mcp %s: secret %q: use lowercase letters, digits and dashes", m.Name, m.Secret)
+	}
+	cred := &credentialLayer{Secret: m.Secret, Scheme: string(SchemeBearer)}
+	if i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, host) }); i >= 0 {
+		if b.http[i].Credential == nil {
+			b.http[i].Credential = cred
+		}
+		return server, nil
+	}
+	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionAllow)})
+	return server, nil
 }

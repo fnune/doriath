@@ -268,6 +268,9 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.writeGitFiles(); err != nil {
 		return err
 	}
+	if err := s.writeMCPConfig(); err != nil {
+		return err
+	}
 	s.command = s.req.Command
 	if s.agent = adapterFor(s.req.Command); s.agent != nil {
 		command, env, err := s.agent.Start(s.agentSession(), s.req.Command)

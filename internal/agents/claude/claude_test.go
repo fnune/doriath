@@ -166,6 +166,12 @@ func TestStartAndEnd(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(jailDir, "claude-settings.json")); err != nil {
 		t.Fatal(err)
 	}
+	s.MCPConfig = "/run/girdle/mcp.json"
+	withMCP, _, err := Adapter{}.Start(s, []string{"claude"})
+	if err != nil || withMCP[1] != "--mcp-config" || withMCP[2] != "/run/girdle/mcp.json" {
+		t.Fatalf("argv %v, %v", withMCP, err)
+	}
+	s.MCPConfig = ""
 	if err := os.WriteFile(filepath.Join(private, "projects", project, "new.jsonl"), []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

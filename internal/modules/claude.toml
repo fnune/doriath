@@ -8,10 +8,9 @@ set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1
 [egress]
 allow = ["console.anthropic.com", "claude.ai"]
 
-# The profile's own ~/.claude: its login, state and MCP servers, which the
-# claude adapter points Claude at with CLAUDE_CONFIG_DIR. Your servers and
-# login stay out; run claude mcp add or /login in a session to set them for
-# the profile. To share your login instead, a profile adds
+# The profile's own ~/.claude: its login and state, which the claude adapter
+# points Claude at with CLAUDE_CONFIG_DIR. Your login and MCP servers stay
+# out: run /login in a session, and list servers under [[mcp]]. To share your login instead, a profile adds
 # ~/.claude/.credentials.json with mode = "write", which lets the agent read
 # the token or swap in another account.
 [[caches]]

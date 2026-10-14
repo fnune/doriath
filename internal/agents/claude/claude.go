@@ -46,7 +46,11 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 	if err != nil {
 		return nil, nil, err
 	}
-	return Args(argv, path), map[string]string{"CLAUDE_CONFIG_DIR": configDir}, nil
+	args := Args(argv, path)
+	if s.MCPConfig != "" {
+		args = append(args[:1], append([]string{"--mcp-config", s.MCPConfig}, args[1:]...)...)
+	}
+	return args, map[string]string{"CLAUDE_CONFIG_DIR": configDir}, nil
 }
 
 // End copies this project's transcripts back, so you can resume a jailed

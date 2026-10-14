@@ -225,6 +225,17 @@ type Claude struct {
 	ApprovalTimeout   time.Duration
 }
 
+// MCPServer is an MCP server the agent may use. A local one runs in the
+// jail as Command; a remote one is reached at URL through the proxy, which
+// adds Secret as a bearer token, so the agent never holds it.
+type MCPServer struct {
+	Name    string
+	Command []string
+	Env     map[string]string
+	URL     string
+	Secret  string
+}
+
 type Profile struct {
 	Name        string
 	Description string
@@ -249,6 +260,7 @@ type Profile struct {
 	// writable, so agents commit and add worktrees there while the
 	// checkout and the files git runs stay read-only.
 	VCSStore bool
+	MCP      []MCPServer
 	Claude   Claude
 	// Secrets says where each secret this profile uses comes from. They live
 	// in the profile, not in a shared table, so a profile reaches only the

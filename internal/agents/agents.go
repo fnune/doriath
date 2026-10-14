@@ -5,7 +5,11 @@
 // ordinary module.
 package agents
 
-import "github.com/fnune/girdle/internal/profile"
+import (
+	"encoding/json"
+
+	"github.com/fnune/girdle/internal/profile"
+)
 
 type Session struct {
 	Profile *profile.Profile
@@ -17,6 +21,9 @@ type Session struct {
 	// WriteFile puts a file into the session's directory, which the jail
 	// sees read-only, and returns its path in the jail.
 	WriteFile func(name string, data []byte) (string, error)
+	// MCPConfig is the jail's path to the profile's MCP servers in the
+	// common mcpServers format, or "" when the profile names none.
+	MCPConfig string
 }
 
 type Adapter interface {
@@ -26,4 +33,28 @@ type Adapter interface {
 	Start(s Session, argv []string) ([]string, map[string]string, error)
 	// End runs after the session ends.
 	End(s Session) error
+}
+
+type mcpServer struct {
+	Type    string            `json:"type,omitempty"`
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	URL     string            `json:"url,omitempty"`
+}
+
+// MCPConfig writes the profile's MCP servers in the mcpServers format that
+// Claude Code, Cursor and others read. A remote server carries no token: the
+// proxy adds it.
+func MCPConfig(servers []profile.MCPServer) ([]byte, error) {
+	out := map[string]map[string]mcpServer{"mcpServers": {}}
+	for _, s := range servers {
+		if s.URL != "" {
+			out["mcpServers"][s.Name] = mcpServer{Type: "http", URL: s.URL}
+			continue
+		}
+		out["mcpServers"][s.Name] = mcpServer{Command: s.Command[0], Args: s.Command[1:], Env: s.Env}
+	}
+	data, err := json.MarshalIndent(out, "", "  ")
+	return append(data, '\n'), err
 }

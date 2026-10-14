@@ -23,6 +23,7 @@ type layer struct {
 	Podman      *podmanLayer           `toml:"podman"`
 	Nix         *nixLayer              `toml:"nix"`
 	VCS         *vcsLayer              `toml:"vcs"`
+	MCP         []mcpLayer             `toml:"mcp"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Limits      *limitsLayer           `toml:"limits"`
 	Claude      *claudeLayer           `toml:"claude"`
@@ -104,6 +105,14 @@ type hardeningLayer struct {
 
 type nixLayer struct {
 	Daemon *bool `toml:"daemon"`
+}
+
+type mcpLayer struct {
+	Name    string            `toml:"name"`
+	Command []string          `toml:"command"`
+	Env     map[string]string `toml:"env"`
+	URL     string            `toml:"url"`
+	Secret  string            `toml:"secret"`
 }
 
 type vcsLayer struct {
