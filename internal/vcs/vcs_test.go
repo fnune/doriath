@@ -275,3 +275,27 @@ func TestFinishRestoresARewrittenLooseObject(t *testing.T) {
 		t.Fatalf("the rewritten object was not restored: %q", got)
 	}
 }
+
+func TestFinishKeepsTheBackupUntilItSucceeds(t *testing.T) {
+	r := repo(t)
+	rec := &Record{Session: "s1"}
+	f := start(t, rec, r)
+	head := filepath.Join(r, ".git", "HEAD")
+	if err := os.WriteFile(head, []byte("not a ref\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Finish(f.ctx, f.tools, f.backup, rec, io.Discard); err == nil {
+		t.Fatal("Finish must report a store git cannot read")
+	}
+	if _, err := os.Stat(f.backup); err != nil || rec.Finished {
+		t.Fatalf("a failed Finish must keep the backup for the next try: %v, finished %v", err, rec.Finished)
+	}
+
+	if err := os.WriteFile(head, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.finish()
+	if !rec.Finished {
+		t.Error("the second Finish must complete")
+	}
+}
