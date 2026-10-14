@@ -84,6 +84,7 @@ func (d redirectDialer) DialContext(ctx context.Context, network, address string
 type fakeApprover struct {
 	mu       sync.Mutex
 	verdict  approval.Verdict
+	err      error
 	requests []approval.Request
 }
 
@@ -95,7 +96,7 @@ func (a *fakeApprover) Submit(_ context.Context, req approval.Request, _ time.Du
 	if a.verdict == approval.VerdictDeny {
 		reason = "not today"
 	}
-	return approval.Decision{Verdict: a.verdict, Lasting: approval.LastingOnce, Reason: reason}, nil
+	return approval.Decision{Verdict: a.verdict, Lasting: approval.LastingOnce, Reason: reason}, a.err
 }
 
 type mapSecrets map[string]string

@@ -332,12 +332,12 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
-			reason := "denied"
+			reason, message := "denied", fmt.Sprintf("girdle: %s was denied", summary)
 			if d.Verdict == approval.VerdictNone {
 				reason = "nobody approved it in time"
+				message = fmt.Sprintf("girdle: %s: %s", summary, reason)
 			}
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: reason})
-			message := fmt.Sprintf("girdle: %s was %s", summary, reason)
 			if d.Reason != "" && d.Verdict == approval.VerdictDeny {
 				message += ": " + d.Reason
 			}

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fnune/girdle/internal/approval"
 	"github.com/fnune/girdle/internal/profile"
 )
 
@@ -218,6 +219,34 @@ deny = ["notion-delete-*"]
 			got, gotBody := h.upstream.last(t)
 			if got.Header.Get("Authorization") != "Bearer notion-token" || string(gotBody) != tc.body {
 				t.Fatalf("upstream got Authorization %q and body %q", got.Header.Get("Authorization"), gotBody)
+			}
+		})
+	}
+}
+
+func TestRefusedApprovalSaysWhy(t *testing.T) {
+	for name, tc := range map[string]struct {
+		verdict approval.Verdict
+		err     error
+		want    string
+	}{
+		"denied with a reason": {verdict: approval.VerdictDeny, want: "girdle: Create a GitHub release was denied: not today"},
+		"expired":              {verdict: approval.VerdictNone, want: "girdle: Create a GitHub release: nobody approved it in time"},
+		"queue unreachable":    {err: errors.New("no queue"), want: "girdle: Create a GitHub release was denied"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.approver.verdict, h.approver.err = tc.verdict, tc.err
+			p := loadPolicy(t)
+			host, _ := p.Intercepted("api.github.com")
+			req := httptest.NewRequest(http.MethodPost, "https://api.github.com/repos/a/b/releases", strings.NewReader("{}"))
+			rec := httptest.NewRecorder()
+			h.server(t, p, Config{}, h.dialer()).intercepted(rec, req, "api.github.com", host)
+			if rec.Code != http.StatusForbidden || h.upstream.count() != 0 {
+				t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
+			}
+			if msg := deniedMessage(t, rec); msg != tc.want {
+				t.Errorf("message = %q, want %q", msg, tc.want)
 			}
 		})
 	}
