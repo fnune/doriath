@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,14 +16,17 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/fnune/girdle/internal/secret"
 )
 
 // fakeServer is an MCP server and the OAuth server it trusts, on one host.
 type fakeServer struct {
 	*httptest.Server
-	mu     sync.Mutex
-	grants []string
+	mu        sync.Mutex
+	grants    []string
+	noRefresh bool
 }
 
 func newFakeServer(t *testing.T) *fakeServer {
@@ -42,6 +46,9 @@ func newFakeServer(t *testing.T) *fakeServer {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+		writeJSON(w, http.StatusOK, map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{}})
+	})
+	mux.HandleFunc("/public-mcp", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{}})
 	})
 	resource := func(w http.ResponseWriter, _ *http.Request) {
@@ -81,6 +88,7 @@ func newFakeServer(t *testing.T) *fakeServer {
 		_ = r.ParseForm()
 		f.mu.Lock()
 		f.grants = append(f.grants, r.Form.Get("grant_type"))
+		noRefresh := f.noRefresh
 		f.mu.Unlock()
 		switch r.Form.Get("grant_type") {
 		case "authorization_code":
@@ -88,7 +96,11 @@ func newFakeServer(t *testing.T) *fakeServer {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_grant"})
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"access_token": "access-1", "refresh_token": "refresh-1", "token_type": "Bearer", "expires_in": 3600})
+			tok := map[string]any{"access_token": "access-1", "refresh_token": "refresh-1", "token_type": "Bearer", "expires_in": 3600}
+			if noRefresh {
+				delete(tok, "refresh_token")
+			}
+			writeJSON(w, http.StatusOK, tok)
 		case "refresh_token":
 			if r.Form.Get("refresh_token") != "refresh-1" {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_grant"})
@@ -169,5 +181,119 @@ func TestTokenWithoutLoginNamesTheCommand(t *testing.T) {
 	_, err := NewTokens(t.TempDir(), "work").Token(context.Background(), "notion", secret.OAuth{})
 	if err == nil || !strings.Contains(err.Error(), "girdle login --profile work notion") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// callbackBrowser skips the server's sign-in page and calls girdle's
+// callback itself, so that a test chooses what the callback receives.
+type callbackBrowser struct {
+	t       *testing.T
+	answer  func(signIn url.Values) url.Values
+	openErr error
+}
+
+func (b callbackBrowser) Open(u string) error {
+	signIn, err := url.Parse(u)
+	if err != nil {
+		return err
+	}
+	back, err := url.Parse(signIn.Query().Get("redirect_uri"))
+	if err != nil {
+		return err
+	}
+	back.RawQuery = b.answer(signIn.Query()).Encode()
+	if err := (browser{b.t}).Open(back.String()); err != nil {
+		return err
+	}
+	return b.openErr
+}
+
+func TestRefusedSignInSaysWhatTheServerSaid(t *testing.T) {
+	f := newFakeServer(t)
+	path := filepath.Join(t.TempDir(), "notion.json")
+	refuse := callbackBrowser{t: t, answer: func(url.Values) url.Values {
+		return url.Values{"error": {"access_denied"}, "error_description": {"you said no"}}
+	}}
+	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, path, refuse, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "the server refused the sign-in: access_denied you said no") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("a refused sign-in must save nothing")
+	}
+}
+
+func TestSignInMustAnswerTheRequestGirdleMade(t *testing.T) {
+	f := newFakeServer(t)
+	forge := callbackBrowser{t: t, answer: func(url.Values) url.Values {
+		return url.Values{"code": {"the-code"}, "state": {"another"}}
+	}}
+	err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, filepath.Join(t.TempDir(), "s.json"), forge, io.Discard)
+	if err == nil || err.Error() != "the sign-in answered for another request" {
+		t.Fatalf("err = %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.grants) != 0 {
+		t.Fatalf("a code from another request was exchanged: %v", f.grants)
+	}
+}
+
+func TestLoginRefusesAServerThatAsksNoLogin(t *testing.T) {
+	f := newFakeServer(t)
+	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/public-mcp"}, filepath.Join(t.TempDir(), "s.json"), browser{t}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "answered 200 OK, not 401: it does not ask for a login") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestLoginSaysWhatYouMustDoYourself(t *testing.T) {
+	f := newFakeServer(t)
+	f.mu.Lock()
+	f.noRefresh = true
+	f.mu.Unlock()
+	noBrowser := callbackBrowser{t: t, openErr: errors.New("no display"), answer: func(signIn url.Values) url.Values {
+		return url.Values{"code": {"the-code"}, "state": {signIn.Get("state")}}
+	}}
+	var out strings.Builder
+	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, filepath.Join(t.TempDir(), "s.json"), noBrowser, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Sign in at:\n  " + f.URL + "/authorize?", "Open it in your browser on this machine.", "The server gave no refresh token"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out.String())
+		}
+	}
+}
+
+func TestRevokedLoginAsksYouToSignInAgain(t *testing.T) {
+	f := newFakeServer(t)
+	dir := t.TempDir()
+	expired := &oauth2.Token{AccessToken: "old", RefreshToken: "revoked", Expiry: time.Now().Add(-time.Minute)}
+	if err := (State{ClientID: "c", TokenURL: f.URL + "/token", Token: expired}).save(StatePath(dir, "work", "notion")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
+	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run girdle login --profile work notion again") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestDamagedLoginStateNamesTheFile(t *testing.T) {
+	for name, content := range map[string]string{"not JSON": "{", "no token": `{"client_id":"c"}`} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := StatePath(dir, "work", "notion")
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
+			if err == nil || !strings.Contains(err.Error(), path) {
+				t.Fatalf("err = %v", err)
+			}
+		})
 	}
 }
