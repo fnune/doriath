@@ -27,6 +27,24 @@ func (Adapter) Matches(argv []string) bool {
 	return len(argv) > 0 && filepath.Base(argv[0]) == "claude"
 }
 
+// seeded are the keys of ~/.claude.json a new profile starts with: the
+// onboarding and notices you already went through. Accounts, MCP servers,
+// project history and identifiers stay out.
+var seeded = []string{
+	"hasCompletedOnboarding", "lastOnboardingVersion", "lastReleaseNotesSeen",
+	"hasSeenTasksHint", "hasShownOpus45Notice", "hasShownOpus46Notice", "effortCalloutV2Dismissed",
+	"migrationVersion", "opus45MigrationComplete", "opusProMigrationComplete",
+	"sonnet45MigrationComplete", "sonnet1m45MigrationComplete", "thinkingMigrationComplete",
+}
+
+func (Adapter) Seeds(s agents.Session) []agents.Seed {
+	private := s.HostPath(filepath.Join(s.Home, ".claude"))
+	if private == "" {
+		return nil
+	}
+	return []agents.Seed{{Source: filepath.Join(s.Home, ".claude.json"), Dest: filepath.Join(private, ".claude.json"), Keys: seeded}}
+}
+
 // Start writes the session's settings, points Claude at the profile's own
 // configuration directory, and copies this project's history in, so a
 // session can resume what you started outside the jail.

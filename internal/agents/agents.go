@@ -7,6 +7,12 @@ package agents
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/fnune/girdle/internal/profile"
 )
@@ -28,6 +34,9 @@ type Session struct {
 
 type Adapter interface {
 	Matches(argv []string) bool
+	// Seeds lists state to start a new profile with, so that the agent does
+	// not greet each profile as a fresh install.
+	Seeds(s Session) []Seed
 	// Start runs before the jail starts and returns the command to run
 	// and the environment it adds.
 	Start(s Session, argv []string) ([]string, map[string]string, error)
@@ -57,4 +66,52 @@ func MCPConfig(servers []profile.MCPServer) ([]byte, error) {
 	}
 	data, err := json.MarshalIndent(out, "", "  ")
 	return append(data, '\n'), err
+}
+
+// Seed copies the named top-level keys of a JSON file of yours into a
+// profile's own state, once, when that file does not exist yet. Only the
+// keys listed travel: settings such as onboarding done, never accounts,
+// servers or project history.
+type Seed struct {
+	Source string
+	Dest   string
+	Keys   []string
+}
+
+// Plant writes each seed whose destination is missing. A missing or
+// unreadable source plants nothing: the agent then starts fresh.
+func Plant(seeds []Seed) error {
+	var errs []error
+	for _, seed := range seeds {
+		if _, err := os.Lstat(seed.Dest); !errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		data, err := os.ReadFile(seed.Source)
+		if err != nil {
+			continue
+		}
+		var doc map[string]json.RawMessage
+		if json.Unmarshal(data, &doc) != nil {
+			continue
+		}
+		kept := map[string]json.RawMessage{}
+		for k, v := range doc {
+			if slices.Contains(seed.Keys, k) {
+				kept[k] = v
+			}
+		}
+		out, err := json.MarshalIndent(kept, "", "  ")
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(seed.Dest), 0o700); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := os.WriteFile(seed.Dest, append(out, '\n'), 0o600); err != nil {
+			errs = append(errs, fmt.Errorf("seed %s: %w", seed.Dest, err))
+		}
+	}
+	return errors.Join(errs...)
 }

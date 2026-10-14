@@ -273,6 +273,9 @@ func (s *Session) prepare(ctx context.Context) error {
 	}
 	s.command = s.req.Command
 	if s.agent = adapterFor(s.req.Command); s.agent != nil {
+		if err := agents.Plant(s.agent.Seeds(s.agentSession())); err != nil {
+			return err
+		}
 		command, env, err := s.agent.Start(s.agentSession(), s.req.Command)
 		if err != nil {
 			return err
