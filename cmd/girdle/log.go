@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/fnune/girdle/internal/session"
 )
 
 type auditRecord struct {
@@ -107,7 +109,9 @@ func cmdLog(ctx context.Context, args []string, c clock, out io.Writer) error {
 	}
 }
 
-func formatRecord(r auditRecord) string {
+func formatRecord(r auditRecord) string { return session.Printable(describeRecord(r)) }
+
+func describeRecord(r auditRecord) string {
 	head := fmt.Sprintf("%s  %-10s %-8s ", r.Time.Local().Format("Jan 02 15:04:05"), r.Profile, r.Session)
 	var d map[string]any
 	_ = json.Unmarshal(r.Data, &d)

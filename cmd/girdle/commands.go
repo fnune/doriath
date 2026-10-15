@@ -309,12 +309,12 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tPROFILE\tSESSION\tEXPIRES IN\tREQUEST")
 	for _, r := range reqs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.ID, r.Profile, r.Session, r.Expires.Sub(now).Round(time.Second), r.Summary)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.ID, r.Profile, r.Session, r.Expires.Sub(now).Round(time.Second), session.Printable(r.Summary))
 	}
 	_ = tw.Flush()
 	for _, r := range reqs {
 		if r.Details != "" {
-			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(r.Details))
+			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(session.Printable(r.Details)))
 		}
 	}
 }
@@ -335,9 +335,9 @@ func watch(ctx context.Context, p config.Paths, c clock, in io.Reader, out io.Wr
 				continue
 			}
 			asked[r.ID] = true
-			fmt.Fprintf(out, "\n[%s] %s (profile %s)\n", r.ID, r.Summary, r.Profile)
+			fmt.Fprintf(out, "\n[%s] %s (profile %s)\n", r.ID, session.Printable(r.Summary), r.Profile)
 			if r.Details != "" {
-				fmt.Fprintf(out, "    %s\n", indent(r.Details))
+				fmt.Fprintf(out, "    %s\n", indent(session.Printable(r.Details)))
 			}
 			fmt.Fprint(out, "Allow [o]nce, allow for this [s]ession, [d]eny, or [Enter] to skip: ")
 			if !lines.Scan() {

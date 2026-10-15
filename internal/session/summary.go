@@ -41,5 +41,5 @@ func Summary(profile, id string, denied []Denial, history []approval.Outcome) st
 	if len(parts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("girdle: session %s (%s) ended: %s. Details: girdle log --session %s", id, profile, strings.Join(parts, "; "), id)
+	return Printable(fmt.Sprintf("girdle: session %s (%s) ended: %s. Details: girdle log --session %s", id, profile, strings.Join(parts, "; "), id))
 }

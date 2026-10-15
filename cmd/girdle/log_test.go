@@ -176,3 +176,10 @@ func TestFormatRecord(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordsShowAgentControlsAsEscapes(t *testing.T) {
+	r := auditRecord{Event: "approval-requested", Data: json.RawMessage(`{"id":"r1","summary":"Push\u001b]0;owned\u0007"}`)}
+	if got := formatRecord(r); strings.ContainsRune(got, 0x1b) || !strings.Contains(got, `Push\u001b]0;owned\u0007`) {
+		t.Fatalf("formatRecord = %q", got)
+	}
+}
