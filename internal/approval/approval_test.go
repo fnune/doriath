@@ -3,6 +3,7 @@ package approval
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -281,5 +282,31 @@ func TestRepeatedIDsDoNotReplaceAPendingRequest(t *testing.T) {
 		if d := <-got; d.Verdict != VerdictDeny {
 			t.Errorf("%s: %+v", id, d)
 		}
+	}
+}
+
+func TestPendingRequestsAreCapped(t *testing.T) {
+	m, _, _, recorder := setup()
+	for i := range MaxPending {
+		submitAsync(m, fmt.Sprintf("scope %d", i))
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for len(m.Pending()) < MaxPending && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	for range 2 {
+		d, err := m.Submit(context.Background(), Request{Kind: KindHTTP, Summary: "x", Scope: "one too many"}, time.Minute)
+		if err != nil || d.Verdict != VerdictDeny || !strings.Contains(d.Reason, "already waiting") {
+			t.Fatalf("decision = %+v, %v", d, err)
+		}
+	}
+	recorder.mu.Lock()
+	refusals := len(recorder.decided)
+	recorder.mu.Unlock()
+	if refusals != 1 {
+		t.Errorf("recorded %d refusals, want the first only", refusals)
+	}
+	if len(m.Pending()) != MaxPending {
+		t.Errorf("pending = %d", len(m.Pending()))
 	}
 }

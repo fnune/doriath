@@ -110,16 +110,21 @@ type IDs interface {
 
 var ErrUnknownRequest = errors.New("unknown or already decided request")
 
+// MaxPending bounds the requests waiting at once. A flood of them would
+// bury the one that matters and invite clicking allow.
+const MaxPending = 32
+
 type Manager struct {
 	clock    Clock
 	notifier Notifier
 	recorder Recorder
 	ids      IDs
 
-	mu      sync.Mutex
-	pending map[string]*pending
-	grants  map[string]grant
-	history []Outcome
+	mu              sync.Mutex
+	pending         map[string]*pending
+	refusalRecorded bool
+	grants          map[string]grant
+	history         []Outcome
 }
 
 // Outcome is a decided or expired request, for the end-of-session summary.
@@ -179,6 +184,17 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 		}
 		delete(m.grants, grantKey(req))
 	}
+	if len(m.pending) >= MaxPending {
+		record := !m.refusalRecorded
+		m.refusalRecorded = true
+		m.mu.Unlock()
+		d := Decision{Verdict: VerdictDeny, Reason: fmt.Sprintf("%d requests are already waiting for a decision; wait for those first", MaxPending)}
+		if record {
+			m.recorder.Decided(req, d)
+		}
+		return d, nil
+	}
+	m.refusalRecorded = false
 	req.ID = m.ids.New()
 	for m.pending[req.ID] != nil { // ids are short enough to repeat
 		req.ID = m.ids.New()
