@@ -24,9 +24,13 @@ func TestAllowWriteOpensBindsForLaterContainers(t *testing.T) {
 			if status != http.StatusForbidden || !strings.Contains(message(t, body), tc.before) {
 				t.Fatalf("before: status %d: %s", status, body)
 			}
-			h.broker.AllowWrite(tc.path)
+			h.broker.AllowWrite(tc.path, []string{tc.path + "/.git/config"})
 			if status, body := h.do(t, http.MethodPost, "/v1.41/containers/create", create); status != http.StatusCreated {
 				t.Fatalf("after: status %d: %s", status, body)
+			}
+			guarded := fmt.Sprintf(`{"Image":"alpine","HostConfig":{"Binds":["%s/.git/config:/c"]}}`, tc.path)
+			if status, body := h.do(t, http.MethodPost, "/v1.41/containers/create", guarded); status != http.StatusForbidden || !strings.Contains(message(t, body), "read-only") {
+				t.Fatalf("a guard inside a grant: status %d: %s", status, body)
 			}
 		})
 	}

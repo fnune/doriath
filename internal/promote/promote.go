@@ -34,6 +34,9 @@ type Request struct {
 	Nsenter string
 	Unshare string
 	Path    string
+	// Guards are paths inside Path that stay read-only, such as a
+	// repository's .git/config. They exist before the call.
+	Guards []string
 	// Visible says the path is inside one of the jail's mounts. Otherwise
 	// the helper mounts the host directory there.
 	Visible bool
@@ -42,7 +45,7 @@ type Request struct {
 // Writable makes r.Path writable in the jail.
 func Writable(ctx context.Context, r Request) error {
 	if r.Visible {
-		return enter(ctx, r, nil, "writable", r.Path)
+		return enter(ctx, r, nil, append([]string{"writable", r.Path}, r.Guards...)...)
 	}
 	tree, err := openHostTree(ctx, r)
 	if err != nil {
@@ -84,7 +87,7 @@ func openHostTree(ctx context.Context, r Request) (*os.File, error) {
 	}
 	ours, theirs := os.NewFile(uintptr(pair[0]), "ours"), os.NewFile(uintptr(pair[1]), "theirs")
 	defer ours.Close()
-	cmd := exec.CommandContext(ctx, r.Unshare, "-U", "-m", "-r", "--", r.HostExe, "__promote", "open", r.Path)
+	cmd := exec.CommandContext(ctx, r.Unshare, append([]string{"-U", "-m", "-r", "--", r.HostExe, "__promote", "open", r.Path}, r.Guards...)...)
 	cmd.ExtraFiles = []*os.File{theirs}
 	out, err := cmd.CombinedOutput()
 	_ = theirs.Close()
@@ -101,19 +104,29 @@ func openHostTree(ctx context.Context, r Request) (*os.File, error) {
 // Inner runs girdle __promote, inside the namespaces enter or openHostTree
 // set up.
 func Inner(args []string) error {
-	if len(args) != 2 {
-		return errors.New("__promote: want an operation and a path")
+	if len(args) < 2 {
+		return errors.New("__promote: want an operation, a path and its guards")
 	}
-	op, path := args[0], args[1]
-	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return fmt.Errorf("__promote: %q is not an absolute clean path", path)
+	op, path, guards := args[0], args[1], args[2:]
+	for _, p := range args[1:] {
+		if !filepath.IsAbs(p) || filepath.Clean(p) != p {
+			return fmt.Errorf("__promote: %q is not an absolute clean path", p)
+		}
+	}
+	for _, g := range guards {
+		if !strings.HasPrefix(g, path+"/") {
+			return fmt.Errorf("__promote: guard %s is not inside %s", g, path)
+		}
 	}
 	switch op {
 	case "writable":
-		return writableInPlace(path)
+		return writableInPlaceAfter(guards, path)
 	case "open":
-		return sendTree(path)
+		return sendTreeWithGuards(guards, path)
 	case "attach":
+		if len(guards) > 0 {
+			return errors.New("__promote: attach takes its guards from the tree it receives")
+		}
 		return attach(path)
 	}
 	return fmt.Errorf("__promote: unknown operation %q", op)
@@ -127,6 +140,49 @@ func openNoSymlinks(dir int, path string, flags uint64) (int, error) {
 }
 
 var clearReadOnly = unix.MountAttr{Attr_clr: unix.MOUNT_ATTR_RDONLY}
+
+func writableInPlaceAfter(guards []string, path string) error {
+	if err := readOnly(guards); err != nil {
+		return err
+	}
+	return writableInPlace(path)
+}
+
+func sendTreeWithGuards(guards []string, path string) error {
+	if err := readOnly(guards); err != nil {
+		return err
+	}
+	return sendTree(path)
+}
+
+var setReadOnly = unix.MountAttr{Attr_set: unix.MOUNT_ATTR_RDONLY}
+
+func readOnly(paths []string) error {
+	for _, p := range paths {
+		fd, err := openNoSymlinks(unix.AT_FDCWD, p, 0)
+		if err != nil {
+			return fmt.Errorf("open %s: %w", p, err)
+		}
+		err = bindReadOnly(fd)
+		_ = unix.Close(fd)
+		if err != nil {
+			return fmt.Errorf("make %s read-only: %w", p, err)
+		}
+	}
+	return nil
+}
+
+func bindReadOnly(fd int) error {
+	tree, err := unix.OpenTree(fd, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH|unix.AT_RECURSIVE)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(tree) }()
+	if err := unix.MountSetattr(tree, "", unix.AT_EMPTY_PATH|unix.AT_RECURSIVE, &setReadOnly); err != nil {
+		return err
+	}
+	return unix.MoveMount(tree, "", fd, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH)
+}
 
 // writableInPlace clears read-only on the mount rooted at path, which every
 // process in the jail sees at once. For a path inside a mount, it stacks a

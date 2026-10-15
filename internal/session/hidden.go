@@ -13,9 +13,12 @@ import (
 	"github.com/fnune/girdle/internal/profile"
 )
 
-func (s *Session) holdControlPaths() error {
-	for _, h := range jail.Placeholders(s.req.Profile, osHost{}) {
-		if err := jail.CheckLinks(s.req.Profile, osHost{}, h.Path); err != nil {
+func (s *Session) holdControlPaths() error { return holdControlPaths(s.req.Profile) }
+
+// The placeholders stay: another session may still bind them.
+func holdControlPaths(p *profile.Profile) error {
+	for _, h := range jail.Placeholders(p, osHost{}) {
+		if err := jail.CheckLinks(p, osHost{}, h.Path); err != nil {
 			return err
 		}
 		if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {

@@ -74,6 +74,14 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	if reaper == 0 {
 		return errors.New("the jail is not running yet")
 	}
+	asWriteMount := &profile.Profile{Mounts: []profile.Mount{{Path: path, Mode: profile.ModeWrite}}}
+	if err := holdControlPaths(asWriteMount); err != nil {
+		return err
+	}
+	guards := jail.Guards(asWriteMount, osHost{})
+	if err := jail.CheckLinks(asWriteMount, osHost{}, guards...); err != nil {
+		return err
+	}
 	err = promote.Writable(ctx, promote.Request{
 		Reaper:  reaper,
 		JailExe: jail.ExePath,
@@ -81,6 +89,7 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 		Nsenter: s.deps.Nsenter,
 		Unshare: s.deps.Unshare,
 		Path:    path,
+		Guards:  guards,
 		Visible: s.visible(path),
 	})
 	if err != nil {
@@ -90,7 +99,7 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	s.req.Profile.Mounts = append(s.req.Profile.Mounts, profile.Mount{Path: path, Mode: profile.ModeWrite})
 	s.mu.Unlock()
 	if s.containerBroker != nil {
-		s.containerBroker.AllowWrite(path)
+		s.containerBroker.AllowWrite(path, guards)
 	}
 	s.log.Write("granted", map[string]any{"path": path, "mode": "write"})
 	return nil

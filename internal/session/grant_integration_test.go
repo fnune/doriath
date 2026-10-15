@@ -77,3 +77,60 @@ echo done
 		}
 	}
 }
+
+// TestGrantKeepsRepositoryGuards makes directories that hold repositories
+// writable, one the jail sees and one it does not: their files become
+// writable, and git's control files stay read-only, as in a write mount.
+func TestGrantKeepsRepositoryGuards(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	seen := filepath.Join(e.home, "projects")
+	unseen := filepath.Join(e.home, "elsewhere")
+	for _, repo := range []string{filepath.Join(seen, "app"), filepath.Join(unseen, "lib")} {
+		if err := os.MkdirAll(repo, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		git(t, repo, "init", "-q", "-b", "main")
+		if err := os.RemoveAll(filepath.Join(repo, ".git", "hooks")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	marker := filepath.Join(e.work, "asked")
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n", seen))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+G=/run/girdle-bin/girdle
+probe() {
+  touch $1/file || echo "FAIL $1 is not writable"
+  echo x >> $1/.git/config 2>/dev/null && echo "FAIL $1/.git/config is writable"
+  mkdir -p $1/.git/hooks 2>/dev/null; touch $1/.git/hooks/pre-commit 2>/dev/null && echo "FAIL $1 took a hook"
+  echo /tmp > $1/.git/commondir 2>/dev/null && echo "FAIL $1/.git/commondir is writable"
+  touch $1/.git/refs/heads/x || echo "FAIL $1/.git/refs is not writable"
+}
+$G request write %[1]s --reason "work on several projects" || echo "FAIL request"
+probe %[1]s/app
+touch %[3]s
+for _ in $(seq 100); do [ -d %[2]s/lib ] && break; sleep 0.1; done
+probe %[2]s/lib
+echo done
+`, seen, unseen, marker), func() {
+		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+		for i := 0; i < 200; i++ {
+			if _, err := os.Stat(marker); err == nil {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		socks, _ := filepath.Glob(filepath.Join(e.paths.Sessions(), "*", session.ControlSocket))
+		if len(socks) != 1 {
+			t.Errorf("control sockets: %v", socks)
+			return
+		}
+		if err := control.Call(context.Background(), socks[0], session.MethodGrantWrite, session.GrantWriteParams{Path: unseen}, &session.GrantWriteResult{}); err != nil {
+			t.Errorf("grant: %v", err)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}

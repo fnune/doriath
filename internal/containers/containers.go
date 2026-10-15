@@ -94,11 +94,16 @@ type Broker struct {
 }
 
 // AllowWrite lets later containers bind path writable, after the session
-// made it writable in the jail. Running containers keep their mounts.
-func (b *Broker) AllowWrite(path string) {
+// made it writable in the jail, except for readOnly inside it. Running
+// containers keep their mounts.
+func (b *Broker) AllowWrite(path string, readOnly []string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.checker.policy.Mounts = append(slices.Clone(b.checker.policy.Mounts), Mount{Path: path})
+	mounts := append(slices.Clone(b.checker.policy.Mounts), Mount{Path: path})
+	for _, p := range readOnly {
+		mounts = append(mounts, Mount{Path: p, ReadOnly: true})
+	}
+	b.checker.policy.Mounts = mounts
 }
 
 func New(policy Policy, upstream string, approver Approver, recorder Recorder, cfg Config) *Broker {

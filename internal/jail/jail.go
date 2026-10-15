@@ -249,6 +249,19 @@ func Placeholders(p *profile.Profile, host Host) []Placeholder {
 	return missing
 }
 
+// Guards lists the paths inside the profile's writable mounts that the jail
+// binds read-only, such as each repository's .git/config.
+func Guards(p *profile.Profile, host Host) []string {
+	binds, _, _ := mountBinds(p, Layout{}, host)
+	var out []string
+	for _, b := range binds {
+		if b.ReadOnly {
+			out = append(out, b.Source)
+		}
+	}
+	return out
+}
+
 func mountBinds(p *profile.Profile, layout Layout, host Host) ([]Bind, []Placeholder, []error) {
 	var errs []error
 	g := &guards{host: host}
