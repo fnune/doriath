@@ -42,6 +42,7 @@ $G request write $R/assets --reason "store generated images" || echo "FAIL reque
 touch $R/assets/x || echo "FAIL not writable after the allow"
 touch $R/other 2>/dev/null && echo "FAIL the rest of the repository became writable"
 $G request write $R/.git/config 2>&1 | grep -q '.git or .jj' || echo "FAIL a control file was not refused"
+$G request write $HOME/.config/jj 2>&1 | grep -q 'config that names programs' || echo "FAIL jj's config was not refused"
 touch %[3]s
 for _ in $(seq 100); do [ -d %[2]s ] && touch %[2]s/clip 2>/dev/null && break; sleep 0.1; done
 touch %[2]s/clip || echo "FAIL the granted host directory is not writable"

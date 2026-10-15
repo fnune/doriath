@@ -119,7 +119,7 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, private := range s.privatePaths() {
 		if within(path, private) {
-			return "", fmt.Errorf("%s: girdle does not make %s writable: it holds keys, logins or girdle's own state", path, private)
+			return "", fmt.Errorf("%s: girdle does not make %s writable: it holds keys, logins, config that names programs the host runs, or girdle's own state", path, private)
 		}
 	}
 	if profile.UnderTrustedRoot(path + "/") {
@@ -163,13 +163,13 @@ func deepestExisting(path string) string {
 	}
 }
 
-// privatePaths hold keys, logins or girdle's own configuration and state,
-// and also the read-only files the claude module layers over a writable
+// privatePaths hold keys, logins, config that names programs the host runs,
+// or girdle's own configuration and state, and also the read-only files the claude module layers over a writable
 // cache, which a grant would make writable on the host.
 func (s *Session) privatePaths() []string {
 	home := s.deps.Paths.Home
 	out := []string{s.deps.Paths.Config, s.deps.Paths.State, s.deps.Paths.Cache}
-	for _, rel := range []string{".ssh", ".gnupg", ".aws", ".config/gh", ".claude", ".local/share/keyrings", ".password-store"} {
+	for _, rel := range []string{".ssh", ".gnupg", ".aws", ".config/gh", ".claude", ".local/share/keyrings", ".password-store", ".gitconfig", ".config/git", ".config/jj", ".local/state/nix", ".local/state/home-manager"} {
 		out = append(out, filepath.Join(home, rel))
 	}
 	return out
