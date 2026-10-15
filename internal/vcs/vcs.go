@@ -600,6 +600,14 @@ func sha256File(p string) (string, error) {
 // creating the worktree.
 func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bool) error {
 	name := filepath.Base(admin)
+	if info, err := os.Lstat(admin); err == nil && !info.IsDir() {
+		linkToElsewhere := admin
+		if err := os.Remove(linkToElsewhere); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "girdle: removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
+		return nil
+	}
 	if live && removing(admin) {
 		return nil
 	}
@@ -616,7 +624,10 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return nil
 	}
 	checkout := filepath.Dir(resolve(admin, strings.TrimSpace(string(data))))
-	if !slices.ContainsFunc(rec.Writable, func(root string) bool { return within(checkout, root) }) {
+	writable := func(p string) bool {
+		return slices.ContainsFunc(rec.Writable, func(root string) bool { return within(p, root) })
+	}
+	if real, err := filepath.EvalSymlinks(checkout); err == nil && !writable(real) || !writable(checkout) {
 		fmt.Fprintf(w, "girdle: worktree %s of %s says it is at %s, where the session could not write; girdle left it alone, so check it before you use it\n", name, repo, checkout)
 		return nil
 	}

@@ -244,6 +244,59 @@ func TestFinishRepairsAgentWorktrees(t *testing.T) {
 	}
 }
 
+func TestFinishDoesNotRepairThroughLinks(t *testing.T) {
+	r := repo(t)
+	trees := filepath.Join(filepath.Dir(r), "trees")
+	ctx, tools := context.Background(), Tools{Git: "git"}
+	backup := filepath.Join(t.TempDir(), "b")
+	rec := &Record{Session: "s1", Writable: []string{trees}}
+	if err := Start(ctx, tools, backup, rec, []string{r}); err != nil {
+		t.Fatal(err)
+	}
+	victim := t.TempDir()
+	for _, f := range []string{"commondir", "config.worktree"} {
+		if err := os.WriteFile(filepath.Join(victim, f), []byte("yours\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(r, ".git", "worktrees"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, filepath.Join(r, ".git", "worktrees", "linked")); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.MkdirAll(trees, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(trees, "out")); err != nil {
+		t.Fatal(err)
+	}
+	git(t, r, "worktree", "add", "-q", filepath.Join(trees, "real"), "-b", "real")
+	admin := filepath.Join(r, ".git", "worktrees", "real")
+	if err := os.WriteFile(filepath.Join(admin, "gitdir"), []byte(filepath.Join(trees, "out", "x", ".git")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(outside, "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err := Finish(ctx, tools, backup, rec, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"commondir", "config.worktree"} {
+		if data, err := os.ReadFile(filepath.Join(victim, f)); err != nil || string(data) != "yours\n" {
+			t.Errorf("%s behind the link changed: %q, %v\n%s", f, data, err, out.String())
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(r, ".git", "worktrees", "linked")); !os.IsNotExist(err) {
+		t.Error("the linked admin directory must go")
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "x", ".git")); !os.IsNotExist(err) {
+		t.Errorf("girdle wrote a .git through a link in the checkout path:\n%s", out.String())
+	}
+}
+
 func TestFinishLeavesWorktreesOutsideTheSessionAlone(t *testing.T) {
 	r := repo(t)
 	f := start(t, &Record{Session: "s1", Writable: []string{filepath.Join(t.TempDir(), "elsewhere")}}, r)
