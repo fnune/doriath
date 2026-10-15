@@ -137,6 +137,7 @@ type Session struct {
 	logFile io.Closer
 	unwatch func()
 	manager *approval.Manager
+	informs informLimit
 	closers []func()
 	entry   Entry
 	// agent adapts a known agent's permission prompts and transcripts.

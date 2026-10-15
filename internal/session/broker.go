@@ -145,6 +145,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			if err != nil {
 				return nil, err
 			}
+			ok, firstDropped := s.informs.allow(s.deps.Clock.Now())
+			if !ok {
+				if firstDropped {
+					s.log.Write("inform-dropped", p)
+				}
+				return nil, fmt.Errorf("too many notifications: girdle shows %d at once and one more each %s", informBurst, informEvery)
+			}
 			s.log.Write("inform", p)
 			if s.deps.Informer != nil {
 				if err := s.deps.Informer.Inform(p.Title, p.Body); err != nil {
