@@ -451,19 +451,21 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte)
 	if len(r.MCPTools) > 0 {
 		s += " mcp " + profile.DescribeMCP(body)
 	}
-	if repo := repoPrefix(path); repo != "" {
+	if repo := repoPrefix(string(r.Path), path); repo != "" {
 		s += " in " + repo
 	}
 	return s
 }
 
-func repoPrefix(p string) string {
+func repoPrefix(pattern, p string) string {
 	segs := strings.Split(strings.TrimPrefix(p, "/"), "/")
 	switch {
 	case len(segs) >= 3 && strings.EqualFold(segs[0], "repos"):
 		return strings.ToLower("/" + strings.Join(segs[:3], "/"))
 	case len(segs) >= 2 && strings.EqualFold(segs[0], "repositories"):
 		return strings.ToLower("/" + strings.Join(segs[:2], "/"))
+	case len(segs) >= 3 && strings.HasPrefix(pattern, "/*/*/"):
+		return strings.TrimSuffix(strings.ToLower("/"+segs[0]+"/"+segs[1]), ".git")
 	}
 	return ""
 }

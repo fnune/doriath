@@ -332,6 +332,20 @@ func TestRuleDeny(t *testing.T) {
 	}
 }
 
+func TestGitHostScopeNamesTheRepository(t *testing.T) {
+	push := profile.Rule{Method: "POST", Path: "/*/*/git-receive-pack", Action: profile.ActionApprove}
+	a := scope(push, true, "POST", "/fnune/project.git/git-receive-pack", "github.com", nil)
+	if a != "http POST github.com /*/*/git-receive-pack in /fnune/project" {
+		t.Fatalf("scope = %q", a)
+	}
+	if b := scope(push, true, "POST", "/fnune/Project/git-receive-pack", "github.com", nil); b != a {
+		t.Errorf("the same repository with and without .git must share a grant: %q", b)
+	}
+	if c := scope(push, true, "POST", "/fnune/other/git-receive-pack", "github.com", nil); c == a {
+		t.Error("a push grant for one repository must not answer a push to another")
+	}
+}
+
 func TestRuleApprove(t *testing.T) {
 	h := newHarness(t)
 	post := func() *http.Response {
