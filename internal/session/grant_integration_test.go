@@ -4,9 +4,11 @@ package session_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -66,6 +68,10 @@ echo done
 		}
 		if err := control.Call(context.Background(), socks[0], session.MethodGrantWrite, session.GrantWriteParams{Path: outside}, &res); err != nil {
 			t.Errorf("grant: %v", err)
+		}
+		var entry session.Entry
+		if data, err := os.ReadFile(filepath.Join(filepath.Dir(socks[0]), session.EntryFile)); err != nil || json.Unmarshal(data, &entry) != nil || !slices.Contains(entry.AgentWritable, outside) {
+			t.Errorf("the session entry must list the grant for girdle exec: %+v, %v", entry, err)
 		}
 	})
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {

@@ -53,3 +53,22 @@ func TestJJAndSecretCommandsInsideWritableMountsAreRefused(t *testing.T) {
 		t.Errorf("secret command: err = %v", err)
 	}
 }
+
+func TestEntryRefusesHelpersTheJailCouldReplace(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "work", "bin")
+	if err := os.MkdirAll(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	nsenter := filepath.Join(bin, "nsenter")
+	if err := os.WriteFile(nsenter, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	e := Entry{AgentWritable: []string{filepath.Join(root, "work")}}
+	if err := e.CheckHelper(nsenter); err == nil || !strings.Contains(err.Error(), "the jail can write") {
+		t.Fatalf("err = %v", err)
+	}
+	if err := (Entry{AgentWritable: []string{filepath.Join(root, "cache")}}).CheckHelper(nsenter); err != nil {
+		t.Fatalf("a helper outside the agent's paths: %v", err)
+	}
+}

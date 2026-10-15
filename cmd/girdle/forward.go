@@ -35,6 +35,9 @@ func cmdForward(args []string) error {
 	if err != nil {
 		return fmt.Errorf("girdle forward needs nsenter from util-linux: %w", err)
 	}
+	if err := entry.CheckHelper(nsenter); err != nil {
+		return err
+	}
 	self, err := os.Executable()
 	if err != nil {
 		return err

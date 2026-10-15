@@ -39,6 +39,9 @@ func cmdExec(args []string) (int, error) {
 	if err != nil {
 		return 1, fmt.Errorf("girdle exec needs nsenter from util-linux: %w", err)
 	}
+	if err := entry.CheckHelper(nsenter); err != nil {
+		return 1, err
+	}
 
 	argv := []string{"--target", strconv.Itoa(entry.PID), "--user", "--mount", "--net", "--pid", "--ipc", "--uts"}
 	jailMapsYourIDsToThemselves := entry.UID == os.Getuid() && entry.GID == os.Getgid()

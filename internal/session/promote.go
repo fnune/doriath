@@ -97,6 +97,10 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	}
 	s.mu.Lock()
 	s.req.Profile.Mounts = append(s.req.Profile.Mounts, profile.Mount{Path: path, Mode: profile.ModeWrite})
+	s.entry.AgentWritable = append(s.entry.AgentWritable, path)
+	if s.entry.PID != 0 {
+		s.saveEntry()
+	}
 	s.mu.Unlock()
 	if s.containerBroker != nil {
 		s.containerBroker.AllowWrite(path, guards)

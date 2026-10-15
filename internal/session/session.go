@@ -530,7 +530,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		argv = append(argv, "--forward", f)
 	}
 	argv = append(argv, "--")
-	s.entry = Entry{Cwd: s.req.Cwd, Landlock: !p.Hardening.NoLandlock}
+	s.entry = Entry{Cwd: s.req.Cwd, Landlock: !p.Hardening.NoLandlock, AgentWritable: agentWritable(s.deps, p)}
 	if s.entry.Landlock {
 		s.entry.Writable = s.writable(extra)
 	}
@@ -817,13 +817,18 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	return wrapped
 }
 
-func checkHelpers(deps Deps, p *profile.Profile) error {
+func agentWritable(deps Deps, p *profile.Profile) []string {
 	writable := []string{deps.Paths.AgentCache(p.Name)}
 	for _, m := range p.Mounts {
 		if m.Mode == profile.ModeWrite {
 			writable = append(writable, m.Path)
 		}
 	}
+	return writable
+}
+
+func checkHelpers(deps Deps, p *profile.Profile) error {
+	writable := agentWritable(deps, p)
 	helpers := []string{deps.Exe, deps.Bwrap, deps.Git, deps.JJ, deps.Unshare, deps.Nsenter, deps.Podman, deps.SystemdRun}
 	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
 		if cmd := p.Secrets[name].Command; len(cmd) > 0 {
@@ -833,21 +838,32 @@ func checkHelpers(deps Deps, p *profile.Profile) error {
 		}
 	}
 	for _, helper := range helpers {
-		if helper == "" {
-			continue
-		}
-		real, err := filepath.EvalSymlinks(helper)
-		if err != nil {
-			real = helper
-		}
-		for _, w := range writable {
-			if within(real, w) || within(helper, w) {
-				return fmt.Errorf("%s is inside %s, which the jail can write: install it elsewhere or take it out of PATH", helper, w)
-			}
+		if err := checkHelper(helper, writable); err != nil {
+			return err
 		}
 	}
 	return nil
 }
+
+func checkHelper(helper string, writable []string) error {
+	if helper == "" {
+		return nil
+	}
+	real, err := filepath.EvalSymlinks(helper)
+	if err != nil {
+		real = helper
+	}
+	for _, w := range writable {
+		if within(real, w) || within(helper, w) {
+			return fmt.Errorf("%s is inside %s, which the jail can write: install it elsewhere or take it out of PATH", helper, w)
+		}
+	}
+	return nil
+}
+
+// CheckHelper refuses a program on the host that the session's jail could
+// have replaced.
+func (e Entry) CheckHelper(helper string) error { return checkHelper(helper, e.AgentWritable) }
 
 func within(path, root string) bool {
 	rel, err := filepath.Rel(root, path)
@@ -870,6 +886,9 @@ type Entry struct {
 	Env      []string `json:"env"`
 	Landlock bool     `json:"landlock"`
 	Writable []string `json:"writable"`
+	// AgentWritable are the host paths the agent can write and that
+	// outlive the session: write mounts, grants and the profile's cache.
+	AgentWritable []string `json:"agent_writable,omitempty"`
 }
 
 func (s *Session) writeEntry(pid int, spec jail.Spec) {
@@ -881,12 +900,17 @@ func (s *Session) writeEntry(pid int, spec jail.Spec) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	e := s.entry
-	e.PID, e.UID, e.GID = pid, spec.UID, spec.GID
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entry.PID, s.entry.UID, s.entry.GID = pid, spec.UID, spec.GID
 	for _, k := range slices.Sorted(maps.Keys(spec.Env)) {
-		e.Env = append(e.Env, k+"="+spec.Env[k])
+		s.entry.Env = append(s.entry.Env, k+"="+spec.Env[k])
 	}
-	data, err := json.Marshal(e)
+	s.saveEntry()
+}
+
+func (s *Session) saveEntry() {
+	data, err := json.Marshal(s.entry)
 	if err == nil {
 		err = writeFile(filepath.Join(s.dir, EntryFile), data, 0o600)
 	}
