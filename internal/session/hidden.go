@@ -15,6 +15,9 @@ import (
 
 func (s *Session) holdControlPaths() error {
 	for _, h := range jail.Placeholders(s.req.Profile, osHost{}) {
+		if err := jail.CheckLinks(s.req.Profile, osHost{}, h.Path); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {
 			return fmt.Errorf("hold %s: %w", h.Path, err)
 		}
@@ -57,6 +60,9 @@ func (s *Session) holdHiddenPaths() error {
 			return w.Mode == profile.ModeWrite && within(m.Path, w.Path) && m.Path != w.Path
 		}) {
 			continue
+		}
+		if err := jail.CheckLinks(p, osHost{}, m.Path); err != nil {
+			return err
 		}
 		var created []string
 		for dir := filepath.Dir(m.Path); ; dir = filepath.Dir(dir) {

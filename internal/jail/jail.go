@@ -55,6 +55,8 @@ type Host interface {
 	Kind(path string) string
 	// Entries lists the names in a directory, or nothing if it cannot.
 	Entries(dir string) []string
+	// Link reports whether the path itself is a symlink.
+	Link(path string) bool
 }
 
 type Bind struct {
@@ -190,6 +192,13 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	if err := errors.Join(errs...); err != nil {
 		return Spec{}, err
 	}
+	sources := make([]string, len(binds))
+	for i, b := range binds {
+		sources[i] = b.Source
+	}
+	if err := checkLinks(sources, writableSources(binds), host); err != nil {
+		return Spec{}, err
+	}
 	mountParentsBeforeChildren(binds)
 	s.Binds = binds
 
@@ -323,7 +332,7 @@ func Repositories(root string, host Host) []string {
 			if skipWalk[name] {
 				continue
 			}
-			if sub := filepath.Join(dir, name); host.Kind(sub) == "dir" {
+			if sub := filepath.Join(dir, name); host.Kind(sub) == "dir" && !host.Link(sub) {
 				walk(sub, depth+1)
 			}
 		}
@@ -488,6 +497,44 @@ func (g *guards) packs(gitDir string) {
 			g.binds = append(g.binds, Bind{Source: p, Dest: p, ReadOnly: true})
 		}
 	}
+}
+
+// CheckLinks refuses paths that girdle creates or binds before the session
+// when they lead through a symlink in a directory the jail can write.
+func CheckLinks(p *profile.Profile, host Host, paths ...string) error {
+	binds, _, _ := mountBinds(p, Layout{}, host)
+	return checkLinks(paths, writableSources(binds), host)
+}
+
+func checkLinks(paths, roots []string, host Host) error {
+	for _, path := range paths {
+		for p := path; p != "/" && p != "."; p = filepath.Dir(p) {
+			if !host.Link(p) {
+				continue
+			}
+			for _, root := range roots {
+				if p != root && within(p, root) {
+					return fmt.Errorf("%s goes through the symlink %s, inside %s, which the jail can write: remove the link, or mount the directory it points to", path, p, root)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func writableSources(binds []Bind) []string {
+	var out []string
+	for _, b := range binds {
+		if !b.ReadOnly && !b.Device {
+			out = append(out, b.Source)
+		}
+	}
+	return out
+}
+
+func within(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
 func checkCwd(cwd string, binds []Bind) error {

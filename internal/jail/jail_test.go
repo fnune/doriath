@@ -10,7 +10,14 @@ import (
 
 type fakeHost map[string]string
 
-func (h fakeHost) Kind(p string) string { return h[p] }
+func (h fakeHost) Kind(p string) string {
+	if h[p] == "link" {
+		return "dir"
+	}
+	return h[p]
+}
+
+func (h fakeHost) Link(p string) bool { return h[p] == "link" }
 
 func (h fakeHost) Entries(dir string) []string {
 	var out []string
@@ -427,5 +434,44 @@ func TestHiddenPathsShowNothing(t *testing.T) {
 		if b.Dest == "/home/u/Development/project" && i > seen["/home/u/Development/project/secrets"] {
 			t.Error("the hiding mount must come after the mount it hides in")
 		}
+	}
+}
+
+func TestLinksInWritableMountsAreRefused(t *testing.T) {
+	repo := "/home/u/Development/project"
+	for name, h := range map[string]fakeHost{
+		"a mount under a linked directory": {repo + "/.claude": "link", repo + "/.claude/worktrees": "dir"},
+		"a guard under a linked directory": {repo + "/.git": "dir", repo + "/.git/config": "file", repo + "/.git/hooks": "link"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			base := host()
+			for k, v := range h {
+				base[k] = v
+			}
+			p := testProfile()
+			p.Mounts = append(p.Mounts, profile.Mount{Path: repo + "/.claude/worktrees", Mode: profile.ModeWrite, Optional: true})
+			_, err := Plan(p, layout(), opts(), held(p, base))
+			if err == nil || !strings.Contains(err.Error(), "goes through the symlink") {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestLinksOutsideWritableMountsAreBound(t *testing.T) {
+	h := host()
+	h["/home/u/.nix-profile"] = "link"
+	if _, err := Plan(testProfile(), layout(), opts(), h); err != nil {
+		t.Fatalf("a link the agent could not have made must still mount: %v", err)
+	}
+}
+
+func TestRepositoriesSkipLinkedDirectories(t *testing.T) {
+	h := host()
+	root := "/home/u/Development/project"
+	h[root+"/other"] = "link"
+	h[root+"/other/.git"] = "dir"
+	if got := Repositories(root, h); slices.Contains(got, root+"/other") {
+		t.Fatalf("repositories = %v", got)
 	}
 }

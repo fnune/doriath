@@ -236,6 +236,9 @@ func (s *Session) prepare(ctx context.Context) error {
 
 	for _, m := range p.Mounts {
 		if m.Create {
+			if err := jail.CheckLinks(p, osHost{}, m.Path); err != nil {
+				return err
+			}
 			if err := os.MkdirAll(m.Path, 0o755); err != nil {
 				return fmt.Errorf("create %s: %w", m.Path, err)
 			}
@@ -696,6 +699,11 @@ func (osHost) Entries(dir string) []string {
 		names[i] = e.Name()
 	}
 	return names
+}
+
+func (osHost) Link(p string) bool {
+	info, err := os.Lstat(p)
+	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
 func (osHost) Kind(p string) string {

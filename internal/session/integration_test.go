@@ -222,6 +222,15 @@ summary = "Create a GitHub release"
 
 func (e *env) run(p *profile.Profile, script string, while func()) (int, string) {
 	e.t.Helper()
+	code, out, err := e.start(p, script, while)
+	if err != nil {
+		e.t.Fatalf("session: %v\n%s", err, out)
+	}
+	return code, out
+}
+
+func (e *env) start(p *profile.Profile, script string, while func()) (int, string, error) {
+	e.t.Helper()
 	scriptPath := filepath.Join(e.work, "script.sh")
 	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"+script), 0o700); err != nil {
 		e.t.Fatal(err)
@@ -284,10 +293,7 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 	}
 	code, err := s.Run(context.Background())
 	<-done
-	if err != nil {
-		e.t.Fatalf("session: %v\n%s", err, out.String())
-	}
-	return code, out.String()
+	return code, out.String(), err
 }
 
 func testPath() string {
