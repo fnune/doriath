@@ -29,7 +29,6 @@ const (
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
-	actionOpen         = "open"
 )
 
 // Actions are the buttons, as key and label pairs in the order the
@@ -41,11 +40,7 @@ func Actions(req approval.Request) []string {
 	case approval.KindPath:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	}
-	a := []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
-	if safeURL(req.URL) {
-		a = append(a, actionOpen, "Open link")
-	}
-	return a
+	return []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"} // nothing opens req.URL: the agent wrote it
 }
 
 func safeURL(raw string) bool {
@@ -53,8 +48,7 @@ func safeURL(raw string) bool {
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
 }
 
-// DecisionFor maps a pressed button to a decision. Opening the link is not a
-// decision.
+// DecisionFor maps a pressed button to a decision.
 func DecisionFor(action string) (approval.Decision, bool) {
 	switch action {
 	case actionAllowOnce:
@@ -93,14 +87,9 @@ func Body(req approval.Request, now time.Time) string {
 	return b.String()
 }
 
-type Opener interface {
-	Open(url string) error
-}
-
 type Desktop struct {
-	conn   *dbus.Conn
-	opener Opener
-	now    func() time.Time
+	conn *dbus.Conn
+	now  func() time.Time
 
 	owner string
 
@@ -108,12 +97,12 @@ type Desktop struct {
 	handlers map[uint32]func(action string)
 }
 
-func NewDesktop(opener Opener, now func() time.Time) (*Desktop, error) {
+func NewDesktop(now func() time.Time) (*Desktop, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return nil, fmt.Errorf("connect to the session bus: %w", err)
 	}
-	d := &Desktop{conn: conn, opener: opener, now: now, handlers: map[uint32]func(string){}}
+	d := &Desktop{conn: conn, now: now, handlers: map[uint32]func(string){}}
 	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
 		if err := conn.AddMatchSignal(dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(objPath), dbus.WithMatchInterface(iface), dbus.WithMatchMember(member)); err != nil {
 			_ = conn.Close()
@@ -190,10 +179,6 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}
 	d.mu.Lock()
 	d.handlers[id] = func(action string) {
-		if action == actionOpen && safeURL(req.URL) {
-			_ = d.opener.Open(req.URL)
-			return
-		}
 		if dec, ok := DecisionFor(action); ok {
 			respond(dec)
 		}

@@ -548,7 +548,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 		}
 	}
 
-	if desktop, err := notify.NewDesktop(opener{}, time.Now); err != nil {
+	if desktop, err := notify.NewDesktop(time.Now); err != nil {
 		note("desktop notifications", "unavailable; approvals work through girdle approvals only")
 	} else {
 		caps, err := desktop.Capabilities()

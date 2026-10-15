@@ -140,28 +140,9 @@ func startServer(t *testing.T, address string) *fakeServer {
 	return s
 }
 
-type recordingOpener struct {
-	mu     sync.Mutex
-	opened []string
-}
-
-func (o *recordingOpener) Open(url string) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.opened = append(o.opened, url)
-	return nil
-}
-
-func (o *recordingOpener) urls() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return slices.Clone(o.opened)
-}
-
 type desktopEnv struct {
 	server  *fakeServer
 	desktop *Desktop
-	opener  *recordingOpener
 	address string
 }
 
@@ -170,14 +151,13 @@ func newDesktopEnv(t *testing.T) *desktopEnv {
 	address := privateBus(t)
 	server := startServer(t, address)
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", address)
-	opener := &recordingOpener{}
 	now := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
-	d, err := NewDesktop(opener, func() time.Time { return now })
+	d, err := NewDesktop(func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	return &desktopEnv{server: server, desktop: d, opener: opener, address: address}
+	return &desktopEnv{server: server, desktop: d, address: address}
 }
 
 func (e *desktopEnv) notify(t *testing.T, req approval.Request) (uint32, <-chan approval.Decision, func()) {
@@ -305,32 +285,19 @@ func TestDesktopIgnoresOtherSenders(t *testing.T) {
 	expectNoDecision(t, decisions)
 }
 
-func TestDesktopOpenLink(t *testing.T) {
+func TestDesktopShowsLinksWithoutOpeningThem(t *testing.T) {
 	e := newDesktopEnv(t)
 	withLink := request
 	withLink.URL = "https://github.com/fnune/app/pull/1"
-	id, decisions, _ := e.notify(t, withLink)
-	if got := e.server.last(t); !slices.Contains(got.actions, "open") || !strings.Contains(got.body, "Link: "+withLink.URL) {
-		t.Errorf("a https link gets a button: %v %q", got.actions, got.body)
+	_, _, _ = e.notify(t, withLink)
+	if got := e.server.last(t); slices.Contains(got.actions, "open") || !strings.Contains(got.body, "Link: "+withLink.URL) {
+		t.Errorf("a https link shows in the body, without a button: %v %q", got.actions, got.body)
 	}
-	e.server.invoke(t, id, "open")
-	e.server.invoke(t, id, "allow-once")
-	expectDecision(t, decisions, approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "desktop"})
-	if got := e.opener.urls(); !slices.Equal(got, []string{withLink.URL}) {
-		t.Errorf("opened %v", got)
-	}
-
 	unsafe := request
 	unsafe.URL = "file:///etc/passwd"
-	id, decisions, _ = e.notify(t, unsafe)
-	if got := e.server.last(t); slices.Contains(got.actions, "open") || strings.Contains(got.body, "Link:") {
-		t.Errorf("a file link gets no button: %v %q", got.actions, got.body)
-	}
-	e.server.invoke(t, id, "open")
-	e.server.invoke(t, id, "deny")
-	expectDecision(t, decisions, approval.Decision{Verdict: approval.VerdictDeny, By: "desktop"})
-	if got := e.opener.urls(); len(got) != 1 {
-		t.Errorf("opened %v", got)
+	_, _, _ = e.notify(t, unsafe)
+	if got := e.server.last(t); strings.Contains(got.body, "Link:") {
+		t.Errorf("a file link does not show: %q", got.body)
 	}
 }
 

@@ -202,7 +202,7 @@ func cmdRun(args []string) (int, error) {
 	var notifier approval.Notifier = notify.None{}
 	var informer session.Informer = notify.None{}
 	if user.Approvals.Desktop {
-		desktop, err := notify.NewDesktop(opener{}, time.Now)
+		desktop, err := notify.NewDesktop(time.Now)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "girdle: desktop notifications are off (%v); use girdle approvals\n", err)
 		} else {

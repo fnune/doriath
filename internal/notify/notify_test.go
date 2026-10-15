@@ -38,13 +38,13 @@ func TestActionsAndBody(t *testing.T) {
 		t.Errorf("actions = %v", a)
 	}
 	req.URL = "https://example.com"
-	if a := Actions(req); len(a) != 8 || a[6] != "open" {
-		t.Errorf("actions with URL = %v", a)
+	if a := Actions(req); len(a) != 6 {
+		t.Errorf("a link the agent wrote must not get a button: %v", a)
 	}
 	for _, bad := range []string{"file:///etc/passwd", "javascript:alert(1)", "x-scheme:foo", "https:///nohost"} {
 		req.URL = bad
 		if a := Actions(req); len(a) != 6 {
-			t.Errorf("%s must not get an open button", bad)
+			t.Errorf("%s must not get a button", bad)
 		}
 	}
 	req.URL = "https://example.com"
@@ -71,7 +71,7 @@ func TestDesktop(t *testing.T) {
 	if os.Getenv("GIRDLE_TEST_DESKTOP") == "" {
 		t.Skip("set GIRDLE_TEST_DESKTOP=1 to show a real notification")
 	}
-	d, err := NewDesktop(nil, time.Now)
+	d, err := NewDesktop(time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
