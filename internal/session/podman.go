@@ -302,7 +302,7 @@ func (s *Session) startContainerBroker(raw string) error {
 		Session:     s.id,
 		Profile:     p.Name,
 		ApprovalTTL: approvalTTL,
-		Resolver:    symlinks{},
+		Resolver:    s.jailPaths(),
 		Pins:        imagepins.NewFile(s.deps.Paths.ImagePins(p.Name)),
 	})
 	l, err := s.listen(PodmanSocket)
@@ -314,6 +314,41 @@ func (s *Session) startContainerBroker(raw string) error {
 	return nil
 }
 
-type symlinks struct{}
+// The agent's links in a cache are in its backing directory, not at the path.
+type jailPaths struct {
+	caches map[string]string
+}
 
-func (symlinks) EvalSymlinks(p string) (string, error) { return filepath.EvalSymlinks(p) }
+func (s *Session) jailPaths() jailPaths {
+	j := jailPaths{caches: map[string]string{}}
+	for _, c := range s.req.Profile.Caches {
+		j.caches[c.Path] = jail.CacheSource(s.cacheRoot(), c.Path, s.deps.Paths.Home)
+	}
+	return j
+}
+
+func (j jailPaths) EvalSymlinks(p string) (string, error) {
+	r, err := filepath.EvalSymlinks(translate(p, j.caches))
+	if err != nil {
+		return "", err
+	}
+	back := make(map[string]string, len(j.caches))
+	for inJail, backing := range j.caches {
+		back[backing] = inJail
+	}
+	return translate(r, back), nil
+}
+
+func translate(p string, roots map[string]string) string {
+	best := ""
+	for root := range roots {
+		if within(p, root) && len(root) > len(best) {
+			best = root
+		}
+	}
+	if best == "" {
+		return p
+	}
+	rel, _ := filepath.Rel(best, p)
+	return filepath.Join(roots[best], rel)
+}
