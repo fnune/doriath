@@ -823,7 +823,15 @@ func checkHelpers(deps Deps, p *profile.Profile) error {
 			writable = append(writable, m.Path)
 		}
 	}
-	for _, helper := range []string{deps.Exe, deps.Bwrap, deps.Git, deps.Unshare, deps.Nsenter, deps.Podman, deps.SystemdRun} {
+	helpers := []string{deps.Exe, deps.Bwrap, deps.Git, deps.JJ, deps.Unshare, deps.Nsenter, deps.Podman, deps.SystemdRun}
+	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
+		if cmd := p.Secrets[name].Command; len(cmd) > 0 {
+			if path, err := exec.LookPath(cmd[0]); err == nil {
+				helpers = append(helpers, path)
+			}
+		}
+	}
+	for _, helper := range helpers {
 		if helper == "" {
 			continue
 		}
