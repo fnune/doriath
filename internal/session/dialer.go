@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/fnune/girdle/internal/profile"
@@ -79,21 +80,39 @@ func (g *guardDialer) refuse(host string, a netip.Addr) string {
 		return "a link-local address, where cloud metadata services live"
 	case a.IsMulticast() || a.IsUnspecified() || a.IsInterfaceLocalMulticast():
 		return "not a unicast address"
-	case a.IsPrivate() && !g.exact[host]:
+	case private(a) && !g.exact[host]:
 		return "a private address; name the host exactly in the profile to allow it"
 	}
 	return ""
 }
 
-// nat64 is the well-known NAT64 prefix. A gateway translates its addresses
-// to the IPv4 address in the last 32 bits, so they are judged by that one.
-var nat64 = netip.MustParsePrefix("64:ff9b::/96")
+var nonPublic = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	// Not 198.18.0.0/15: fake-IP DNS proxies answer with it.
+}
+
+func private(a netip.Addr) bool {
+	return a.IsPrivate() || slices.ContainsFunc(nonPublic, func(p netip.Prefix) bool { return p.Contains(a) })
+}
+
+var (
+	nat64  = netip.MustParsePrefix("64:ff9b::/96")
+	sixTo4 = netip.MustParsePrefix("2002::/16")
+	teredo = netip.MustParsePrefix("2001::/32")
+)
 
 func translatedIPv4(a netip.Addr) netip.Addr {
 	a = a.Unmap()
-	if !nat64.Contains(a) {
-		return a
-	}
 	b := a.As16()
-	return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]})
+	switch {
+	case nat64.Contains(a):
+		return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]})
+	case sixTo4.Contains(a):
+		return netip.AddrFrom4([4]byte{b[2], b[3], b[4], b[5]})
+	case teredo.Contains(a):
+		return netip.AddrFrom4([4]byte{^b[12], ^b[13], ^b[14], ^b[15]})
+	}
+	return a
 }

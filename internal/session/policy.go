@@ -131,7 +131,7 @@ func keepHint(profile string, hosts []string) string {
 
 func publicAddr(ip netip.Addr) bool {
 	ip = translatedIPv4(ip)
-	return ip.IsGlobalUnicast() && !ip.IsPrivate()
+	return ip.IsGlobalUnicast() && !private(ip)
 }
 
 // openUploadHosts accept data from anyone: object storage, paste and file
