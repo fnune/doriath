@@ -475,3 +475,24 @@ func TestRepositoriesSkipLinkedDirectories(t *testing.T) {
 		t.Fatalf("repositories = %v", got)
 	}
 }
+
+func TestHomeOutsideHiddenRootsIsHidden(t *testing.T) {
+	p := testProfile()
+	p.Mounts = []profile.Mount{{Path: "/data/home/u/work", Mode: profile.ModeWrite}}
+	p.Caches = nil
+	h := host()
+	h["/data/home/u"] = "dir"
+	h["/data/home/u/work"] = "dir"
+	o := opts()
+	o.Home, o.Cwd = "/data/home/u", "/data/home/u/work"
+	s, err := Plan(p, layout(), o, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(s.Tmpfs, "/data/home/u") {
+		t.Fatalf("tmpfs = %v", s.Tmpfs)
+	}
+	if s, _ := Plan(testProfile(), layout(), opts(), host()); slices.Contains(s.Tmpfs, "/home/u") {
+		t.Error("a home under /home is hidden with it")
+	}
+}

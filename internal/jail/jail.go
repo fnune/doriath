@@ -152,6 +152,10 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 			s.Tmpfs = append(s.Tmpfs, root)
 		}
 	}
+	homeShowsThrough := !slices.ContainsFunc(s.Tmpfs, func(root string) bool { return within(opts.Home, root) })
+	if homeShowsThrough && host.Kind(opts.Home) == "dir" {
+		s.Tmpfs = append(s.Tmpfs, opts.Home)
+	}
 	for link, target := range varLinks {
 		if host.Kind("/var") == "dir" {
 			if s.Symlinks == nil {
