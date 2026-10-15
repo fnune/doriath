@@ -484,9 +484,10 @@ func (r Rule) matchHeader(header http.Header) bool {
 	if r.Header == "" {
 		return true
 	}
-	v := header.Get(r.Header)
-	if r.HeaderPrefix == "" {
-		return v != ""
+	for _, v := range header.Values(r.Header) { // the upstream may honor any of them
+		if r.HeaderPrefix == "" && v != "" || r.HeaderPrefix != "" && len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix) {
+			return true
+		}
 	}
-	return len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix)
+	return false
 }

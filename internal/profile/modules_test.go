@@ -28,11 +28,12 @@ func TestClaudeRefusesAPIKeysInEitherHeader(t *testing.T) {
 		header http.Header
 		want   profile.Action
 	}{
-		"login":          {http.Header{"Authorization": {"Bearer sk-ant-oat01-abc"}}, profile.ActionAllow},
-		"x-api-key":      {http.Header{"X-Api-Key": {"sk-ant-api03-abc"}}, profile.ActionDeny},
-		"bearer api key": {http.Header{"Authorization": {"Bearer sk-ant-api03-abc"}}, profile.ActionDeny},
-		"lowercase":      {http.Header{"Authorization": {"bearer SK-ANT-API03-abc"}}, profile.ActionDeny},
-		"admin key":      {http.Header{"Authorization": {"Bearer sk-ant-admin01-abc"}}, profile.ActionDeny},
+		"login":           {http.Header{"Authorization": {"Bearer sk-ant-oat01-abc"}}, profile.ActionAllow},
+		"x-api-key":       {http.Header{"X-Api-Key": {"sk-ant-api03-abc"}}, profile.ActionDeny},
+		"bearer api key":  {http.Header{"Authorization": {"Bearer sk-ant-api03-abc"}}, profile.ActionDeny},
+		"lowercase":       {http.Header{"Authorization": {"bearer SK-ANT-API03-abc"}}, profile.ActionDeny},
+		"admin key":       {http.Header{"Authorization": {"Bearer sk-ant-admin01-abc"}}, profile.ActionDeny},
+		"key after login": {http.Header{"Authorization": {"Bearer sk-ant-oat01-abc", "Bearer sk-ant-api03-abc"}}, profile.ActionDeny},
 	} {
 		if r, _ := h.DecideRequest("POST", "/v1/messages", tc.header, nil); r.Action != tc.want {
 			t.Errorf("%s: %s, want %s", name, r.Action, tc.want)
