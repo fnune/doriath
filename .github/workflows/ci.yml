@@ -23,10 +23,6 @@ jobs:
       - name: Integration tests
         run: nix develop --command just test-integration
       - name: Vulnerabilities
-        # GO-2026-6617 (HTTP/2 server) is fixed in Go 1.26.9, which nixpkgs
-        # does not ship yet. girdle serves HTTP/1.1 only. Make this blocking
-        # again once the flake's Go is 1.26.9 or later.
-        continue-on-error: true
         run: nix develop --command just vuln
       - name: Package
         run: nix build .#default
