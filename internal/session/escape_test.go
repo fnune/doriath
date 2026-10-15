@@ -127,6 +127,12 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 					t.Fatalf("git %v: %v\n%s", args, err, out)
 				}
 			}
+			missingInJJRepositories := []string{"hooks", "info"}
+			for _, d := range missingInJJRepositories {
+				if err := os.RemoveAll(filepath.Join(repo, ".git", d)); err != nil {
+					t.Fatal(err)
+				}
+			}
 			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
 			replacements = append(replacements, "{{LIVE_REPO}}", repo)
 		case "host-listener":

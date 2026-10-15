@@ -22,6 +22,16 @@ func (h fakeHost) Entries(dir string) []string {
 	return out
 }
 
+func held(p *profile.Profile, h fakeHost) fakeHost {
+	for _, m := range Placeholders(p, h) {
+		h[m.Path] = "file"
+		if m.Dir {
+			h[m.Path] = "dir"
+		}
+	}
+	return h
+}
+
 func testProfile() *profile.Profile {
 	return &profile.Profile{
 		Name: "project",
@@ -186,17 +196,64 @@ func TestGitGuards(t *testing.T) {
 	h["/home/u/Development/project/.git"] = "dir"
 	h["/home/u/Development/project/.git/config"] = "file"
 	h["/home/u/Development/project/.git/hooks"] = "dir"
-	s, err := Plan(testProfile(), layout(), opts(), h)
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"/home/u/Development/project/.git/config", "/home/u/Development/project/.git/hooks"} {
+	for _, p := range []string{"/home/u/Development/project/.git/config", "/home/u/Development/project/.git/hooks", "/home/u/Development/project/.git/info"} {
 		if mode(s.Binds, p) != "read" {
 			t.Errorf("%s must be bound read-only", p)
 		}
 	}
-	if slices.ContainsFunc(s.Binds, func(b Bind) bool { return b.Dest == "/home/u/Development/project/.git/info" }) {
-		t.Error("missing entries must not be bound")
+}
+
+func TestMissingControlPathsAreHeld(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.git"] = "dir"
+	h[repo+"/.git/config"] = "file"
+	h[repo+"/.git/worktrees"] = "dir"
+	h[repo+"/.git/worktrees/wt"] = "dir"
+	h[repo+"/.jj"] = "dir"
+	h[repo+"/.jj/repo"] = "dir"
+	h[repo+"/.jj/repo/store/git_target"] = "file"
+	if _, err := Plan(testProfile(), layout(), opts(), h); err == nil || !strings.Contains(err.Error(), repo+"/.git/hooks is missing") {
+		t.Fatalf("a missing control path must stop the session: %v", err)
+	}
+	got := map[string]Placeholder{}
+	for _, m := range Placeholders(testProfile(), h) {
+		got[strings.TrimPrefix(m.Path, repo+"/")] = m
+	}
+	want := map[string]Placeholder{
+		".git/hooks":                        {Dir: true},
+		".git/info":                         {Dir: true},
+		".git/config.worktree":              {},
+		".git/commondir":                    {Content: ".\n"},
+		".git/objects/info/alternates":      {},
+		".git/worktrees/wt/config.worktree": {},
+		".jj/repo/config.toml":              {},
+	}
+	for rel, w := range want {
+		if g, ok := got[rel]; !ok || g.Dir != w.Dir || g.Content != w.Content {
+			t.Errorf("%s: %+v, want %+v", rel, g, w)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("placeholders = %v", got)
+	}
+}
+
+func TestSecondaryWorkspacePointerIsReadOnly(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.jj"] = "dir"
+	h[repo+"/.jj/repo"] = "file"
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode(s.Binds, repo+"/.jj/repo") != "read" {
+		t.Fatal("a workspace's .jj/repo pointer must be read-only, or the agent could point jj at a config it writes")
 	}
 }
 
@@ -209,8 +266,7 @@ func TestGitGuardsOnGitDirMount(t *testing.T) {
 		{Path: "/home/u/Development/project", Mode: profile.ModeRead},
 		{Path: "/home/u/Development/project/.git", Mode: profile.ModeWrite},
 	}
-	o := opts()
-	s, err := Plan(p, layout(), o, h)
+	s, err := Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +311,7 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 	} {
 		h[p] = k
 	}
-	s, err := Plan(testProfile(), layout(), opts(), h)
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,15 +336,16 @@ func TestNestedRepositoriesAreGuarded(t *testing.T) {
 	nested := "/home/u/Development/project/vendor-not/inner"
 	for p, k := range map[string]string{
 		"/home/u/Development/project/vendor-not": "dir",
-		nested:                             "dir",
-		nested + "/.git":                   "dir",
-		nested + "/.git/config":            "file",
-		"/home/u/Development/project/.jj": "dir",
+		nested:                                  "dir",
+		nested + "/.git":                        "dir",
+		nested + "/.git/config":                 "file",
+		"/home/u/Development/project/.jj":      "dir",
+		"/home/u/Development/project/.jj/repo": "dir",
 		"/home/u/Development/project/.jj/repo/config.toml": "file",
 	} {
 		h[p] = k
 	}
-	s, err := Plan(testProfile(), layout(), opts(), h)
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -70,7 +70,7 @@ func TestRepositoryAfterASkippedDirectoryIsGuarded(t *testing.T) {
 	} {
 		h[p] = k
 	}
-	s, err := Plan(testProfile(), layout(), opts(), sortedHost{h})
+	s, err := Plan(testProfile(), layout(), opts(), sortedHost{held(testProfile(), h)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,9 +95,10 @@ func TestSubmoduleStoresWithSlashedNamesAreCovered(t *testing.T) {
 		foo + "/objects/pack":        "dir",
 		foo + "/objects/pack/p.pack": "file",
 	}
-	binds := storeBinds(git, h)
-	binds = append(binds, gitDirGuards(git, git, h, 0)...)
-	expectModes(t, binds, map[string]string{
+	g := &guards{host: h}
+	g.store(git)
+	g.gitDir(git, git, 0)
+	expectModes(t, g.binds, map[string]string{
 		foo + "/objects":             "write",
 		foo + "/objects/pack/p.pack": "read",
 		foo + "/config":              "read",

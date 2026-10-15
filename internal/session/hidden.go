@@ -7,9 +7,37 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"syscall"
 
+	"github.com/fnune/girdle/internal/jail"
 	"github.com/fnune/girdle/internal/profile"
 )
+
+func (s *Session) holdControlPaths() error {
+	for _, h := range jail.Placeholders(s.req.Profile, osHost{}) {
+		if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {
+			return fmt.Errorf("hold %s: %w", h.Path, err)
+		}
+		if h.Dir {
+			if err := os.Mkdir(h.Path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return fmt.Errorf("hold %s: %w", h.Path, err)
+			}
+			continue
+		}
+		f, err := os.OpenFile(h.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
+		if err != nil {
+			return fmt.Errorf("hold %s: %w", h.Path, err)
+		}
+		_, err = f.WriteString(h.Content)
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return fmt.Errorf("hold %s: %w", h.Path, err)
+		}
+	}
+	return nil
+}
 
 // holdHiddenPaths gives each missing hidden path inside a writable mount an
 // empty placeholder for the session, which the jail then hides, so that the

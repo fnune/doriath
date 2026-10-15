@@ -244,6 +244,9 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.holdHiddenPaths(); err != nil {
 		return err
 	}
+	if err := s.holdControlPaths(); err != nil {
+		return err
+	}
 	if err := s.startRepositories(ctx); err != nil {
 		return err
 	}

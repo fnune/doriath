@@ -21,6 +21,12 @@ func mode(binds []Bind, dest string) string {
 	return "write"
 }
 
+func storeBinds(repo string, h Host) []Bind {
+	g := &guards{host: h}
+	g.store(repo)
+	return g.binds
+}
+
 func expectModes(t *testing.T, binds []Bind, want map[string]string) {
 	t.Helper()
 	for _, p := range slices.Sorted(maps.Keys(want)) {
@@ -127,7 +133,7 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 	}
 	p := testProfile()
 	p.Mounts = append(p.Mounts, profile.Mount{Path: "/home/u/repo", Mode: profile.ModeRead})
-	s, err := Plan(p, layout(), opts(), h)
+	s, err := Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +141,7 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 		t.Errorf("without the vcs module the store stays read-only: %s", got)
 	}
 	p.VCSStore = true
-	s, err = Plan(p, layout(), opts(), h)
+	s, err = Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +163,7 @@ func TestWritableRepositoriesKeepTheirControlFilesReadOnly(t *testing.T) {
 	h[repo+"/.jj/repo/store/git/hooks"] = "dir"
 	p := testProfile()
 	p.Mounts = append(p.Mounts, profile.Mount{Path: repo, Mode: profile.ModeWrite})
-	s, err := Plan(p, layout(), opts(), h)
+	s, err := Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}

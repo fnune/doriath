@@ -164,38 +164,9 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	runtime := filepath.Join("/run/user", strconv.Itoa(opts.UID))
 	s.Dirs = append(s.Dirs, opts.Home, runtime)
 
-	var errs []error
-	var binds []Bind
-	for _, m := range p.Mounts {
-		kind := host.Kind(m.Path)
-		if kind == "" {
-			if m.Optional || m.Mode == profile.ModeHide {
-				continue
-			}
-			errs = append(errs, fmt.Errorf("mount %s does not exist: create it or mark it optional", m.Path))
-			continue
-		}
-		switch m.Mode {
-		case profile.ModeHide:
-			source := layout.EmptyDir()
-			if kind != "dir" {
-				source = "/dev/null"
-			}
-			binds = append(binds, Bind{Source: source, Dest: m.Path, ReadOnly: true})
-		case profile.ModeWrite:
-			binds = append(binds, Bind{Source: m.Path, Dest: m.Path})
-			for _, repo := range Repositories(m.Path, host) {
-				binds = append(binds, gitGuards(repo, repo, host)...)
-				binds = append(binds, jjGuards(repo, host)...)
-			}
-		default:
-			binds = append(binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: true})
-			if p.VCSStore {
-				for _, repo := range Repositories(m.Path, host) {
-					binds = append(binds, storeBinds(repo, host)...)
-				}
-			}
-		}
+	binds, missing, errs := mountBinds(p, layout, host)
+	for _, m := range missing {
+		errs = append(errs, fmt.Errorf("%s is missing: girdle creates it before the session so that the agent cannot", m.Path))
 	}
 	for _, c := range p.Caches {
 		binds = append(binds, Bind{Source: CacheSource(layout.CacheRoot, c.Path, opts.Home), Dest: c.Path})
@@ -246,18 +217,94 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	return s, nil
 }
 
-func gitGuards(src, dest string, host Host) []Bind {
+// Placeholder is a control path of git or jj that is missing in a store the
+// jail can write. girdle creates it before the session and the jail binds it
+// read-only, because the agent could otherwise create it, and git or jj on
+// the host would run what it names.
+type Placeholder struct {
+	Path string
+	Dir  bool
+	// Content is what a file holds. An empty file is a valid config or
+	// alternates file, but git refuses an empty commondir.
+	Content string
+}
+
+// Placeholders lists the control paths that girdle creates before the
+// session.
+func Placeholders(p *profile.Profile, host Host) []Placeholder {
+	_, missing, _ := mountBinds(p, Layout{}, host)
+	return missing
+}
+
+func mountBinds(p *profile.Profile, layout Layout, host Host) ([]Bind, []Placeholder, []error) {
+	var errs []error
+	g := &guards{host: host}
+	for _, m := range p.Mounts {
+		kind := host.Kind(m.Path)
+		if kind == "" {
+			if m.Optional || m.Mode == profile.ModeHide {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("mount %s does not exist: create it or mark it optional", m.Path))
+			continue
+		}
+		switch m.Mode {
+		case profile.ModeHide:
+			source := layout.EmptyDir()
+			if kind != "dir" {
+				source = "/dev/null"
+			}
+			g.binds = append(g.binds, Bind{Source: source, Dest: m.Path, ReadOnly: true})
+		case profile.ModeWrite:
+			g.binds = append(g.binds, Bind{Source: m.Path, Dest: m.Path})
+			for _, repo := range Repositories(m.Path, host) {
+				g.git(repo, repo)
+				g.jj(repo)
+			}
+		default:
+			g.binds = append(g.binds, Bind{Source: m.Path, Dest: m.Path, ReadOnly: true})
+			if p.VCSStore {
+				for _, repo := range Repositories(m.Path, host) {
+					g.store(repo)
+				}
+			}
+		}
+	}
+	return g.binds, g.missing, errs
+}
+
+type guards struct {
+	host    Host
+	binds   []Bind
+	missing []Placeholder
+}
+
+func (g *guards) guard(src, dest string, hold *Placeholder) {
+	switch {
+	case g.host.Kind(src) != "":
+		g.binds = append(g.binds, Bind{Source: src, Dest: dest, ReadOnly: true})
+	case hold != nil:
+		g.missing = append(g.missing, Placeholder{Path: src, Dir: hold.Dir, Content: hold.Content})
+	}
+}
+
+func (g *guards) writable(path string) {
+	if g.host.Kind(path) == "dir" {
+		g.binds = append(g.binds, Bind{Source: path, Dest: path})
+	}
+}
+
+func (g *guards) git(src, dest string) {
 	srcGit, destGit := filepath.Join(src, ".git"), filepath.Join(dest, ".git")
 	if filepath.Base(src) == ".git" {
 		srcGit, destGit = src, dest
 	}
-	switch host.Kind(srcGit) {
+	switch g.host.Kind(srcGit) {
 	case "file":
-		return []Bind{{Source: srcGit, Dest: destGit, ReadOnly: true}}
+		g.guard(srcGit, destGit, nil)
 	case "dir":
-		return gitDirGuards(srcGit, destGit, host, 0)
+		g.gitDir(srcGit, destGit, 0)
 	}
-	return nil
 }
 
 // Repositories lists the git and jj repositories at or below root, a few levels
@@ -290,40 +337,47 @@ const repositoryDepth = 3
 var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
 
 // jjControlFiles decide what jj runs or which git store it uses.
-var jjControlFiles = []string{"config.toml", "store/git_target", "store/type"}
+var jjControlFiles = map[string]*Placeholder{"config.toml": {}, "store/git_target": nil, "store/type": nil}
 
-func jjGuards(repo string, host Host) []Bind {
-	var binds []Bind
-	for _, name := range jjControlFiles {
-		if p := filepath.Join(repo, ".jj", "repo", name); host.Kind(p) != "" {
-			binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
-		}
+func (g *guards) jj(repo string) {
+	jjRepo := filepath.Join(repo, ".jj", "repo")
+	switch g.host.Kind(jjRepo) {
+	case "file":
+		workspacePointer := jjRepo
+		g.guard(workspacePointer, workspacePointer, nil)
+		return
+	case "dir":
+	default:
+		return
 	}
-	if g := filepath.Join(repo, ".jj", "repo", "store", "git"); host.Kind(g) == "dir" {
-		binds = append(binds, gitDirGuards(g, g, host, 0)...)
+	for _, name := range slices.Sorted(maps.Keys(jjControlFiles)) {
+		p := filepath.Join(jjRepo, name)
+		g.guard(p, p, jjControlFiles[name])
 	}
-	return binds
+	if s := filepath.Join(jjRepo, "store", "git"); g.host.Kind(s) == "dir" {
+		g.gitDir(s, s, 0)
+	}
 }
 
-// storeBinds make a repository's store writable inside a read-only mount.
+// store makes a repository's store writable inside a read-only mount.
 // The control directories themselves stay read-only, so no control file can
 // appear in them; only their data subdirectories become writable.
-func storeBinds(repo string, host Host) []Bind {
+func (g *guards) store(repo string) {
 	switch {
 	case filepath.Base(repo) == ".git":
-		return gitStore(repo, host, 0)
+		g.gitStore(repo, 0)
+		return
 	case isJJRepo(repo):
-		return jjRepoStore(repo, host)
+		g.jjRepoStore(repo)
+		return
 	}
-	var binds []Bind
-	if git := filepath.Join(repo, ".git"); host.Kind(git) == "dir" {
-		binds = append(binds, gitStore(git, host, 0)...)
+	if git := filepath.Join(repo, ".git"); g.host.Kind(git) == "dir" {
+		g.gitStore(git, 0)
 	}
-	binds = append(binds, writable(host, filepath.Join(repo, ".jj", "working_copy"))...)
-	if jjRepo := filepath.Join(repo, ".jj", "repo"); host.Kind(jjRepo) == "dir" {
-		binds = append(binds, jjRepoStore(jjRepo, host)...)
+	g.writable(filepath.Join(repo, ".jj", "working_copy"))
+	if jjRepo := filepath.Join(repo, ".jj", "repo"); g.host.Kind(jjRepo) == "dir" {
+		g.jjRepoStore(jjRepo)
 	}
-	return binds
 }
 
 // isJJRepo reports whether dir is a jj repository directory itself, as
@@ -332,20 +386,18 @@ func isJJRepo(dir string) bool {
 	return filepath.Base(dir) == "repo" && filepath.Base(filepath.Dir(dir)) == ".jj"
 }
 
-func jjRepoStore(jjRepo string, host Host) []Bind {
-	var binds []Bind
+func (g *guards) jjRepoStore(jjRepo string) {
 	for _, name := range jjRepoData {
-		binds = append(binds, writable(host, filepath.Join(jjRepo, name))...)
+		g.writable(filepath.Join(jjRepo, name))
 	}
 	for _, name := range JJLockFiles {
-		if p := filepath.Join(jjRepo, name); host.Kind(p) == "file" {
-			binds = append(binds, Bind{Source: p, Dest: p})
+		if p := filepath.Join(jjRepo, name); g.host.Kind(p) == "file" {
+			g.binds = append(g.binds, Bind{Source: p, Dest: p})
 		}
 	}
-	if g := filepath.Join(jjRepo, "store", "git"); host.Kind(g) == "dir" {
-		binds = append(binds, gitStore(g, host, 0)...)
+	if s := filepath.Join(jjRepo, "store", "git"); g.host.Kind(s) == "dir" {
+		g.gitStore(s, 0)
 	}
-	return binds
 }
 
 var (
@@ -356,96 +408,86 @@ var (
 	JJLockFiles = []string{"git_import_export.lock"}
 	// worktreeControlFiles, in a worktree's admin directory, decide which
 	// repository and config git uses in that worktree.
-	worktreeControlFiles = []string{"commondir", "gitdir", "config.worktree"}
+	worktreeControlFiles = map[string]*Placeholder{"commondir": nil, "gitdir": nil, "config.worktree": {}}
 )
 
-func gitStore(gitDir string, host Host, depth int) []Bind {
-	var binds []Bind
+func (g *guards) gitStore(gitDir string, depth int) {
 	for _, name := range gitStoreData {
-		binds = append(binds, writable(host, filepath.Join(gitDir, name))...)
+		g.writable(filepath.Join(gitDir, name))
 	}
-	if p := filepath.Join(gitDir, "objects", "info", "alternates"); host.Kind(p) == "file" {
-		binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+	if p := filepath.Join(gitDir, "objects", "info", "alternates"); g.host.Kind(p) == "file" {
+		g.binds = append(g.binds, Bind{Source: p, Dest: p, ReadOnly: true})
 	}
-	binds = append(binds, packGuards(gitDir, host)...)
-	binds = append(binds, worktreeGuards(gitDir, host)...)
+	g.packs(gitDir)
+	g.worktrees(gitDir)
 	if depth >= vcs.MaxSubmoduleDepth {
-		return binds
+		return
 	}
-	for _, sub := range vcs.ModuleStores(filepath.Join(gitDir, "modules"), host) {
-		binds = append(binds, gitStore(sub, host, depth+1)...)
+	for _, sub := range vcs.ModuleStores(filepath.Join(gitDir, "modules"), g.host) {
+		g.gitStore(sub, depth+1)
 	}
-	return binds
 }
 
-func worktreeGuards(gitDir string, host Host) []Bind {
-	var binds []Bind
+func (g *guards) worktrees(gitDir string) {
 	worktrees := filepath.Join(gitDir, "worktrees")
-	for _, name := range host.Entries(worktrees) {
-		for _, file := range worktreeControlFiles {
-			if p := filepath.Join(worktrees, name, file); host.Kind(p) != "" {
-				binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
-			}
+	for _, name := range g.host.Entries(worktrees) {
+		for _, file := range slices.Sorted(maps.Keys(worktreeControlFiles)) {
+			p := filepath.Join(worktrees, name, file)
+			g.guard(p, p, worktreeControlFiles[file])
 		}
 	}
-	return binds
-}
-
-func writable(host Host, path string) []Bind {
-	if host.Kind(path) != "dir" {
-		return nil
-	}
-	return []Bind{{Source: path, Dest: path}}
 }
 
 // GitControlFiles are the entries of a .git directory that decide what git
 // runs or which config it reads.
 var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates"}
 
-func gitDirGuards(srcGit, destGit string, host Host, depth int) []Bind {
-	var binds []Bind
+var gitHolds = map[string]*Placeholder{
+	"config.worktree":         {},
+	"commondir":               {Content: ".\n"}, // git refuses an empty one; "." names .git itself
+	"hooks":                   {Dir: true},
+	"info":                    {Dir: true},
+	"objects/info/alternates": {},
+}
+
+func (g *guards) gitDir(srcGit, destGit string, depth int) {
 	for _, name := range GitControlFiles {
-		if p := filepath.Join(srcGit, name); host.Kind(p) != "" {
-			binds = append(binds, Bind{Source: p, Dest: filepath.Join(destGit, name), ReadOnly: true})
-		}
+		g.guard(filepath.Join(srcGit, name), filepath.Join(destGit, name), gitHolds[name])
 	}
-	binds = append(binds, packGuards(srcGit, host)...)
-	binds = append(binds, worktreeGuards(srcGit, host)...)
+	g.packs(srcGit)
+	g.worktrees(srcGit)
 	if depth >= vcs.MaxSubmoduleDepth {
-		return binds
+		return
 	}
 	modules := filepath.Join(srcGit, "modules")
 	var subs []string
-	for _, name := range host.Entries(modules) {
-		if sub := filepath.Join(modules, name); host.Kind(sub) == "dir" {
+	for _, name := range g.host.Entries(modules) {
+		if sub := filepath.Join(modules, name); g.host.Kind(sub) == "dir" {
 			subs = append(subs, sub)
 		}
 	}
-	for _, sub := range vcs.ModuleStores(modules, host) {
+	for _, sub := range vcs.ModuleStores(modules, g.host) {
 		if !slices.Contains(subs, sub) {
 			subs = append(subs, sub)
 		}
 	}
 	for _, sub := range subs {
 		rel, _ := filepath.Rel(modules, sub)
-		binds = append(binds, gitDirGuards(sub, filepath.Join(destGit, "modules", rel), host, depth+1)...)
+		g.gitDir(sub, filepath.Join(destGit, "modules", rel), depth+1)
 	}
-	return binds
 }
 
-// packGuards bind each existing pack file read-only. Packs hold nearly all
+// packs bind each existing pack file read-only. Packs hold nearly all
 // of a repository's history, and the files belong to you, so an agent could
 // chmod one and overwrite it in place, which no backup by hardlink survives.
 // New packs stay writable; git gc in the jail cannot drop the old ones.
-func packGuards(gitDir string, host Host) []Bind {
-	var binds []Bind
+func (g *guards) packs(gitDir string) {
 	dir := filepath.Join(gitDir, "objects", "pack")
-	for _, name := range host.Entries(dir) {
-		if p := filepath.Join(dir, name); host.Kind(p) == "file" {
-			binds = append(binds, Bind{Source: p, Dest: p, ReadOnly: true})
+	for _, name := range g.host.Entries(dir) {
+		if p := filepath.Join(dir, name); g.host.Kind(p) == "file" {
+			g.binds = append(g.binds, Bind{Source: p, Dest: p, ReadOnly: true})
 		}
 	}
-	return binds
 }
 
 func checkCwd(cwd string, binds []Bind) error {
