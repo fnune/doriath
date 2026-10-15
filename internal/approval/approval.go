@@ -180,6 +180,9 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 		delete(m.grants, grantKey(req))
 	}
 	req.ID = m.ids.New()
+	for m.pending[req.ID] != nil { // ids are short enough to repeat
+		req.ID = m.ids.New()
+	}
 	req.Created = now
 	req.Expires = now.Add(ttl)
 	p := newPending(req)

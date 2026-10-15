@@ -293,12 +293,19 @@ func decide(ctx context.Context, p config.Paths, id string, d approval.Decision)
 	if err != nil {
 		return err
 	}
+	var match []pendingRequest
 	for _, r := range reqs {
 		if r.ID == id {
-			return control.Call(ctx, r.control, session.MethodDecide, session.DecideParams{ID: id, Decision: d}, nil)
+			match = append(match, r)
 		}
 	}
-	return fmt.Errorf("no pending request %s; run girdle approvals to list them", id)
+	switch len(match) {
+	case 0:
+		return fmt.Errorf("no pending request %s; run girdle approvals to list them", id)
+	case 1:
+		return control.Call(ctx, match[0].control, session.MethodDecide, session.DecideParams{ID: id, Decision: d}, nil)
+	}
+	return fmt.Errorf("sessions %s and %s both have a request %s; decide it from its notification", match[0].Session, match[1].Session, id)
 }
 
 func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {

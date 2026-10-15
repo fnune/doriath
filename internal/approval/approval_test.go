@@ -253,3 +253,33 @@ func TestGrantsDoNotCrossKinds(t *testing.T) {
 		t.Fatalf("a tool grant answered an HTTP request: %+v", d)
 	}
 }
+
+type repeatingIDs struct{ ids []string }
+
+func (r *repeatingIDs) New() string {
+	id := r.ids[0]
+	r.ids = r.ids[1:]
+	return id
+}
+
+func TestRepeatedIDsDoNotReplaceAPendingRequest(t *testing.T) {
+	m := NewManager(newClock(), &fakeNotifier{}, &fakeRecorder{}, &repeatingIDs{ids: []string{"a", "a", "b"}})
+	first := submitAsync(m, "one")
+	waitPending(t, m)
+	second := submitAsync(m, "two")
+	deadline := time.Now().Add(2 * time.Second)
+	for len(m.Pending()) < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(m.Pending()) != 2 {
+		t.Fatalf("pending = %v", m.Pending())
+	}
+	for id, got := range map[string]<-chan Decision{"a": first, "b": second} {
+		if err := m.Decide(id, Decision{Verdict: VerdictDeny, By: "cli"}); err != nil {
+			t.Fatal(err)
+		}
+		if d := <-got; d.Verdict != VerdictDeny {
+			t.Errorf("%s: %+v", id, d)
+		}
+	}
+}
