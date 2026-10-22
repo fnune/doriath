@@ -51,7 +51,8 @@ func TestHookPermissionRequestAllow(t *testing.T) {
 	got := b.lastSubmit(t)
 	want := session.SubmitParams{
 		Agent:          "claude",
-		Summary:        "Run: Remove the build directory",
+		Summary:        "Run a command",
+		Note:           "Remove the build directory",
 		Details:        "rm -rf build",
 		Scope:          "tool Bash rm -rf build",
 		TimeoutSeconds: 45,

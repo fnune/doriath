@@ -69,6 +69,7 @@ type SubmitParams struct {
 	Agent   string `json:"agent"`
 	Summary string `json:"summary"`
 	Details string `json:"details,omitempty"`
+	Note    string `json:"note,omitempty"`
 	URL     string `json:"url,omitempty"`
 	Scope   string `json:"scope,omitempty"`
 	// TimeoutSeconds bounds the wait. Without a decision in time the result
@@ -113,6 +114,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 				Kind:    approval.KindTool,
 				Summary: p.Summary,
 				Details: p.Details,
+				Note:    p.Note,
 				URL:     p.URL,
 				Scope:   "tool " + p.Agent + " " + p.Scope,
 			}, timeout)

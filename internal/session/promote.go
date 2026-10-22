@@ -25,16 +25,14 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 	if !s.visible(path) {
 		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run doriath grant write on the host", path)
 	}
-	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.\n" + s.profileHint(path)
-	if reason != "" {
-		details += "\nIts reason, written by the agent: " + reason
-	}
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindPath,
 		Summary: "Let the agent write " + path,
-		Details: details,
+		Details: "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.",
+		Note:    reason,
+		Keep:    s.mountLines(path),
 		Scope:   "path write " + path,
 	}
 	granted := make(chan error, 1)
@@ -112,7 +110,11 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 // profileHint says how to keep a grant for later sessions. doriath does not
 // edit the profile itself: it may come from nix, and you decide its shape.
 func (s *Session) profileHint(path string) string {
-	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n[[mounts]]\npath = %q\nmode = \"write\"", s.req.Profile.Name, s.profilePath(path))
+	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", s.req.Profile.Name, s.mountLines(path))
+}
+
+func (s *Session) mountLines(path string) string {
+	return fmt.Sprintf("[[mounts]]\npath = %q\nmode = \"write\"", s.profilePath(path))
 }
 
 // checkPromotion returns the clean path, or why doriath does not make it

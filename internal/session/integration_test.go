@@ -442,7 +442,7 @@ func TestClaudeHookThroughBroker(t *testing.T) {
 	if code != 0 || !strings.Contains(out, `"behavior":"allow"`) {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	if req.Summary != "Run: Create release" || req.Details != "gh release create v1" || req.Agent != "claude" {
+	if req.Summary != "Run a command" || req.Note != "Create release" || req.Details != "gh release create v1" || req.Agent != "claude" {
 		t.Errorf("request = %+v", req)
 	}
 }
@@ -681,8 +681,8 @@ done
 	if req.Kind != approval.KindHost || !strings.Contains(req.Summary, "drafted.example") || !strings.Contains(req.Details, "curl") {
 		t.Errorf("proposal = %+v", req)
 	}
-	if !strings.Contains(req.Details, `allow = ["drafted.example"]`) {
-		t.Errorf("the proposal must show how to keep the host: %s", req.Details)
+	if req.Keep != "[egress]\nallow = [\"drafted.example\"]" {
+		t.Errorf("the proposal must show how to keep the host: %q", req.Keep)
 	}
 	if entries, _ := os.ReadDir(e.paths.Profiles()); len(entries) != 1 || entries[0].Name() != "it.toml" {
 		t.Errorf("doriath must not write profiles: %v", entries)

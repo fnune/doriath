@@ -28,8 +28,9 @@ func ParsePermissionRequest(data []byte) (PermissionRequest, error) {
 
 const maxDetails = 2000
 
-// Describe turns a tool call into a one-line summary and readable details.
-func (r PermissionRequest) Describe() (summary, details string) {
+// Describe turns a tool call into a one-line summary, the agent's own
+// description of it, and readable details.
+func (r PermissionRequest) Describe() (summary, note, details string) {
 	var input map[string]any
 	_ = json.Unmarshal(r.ToolInput, &input)
 	str := func(k string) string {
@@ -41,9 +42,7 @@ func (r PermissionRequest) Describe() (summary, details string) {
 	switch {
 	case r.ToolName == "Bash":
 		summary = "Run a command"
-		if d := str("description"); d != "" {
-			summary = "Run: " + d
-		}
+		note = str("description")
 		details = str("command")
 	case r.ToolName == "Write" || r.ToolName == "Edit" || r.ToolName == "MultiEdit":
 		summary = r.ToolName + " " + str("file_path")
@@ -57,10 +56,14 @@ func (r PermissionRequest) Describe() (summary, details string) {
 	if details == "" && len(r.ToolInput) > 0 {
 		details = string(r.ToolInput)
 	}
-	if len(details) > maxDetails {
-		details = details[:maxDetails] + "…"
+	return summary, truncate(note), truncate(details)
+}
+
+func truncate(s string) string {
+	if len(s) > maxDetails {
+		return s[:maxDetails] + "…"
 	}
-	return summary, details
+	return s
 }
 
 type hookOutput struct {

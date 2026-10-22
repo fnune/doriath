@@ -120,7 +120,7 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		summary, details := req.Describe()
+		summary, note, details := req.Describe()
 		scope := "tool " + req.ToolName
 		if req.ToolName == "Bash" {
 			scope += " " + details
@@ -131,6 +131,7 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		err = control.Call(ctx, broker, session.MethodSubmit, session.SubmitParams{
 			Agent:          "claude",
 			Summary:        summary,
+			Note:           note,
 			Details:        details,
 			Scope:          scope,
 			TimeoutSeconds: int(timeout.Seconds()),
@@ -320,10 +321,28 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 	}
 	_ = tw.Flush()
 	for _, r := range reqs {
-		if r.Details != "" {
-			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(session.Printable(r.Details)))
+		if text := requestText(r.Request); text != "" {
+			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(session.Printable(text)))
 		}
 	}
+}
+
+func requestText(r approval.Request) string {
+	var parts []string
+	if r.Note != "" {
+		agent := r.Agent
+		if agent == "" {
+			agent = "the agent"
+		}
+		parts = append(parts, fmt.Sprintf("Written by %s: %s", agent, r.Note))
+	}
+	if r.Details != "" {
+		parts = append(parts, r.Details)
+	}
+	if r.Keep != "" {
+		parts = append(parts, fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", r.Profile, r.Keep))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func indent(s string) string { return strings.ReplaceAll(s, "\n", "\n    ") }
@@ -343,8 +362,8 @@ func watch(ctx context.Context, p config.Paths, c clock, in io.Reader, out io.Wr
 			}
 			asked[r.ID] = true
 			fmt.Fprintf(out, "\n[%s] %s (profile %s)\n", r.ID, session.Printable(r.Summary), r.Profile)
-			if r.Details != "" {
-				fmt.Fprintf(out, "    %s\n", indent(session.Printable(r.Details)))
+			if text := requestText(r.Request); text != "" {
+				fmt.Fprintf(out, "    %s\n", indent(session.Printable(text)))
 			}
 			fmt.Fprint(out, "Allow [o]nce, allow for this [s]ession, [d]eny, or [Enter] to skip: ")
 			if !lines.Scan() {

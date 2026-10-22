@@ -101,7 +101,8 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindHost,
 		Summary: fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name),
-		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, host) + uploadWarning(host) + "\n" + keepHint(s.req.Profile.Name, []string{host}),
+		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, host) + uploadWarning(host),
+		Keep:    egressLines([]string{host}),
 		Scope:   "host egress " + host,
 	}
 	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
@@ -122,11 +123,15 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 // keepHint says how to keep hosts for later sessions. doriath does not edit
 // profiles: they may come from nix, and you decide their shape.
 func keepHint(profile string, hosts []string) string {
+	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", profile, egressLines(hosts))
+}
+
+func egressLines(hosts []string) string {
 	quoted := make([]string, len(hosts))
 	for i, h := range hosts {
 		quoted[i] = strconv.Quote(h)
 	}
-	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n[egress]\nallow = [%s]", profile, strings.Join(quoted, ", "))
+	return fmt.Sprintf("[egress]\nallow = [%s]", strings.Join(quoted, ", "))
 }
 
 func publicAddr(ip netip.Addr) bool {

@@ -94,19 +94,19 @@ func TestDescribe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, d := r.Describe()
-	if s != "Run: Create release" || d != "gh release create v1" {
-		t.Errorf("got %q %q", s, d)
+	s, n, d := r.Describe()
+	if s != "Run a command" || n != "Create release" || d != "gh release create v1" {
+		t.Errorf("got %q %q %q", s, n, d)
 	}
 	r, _ = ParsePermissionRequest([]byte(`{"tool_name":"mcp__claude_ai_Linear__save_issue","tool_input":{"title":"x"}}`))
-	if s, _ := r.Describe(); s != "Use claude_ai_Linear: save_issue" {
+	if s, _, _ := r.Describe(); s != "Use claude_ai_Linear: save_issue" {
 		t.Errorf("mcp summary = %q", s)
 	}
 	if _, err := ParsePermissionRequest([]byte(`{}`)); err == nil {
 		t.Error("missing tool_name must be an error")
 	}
 	long, _ := ParsePermissionRequest([]byte(`{"tool_name":"Bash","tool_input":{"command":"` + strings.Repeat("a", 5000) + `"}}`))
-	if _, d := long.Describe(); len(d) > maxDetails+4 {
+	if _, _, d := long.Describe(); len(d) > maxDetails+4 {
 		t.Errorf("details not truncated: %d", len(d))
 	}
 }
@@ -123,7 +123,7 @@ func TestDescribeNamesWhatTheToolTouches(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s, _ := r.Describe(); s != want {
+		if s, _, _ := r.Describe(); s != want {
 			t.Errorf("%s: summary %q, want %q", input, s, want)
 		}
 	}

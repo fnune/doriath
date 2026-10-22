@@ -63,15 +63,21 @@ func DecisionFor(action string) (approval.Decision, bool) {
 
 func Body(req approval.Request, now time.Time) string {
 	var b strings.Builder
+	agent := req.Agent
+	if agent == "" {
+		agent = "the agent"
+	}
 	if req.Kind == approval.KindTool {
-		agent := req.Agent
-		if agent == "" {
-			agent = "the agent"
-		}
 		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", html.EscapeString(agent))
+	}
+	if req.Note != "" {
+		fmt.Fprintf(&b, "%s wrote: <i>%s</i>\n", html.EscapeString(agent), html.EscapeString(req.Note))
 	}
 	if req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
+	}
+	if req.Keep != "" {
+		fmt.Fprintf(&b, "To keep it, add to profile %s: <tt>%s</tt>\n", html.EscapeString(req.Profile), html.EscapeString(req.Keep))
 	}
 	if safeURL(req.URL) {
 		fmt.Fprintf(&b, "Link: %s\n", html.EscapeString(req.URL))

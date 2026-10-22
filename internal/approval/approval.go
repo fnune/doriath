@@ -26,13 +26,19 @@ const (
 )
 
 type Request struct {
-	ID      string    `json:"id"`
-	Session string    `json:"session"`
-	Profile string    `json:"profile"`
-	Agent   string    `json:"agent,omitempty"`
-	Kind    Kind      `json:"kind"`
-	Summary string    `json:"summary"`
-	Details string    `json:"details,omitempty"`
+	ID      string `json:"id"`
+	Session string `json:"session"`
+	Profile string `json:"profile"`
+	Agent   string `json:"agent,omitempty"`
+	Kind    Kind   `json:"kind"`
+	Summary string `json:"summary"`
+	Details string `json:"details,omitempty"`
+	// Note is the agent's own account of the request, such as a command's
+	// description or its reason for a write, shown as the agent's words.
+	Note string `json:"note,omitempty"`
+	// Keep holds the profile lines that would keep an allow after the
+	// session ends.
+	Keep    string    `json:"keep,omitempty"`
 	URL     string    `json:"url,omitempty"`
 	Scope   string    `json:"scope"`
 	Created time.Time `json:"created"`

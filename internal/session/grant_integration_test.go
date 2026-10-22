@@ -51,7 +51,7 @@ touch %[2]s/clip || echo "FAIL the granted host directory is not writable"
 echo done
 `, repo, outside, marker), func() {
 		req := e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
-		if req.Kind != approval.KindPath || !strings.Contains(req.Details, "store generated images") || !strings.Contains(req.Details, `path = "{repository}/assets"`) {
+		if req.Kind != approval.KindPath || req.Note != "store generated images" || !strings.Contains(req.Keep, `path = "{repository}/assets"`) {
 			t.Errorf("request: %+v", req)
 		}
 		for i := 0; i < 200; i++ {
