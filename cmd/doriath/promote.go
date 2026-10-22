@@ -85,18 +85,16 @@ func reportDecision(w io.Writer, d approval.Decision, allowed string) error {
 	return errors.New("request: nobody decided before the request expired")
 }
 
-// cmdGrant runs on the host: doriath grant write PATH makes a path writable
-// in a running session, until it ends.
 func cmdGrant(args []string, w io.Writer) error {
-	if len(args) < 2 || args[0] != "write" {
-		return errors.New("grant: usage: doriath grant write PATH [--session ID]")
+	if len(args) < 1 {
+		return errors.New("approvals grant: usage: doriath approvals grant PATH [--session ID]")
 	}
-	flags := flag.NewFlagSet("grant write", flag.ContinueOnError)
+	flags := flag.NewFlagSet("approvals grant", flag.ContinueOnError)
 	id := flags.String("session", "", "the session, when several run")
-	if err := flags.Parse(args[2:]); err != nil {
+	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	path, err := filepath.Abs(args[1])
+	path, err := filepath.Abs(args[0])
 	if err != nil {
 		return err
 	}
@@ -114,7 +112,7 @@ func cmdGrant(args []string, w io.Writer) error {
 	}
 	var res session.GrantWriteResult
 	if err := control.Call(context.Background(), filepath.Join(dir, session.ControlSocket), session.MethodGrantWrite, session.GrantWriteParams{Path: path}, &res); err != nil {
-		return fmt.Errorf("grant: %w", err)
+		return fmt.Errorf("approvals grant: %w", err)
 	}
 	fmt.Fprintf(w, "%s is writable in session %s until it ends.\n%s\n", path, filepath.Base(dir), res.Hint)
 	return nil

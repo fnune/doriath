@@ -3,13 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,7 +14,6 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/oauth"
-	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/session"
 )
 
@@ -57,20 +53,6 @@ modules = ["base"]
 [egress]
 allow = ["example.com"]
 `)
-	out, err := profiles(t, "show", "kitchen", "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var shown profile.Profile
-	if err := json.Unmarshal([]byte(out), &shown); err != nil {
-		t.Fatalf("show --json prints JSON: %v\n%s", err, out)
-	}
-	if shown.Name != "kitchen" || shown.Description != "Kitchen" || len(shown.Egress.Allow) != 1 || shown.Egress.Allow[0] != "example.com" {
-		t.Errorf("show = %+v", shown)
-	}
-	if !slices.Equal(shown.Modules, []string{"base"}) || !slices.Equal(shown.Sources["host example.com"], []string{"profile"}) || !slices.Equal(shown.Sources["mount read ~/.config/jj"], []string{"base"}) {
-		t.Errorf("modules %q, sources %q", shown.Modules, shown.Sources)
-	}
 	text, err := profiles(t, "show", "kitchen")
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +117,7 @@ func TestProfilesEditOpensAProfileInAFolder(t *testing.T) {
 func approvals(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	err := cmdApprovals(context.Background(), args, realClock{}, strings.NewReader(""), &out)
+	err := cmdApprovals(context.Background(), args, realClock{}, &out)
 	return out.String(), err
 }
 
@@ -187,79 +169,6 @@ func TestApprovalsListAllowDeny(t *testing.T) {
 	}
 }
 
-func TestApprovalsWatchAsksAboutEachRequestOnce(t *testing.T) {
-	p := testPaths(t)
-	s := startSession(t, p, "s1", "kitchen", time.Now())
-	pushID, push := s.submit(t, "Push to origin", "git push origin main")
-	dropID, drop := s.submit(t, "Drop the table", "")
-	migrateID, migrate := s.submit(t, "Run the migration", "")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	c := newStepClock(time.Now())
-	answers, answer := io.Pipe()
-	var out bytes.Buffer
-	done := make(chan error, 1)
-	go func() { done <- cmdApprovals(ctx, []string{"watch"}, c, answers, &out) }()
-
-	for _, a := range []string{"o\n", "d\n", "\n"} {
-		if _, err := io.WriteString(answer, a); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if d := receive(t, push); d.Verdict != approval.VerdictAllow || d.Lasting != approval.LastingOnce || d.By != "cli" {
-		t.Errorf("o = %+v", d)
-	}
-	if d := receive(t, drop); d.Verdict != approval.VerdictDeny || d.By != "cli" {
-		t.Errorf("d = %+v", d)
-	}
-	tick := c.waiting(t)
-	installID, install := s.submit(t, "Install a package", "")
-	tick <- c.now
-	if _, err := io.WriteString(answer, "S\n"); err != nil {
-		t.Fatal(err)
-	}
-	if d := receive(t, install); d.Verdict != approval.VerdictAllow || d.Lasting != approval.LastingSession {
-		t.Errorf("S = %+v", d)
-	}
-	c.waiting(t)
-	cancel()
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-
-	for _, want := range []string{
-		"Watching for requests. Press Ctrl+C to stop.\n",
-		"\n[" + pushID + "] Push to origin (profile kitchen)\n    git push origin main\nAllow [o]nce, allow for this [s]ession, [d]eny, or [Enter] to skip: ",
-		"\n[" + dropID + "] Drop the table (profile kitchen)\nAllow",
-		"\n[" + installID + "] Install a package (profile kitchen)\nAllow",
-	} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("watch lacks %q:\n%s", want, out.String())
-		}
-	}
-	if n := strings.Count(out.String(), migrateID); n != 1 {
-		t.Errorf("a skipped request is asked about %d times:\n%s", n, out.String())
-	}
-	if err := s.manager.Decide(migrateID, approval.Decision{Verdict: approval.VerdictDeny}); err != nil {
-		t.Fatalf("skipping decided the request: %v", err)
-	}
-	receive(t, migrate)
-}
-
-func TestApprovalsWatchStopsAtTheEndOfInput(t *testing.T) {
-	p := testPaths(t)
-	s := startSession(t, p, "s1", "kitchen", time.Now())
-	id, decided := s.submit(t, "Push", "")
-	if err := cmdApprovals(context.Background(), []string{"watch"}, newStepClock(time.Now()), strings.NewReader(""), &bytes.Buffer{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.manager.Decide(id, approval.Decision{Verdict: approval.VerdictDeny}); err != nil {
-		t.Fatalf("the request was decided without an answer: %v", err)
-	}
-	receive(t, decided)
-}
-
 func TestApprovalsAllowFor(t *testing.T) {
 	now := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
 	d, err := allowDecision("30m", now)
@@ -296,7 +205,7 @@ func TestLiveSessionsDropsEndedSessions(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := cmdSessions(&out); err != nil {
+	if err := listSessions(sessions, &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "alive") || !strings.Contains(out.String(), "/work") || !strings.Contains(out.String(), "claude") {
@@ -337,12 +246,12 @@ file = "`+private+`"
 		t.Errorf("doctor exits %d with problems", code)
 	}
 	for _, want := range []string{
-		"problem  secret app/open (file): " + open + " is readable by other users: run chmod 600 on it\n",
-		"ok       secret app/private (file)\n",
-		"ok       profile app\n",
-		"problem  profile broken: ",
-		"note     secrets: run doriath doctor --secrets",
-		"note     desktop notifications: unavailable",
+		"  ✕ secret app/open (file): " + open + " is readable by other users: run chmod 600 on it\n",
+		"  ✓ secret app/private (file)\n",
+		"  ✓ profile app\n",
+		"  ✕ profile broken: ",
+		"  · secrets: run doriath doctor --secrets",
+		"  · desktop notifications: unavailable",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("doctor lacks %q:\n%s", want, out.String())
@@ -364,8 +273,8 @@ command = ["no-such-password-manager", "get", "token"]
 	var out bytes.Buffer
 	cmdDoctor(nil, &out)
 	for _, want := range []string{
-		"problem  secret app/linear (oauth): not signed in: run doriath login --profile app linear\n",
-		"problem  secret app/token (command no-such-password-manager): ",
+		"  ✕ secret app/linear (oauth): not signed in: run doriath profiles login app linear\n",
+		"  ✕ secret app/token (command no-such-password-manager): ",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("doctor lacks %q:\n%s", want, out.String())
@@ -427,17 +336,17 @@ func TestCleanCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := cmdClean([]string{"--caches", "missing"}, strings.NewReader(""), &out); err == nil {
+	if err := cmdProfiles([]string{"clean", "missing"}, strings.NewReader(""), &out); err == nil {
 		t.Error("clean of an unknown profile must fail")
 	}
 	startSession(t, p, "s1", "kitchen", time.Now())
-	if err := cmdClean([]string{"--caches", "kitchen"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "is running") {
+	if err := cmdProfiles([]string{"clean", "kitchen"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "is running") {
 		t.Errorf("clean while a session runs = %v", err)
 	}
 	if err := os.RemoveAll(filepath.Join(p.Sessions(), "s1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmdClean([]string{"--caches", "kitchen"}, strings.NewReader(""), &out); err != nil || out.String() != "Removed the caches of profile kitchen.\n" {
+	if err := cmdProfiles([]string{"clean", "kitchen"}, strings.NewReader(""), &out); err != nil || out.String() != "Removed the caches of profile kitchen.\n" {
 		t.Fatalf("clean = %q, %v", out.String(), err)
 	}
 	if _, err := os.Stat(p.AgentCache("kitchen")); !errors.Is(err, os.ErrNotExist) {
@@ -512,16 +421,19 @@ func TestLoginArguments(t *testing.T) {
 	p := testPaths(t)
 	writeProfile(t, p, "plain", `modules = ["base"]`)
 	var out bytes.Buffer
-	if err := cmdLogin(nil, &out); err == nil || !strings.Contains(err.Error(), "--profile") {
-		t.Errorf("without --profile: %v", err)
+	login := func(args ...string) error {
+		return cmdProfiles(append([]string{"login"}, args...), strings.NewReader(""), &out)
 	}
-	if err := cmdLogin([]string{"--profile", "plain"}, &out); err != nil || !strings.Contains(out.String(), "Nothing to sign in to") {
+	if err := login(); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Errorf("without a profile: %v", err)
+	}
+	if err := login("plain"); err != nil || !strings.Contains(out.String(), "Nothing to sign in to") {
 		t.Errorf("a profile without OAuth secrets: %q, %v", out.String(), err)
 	}
-	if err := cmdLogin([]string{"--profile", "plain", "linear"}, &out); err == nil || !strings.Contains(err.Error(), "[secrets.linear]") {
+	if err := login("plain", "linear"); err == nil || !strings.Contains(err.Error(), "[secrets.linear]") {
 		t.Errorf("an unknown secret: %v", err)
 	}
-	if err := cmdLogin([]string{"--profile", "plain", "linear", "notion"}, &out); err == nil || !strings.Contains(err.Error(), "usage") {
+	if err := login("plain", "linear", "notion"); err == nil || !strings.Contains(err.Error(), "usage") {
 		t.Errorf("two secrets: %v", err)
 	}
 }
@@ -550,7 +462,7 @@ file = "`+key+`"
 		}
 	}
 	var out bytes.Buffer
-	if err := cmdLogin([]string{"--profile", "app"}, &out); err != nil {
+	if err := cmdProfiles([]string{"login", "app"}, strings.NewReader(""), &out); err != nil {
 		t.Fatal(err)
 	}
 	want := "Already signed in for linear; name it to sign in again.\n" +
@@ -559,7 +471,7 @@ file = "`+key+`"
 	if out.String() != want {
 		t.Errorf("login = %q, want %q", out.String(), want)
 	}
-	if err := cmdLogin([]string{"--profile", "app", "key"}, &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
+	if err := cmdProfiles([]string{"login", "app", "key"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
 		t.Errorf("a secret without oauth: %v", err)
 	}
 }
@@ -589,7 +501,7 @@ func TestApprovalsListSkipsASessionThatDoesNotAnswer(t *testing.T) {
 func TestSessionsWithoutSessions(t *testing.T) {
 	testPaths(t)
 	var out bytes.Buffer
-	if err := cmdSessions(&out); err != nil || out.String() != "No running sessions.\n" {
+	if err := cmdStatus(nil, &out); err != nil || out.String() != "No running sessions.\n" {
 		t.Errorf("sessions = %q, %v", out.String(), err)
 	}
 }

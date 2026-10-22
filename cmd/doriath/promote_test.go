@@ -127,10 +127,10 @@ func TestGrantWriteReachesTheSession(t *testing.T) {
 	first := startSession(t, p, "s1", "kitchen", time.Now().Add(-time.Minute))
 	second := startSession(t, p, "s2", "garden", time.Now())
 
-	if _, err := grant(t, "write", "/srv/data"); err == nil || !strings.Contains(err.Error(), "pick one with --session") {
+	if _, err := grant(t, "/srv/data"); err == nil || !strings.Contains(err.Error(), "pick one with --session") {
 		t.Errorf("two sessions without --session = %v", err)
 	}
-	out, err := grant(t, "write", "/srv/data", "--session", "s2")
+	out, err := grant(t, "/srv/data", "--session", "s2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +144,12 @@ func TestGrantWriteReachesTheSession(t *testing.T) {
 
 func TestGrantUsage(t *testing.T) {
 	testPaths(t)
-	for _, args := range [][]string{nil, {"write"}, {"read", "/srv"}} {
+	for _, args := range [][]string{nil} {
 		if _, err := grant(t, args...); err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("grant %q = %v", args, err)
 		}
 	}
-	if _, err := grant(t, "write", "/srv"); err == nil || !strings.Contains(err.Error(), "no running sessions") {
+	if _, err := grant(t, "/srv"); err == nil || !strings.Contains(err.Error(), "no running sessions") {
 		t.Errorf("without sessions = %v", err)
 	}
 }

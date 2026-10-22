@@ -29,6 +29,7 @@ import (
 	"github.com/fnune/doriath/internal/landlock"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/term"
 
 	"golang.org/x/sys/unix"
 )
@@ -55,7 +56,7 @@ func cmdInit(args []string) (int, error) {
 }
 
 func parseInit(args []string) ([]jailinit.Forward, []string, error) {
-	flags := flag.NewFlagSet("init", flag.ContinueOnError)
+	flags := flag.NewFlagSet("__init", flag.ContinueOnError)
 	var forwards forwardFlags
 	var identify intList
 	flags.Var(&forwards, "forward", "PORT=SOCKET to listen on 127.0.0.1:PORT and forward to SOCKET")
@@ -77,12 +78,12 @@ const maxHookInput = 1 << 20
 
 func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) < 2 {
-		return errors.New("hook: usage: doriath hook AGENT EVENT")
+		return errors.New("__hook: usage: doriath __hook AGENT EVENT")
 	}
 	if args[0] != (claude.Adapter{}).Name() {
 		return fmt.Errorf("hook: doriath has no hooks for agent %q", args[0])
 	}
-	flags := flag.NewFlagSet("hook", flag.ContinueOnError)
+	flags := flag.NewFlagSet("__hook", flag.ContinueOnError)
 	timeout := flags.Duration("timeout", time.Minute, "how long to wait for a decision")
 	if err := flags.Parse(args[2:]); err != nil {
 		return err
@@ -225,7 +226,7 @@ func pending(ctx context.Context, p config.Paths) ([]pendingRequest, error) {
 	return out, nil
 }
 
-func cmdApprovals(ctx context.Context, args []string, c clock, stdin io.Reader, stdout io.Writer) error {
+func cmdApprovals(ctx context.Context, args []string, c clock, stdout io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
@@ -261,8 +262,8 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdin io.Reader, 
 			}
 		}
 		return decide(ctx, p, id, d)
-	case "watch":
-		return watch(ctx, p, c, stdin, stdout)
+	case "grant":
+		return cmdGrant(args, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }
@@ -342,60 +343,7 @@ func requestText(r approval.Request) string {
 
 func indent(s string) string { return strings.ReplaceAll(s, "\n", "\n    ") }
 
-func watch(ctx context.Context, p config.Paths, c clock, in io.Reader, out io.Writer) error {
-	asked := map[string]bool{}
-	lines := bufio.NewScanner(in)
-	fmt.Fprintln(out, "Watching for requests. Press Ctrl+C to stop.")
-	for {
-		reqs, err := pending(ctx, p)
-		if err != nil {
-			return err
-		}
-		for _, r := range reqs {
-			if asked[r.ID] {
-				continue
-			}
-			asked[r.ID] = true
-			fmt.Fprintf(out, "\n[%s] %s (profile %s)\n", r.ID, session.Printable(r.Summary), r.Profile)
-			if text := requestText(r.Request); text != "" {
-				fmt.Fprintf(out, "    %s\n", indent(session.Printable(text)))
-			}
-			fmt.Fprint(out, "Allow [o]nce, allow for this [s]ession, [d]eny, or [Enter] to skip: ")
-			if !lines.Scan() {
-				return lines.Err()
-			}
-			var d approval.Decision
-			switch strings.TrimSpace(strings.ToLower(lines.Text())) {
-			case "o":
-				d = approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "cli"}
-			case "s":
-				d = approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "cli"}
-			case "d":
-				d = approval.Decision{Verdict: approval.VerdictDeny, By: "cli"}
-			default:
-				continue
-			}
-			if err := control.Call(ctx, r.control, session.MethodDecide, session.DecideParams{ID: r.ID, Decision: d}, nil); err != nil {
-				fmt.Fprintln(out, "Could not decide:", err)
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-c.After(time.Second):
-		}
-	}
-}
-
-func cmdSessions(w io.Writer) error {
-	p, err := paths()
-	if err != nil {
-		return err
-	}
-	sessions, err := liveSessions(p)
-	if err != nil {
-		return err
-	}
+func listSessions(sessions []liveSession, w io.Writer) error {
 	if len(sessions) == 0 {
 		fmt.Fprintln(w, "No running sessions.")
 		return nil
@@ -405,7 +353,11 @@ func cmdSessions(w io.Writer) error {
 	for _, s := range sessions {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", s.info.ID, s.info.Profile, s.info.Started.Format("15:04"), s.info.Cwd, strings.Join(s.info.Command, " "))
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, "\nDescribe one with: doriath status --session ID")
+	return nil
 }
 
 func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
@@ -436,18 +388,6 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 	if args[0] == "edit" && len(args) == 2 {
 		return profilesEdit(l, p.Profiles(), args[1], stdin, stdout)
 	}
-	if args[0] == "command" && len(args) == 2 {
-		prof, err := l.Load(args[1])
-		if err != nil {
-			return err
-		}
-		command, err := session.AgentCommand(prof)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(stdout, command)
-		return nil
-	}
 	if args[0] == "show" && (len(args) == 2 || len(args) == 3 && args[2] == "--json") {
 		prof, err := l.Load(args[1])
 		if err != nil {
@@ -460,7 +400,33 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return printProfile(stdout, prof)
 	}
-	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME | command NAME]")
+	if args[0] == "login" && (len(args) == 2 || len(args) == 3) {
+		return cmdLogin(p, l, args[1:], stdout)
+	}
+	if args[0] == "clean" && len(args) == 2 {
+		return cleanCaches(args[1], stdout)
+	}
+	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME | login NAME [SECRET] | clean NAME]")
+}
+
+func cmdAgentCommand(args []string, w io.Writer) error {
+	if len(args) != 1 {
+		return errors.New("__agent-command: want a profile")
+	}
+	p, err := paths()
+	if err != nil {
+		return err
+	}
+	prof, err := loader(p).Load(args[0])
+	if err != nil {
+		return err
+	}
+	command, err := session.AgentCommand(prof)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(w, command)
+	return nil
 }
 
 func cmdDoctor(args []string, w io.Writer) int {
@@ -469,19 +435,22 @@ func cmdDoctor(args []string, w io.Writer) int {
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
+	t := term.New(w)
 	p, err := paths()
 	if err != nil {
-		fmt.Fprintf(w, "problem  directories: %v\n", err)
+		t.Line(term.Problem, "directories: "+err.Error())
 		return 1
 	}
-	fmt.Fprintln(w, "ok       directories")
 	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}})
+	t.Header("doctor")
+	t.Line(term.OK, "directories")
+	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}
 	for _, r := range results {
-		if r.Level == doctor.OK {
-			fmt.Fprintf(w, "ok       %s\n", r.Name)
-			continue
+		text := r.Name
+		if r.Detail != "" {
+			text += ": " + r.Detail
 		}
-		fmt.Fprintf(w, "%-8s %s: %s\n", r.Level, r.Name, r.Detail)
+		t.Line(levels[r.Level], text)
 	}
 	if doctor.Failed(results) {
 		return 1
@@ -547,7 +516,7 @@ func (l *stringList) Set(s string) error {
 }
 
 func cmdSandboxExec(args []string) error {
-	flags := flag.NewFlagSet("sandbox-exec", flag.ContinueOnError)
+	flags := flag.NewFlagSet("__sandbox-exec", flag.ContinueOnError)
 	var writable stringList
 	flags.Var(&writable, "writable", "a path the command may write beneath")
 	useLandlock := flags.Bool("landlock", true, "restrict writes to the writable paths")

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -30,7 +31,7 @@ func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	for i, s := range sessions {
 		if id == "" || s.info.ID == id {
 			if target != nil && id == "" {
-				return st, errors.New("several sessions are running; name one: doriath status ID (see doriath sessions)")
+				return st, errors.New("several sessions are running; name one with --session ID (see doriath status)")
 			}
 			target = &sessions[i]
 		}
@@ -42,13 +43,30 @@ func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 }
 
 func cmdStatus(args []string, w io.Writer) error {
-	id := ""
-	if len(args) > 0 {
-		id = args[0]
+	flags := flag.NewFlagSet("status", flag.ContinueOnError)
+	id := flags.String("session", "", "the session to describe")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() > 0 {
+		return errors.New("status: usage: doriath status [--session ID]")
+	}
+	if *id == "" && os.Getenv("DORIATH_BROKER") == "" {
+		p, err := paths()
+		if err != nil {
+			return err
+		}
+		sessions, err := liveSessions(p)
+		if err != nil {
+			return err
+		}
+		if len(sessions) != 1 {
+			return listSessions(sessions, w)
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	st, err := sessionStatus(ctx, id)
+	st, err := sessionStatus(ctx, *id)
 	if err != nil {
 		return err
 	}

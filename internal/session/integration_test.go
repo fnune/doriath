@@ -420,7 +420,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 	}
 	var lines []string
 	for _, l := range strings.Split(out, "\n") {
-		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "doriath: ") {
+		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "doriath") && !strings.HasPrefix(l, "  ") {
 			lines = append(lines, l)
 		}
 	}
@@ -434,7 +434,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 
 func TestClaudeHookThroughBroker(t *testing.T) {
 	e := newEnv(t)
-	script := `printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh release create v1","description":"Create release"}}' | /run/doriath-bin/doriath hook claude permission-request --timeout 30s`
+	script := `printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh release create v1","description":"Create release"}}' | /run/doriath-bin/doriath __hook claude permission-request --timeout 30s`
 	var req approval.Request
 	code, out := e.run(e.profile(""), script, func() {
 		req = e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"})
@@ -581,8 +581,8 @@ func TestStatusInsideJail(t *testing.T) {
 curl -s https://example.org/ >/dev/null 2>&1
 curl -s https://example.org/ >/dev/null 2>&1
 /run/doriath-bin/doriath status
-/run/doriath-bin/doriath statusline
-/run/doriath-bin/doriath hook claude session-start </dev/null
+/run/doriath-bin/doriath __statusline
+/run/doriath-bin/doriath __hook claude session-start </dev/null
 `, nil)
 	if code != 0 {
 		t.Fatalf("code %d:\n%s", code, out)

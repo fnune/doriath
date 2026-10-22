@@ -47,7 +47,7 @@ devices = ["/dev/tpmrm0"]
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]
 
-# An OAuth login. Run doriath login --profile NAME one time, on the host.
+# An OAuth login. Run doriath profiles login NAME one time, on the host.
 # mcp names an MCP server, which tells doriath where to sign in.
 # Without mcp, give issuer, client_id and scopes. See "OAuth logins".
 [secrets.linear]
@@ -290,13 +290,13 @@ At the end, doriath does these steps:
 - It removes new LFS objects whose content does not match their name, because your checkout takes file content from the object with that name.
 - It repairs each worktree that the agent added. The `.git` file and `commondir` point to your repository again, and doriath removes a planted `config.worktree`.
 
-Do not run git in an agent worktree until the session ends. `doriath restore SESSION` puts moved branches and bookmarks back. It never runs automatically, because doriath cannot tell the moves of the agent from your moves. [`doriath clean`](/reference/commands/#doriath-clean) removes old agent worktrees and backups.
+Do not run git in an agent worktree until the session ends. `doriath restore SESSION [BRANCH...]` puts moved branches and bookmarks back. It never runs automatically, because doriath cannot tell the moves of the agent from your moves. [`doriath clean`](/reference/commands/#doriath-clean) removes old agent worktrees and backups.
 
 ## Approvals
 
 [Answering requests](/guides/approvals/) tells which requests wait for you, and where you answer them. `host_wait` under [config.toml keys](#configtoml-keys) sets how long the agent waits.
 
-The agent can ask to write only a path that it already sees. On the host, `doriath grant write` can also attach a directory that the jail does not see, and its contents become readable too.
+The agent can ask to write only a path that it already sees. On the host, `doriath approvals grant` can also attach a directory that the jail does not see, and its contents become readable too.
 
 doriath refuses these paths before it asks you:
 
@@ -330,7 +330,7 @@ doriath writes the list to `/run/doriath/mcp.json` in the common `mcpServers` fo
 A secret with `oauth` is a login that doriath keeps on the host. To sign in, run this command on the host:
 
 ```sh
-doriath login --profile NAME
+doriath profiles login NAME
 ```
 
 The command signs in to each OAuth secret of the profile that has no login yet, or to the secret that you name. doriath opens the sign-in page in your browser, and gets the answer on the host loopback address, which the jail cannot reach.
@@ -338,7 +338,7 @@ The command signs in to each OAuth secret of the profile that has no login yet, 
 - With `mcp`, doriath finds the sign-in server from the MCP server, and registers itself as a client.
 - With `issuer`, doriath signs in as `client_id` with `scopes`.
 
-Each request that uses the secret gets a fresh access token, which the proxy adds. Thus the agent never holds a token. If the refresh token stops working, doriath tells you to run `doriath login` again. Tokens are in `~/.local/state/doriath/oauth/<profile>/<name>.json`, with mode 600, outside the jail.
+Each request that uses the secret gets a fresh access token, which the proxy adds. Thus the agent never holds a token. If the refresh token stops working, doriath tells you to run `doriath profiles login` again. Tokens are in `~/.local/state/doriath/oauth/<profile>/<name>.json`, with mode 600, outside the jail.
 
 ## Containers
 

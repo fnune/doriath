@@ -130,7 +130,7 @@ func (s *Session) startPodman() error {
 	userConf := filepath.Join(s.deps.Paths.Home, ".config", "containers")
 
 	p := s.req.Profile
-	argv := []string{jail.ExePath, "init", "--forward", fmt.Sprintf("%d=%s", containerProxyPort, jail.InJail(ProxySocket))}
+	argv := []string{jail.ExePath, "__init", "--forward", fmt.Sprintf("%d=%s", containerProxyPort, jail.InJail(ProxySocket))}
 	rawDir := filepath.Join(s.dir, "podman")
 	if err := os.MkdirAll(rawDir, 0o700); err != nil {
 		return err

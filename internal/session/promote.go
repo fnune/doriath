@@ -23,7 +23,7 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 		return RequestWriteResult{}, err
 	}
 	if !s.visible(path) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run doriath grant write on the host", path)
+		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run doriath approvals grant on the host", path)
 	}
 	req := approval.Request{
 		Session: s.id,

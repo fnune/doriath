@@ -1,5 +1,5 @@
 // Package oauth signs in to OAuth servers on the host and keeps their tokens
-// there. doriath login runs the browser flow once; sessions then get fresh
+// there. doriath profiles login runs the browser flow once; sessions then get fresh
 // access tokens from here, which the proxy adds to requests, so no token
 // ever reaches the jail.
 package oauth
@@ -104,7 +104,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		s, err := load(path)
 		if errors.Is(err, os.ErrNotExist) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath login --profile %s %s", name, t.profile, name)
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath profiles login %s %s", name, t.profile, name)
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -116,7 +116,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath login --profile %s %s again", name, err, t.profile, name)
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath profiles login %s %s again", name, err, t.profile, name)
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }

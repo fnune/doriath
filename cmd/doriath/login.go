@@ -2,38 +2,27 @@ package main
 
 import (
 	"context"
-	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"maps"
 	"os"
 	"slices"
 
+	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 // cmdLogin signs in once, on the host, for a profile's OAuth secrets.
 // Sessions then get fresh tokens without asking.
-func cmdLogin(args []string, w io.Writer) error {
-	flags := flag.NewFlagSet("login", flag.ContinueOnError)
-	name := flags.String("profile", "", "the profile whose OAuth secrets to sign in to (required)")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if *name == "" || flags.NArg() > 1 {
-		return errors.New("login: usage: doriath login --profile NAME [SECRET]")
-	}
-	p, err := paths()
-	if err != nil {
-		return err
-	}
-	prof, err := loader(p).Load(*name)
+func cmdLogin(p config.Paths, l *profile.Loader, args []string, w io.Writer) error {
+	prof, err := l.Load(args[0])
 	if err != nil {
 		return err
 	}
 	var targets []string
-	if s := flags.Arg(0); s != "" {
+	if len(args) == 2 {
+		s := args[1]
 		if b, ok := prof.Secrets[s]; !ok || b.OAuth == nil {
 			return fmt.Errorf("login: profile %s has no [secrets.%s] with oauth", prof.Name, s)
 		}

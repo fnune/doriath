@@ -124,12 +124,6 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 	return false, id
 }
 
-// keepHint says how to keep hosts for later sessions. doriath does not edit
-// profiles: they may come from nix, and you decide their shape.
-func keepHint(profile string, hosts []string) string {
-	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", profile, egressLines(hosts))
-}
-
 func egressLines(hosts []string) string {
 	quoted := make([]string, len(hosts))
 	for i, h := range hosts {

@@ -130,16 +130,16 @@ func moduleSummary(data []byte) string {
 	return text
 }
 
-func cmdModulesFromArgs(args []string, stdin io.Reader, stdout io.Writer) error {
+func cmdModulesFromArgs(args []string, stdout io.Writer) error {
 	p, err := paths()
 	if err != nil {
 		return err
 	}
-	return cmdModules(p, loader(p), args, stdin, stdout)
+	return cmdModules(p, args, stdout)
 }
 
-func cmdModules(p config.Paths, l *profile.Loader, args []string, stdin io.Reader, stdout io.Writer) error {
-	usage := errors.New("modules: usage: doriath modules [list | show NAME [--path] | edit NAME]")
+func cmdModules(p config.Paths, args []string, stdout io.Writer) error {
+	usage := errors.New("modules: usage: doriath modules [list | show NAME [--path]]")
 	if len(args) == 0 || args[0] == "list" {
 		names, err := moduleNames(p)
 		if err != nil {
@@ -159,46 +159,37 @@ func cmdModules(p config.Paths, l *profile.Loader, args []string, stdin io.Reade
 		}
 		return tw.Flush()
 	}
-	switch args[0] {
-	case "show":
-		flags := flag.NewFlagSet("modules show", flag.ContinueOnError)
-		path := flags.Bool("path", false, "print a path to the module file instead of its text")
-		if len(args) < 2 {
-			return usage
-		}
-		name := args[1]
-		if err := flags.Parse(args[2:]); err != nil {
-			return err
-		}
-		m, err := findModule(p, name)
-		if err != nil {
-			return err
-		}
-		if !*path {
-			data, err := m.data()
-			if err != nil {
-				return err
-			}
-			_, err = stdout.Write(data)
-			return err
-		}
-		if m.userPath != "" {
-			fmt.Fprintln(stdout, m.userPath)
-			return nil
-		}
-		copied, err := builtinCopy(p, m)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(stdout, copied)
-		return nil
-	case "edit":
-		if len(args) != 2 {
-			return usage
-		}
-		return modulesEdit(p, l, args[1], stdin, stdout)
+	if args[0] != "show" || len(args) < 2 {
+		return usage
 	}
-	return usage
+	flags := flag.NewFlagSet("modules show", flag.ContinueOnError)
+	path := flags.Bool("path", false, "print a path to the module file instead of its text")
+	name := args[1]
+	if err := flags.Parse(args[2:]); err != nil {
+		return err
+	}
+	m, err := findModule(p, name)
+	if err != nil {
+		return err
+	}
+	if !*path {
+		data, err := m.data()
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(data)
+		return err
+	}
+	if m.userPath != "" {
+		fmt.Fprintln(stdout, m.userPath)
+		return nil
+	}
+	copied, err := builtinCopy(p, m)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(stdout, copied)
+	return nil
 }
 
 func builtinCopy(p config.Paths, m moduleSource) (string, error) {
@@ -215,30 +206,4 @@ func builtinCopy(p config.Paths, m moduleSource) (string, error) {
 		return "", err
 	}
 	return path, os.Chmod(path, 0o400)
-}
-
-func modulesEdit(p config.Paths, l *profile.Loader, name string, in io.Reader, w io.Writer) error {
-	path := filepath.Join(p.Modules(), name+".toml")
-	info, err := os.Lstat(path)
-	switch {
-	case err == nil && info.Mode()&os.ModeSymlink != 0:
-		if target, _ := filepath.EvalSymlinks(path); strings.HasPrefix(target, "/nix/store/") {
-			return fmt.Errorf("module %s is managed by home-manager (%s): change it in your nix configuration", name, target)
-		}
-	case errors.Is(err, os.ErrNotExist):
-		m, findErr := findModule(p, name)
-		if findErr != nil {
-			return findErr
-		}
-		if err := os.MkdirAll(p.Modules(), 0o700); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, m.builtin, 0o600); err != nil {
-			return err
-		}
-		fmt.Fprintf(w, "Copied the built-in %s module to %s. Your copy replaces it in every profile.\n", name, path)
-	case err != nil:
-		return err
-	}
-	return editUntilValid(path, "Module "+name, func() error { return l.CheckModule(name) }, in, w)
 }

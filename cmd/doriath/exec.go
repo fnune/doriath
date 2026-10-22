@@ -51,7 +51,7 @@ func cmdExec(args []string) (int, error) {
 		argv = append(argv, "--setuid", strconv.Itoa(entry.UID), "--setgid", strconv.Itoa(entry.GID))
 	}
 	argv = append(argv, "--wd="+entryCwd(entry.Cwd), "--",
-		jail.ExePath, "sandbox-exec", "--seccomp-fd", "3", "--landlock="+strconv.FormatBool(entry.Landlock))
+		jail.ExePath, "__sandbox-exec", "--seccomp-fd", "3", "--landlock="+strconv.FormatBool(entry.Landlock))
 	for _, w := range entry.Writable {
 		argv = append(argv, "--writable", w)
 	}
@@ -106,7 +106,7 @@ func pickSession(sessions []liveSession, id, root string) (string, error) {
 				return filepath.Join(root, id), nil
 			}
 		}
-		return "", fmt.Errorf("no running session %s: see doriath sessions", id)
+		return "", fmt.Errorf("no running session %s: see doriath status", id)
 	}
 	switch len(sessions) {
 	case 0:

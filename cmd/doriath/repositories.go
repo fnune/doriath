@@ -13,6 +13,7 @@ import (
 
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/term"
 	"github.com/fnune/doriath/internal/vcs"
 )
 
@@ -45,25 +46,26 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 // finishInterrupted runs the end step of sessions that ended without one,
 // for example because doriath was killed.
 func finishInterrupted(p config.Paths, w io.Writer) {
+	t := term.New(w)
 	recs, err := records(p)
 	if err != nil {
-		fmt.Fprintf(w, "doriath: %v\n", err)
+		t.Problem(err.Error())
 		return
 	}
 	for _, rec := range recs {
 		if rec.Finished {
 			continue
 		}
-		fmt.Fprintf(w, "doriath: session %s ended without checking its repositories; checking them now\n", rec.Session)
-		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, w); err != nil {
-			fmt.Fprintf(w, "doriath: %v\n", err)
+		t.Header("session "+rec.Session, "ended without checking its repositories; checking them now")
+		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Warn)); err != nil {
+			t.Line(term.Problem, err.Error())
 		}
 	}
 }
 
 func cmdRestore(args []string, w io.Writer) error {
-	if len(args) != 1 {
-		return errors.New("restore: usage: doriath restore SESSION")
+	if len(args) < 1 {
+		return errors.New("restore: usage: doriath restore SESSION [BRANCH...]")
 	}
 	p, err := paths()
 	if err != nil {
@@ -78,11 +80,21 @@ func cmdRestore(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := vcs.Restore(context.Background(), vcsTools(), rec, w); err != nil {
+	chosen, err := vcs.Load(path)
+	if err != nil {
+		return err
+	}
+	if names := args[1:]; len(names) > 0 {
+		if unknown := chosen.Only(names); len(unknown) > 0 {
+			return fmt.Errorf("restore: session %s moved no branch or bookmark named %s", args[0], strings.Join(unknown, ", "))
+		}
+	}
+	if err := vcs.Restore(context.Background(), vcsTools(), chosen, w); err != nil {
 		return err
 	}
 	for i := range rec.Repos {
-		rec.Repos[i].Moved, rec.Repos[i].MovedBookmarks = nil, nil
+		rec.Repos[i].Moved = slices.DeleteFunc(rec.Repos[i].Moved, func(n string) bool { return slices.Contains(chosen.Repos[i].Moved, n) })
+		rec.Repos[i].MovedBookmarks = slices.DeleteFunc(rec.Repos[i].MovedBookmarks, func(n string) bool { return slices.Contains(chosen.Repos[i].MovedBookmarks, n) })
 	}
 	return rec.Save(path)
 }
@@ -91,11 +103,8 @@ func cmdRestore(args []string, w io.Writer) error {
 // worktrees whose work is merged, and the refs that keep the start values of
 // moved branches. With --caches PROFILE it removes a profile's caches.
 func cmdClean(args []string, in io.Reader, w io.Writer) error {
-	if len(args) == 2 && args[0] == "--caches" {
-		return cleanCaches(args[1], w)
-	}
 	if len(args) != 0 {
-		return errors.New("clean: usage: doriath clean [--caches PROFILE]")
+		return errors.New("clean: usage: doriath clean (a profile's caches: doriath profiles clean NAME)")
 	}
 	p, err := paths()
 	if err != nil {

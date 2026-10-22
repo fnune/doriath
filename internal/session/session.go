@@ -3,6 +3,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/x509"
@@ -39,6 +40,7 @@ import (
 	"github.com/fnune/doriath/internal/seccomp"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/sshagent"
+	"github.com/fnune/doriath/internal/term"
 )
 
 // Socket and file names in the jail directory.
@@ -135,7 +137,8 @@ type Session struct {
 	policy  *livePolicy
 	peers   *hostPeers
 	logFile io.Closer
-	unwatch func()
+	unwatch func(io.Writer)
+	notes   []note
 	manager *approval.Manager
 	informs informLimit
 	closers []func()
@@ -197,9 +200,10 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if s.deps.SystemdRun == "" {
 		notes = append(notes, "systemd-run is not available, so this session runs without the profile's task and memory limits")
 	}
-	for _, note := range notes {
-		fmt.Fprintln(s.deps.Stderr, "doriath: "+note)
+	for _, n := range notes {
+		s.notes = append(s.notes, note{term.Warn, n})
 	}
+	printBlock(term.New(s.deps.Stderr), s.notes, s.req.Profile.Name, "session "+s.id)
 	return s.exec(ctx, spec)
 }
 
@@ -223,7 +227,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.egress = newEgressLog(s.log)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
-		fmt.Fprintln(s.deps.Stderr, "doriath: learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends")
+		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})
 	}
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
 
@@ -302,7 +306,7 @@ func (s *Session) prepare(ctx context.Context) error {
 		s.command, s.agentEnv = command, env
 	}
 	if warning != "" {
-		fmt.Fprintln(s.deps.Stderr, "doriath: "+warning)
+		s.notes = append(s.notes, note{term.Warn, warning})
 	}
 	return s.writeInfo()
 }
@@ -549,7 +553,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	if b, ok := s.bazelrc(home); ok {
 		extra = append(extra, b)
 	}
-	argv := []string{jail.ExePath, "init", "--identify", strconv.Itoa(jail.ProxyPort)}
+	argv := []string{jail.ExePath, "__init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
 	}
@@ -559,7 +563,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		s.entry.Writable = s.writable(extra)
 	}
 	if !p.Hardening.NoLandlock {
-		argv = append(argv, jail.ExePath, "sandbox-exec")
+		argv = append(argv, jail.ExePath, "__sandbox-exec")
 		for _, w := range s.writable(extra) {
 			argv = append(argv, "--writable", w)
 		}
@@ -648,24 +652,35 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("bubblewrap: %w", err)
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
-	s.finishRepositories()
+	t := term.New(s.deps.Stderr)
+	var repos bytes.Buffer
+	s.finishRepositories(&repos)
+	var end []note
+	for _, line := range strings.Split(strings.TrimSpace(repos.String()), "\n") {
+		if line != "" {
+			end = append(end, note{term.Warn, line})
+		}
+	}
 	if s.agent != nil {
 		if err := s.agent.End(s.agentSession()); err != nil {
-			fmt.Fprintf(s.deps.Stderr, "doriath: %v\n", err)
+			end = append(end, note{term.Problem, err.Error()})
 		}
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
 		by := s.policy.LearnedBy()
 		s.log.Write("learned", map[string]any{"hosts": learned, "by_program": by})
-		fmt.Fprintf(s.deps.Stderr, "doriath: the session reached %d hosts the profile does not allow:\n", len(learned))
+		text := fmt.Sprintf("reached %d hosts that the profile does not allow", len(learned))
 		for _, prog := range slices.Sorted(maps.Keys(by)) {
-			fmt.Fprintf(s.deps.Stderr, "  %s: %s\n", prog, strings.Join(by[prog], " "))
+			text += fmt.Sprintf("\n%s: %s", prog, strings.Join(by[prog], " "))
 		}
-		fmt.Fprintf(s.deps.Stderr, "%s\nTo allow them for one program only, list them under [[egress.programs]] instead.\n", strings.Replace(keepHint(s.req.Profile.Name, learned), "To keep it for later sessions, add", "To allow them, add", 1))
+		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines(learned)
+		end = append(end, note{term.Info, text})
 	}
-	if line := Summary(s.req.Profile.Name, s.id, s.egress.Denials(), s.manager.History()); line != "" {
-		fmt.Fprintln(s.deps.Stderr, line)
+	end = append(end, summary(s.egress.Denials(), s.manager.History())...)
+	if len(end) > 0 {
+		end = append(end, note{term.Info, t.Dim("details: doriath log --session " + s.id)})
 	}
+	printBlock(t, end, s.req.Profile.Name, "session "+s.id+" ended")
 	return code, nil
 }
 
@@ -1002,12 +1017,27 @@ func (s *Session) bazelrc(home string) (jail.Bind, bool) {
 	return jail.Bind{Source: s.jailPath("bazelrc"), Dest: dest, ReadOnly: true}, true
 }
 
+func shortPath(p string) string {
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(p, home+"/") {
+		p = "~" + strings.TrimPrefix(p, home)
+	}
+	parts := strings.Split(p, "/")
+	if len(parts) <= 4 {
+		return p
+	}
+	return strings.Join(parts[:2], "/") + "/…/" + parts[len(parts)-1]
+}
+
 func programNotes(p *profile.Profile) []string {
 	var out []string
 	for _, prog := range p.Egress.Programs {
 		for _, bin := range prog.Binaries {
 			if strings.Contains(bin, "/") && !profile.UnderTrustedRoot(bin) {
-				out = append(out, fmt.Sprintf("%s may be replaced by a program the agent writes there, which then reaches the hosts egress programs gives it", bin))
+				hosts := fmt.Sprintf("%d hosts", len(prog.Allow))
+				if len(prog.Allow) == 1 {
+					hosts = fmt.Sprint(prog.Allow[0])
+				}
+				out = append(out, fmt.Sprintf("%s gets %s, but the agent can write that path, so a program it puts there gets them too", shortPath(bin), hosts))
 			}
 		}
 	}

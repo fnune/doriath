@@ -15,7 +15,7 @@ func modulesCmd(t *testing.T, args ...string) (string, error) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	err = cmdModules(p, loader(p), args, strings.NewReader(""), &out)
+	err = cmdModules(p, args, &out)
 	return out.String(), err
 }
 
@@ -66,26 +66,5 @@ func TestModulesShowPrintsTheFileOrAPath(t *testing.T) {
 	}
 	if _, err := modulesCmd(t, "show", "missing"); err == nil || !strings.Contains(err.Error(), "doriath modules list") {
 		t.Errorf("a missing module = %v", err)
-	}
-}
-
-func TestModulesEditCopiesTheBuiltinAndChecksIt(t *testing.T) {
-	p := testPaths(t)
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "true")
-	out, err := modulesCmd(t, "edit", "go")
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	copied := filepath.Join(p.Modules(), "go.toml")
-	if data, err := os.ReadFile(copied); err != nil || !strings.Contains(string(data), "proxy.golang.org") {
-		t.Fatalf("the built-in was not copied: %v", err)
-	}
-	t.Setenv("EDITOR", `sed -i 's/^\[egress\]/[nonsense]/'`)
-	if _, err := modulesCmd(t, "edit", "go"); err == nil {
-		t.Fatal("an edit that breaks the module must fail")
-	}
-	if _, err := modulesCmd(t, "edit", "missing"); err == nil {
-		t.Fatal("editing a module that exists nowhere must fail")
 	}
 }

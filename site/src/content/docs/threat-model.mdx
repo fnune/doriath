@@ -129,7 +129,7 @@ doriath holds each push for your approval, but it does not decide which branches
 - The agent reads the project's earlier transcripts, also text that you pasted into a session outside the jail.
 - Escape sequences in agent output can change your terminal title or state.
 - One session can plant files in caches and container storage that later sessions of the same profile trust.
-- `doriath grant write` on the host can attach a directory that the jail does not see, and so lets the agent read it. A grant lasts until the session ends, because an open file stays open after doriath removes a mount.
+- `doriath approvals grant` on the host can attach a directory that the jail does not see, and so lets the agent read it. A grant lasts until the session ends, because an open file stays open after doriath removes a mount.
 
 These paths let you resume sessions, read output, reuse build caches and add writable paths without a restart. The helper that applies each grant has full capabilities over the mounts. It runs doriath's own read-only binary and never follows symlinks.
 

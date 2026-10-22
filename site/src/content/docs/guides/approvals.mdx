@@ -69,10 +69,9 @@ The page runs as a systemd user service when you set `programs.doriath.approvals
 doriath approvals
 doriath approvals allow ID --for session
 doriath approvals deny ID --reason "use the staging stack"
-doriath approvals watch
 ```
 
-`allow --for` takes `once`, `session` or a duration such as `30m`. `watch` shows new requests one at a time. [Commands](/reference/commands/) lists the flags.
+`allow --for` takes `once`, `session` or a duration such as `30m`. [Commands](/reference/commands/) lists the flags.
 
 ## Remote hosts
 
@@ -90,7 +89,7 @@ ssh -L 7341:127.0.0.1:7341 server
 doriath web open --print
 ```
 
-Open the printed link in your local browser within a minute. If you use another local port, such as `-L 8000:127.0.0.1:7341`, put `8000` in the link. Without a tunnel, run `doriath approvals watch` on the server.
+Open the printed link in your local browser within a minute. If you use another local port, such as `-L 8000:127.0.0.1:7341`, put `8000` in the link. Without a tunnel, answer with `doriath approvals` on the server.
 
 <Aside type="note">
   The page answers only to loopback names in the Host header. If a site resolves
@@ -101,4 +100,4 @@ Open the printed link in your local browser within a minute. If you use another 
 
 To ask for a writable path from inside the jail, run `doriath request write PATH --reason TEXT`. To wait for your answer, run `doriath request wait ID`. The agent can ask only for paths that it sees. doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
 
-On the host, `doriath grant write PATH` makes a path writable in the running session. It can also attach a directory that the jail does not see yet.
+On the host, `doriath approvals grant PATH` makes a path writable in the running session. It can also attach a directory that the jail does not see yet.

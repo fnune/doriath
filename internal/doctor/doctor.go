@@ -122,7 +122,7 @@ func Run(ctx context.Context, opts Options) []Result {
 			case b.OAuth != nil:
 				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
 				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run doriath login --profile %s %s", prof.Name, name)
+					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
 				}
 				check(label+" (oauth)", err)
 			case b.File != "":

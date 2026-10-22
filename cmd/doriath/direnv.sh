@@ -20,7 +20,7 @@ use_doriath() {
   local doriath
   doriath=$(command -v doriath) || { log_error "use doriath: doriath is not on PATH"; return 1; }
   if [ -z "$command" ]; then
-    command=$("$doriath" profiles command "$profile") || { log_error "use doriath: name the agent's command with --command"; return 1; }
+    command=$("$doriath" __agent-command "$profile") || { log_error "use doriath: name the agent's command with --command"; return 1; }
   fi
   local root=$PWD
   local dir

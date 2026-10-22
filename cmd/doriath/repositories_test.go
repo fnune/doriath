@@ -120,7 +120,7 @@ func TestCleanFinishesAnInterruptedSessionAndDropsItsBackups(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"doriath: session s1 ended without checking its repositories; checking them now\n",
+		"doriath · session s1 · ended without checking its repositories; checking them now\n",
 		"start values of session s1 (Oct 13 09:30): refs/heads/main\n",
 		"Remove these? [y/N] ",
 	} {
@@ -175,7 +175,7 @@ func TestCleanLeavesRunningSessionsAlone(t *testing.T) {
 
 func TestCleanUsage(t *testing.T) {
 	testPaths(t)
-	for _, args := range [][]string{{"--caches"}, {"extra"}, {"--caches", "a", "b"}} {
+	for _, args := range [][]string{{"--caches", "a"}, {"extra"}} {
 		if err := cmdClean(args, strings.NewReader(""), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("clean %q = %v", args, err)
 		}

@@ -29,6 +29,7 @@ import (
 	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/term"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,37 +37,39 @@ var version = "dev"
 
 const usage = `doriath runs a coding agent in a jail that shows it only what its profile names.
 
-Usage:
+Sessions:
   doriath run --profile NAME [--current DIR] [--learn] [--] COMMAND [ARGS...]
   doriath exec [--session ID] [--] [COMMAND [ARGS...]]
   doriath forward [--session ID] PORT[:JAIL_PORT]
+  doriath status [--session ID]
+  doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
+
+Answers:
   doriath approvals [list]
   doriath approvals allow ID [--for once|session|DURATION]
   doriath approvals deny ID [--reason TEXT]
-  doriath approvals watch
-  doriath web [--listen HOST:PORT] [--open]
+  doriath approvals grant PATH [--session ID]
+  doriath web [--listen HOST:PORT]
   doriath web open [--listen HOST:PORT] [--print]
-  doriath sessions
-  doriath clean [--caches PROFILE]
-  doriath restore SESSION
-  doriath grant write PATH [--session ID]
-  doriath login --profile NAME [SECRET]
-  doriath direnv
-  doriath status [SESSION]
-  doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  doriath profiles [list | show NAME [--json] | edit NAME | command NAME]
-  doriath modules [list | show NAME [--path] | edit NAME]
+
+Configuration:
+  doriath profiles [list | show NAME [--json] | edit NAME | login NAME [SECRET] | clean NAME]
+  doriath modules [list | show NAME [--path]]
+
+Repositories:
+  doriath clean
+  doriath restore SESSION [BRANCH...]
+
+Setup:
   doriath doctor [--secrets]
+  doriath direnv
   doriath completion zsh
   doriath version
 
 Inside a jail:
+  doriath status
   doriath request write PATH [--reason TEXT]
   doriath request wait ID|HOST|PATH
-  doriath init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
-  doriath sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
-  doriath hook AGENT EVENT
-  doriath statusline
 `
 
 func main() {
@@ -90,35 +93,31 @@ func run(args []string) int {
 		err = cmdForward(args[1:])
 	case "__relay":
 		err = cmdRelay(args[1:])
-	case "init":
+	case "__init":
 		code, err = cmdInit(args[1:])
-	case "sandbox-exec":
+	case "__sandbox-exec":
 		err = cmdSandboxExec(args[1:])
-	case "hook":
+	case "__hook":
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":
-		err = cmdApprovals(ctx, args[1:], realClock{}, os.Stdin, os.Stdout)
+		err = cmdApprovals(ctx, args[1:], realClock{}, os.Stdout)
 	case "web":
 		err = cmdWeb(ctx, args[1:], realClock{}, os.Stdout)
-	case "sessions":
-		err = cmdSessions(os.Stdout)
 	case "clean":
 		err = cmdClean(args[1:], os.Stdin, os.Stdout)
 	case "restore":
 		err = cmdRestore(args[1:], os.Stdout)
 	case "request":
 		err = cmdRequest(args[1:], os.Stdout)
-	case "grant":
-		err = cmdGrant(args[1:], os.Stdout)
-	case "login":
-		err = cmdLogin(args[1:], os.Stdout)
+	case "__agent-command":
+		err = cmdAgentCommand(args[1:], os.Stdout)
 	case "direnv":
 		err = cmdDirenv(os.Stdout)
 	case "__promote":
 		err = promote.Inner(args[1:])
 	case "status":
 		err = cmdStatus(args[1:], os.Stdout)
-	case "statusline":
+	case "__statusline":
 		err = cmdStatusline(os.Stdout)
 	case "log":
 		err = cmdLog(ctx, args[1:], realClock{}, os.Stdout)
@@ -127,7 +126,7 @@ func run(args []string) int {
 	case "__complete":
 		cmdComplete(args[1:], os.Stdout)
 	case "modules":
-		err = cmdModulesFromArgs(args[1:], os.Stdin, os.Stdout)
+		err = cmdModulesFromArgs(args[1:], os.Stdout)
 	case "profiles":
 		err = cmdProfiles(args[1:], os.Stdin, os.Stdout)
 	case "doctor":
@@ -141,7 +140,7 @@ func run(args []string) int {
 		return 2
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "doriath:", err)
+		term.New(os.Stderr).Problem(err.Error())
 		if code == 0 {
 			code = 1
 		}

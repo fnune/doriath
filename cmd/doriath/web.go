@@ -50,7 +50,6 @@ func cmdWeb(ctx context.Context, args []string, c clock, out io.Writer) error {
 func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out io.Writer) error {
 	flags := flag.NewFlagSet("web", flag.ContinueOnError)
 	listen := flags.String("listen", defaultWebAddr, "the loopback HOST:PORT to serve on")
-	open := flags.Bool("open", false, "open the page in your browser")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -64,10 +63,7 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	l, err := net.Listen("tcp", *listen)
 	if errors.Is(err, syscall.EADDRINUSE) {
 		fmt.Fprint(out, "The approvals page is already running.\n"+openHint(*listen))
-		if !*open {
-			return nil
-		}
-		return openPage(ctx, *listen, token, false, out)
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("web: %w", err)
@@ -81,15 +77,6 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 		return fmt.Errorf("web: %w", err)
 	}
 	fmt.Fprint(out, "The approvals page is running.\n"+openHint(addr)+"Press Ctrl+C to stop.\n")
-	if *open {
-		code, err := srv.NewCode()
-		if err == nil {
-			err = (opener{}).Open(codeLink(addr, code))
-		}
-		if err != nil {
-			fmt.Fprintln(out, "Could not open a browser:", err)
-		}
-	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}

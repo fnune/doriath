@@ -41,7 +41,7 @@ type Backend struct {
 	OAuth   *OAuth
 }
 
-// OAuth is a login you complete once with doriath login. The server either is
+// OAuth is a login you complete once with doriath profiles login. The server either is
 // an MCP server, which tells doriath where to sign in and lets it register,
 // or names an issuer and the client doriath signs in as.
 type OAuth struct {

@@ -349,7 +349,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			continue
 		}
 		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects")) {
-			fmt.Fprintf(w, "doriath: removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
+			fmt.Fprintf(w, "removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
 		}
 		now, err := refs(ctx, t, r.GitDir)
 		if err != nil {
@@ -378,7 +378,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			}
 		}
 		for _, bad := range dropForgedLFS(filepath.Join(r.GitDir, "lfs", "objects"), rec.Started) {
-			fmt.Fprintf(w, "doriath: removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
+			fmt.Fprintf(w, "removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
 		}
 		r.AgentWorktrees = nil
 		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
@@ -406,10 +406,10 @@ func report(w io.Writer, session string, r *Repo) {
 	}
 	moved = append(moved, r.MovedBookmarks...)
 	if len(moved) > 0 {
-		fmt.Fprintf(w, "doriath: the session moved or deleted %s in %s. `doriath restore %s` puts them back.\n", strings.Join(moved, ", "), r.Path, session)
+		fmt.Fprintf(w, "%s moved in %s while the session ran, by the agent or another program; put back with: doriath restore %s %s\n", strings.Join(moved, ", "), r.Path, session, strings.Join(moved, " "))
 	}
 	if len(r.AgentWorktrees) > 0 {
-		fmt.Fprintf(w, "doriath: the session added worktrees %s in %s. `doriath clean` removes them once merged.\n", strings.Join(r.AgentWorktrees, ", "), r.Path)
+		fmt.Fprintf(w, "the session added worktrees %s in %s; doriath clean removes them once merged\n", strings.Join(r.AgentWorktrees, ", "), r.Path)
 	}
 }
 
@@ -442,6 +442,34 @@ func Restore(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// Only keeps the moved branches and bookmarks that names lists, by short
+// name, and returns the names that matched none of them.
+func (rec *Record) Only(names []string) (unknown []string) {
+	matched := map[string]bool{}
+	keep := func(moved []string, short func(string) string) []string {
+		var out []string
+		for _, m := range moved {
+			if slices.Contains(names, short(m)) {
+				out = append(out, m)
+				matched[short(m)] = true
+			}
+		}
+		return out
+	}
+	branch := func(n string) string { return strings.TrimPrefix(n, "refs/heads/") }
+	same := func(n string) string { return n }
+	for i := range rec.Repos {
+		rec.Repos[i].Moved = keep(rec.Repos[i].Moved, branch)
+		rec.Repos[i].MovedBookmarks = keep(rec.Repos[i].MovedBookmarks, same)
+	}
+	for _, n := range names {
+		if !matched[n] {
+			unknown = append(unknown, n)
+		}
+	}
+	return unknown
 }
 
 // DropBackups deletes the refs that keep the start values of moved branches.
@@ -605,7 +633,7 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		if err := os.Remove(linkToElsewhere); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "doriath: removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
+		fmt.Fprintf(w, "removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
 		return nil
 	}
 	if live && removing(admin) {
@@ -614,10 +642,10 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 	if fixed, err := resetCommondir(admin); err != nil {
 		return err
 	} else if fixed {
-		fmt.Fprintf(w, "doriath: the agent pointed worktree %s of %s at another repository; doriath pointed it back\n", name, repo)
+		fmt.Fprintf(w, "the agent pointed worktree %s of %s at another repository; doriath pointed it back\n", name, repo)
 	}
 	if err := os.Remove(filepath.Join(admin, "config.worktree")); err == nil {
-		fmt.Fprintf(w, "doriath: removed the config the agent wrote for worktree %s of %s\n", name, repo)
+		fmt.Fprintf(w, "removed the config the agent wrote for worktree %s of %s\n", name, repo)
 	}
 	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
 	if err != nil {
@@ -628,7 +656,7 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return slices.ContainsFunc(rec.Writable, func(root string) bool { return within(p, root) })
 	}
 	if real, err := filepath.EvalSymlinks(checkout); err == nil && !writable(real) || !writable(checkout) {
-		fmt.Fprintf(w, "doriath: worktree %s of %s says it is at %s, where the session could not write; doriath left it alone, so check it before you use it\n", name, repo, checkout)
+		fmt.Fprintf(w, "worktree %s of %s says it is at %s, where the session could not write; doriath left it alone, so check it before you use it\n", name, repo, checkout)
 		return nil
 	}
 	if pointsTo(checkout, admin) {
@@ -643,14 +671,14 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		if err := os.Rename(dotgit, aside); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "doriath: moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
+		fmt.Fprintf(w, "moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
 	} else if !errors.Is(err, fs.ErrNotExist) && err != nil {
 		return err
 	}
 	if err := os.WriteFile(dotgit, []byte("gitdir: "+admin+"\n"), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "doriath: pointed worktree %s back at %s\n", checkout, repo)
+	fmt.Fprintf(w, "pointed worktree %s back at %s\n", checkout, repo)
 	return nil
 }
 

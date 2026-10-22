@@ -14,6 +14,7 @@ import (
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/term"
 	"github.com/fnune/doriath/internal/vcs"
 )
 
@@ -91,7 +92,7 @@ func (s *Session) startRepositories(ctx context.Context) error {
 			return fmt.Errorf("prepare %s: %w", repo, err)
 		}
 		for _, n := range notes {
-			fmt.Fprintf(s.deps.Stderr, "doriath: %s\n", n)
+			s.notes = append(s.notes, note{term.Info, n})
 		}
 	}
 	rec := &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
@@ -121,13 +122,13 @@ func (s *Session) watchWorktrees(rec *vcs.Record) {
 	go func() {
 		defer close(done)
 		if err := vcs.Watch(ctx, rec, repairs); err != nil {
-			fmt.Fprintf(s.deps.Stderr, "doriath: agent worktrees are repaired only when the session ends: %v\n", err)
+			term.New(s.deps.Stderr).Problem(fmt.Sprintf("agent worktrees are repaired only when the session ends: %v", err))
 		}
 	}()
-	s.unwatch = func() {
+	s.unwatch = func(w io.Writer) {
 		cancel()
 		<-done
-		_, _ = s.deps.Stderr.Write(repairs.lines.Bytes())
+		_, _ = w.Write(repairs.lines.Bytes())
 	}
 }
 
@@ -141,17 +142,17 @@ func (r *repairLog) Write(p []byte) (int, error) {
 	return r.lines.Write(p)
 }
 
-func (s *Session) finishRepositories() {
+func (s *Session) finishRepositories(w io.Writer) {
 	if s.unwatch != nil {
-		s.unwatch()
+		s.unwatch(w)
 	}
 	path := recordPath(s.deps.Paths, s.id)
 	rec, err := vcs.Load(path)
 	if err != nil {
 		return
 	}
-	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, s.deps.Stderr); err != nil {
-		fmt.Fprintf(s.deps.Stderr, "doriath: %v\n", err)
+	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, w); err != nil {
+		fmt.Fprintln(w, err)
 	}
 }
 

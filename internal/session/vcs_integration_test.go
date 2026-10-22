@@ -68,7 +68,7 @@ echo done
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	if !strings.Contains(out, "moved or deleted gone, spare") || !strings.Contains(out, "doriath restore "+e.lastID) {
+	if !strings.Contains(out, "gone, spare moved in") || !strings.Contains(out, "doriath restore "+e.lastID) {
 		t.Errorf("the session must report the moved branches:\n%s", out)
 	}
 	if got := git(t, repo, "rev-parse", "agent"); got == "" {

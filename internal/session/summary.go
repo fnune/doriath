@@ -5,24 +5,22 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/term"
 )
 
-const summaryHosts = 3
+type note struct {
+	level term.Level
+	text  string
+}
 
-// Summary is one line for the end of a session. It is empty when nothing was
-// blocked or decided, so a quiet session ends quietly.
-func Summary(profile, id string, denied []Denial, history []approval.Outcome) string {
-	var parts []string
-	if len(denied) > 0 {
-		hosts := make([]string, 0, summaryHosts)
-		for i, d := range denied {
-			if i == summaryHosts {
-				hosts = append(hosts, fmt.Sprintf("%d more", len(denied)-summaryHosts))
-				break
-			}
-			hosts = append(hosts, fmt.Sprintf("%s (%d)", d.Host, d.Count))
+func summary(denied []Denial, history []approval.Outcome) []note {
+	var out []note
+	for _, d := range denied {
+		times := "1 time"
+		if d.Count != 1 {
+			times = fmt.Sprintf("%d times", d.Count)
 		}
-		parts = append(parts, "blocked "+strings.Join(hosts, ", "))
+		out = append(out, note{term.Problem, Printable(fmt.Sprintf("%s blocked %s: %s", d.Host, times, d.Reason))})
 	}
 	counts := map[approval.Verdict]int{}
 	for _, o := range history {
@@ -36,10 +34,17 @@ func Summary(profile, id string, denied []Denial, history []approval.Outcome) st
 		}
 	}
 	if len(decided) > 0 {
-		parts = append(parts, "requests "+strings.Join(decided, ", "))
+		out = append(out, note{term.Info, "requests: " + strings.Join(decided, ", ")})
 	}
-	if len(parts) == 0 {
-		return ""
+	return out
+}
+
+func printBlock(t *term.Writer, notes []note, header ...string) {
+	if len(notes) == 0 {
+		return
 	}
-	return Printable(fmt.Sprintf("doriath: session %s (%s) ended: %s. Details: doriath log --session %s", id, profile, strings.Join(parts, "; "), id))
+	t.Header(header...)
+	for _, n := range notes {
+		t.Line(n.level, n.text)
+	}
 }

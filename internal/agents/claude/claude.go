@@ -182,18 +182,18 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 		Matcher: "*",
 		Hooks: []hookCommand{{
 			Type:    "command",
-			Command: fmt.Sprintf("%s hook claude permission-request --timeout %s", jail.ExePath, p.Claude.ApprovalTimeout),
+			Command: fmt.Sprintf("%s __hook claude permission-request --timeout %s", jail.ExePath, p.Claude.ApprovalTimeout),
 			Timeout: timeout,
 		}},
 	})
 	s.Hooks["SessionStart"] = append(s.Hooks["SessionStart"], hookGroup{
-		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " hook claude session-start", Timeout: 10}},
+		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " __hook claude session-start", Timeout: 10}},
 	})
 	if p.Claude.StatusLine {
-		s.StatusLine = &statusLine{Type: "command", Command: jail.ExePath + " statusline"}
+		s.StatusLine = &statusLine{Type: "command", Command: jail.ExePath + " __statusline"}
 	}
 	s.Hooks["Notification"] = append(s.Hooks["Notification"], hookGroup{
-		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " hook claude notification", Timeout: 10}},
+		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " __hook claude notification", Timeout: 10}},
 	})
 	out, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

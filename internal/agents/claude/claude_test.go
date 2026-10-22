@@ -63,7 +63,7 @@ func TestSettings(t *testing.T) {
 	}
 	hooks := got["hooks"].(map[string]any)
 	pr := hooks["PermissionRequest"].([]any)[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)
-	if pr["command"] != jail.ExePath+" hook claude permission-request --timeout 1m0s" || pr["timeout"].(float64) != 90 {
+	if pr["command"] != jail.ExePath+" __hook claude permission-request --timeout 1m0s" || pr["timeout"].(float64) != 90 {
 		t.Errorf("permission hook = %v", pr)
 	}
 	if _, ok := hooks["PostToolUse"]; !ok {

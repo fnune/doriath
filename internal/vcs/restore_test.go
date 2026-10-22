@@ -26,7 +26,7 @@ func TestRestorePutsMovedBranchesBackAndKeepsNewOnes(t *testing.T) {
 	if got := rec.Repos[0].Moved; !slices.Equal(got, []string{"refs/heads/main", "refs/heads/topic"}) {
 		t.Fatalf("moved = %v", got)
 	}
-	if !strings.Contains(out, "moved or deleted main, topic in "+r) || !strings.Contains(out, "doriath restore s1") {
+	if !strings.Contains(out, "main, topic moved in "+r) || !strings.Contains(out, "doriath restore s1 main topic") {
 		t.Errorf("the report must name the moved branches and the command: %q", out)
 	}
 

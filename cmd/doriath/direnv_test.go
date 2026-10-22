@@ -60,7 +60,7 @@ func TestDirenvLibraryAsksTheProfileForTheAgentCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	fake := "#!/bin/sh\nif [ \"$1 $2 $3\" = 'profiles command work' ]; then echo someagent; exit 0; fi\nif [ \"$1\" = profiles ]; then exit 1; fi\nprintf '%s\\n' \"$@\"\n"
+	fake := "#!/bin/sh\nif [ \"$1 $2\" = '__agent-command work' ]; then echo someagent; exit 0; fi\nif [ \"$1\" = __agent-command ]; then exit 1; fi\nprintf '%s\\n' \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "doriath"), []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
