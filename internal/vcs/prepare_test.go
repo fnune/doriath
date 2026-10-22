@@ -109,3 +109,23 @@ func TestStoreAndRootFindTheMainRepository(t *testing.T) {
 		})
 	}
 }
+
+func TestPrepareUnpacksRefsSoTheJailNeverLocksTheStoresRoot(t *testing.T) {
+	r := repo(t)
+	git(t, r, "branch", "packed")
+	git(t, r, "tag", "-a", "-m", "v1", "v1")
+	git(t, r, "pack-refs", "--all")
+	before := git(t, r, "for-each-ref", "--format=%(refname) %(objectname)")
+	if _, err := Prepare(context.Background(), Tools{Git: "git"}, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r, ".git", "packed-refs")); !os.IsNotExist(err) {
+		t.Errorf("packed-refs stays: %v", err)
+	}
+	if after := git(t, r, "for-each-ref", "--format=%(refname) %(objectname)"); after != before {
+		t.Errorf("refs changed:\n%s\nwant\n%s", after, before)
+	}
+	if _, err := os.Stat(filepath.Join(r, ".git", "refs", "heads", "packed")); err != nil {
+		t.Errorf("the branch is not a loose ref: %v", err)
+	}
+}

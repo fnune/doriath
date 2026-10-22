@@ -21,6 +21,7 @@ const (
 	Warn
 	Problem
 	Action
+	Refused
 )
 
 const (
@@ -39,6 +40,7 @@ var marks = map[Level]struct{ mark, color string }{
 	Warn:    {"!", yellow},
 	Problem: {"✕", red},
 	Action:  {"↺", cyan},
+	Refused: {"⊘", dim},
 }
 
 type Writer struct {

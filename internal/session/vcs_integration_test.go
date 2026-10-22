@@ -48,6 +48,7 @@ func TestStoreOfAReadOnlyRepository(t *testing.T) {
 	git(t, repo, "checkout", "-q", "main")
 	git(t, repo, "worktree", "add", "-q", filepath.Join(e.home, "user-wt"), "feature")
 	spare := git(t, repo, "rev-parse", "spare")
+	git(t, repo, "pack-refs", "--all")
 
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n\n[vcs]\nstore = true\n", repo))
 	code, out := e.run(p, fmt.Sprintf(`

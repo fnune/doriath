@@ -637,11 +637,11 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 	return false
 }
 
-const reasonRefused = "refused by the profile"
+const ReasonRefused = "refused by the profile"
 
 func (s *Server) hostReason(host string) string {
 	if s.policy.Refuses(host) {
-		return reasonRefused
+		return ReasonRefused
 	}
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		return "host allowed only for " + strings.Join(progs, ", ")

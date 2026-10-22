@@ -178,8 +178,51 @@ func Prepare(ctx context.Context, t Tools, repo string) ([]string, error) {
 		if err := guardAlternates(git, 0); err != nil {
 			return nil, err
 		}
+		for _, store := range append([]string{git}, submoduleStores(git, 1)...) {
+			if err := unpackRefs(store); err != nil {
+				return nil, fmt.Errorf("unpack the refs of %s: %w", store, err)
+			}
+		}
 	}
 	return nil, nil
+}
+
+// unpackRefs writes each ref of packed-refs as a loose ref, unless a loose
+// one already overrides it, and removes packed-refs. git then changes a ref
+// without its lock in the store's root, which the jail keeps read-only.
+func unpackRefs(gitDir string) error {
+	packed := filepath.Join(gitDir, "packed-refs")
+	data, err := os.ReadFile(packed)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		id, name, ok := strings.Cut(line, " ")
+		if !ok || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "^") {
+			continue
+		}
+		if !strings.HasPrefix(name, "refs/") || filepath.Clean(name) != name || strings.Contains(name, "..") {
+			return fmt.Errorf("packed-refs names %q, which is not a ref", name)
+		}
+		loose := filepath.Join(gitDir, name)
+		if _, err := os.Lstat(loose); err == nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(loose), 0o755); err != nil {
+			return err
+		}
+		tmp := loose + ".doriath-unpack"
+		if err := os.WriteFile(tmp, []byte(id+"\n"), 0o644); err != nil {
+			return err
+		}
+		if err := os.Rename(tmp, loose); err != nil {
+			return err
+		}
+	}
+	return os.Remove(packed)
 }
 
 // Start records the branches, bookmarks and worktrees of each repository,

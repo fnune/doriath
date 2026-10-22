@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/proxy"
 	"github.com/fnune/doriath/internal/term"
 )
 
@@ -19,6 +20,10 @@ func summary(denied []Denial, history []approval.Outcome) []note {
 		times := "1 time"
 		if d.Count != 1 {
 			times = fmt.Sprintf("%d times", d.Count)
+		}
+		if d.Reason == proxy.ReasonRefused {
+			out = append(out, note{term.Refused, Printable(fmt.Sprintf("%s refused %s, as the profile says", d.Host, times))})
+			continue
 		}
 		out = append(out, note{term.Problem, Printable(fmt.Sprintf("%s blocked %s: %s", d.Host, times, d.Reason))})
 	}
