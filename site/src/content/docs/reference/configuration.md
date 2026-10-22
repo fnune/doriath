@@ -42,7 +42,7 @@ modules = ["base", "vcs", "github", "claude"]
 devices = ["/dev/tpmrm0"]
 
 # The source of each secret: a file with mode 600, a command that prints it,
-# or an OAuth login. doriath reads it one time for each session, and the
+# or an OAuth login. doriath reads it when the session starts, and the
 # jail never sees it. See "Secrets".
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]
@@ -226,6 +226,15 @@ A secret has a name that you select, and a source under `[secrets.NAME]`: a `fil
 | `[[http]] credential.secret` | the credential the proxy adds for a host |
 | `[[mcp]] secret`             | the bearer token for a remote MCP server |
 | `[signing] key`              | the agent's SSH key for signing commits  |
+
+doriath reads each file and command secret when the session starts, before the agent. A command gets your terminal, so a password manager can ask for its password there. For example, Bitwarden's `bw` asks one time for each session:
+
+```toml
+[secrets.github]
+command = ["sh", "-c", "bw get password github-my-app --session \"$(bw unlock --raw)\""]
+```
+
+doriath checks that the agent cannot write the program that a command starts. Here that program is `sh`, so keep `bw` at a path that the agent cannot write, such as the Nix store.
 
 A module can name a secret without its source, and the profile gives the source. For example, a profile with the `github` module needs `[secrets.github]`. If a credential or signing key names a secret without a source, doriath refuses the profile and gives the table to add.
 

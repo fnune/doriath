@@ -29,6 +29,7 @@ import (
 	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
+	"golang.org/x/sys/unix"
 )
 
 var version = "dev"
@@ -278,8 +279,17 @@ func (execRunner) Output(ctx context.Context, argv []string) ([]byte, []byte, er
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	var stderr limitedBuffer
 	cmd.Stderr = &stderr
+	if isTerminal(os.Stdin) {
+		cmd.Stdin = os.Stdin
+		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
+	}
 	out, err := cmd.Output()
 	return out, stderr.b, err
+}
+
+func isTerminal(f *os.File) bool {
+	_, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
+	return err == nil
 }
 
 type limitedBuffer struct{ b []byte }

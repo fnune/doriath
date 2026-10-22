@@ -249,6 +249,9 @@ func (s *Session) prepare(ctx context.Context) error {
 			}
 		}
 	}
+	if err := s.fetchSecrets(ctx); err != nil {
+		return err
+	}
 	if err := s.holdHiddenPaths(); err != nil {
 		return err
 	}
@@ -428,6 +431,19 @@ func (s *Session) httpForward(target string, port int) http.Handler {
 		seen.Do(func() { s.egress.Egress(proxy.Event{Kind: "port", Host: "127.0.0.1", Port: strconv.Itoa(port)}) })
 		rp.ServeHTTP(w, r)
 	})
+}
+
+func (s *Session) fetchSecrets(ctx context.Context) error {
+	p := s.req.Profile
+	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
+		if p.Secrets[name].OAuth != nil {
+			continue
+		}
+		if _, err := s.deps.Secrets.Get(ctx, name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Session) startSigning(context.Context) error {

@@ -857,3 +857,15 @@ echo done
 		t.Fatalf("forwarded port served %q", body)
 	}
 }
+
+func TestASecretThatCannotBeReadStopsTheSessionBeforeTheAgent(t *testing.T) {
+	e := newEnv(t)
+	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}
+	_, out, err := e.start(e.profile(""), `echo ran > "$PWD/ran"`, nil)
+	if err == nil || !strings.Contains(err.Error(), `secret "github"`) {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(e.work, "ran")); err == nil {
+		t.Error("the agent ran without its secret")
+	}
+}
