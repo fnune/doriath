@@ -2,6 +2,7 @@ package jail
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -9,6 +10,10 @@ type sortedHost struct{ fakeHost }
 
 func (h sortedHost) Entries(dir string) []string {
 	return slices.Sorted(slices.Values(h.fakeHost.Entries(dir)))
+}
+
+func (h sortedHost) List(dir string) []Entry {
+	return slices.SortedFunc(slices.Values(h.fakeHost.List(dir)), func(a, b Entry) int { return strings.Compare(a.Name, b.Name) })
 }
 
 func TestPlanRejectsRelativeDirectories(t *testing.T) {

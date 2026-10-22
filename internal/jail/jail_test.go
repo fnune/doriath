@@ -1,6 +1,7 @@
 package jail
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -25,6 +26,15 @@ func (h fakeHost) Entries(dir string) []string {
 		if rest, ok := strings.CutPrefix(p, dir+"/"); ok && !strings.Contains(rest, "/") {
 			out = append(out, rest)
 		}
+	}
+	return out
+}
+
+func (h fakeHost) List(dir string) []Entry {
+	var out []Entry
+	for _, name := range h.Entries(dir) {
+		p := dir + "/" + name
+		out = append(out, Entry{Name: name, Dir: h[p] == "dir"})
 	}
 	return out
 }
@@ -494,5 +504,29 @@ func TestHomeOutsideHiddenRootsIsHidden(t *testing.T) {
 	}
 	if s, _ := Plan(testProfile(), layout(), opts(), host()); slices.Contains(s.Tmpfs, "/home/u") {
 		t.Error("a home under /home is hidden with it")
+	}
+}
+
+func TestRepositoriesFindRepositoriesUpToTheirDepth(t *testing.T) {
+	h := fakeHost{}
+	add := func(p, kind string) {
+		for d := filepath.Dir(p); d != "/"; d = filepath.Dir(d) {
+			if h[d] == "" {
+				h[d] = "dir"
+			}
+		}
+		h[p] = kind
+	}
+	add("/m/.git", "dir")
+	add("/m/worktree/.git", "file")
+	add("/m/a/b/jj/.jj", "dir")
+	add("/m/a/b/c/.git", "dir")
+	add("/m/a/b/c/d/.git", "dir")
+	add("/m/node_modules/dep/.git", "dir")
+	got := Repositories("/m", h)
+	slices.Sort(got)
+	want := []string{"/m", "/m/a/b/c", "/m/a/b/jj", "/m/worktree"}
+	if !slices.Equal(got, want) {
+		t.Errorf("repositories = %v, want %v", got, want)
 	}
 }

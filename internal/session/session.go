@@ -149,7 +149,8 @@ type Session struct {
 	repository      string
 	containerBroker *containers.Broker
 	// mu guards the profile's mounts, which promotion extends.
-	mu sync.Mutex
+	mu       sync.Mutex
+	listings *listingCache
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -161,7 +162,10 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}
-	req.Profile = withLinkedStores(resolved)
+	listings := newListingCache()
+	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
+	req.Profile = withLinkedStores(resolved, listings)
+	stopNote()
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
@@ -174,7 +178,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, listings: listings}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -560,7 +564,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		HostEnv:    envMap(s.deps.Environ),
 		ExtraEnv:   env,
 		ExtraBinds: extra,
-	}, osHost{})
+	}, s.listings)
 }
 
 func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
@@ -704,6 +708,46 @@ func (osHost) Entries(dir string) []string {
 		names[i] = e.Name()
 	}
 	return names
+}
+
+func (osHost) List(dir string) []jail.Entry {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	out := make([]jail.Entry, len(entries))
+	for i, e := range entries {
+		out[i] = jail.Entry{Name: e.Name(), Dir: e.IsDir()}
+	}
+	return out
+}
+
+type listingCache struct {
+	osHost
+	mu    sync.Mutex
+	lists map[string][]jail.Entry
+}
+
+func newListingCache() *listingCache {
+	return &listingCache{lists: map[string][]jail.Entry{}}
+}
+
+func (c *listingCache) List(dir string) []jail.Entry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if l, ok := c.lists[dir]; ok {
+		return l
+	}
+	l := c.osHost.List(dir)
+	c.lists[dir] = l
+	return l
+}
+
+const slowWalk = 2 * time.Second
+
+func noteIfSlow(w io.Writer, after time.Duration, note string) (stop func()) {
+	t := time.AfterFunc(after, func() { fmt.Fprintln(w, "doriath: "+note) })
+	return func() { t.Stop() }
 }
 
 func (osHost) Link(p string) bool {

@@ -73,7 +73,7 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 		return errors.New("the jail is not running yet")
 	}
 	asWriteMount := &profile.Profile{Mounts: []profile.Mount{{Path: path, Mode: profile.ModeWrite}}}
-	if err := holdControlPaths(asWriteMount); err != nil {
+	if err := holdControlPaths(asWriteMount, osHost{}); err != nil {
 		return err
 	}
 	guards := jail.Guards(asWriteMount, osHost{})

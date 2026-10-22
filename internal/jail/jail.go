@@ -57,6 +57,15 @@ type Host interface {
 	Entries(dir string) []string
 	// Link reports whether the path itself is a symlink.
 	Link(path string) bool
+	// List lists a directory's entries with their type, from the listing
+	// itself, or nothing if it cannot.
+	List(dir string) []Entry
+}
+
+// Entry is a directory entry. Dir is false for a symlink to a directory.
+type Entry struct {
+	Name string
+	Dir  bool
 }
 
 type Bind struct {
@@ -334,23 +343,27 @@ func (g *guards) git(src, dest string) {
 }
 
 // Repositories lists the git and jj repositories at or below root, a few levels
-// deep.
+// deep. It reads each directory once and stats nothing it lists: a mount of
+// many checkouts holds hundreds of thousands of entries, and with a cold
+// cache each stat is a disk read.
 func Repositories(root string, host Host) []string {
 	var out []string
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
-		if host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != "" || filepath.Base(dir) == ".git" || isJJRepo(dir) {
+		repo := filepath.Base(dir) == ".git" || isJJRepo(dir)
+		var entries []Entry
+		if depth < repositoryDepth {
+			entries = host.List(dir)
+			repo = repo || slices.ContainsFunc(entries, func(e Entry) bool { return e.Name == ".git" || e.Name == ".jj" })
+		} else {
+			repo = repo || host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != ""
+		}
+		if repo {
 			out = append(out, dir)
 		}
-		if depth == repositoryDepth {
-			return
-		}
-		for _, name := range host.Entries(dir) {
-			if skipWalk[name] {
-				continue
-			}
-			if sub := filepath.Join(dir, name); host.Kind(sub) == "dir" && !host.Link(sub) {
-				walk(sub, depth+1)
+		for _, e := range entries {
+			if e.Dir && !skipWalk[e.Name] {
+				walk(filepath.Join(dir, e.Name), depth+1)
 			}
 		}
 	}

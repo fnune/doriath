@@ -13,11 +13,11 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-func (s *Session) holdControlPaths() error { return holdControlPaths(s.req.Profile) }
+func (s *Session) holdControlPaths() error { return holdControlPaths(s.req.Profile, s.listings) }
 
 // The placeholders stay: another session may still bind them.
-func holdControlPaths(p *profile.Profile) error {
-	for _, h := range jail.Placeholders(p, osHost{}) {
+func holdControlPaths(p *profile.Profile, host jail.Host) error {
+	for _, h := range jail.Placeholders(p, host) {
 		if err := jail.CheckLinks(p, osHost{}, h.Path); err != nil {
 			return err
 		}

@@ -20,7 +20,7 @@ import (
 // storeRepositories are the main repositories whose store the jail can
 // write, when the profile asks for it: those in its mounts, and those whose
 // linked worktrees or workspaces are there.
-func storeRepositories(p *profile.Profile) []string {
+func storeRepositories(p *profile.Profile, host jail.Host) []string {
 	if !p.VCSStore {
 		return nil
 	}
@@ -29,7 +29,7 @@ func storeRepositories(p *profile.Profile) []string {
 		if m.Mode == profile.ModeHide {
 			continue
 		}
-		for _, repo := range jail.Repositories(m.Path, osHost{}) {
+		for _, repo := range jail.Repositories(m.Path, host) {
 			if root := vcs.Root(repo); !slices.Contains(out, root) {
 				out = append(out, root)
 			}
@@ -41,7 +41,7 @@ func storeRepositories(p *profile.Profile) []string {
 // withLinkedStores adds, read-only, the main repository's store of each
 // linked git worktree and secondary jj workspace in a read mount, so git and
 // jj work there, and the vcs module makes the store's data writable.
-func withLinkedStores(p *profile.Profile) *profile.Profile {
+func withLinkedStores(p *profile.Profile, host jail.Host) *profile.Profile {
 	if !p.VCSStore {
 		return p
 	}
@@ -59,10 +59,10 @@ func withLinkedStores(p *profile.Profile) *profile.Profile {
 		if m.Mode == profile.ModeHide {
 			continue
 		}
-		for _, repo := range jail.Repositories(m.Path, osHost{}) {
+		for _, repo := range jail.Repositories(m.Path, host) {
 			git, jj := vcs.Linked(repo)
 			for _, store := range []string{git, jj} {
-				if store != "" && (osHost{}).Kind(store) == "dir" && !visible(store) {
+				if store != "" && host.Kind(store) == "dir" && !visible(store) {
 					out.Mounts = append(out.Mounts, profile.Mount{Path: store, Mode: profile.ModeRead})
 				}
 			}
@@ -78,7 +78,7 @@ func recordPath(paths config.Paths, id string) string {
 }
 
 func (s *Session) startRepositories(ctx context.Context) error {
-	repos := storeRepositories(s.req.Profile)
+	repos := storeRepositories(s.req.Profile, s.listings)
 	if len(repos) == 0 {
 		return nil
 	}
