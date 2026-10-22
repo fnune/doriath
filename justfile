@@ -11,7 +11,7 @@ build: bundle
 
 fmt:
     gofumpt -w .
-    prettier --write '**/*.md'
+    prettier --write '**/*.{md,mdx}'
 
 lint:
     golangci-lint run ./...
@@ -55,6 +55,7 @@ vuln:
 
 check:
     test -z "$(gofumpt -l .)" || (gofumpt -l . && exit 1)
+    prettier --check '**/*.{md,mdx}'
     go vet ./...
     golangci-lint run ./...
     go test -race ./...
@@ -77,3 +78,10 @@ vendor-hash:
     nix build .#default 2>&1 | sed -n 's/.*got: *//p' | tr -d ' ' > nix/vendor-hash.new || true
     mv nix/vendor-hash.new nix/vendor-hash
     cat nix/vendor-hash
+
+# The documentation site, at http://localhost:4321.
+site-dev:
+    cd site && npm ci && npm run dev
+
+site-build:
+    cd site && npm ci && npm run build

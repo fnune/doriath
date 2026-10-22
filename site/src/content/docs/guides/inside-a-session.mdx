@@ -1,0 +1,33 @@
+---
+title: Looking inside a session
+description: Run commands in a jail, reach its ports, and read what it did.
+---
+
+What the agent starts listens only inside the jail. From another terminal on the host:
+
+```sh
+doriath exec -- curl -sS http://localhost:3000
+doriath exec
+```
+
+`doriath exec` runs a command, or a shell, as one more process of the jail, with its files, network and limits.
+
+```sh
+doriath forward 3000
+```
+
+`doriath forward` makes the jail's port 3000 reachable at `localhost:3000` on the host, for every local user of the machine. For a browser in the jail, start it with `--remote-debugging-port=9222`, forward 9222 and attach from `chrome://inspect`.
+
+With several sessions, pass `--session ID` from `doriath sessions`.
+
+## What a session did
+
+```sh
+doriath status
+doriath log --since 1h
+doriath log --denied --follow
+```
+
+`doriath status` shows what a session allows and what it blocked, with the profile lines that would allow it. `doriath log` reads the audit log at `~/.local/state/doriath/audit.jsonl`: every session, egress decision and approval, with the session and profile on each record. `contrib/lnav` in the repository has a format for [lnav](https://lnav.org).
+
+When a session ends, doriath prints one summary line and the hosts it learned as profile lines. If the agent moved branches, `doriath restore SESSION` puts them back.

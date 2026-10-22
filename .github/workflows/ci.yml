@@ -24,6 +24,8 @@ jobs:
         run: nix develop --command just test-integration
       - name: Vulnerabilities
         run: nix develop --command just vuln
+      - name: Site
+        run: nix develop --command just site-build
       - name: Package
         run: nix build .#default
       - name: Flake checks

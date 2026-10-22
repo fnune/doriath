@@ -1,0 +1,16 @@
+---
+import ornaments from "../../../internal/ui/ornaments.svg?url";
+
+interface Props {
+  name: "mark" | "curl-h" | "curl-v";
+  class?: string;
+  width: number;
+  height: number;
+}
+
+const { name, class: className, width, height } = Astro.props;
+---
+
+<svg class={className} width={width} height={height} aria-hidden="true">
+  <use href={`${ornaments}#${name}`}></use>
+</svg>

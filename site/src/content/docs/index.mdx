@@ -1,0 +1,112 @@
+---
+title: Doriath
+description: Run coding agents in a jail that shows them only what their task needs.
+template: splash
+hero:
+  title: Doriath
+  tagline: Doriath runs a coding agent, such as Claude Code, in a jail on your Linux machine. The jail has its own files, network and processes. A proxy outside it decides which hosts the agent reaches, adds credentials the agent never sees, and holds the requests that matter until you answer.
+  actions:
+    - text: Install
+      link: /install/
+      icon: right-arrow
+    - text: How it works
+      link: /how-it-works/
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/fnune/doriath
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+import RequestExample from "../../components/RequestExample.astro";
+import Flourish from "../../components/Flourish.astro";
+
+<Aside type="caution">
+  Doriath is pre-alpha software and runs on Linux only. Read [what it protects
+  against](/threat-model/) and its [security
+  limits](/reference/security-limits/) before you rely on it.
+</Aside>
+
+## What doriath is for
+
+Doriath lets coding agents work on your own machine, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes that run the agent in a container or virtual machine with an image of its own: the agent shares your toolchain, checkouts and kernel, so it works as you do.
+
+It protects you from an agent that does what you did not ask for, for example after a prompt injection in a web page or an issue it reads.
+
+<CardGrid>
+  <Card title="Files" icon="document">
+    The agent sees the repository you start in, read-only, and commits in
+    worktrees of its own. Your home directory, other projects, SSH keys and
+    tokens stay out of the jail.
+  </Card>
+  <Card title="Network" icon="external">
+    The jail has only loopback. Every request goes through a proxy that allows
+    the hosts the profile names and refuses private and metadata addresses.
+  </Card>
+  <Card title="Credentials" icon="seti:lock">
+    The proxy adds tokens to requests for the programs the profile names. The
+    agent can use `gh` and `git push` without ever reading the token.
+  </Card>
+  <Card title="Approvals" icon="approve-check">
+    Merges, releases, pushes and unknown hosts wait for you in a desktop
+    notification or a page in your browser. The agent cannot approve its own
+    requests.
+  </Card>
+</CardGrid>
+
+## A held request
+
+When an agent asks for something a rule holds, doriath shows you the request and waits. This is the request as the approvals page shows it, with the parts the agent wrote marked as its own:
+
+<RequestExample
+  profile="my-app"
+  hue="p0"
+  session="k3f9"
+  cwd="~/Development/my-app"
+  kind="http"
+  summary="Merge pull request #412"
+  timer="8:46"
+  fill="88%"
+  status="The agent is waiting for your answer, 8:46 left."
+  details={
+    'PUT https://api.github.com/repos/acme/my-app/pulls/412/merge from gh\n{"merge_method": "squash"}'
+  }
+  scope="github merge acme/my-app"
+/>
+
+<Flourish />
+
+## A first session
+
+A profile says what one kind of work can reach. Modules hold the hosts, caches and rules of a toolchain:
+
+```toml title="~/.config/doriath/profiles/my-app.toml"
+description = "My app: Go API and React frontend"
+modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+
+[egress]
+allow = ["api.stripe.com"]
+
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+```
+
+Run the agent from the repository:
+
+```sh
+cd ~/Development/my-app
+doriath run --profile my-app -- claude
+```
+
+<CardGrid>
+  <LinkCard
+    title="Install"
+    description="From nothing to a first agent session."
+    href="/install/"
+  />
+  <LinkCard
+    title="How it works"
+    description="The jail, the proxy, approvals and repositories."
+    href="/how-it-works/"
+  />
+</CardGrid>

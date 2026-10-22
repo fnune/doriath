@@ -1,0 +1,42 @@
+---
+title: Projects with direnv
+description: Start a plain claude in the jail for a whole project, alongside use flake.
+---
+
+With [direnv](https://direnv.net), one line in a project's `.envrc` makes a plain `claude` anywhere in the project start in a doriath session:
+
+```sh title=".envrc"
+use doriath my-app
+```
+
+`use doriath PROFILE` puts a small script named `claude` first on `PATH`. It runs `doriath run --profile PROFILE --current ROOT -- claude`, where `ROOT` is the folder of the `.envrc`. The script lives in `~/.cache/doriath/shims/`, outside the project, where no agent writes. `--command NAME` wraps another command than `claude`.
+
+The home-manager module installs the library when direnv is on. Without it:
+
+```sh
+doriath direnv > ~/.config/direnv/lib/doriath.sh
+```
+
+## With use flake
+
+`use doriath` works with `use flake` and other direnv functions. Put it last, so that its script stays first on `PATH`:
+
+```sh title=".envrc"
+use flake
+use doriath my-app
+```
+
+The jail sees the `PATH` that direnv builds, and `/nix/store` is readable in the jail, so the flake's tools work there. Other variables the `.envrc` sets stay outside: the jail sees only the variables the profile passes, which keeps cloud credentials such as `AWS_PROFILE` out. To pass more, list them in the profile:
+
+```toml
+[env]
+pass = ["GOPRIVATE", "GOTOOLCHAIN"]
+```
+
+## A local .envrc
+
+If the project's `.envrc` is checked in, put the line in a file of your own that it sources, such as `.envrc.local`, and keep that file out of the repository:
+
+```sh title=".envrc.local"
+use doriath my-app
+```

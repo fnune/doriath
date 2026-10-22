@@ -1,0 +1,72 @@
+---
+title: Profiles with home-manager
+description: Install doriath, write profiles in nix, and keep private profiles out of a public configuration.
+---
+
+## The module
+
+Add the flake as an input and import its module:
+
+```nix title="flake.nix"
+{
+  inputs.doriath = {
+    url = "github:fnune/doriath";
+    inputs.nixpkgs.follows = "nixpkgs";
+    inputs.home-manager.follows = "home-manager";
+  };
+}
+```
+
+```nix
+{
+  imports = [ inputs.doriath.homeManagerModules.default ];
+
+  programs.doriath = {
+    enable = true;
+    approvals.web.enable = true;
+  };
+}
+```
+
+| Option                 | Default                  | What it does                                                   |
+| ---------------------- | ------------------------ | -------------------------------------------------------------- |
+| `enable`               | `false`                  | Installs doriath and writes `~/.config/doriath/config.toml`.   |
+| `direnv`               | `programs.direnv.enable` | Installs the direnv library, for `use doriath PROFILE`.        |
+| `zsh.completion`       | `programs.zsh.enable`    | Loads the zsh completion.                                      |
+| `approvals.desktop`    | `true`                   | Shows requests as desktop notifications.                       |
+| `approvals.web.enable` | `false`                  | Runs the approvals page as a systemd user service.             |
+| `approvals.web.listen` | `"127.0.0.1:7341"`       | The loopback address of the page.                              |
+| `profiles.<name>`      | `{ }`                    | Profiles, with the same keys as their TOML.                    |
+| `modules.<name>`       | `{ }`                    | Your own modules. A module with a built-in's name replaces it. |
+
+## Profiles in nix
+
+A profile takes the keys of its TOML as nix attributes. Two keys are nix-only: `secrets` says where each secret comes from, and `packages` puts tools in front of the jail's `PATH` without installing them on the host.
+
+```nix
+programs.doriath.profiles.my-app = {
+  description = "My app";
+  modules = [ "base" "vcs" "go" "github" "claude" ];
+  secrets.github.command = [ "rbw" "get" "github-my-app" ];
+  packages = [ pkgs.xvfb-run ];
+  mounts = [
+    {
+      path = "~/Development/.worktrees/my-app";
+      mode = "write";
+    }
+  ];
+};
+```
+
+doriath refuses to edit a profile home-manager wrote: `doriath profiles edit` says to change it in your nix configuration.
+
+## Private profiles
+
+A profile's allowlist describes the project it is for: the build's download hosts, the services the app calls, the paths of its build output. If your home-manager configuration is public, keep those profiles in a private repository of TOML files instead, and link it into the profiles folder once:
+
+```sh
+git clone git@github.com:you/doriath-profiles.git ~/Development/doriath-profiles
+ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private
+```
+
+doriath finds profiles in `~/.config/doriath/profiles/` and in the folders inside it, including linked ones, and skips folders whose names start with a dot, such as `.git`. A profile is named after its file, so `private/acme-service.toml` is `--profile acme-service`. home-manager writes its own profiles next to the link and leaves the link alone. Two files with one name are an error.

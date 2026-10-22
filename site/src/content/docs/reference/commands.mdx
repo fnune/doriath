@@ -1,0 +1,39 @@
+---
+title: Commands
+description: Every doriath command, on the host and inside a jail.
+---
+
+## On the host
+
+| Command                                                                                   | What it does                                                                                                |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `doriath run --profile NAME [--current DIR] [--learn] -- COMMAND`                         | Runs a command in a jail for the profile. `--learn` reaches every public host and prints the hosts it used. |
+| `doriath exec [--session ID] [-- COMMAND]`                                                | Runs a command, or a shell, as one more process of a running jail.                                          |
+| `doriath forward [--session ID] PORT[:JAIL_PORT]`                                         | Makes a port of the jail reachable on the host's loopback.                                                  |
+| `doriath approvals [list]`                                                                | Lists the requests waiting in every running session.                                                        |
+| `doriath approvals allow ID [--for once\|session\|DURATION]`                              | Allows a request.                                                                                           |
+| `doriath approvals deny ID [--reason TEXT]`                                               | Denies a request, with a reason the agent sees.                                                             |
+| `doriath approvals watch`                                                                 | Asks about each new request in the terminal.                                                                |
+| `doriath approvals web [--listen HOST:PORT] [--open]`                                     | Serves the approvals page.                                                                                  |
+| `doriath sessions`                                                                        | Lists running sessions.                                                                                     |
+| `doriath status [SESSION]`                                                                | Shows what a session allows, and what it blocked.                                                           |
+| `doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]` | Reads the audit log.                                                                                        |
+| `doriath grant write PATH [--session ID]`                                                 | Makes a path writable in a running session.                                                                 |
+| `doriath restore SESSION`                                                                 | Puts back the branches and bookmarks a session moved.                                                       |
+| `doriath clean [--caches PROFILE]`                                                        | Removes merged agent worktrees and old backups, or a profile's caches, after you confirm.                   |
+| `doriath login --profile NAME [SECRET]`                                                   | Signs in to a profile's OAuth secrets.                                                                      |
+| `doriath profiles [list \| show NAME \| edit NAME]`                                       | Lists, checks or edits profiles.                                                                            |
+| `doriath doctor [--secrets]`                                                              | Checks the machine, and with `--secrets` fetches every secret once.                                         |
+| `doriath direnv`                                                                          | Prints the direnv library.                                                                                  |
+| `doriath completion zsh`                                                                  | Prints the zsh completion.                                                                                  |
+| `doriath version`                                                                         | Prints the version.                                                                                         |
+
+## Inside a jail
+
+| Command                                      | What it does                                              |
+| -------------------------------------------- | --------------------------------------------------------- |
+| `doriath status`                             | Tells the agent what the jail allows and what it blocked. |
+| `doriath request write PATH [--reason TEXT]` | Asks you to make a path writable.                         |
+| `doriath request wait ID\|HOST\|PATH`        | Waits for the answer to a request.                        |
+
+doriath also runs `doriath init`, `doriath sandbox-exec`, `doriath hook` and `doriath statusline` itself, inside the jail. They are not meant to be typed.

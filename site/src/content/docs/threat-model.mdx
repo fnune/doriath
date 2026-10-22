@@ -1,0 +1,40 @@
+---
+title: What it protects against
+description: The agent doriath assumes, what it cannot do, and what stays open.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+doriath assumes an agent that does what you did not ask for. The cause can be a prompt injection in a web page, an issue or a dependency it reads, a mistake, or a model that misreads the task. It does not assume the agent is weak: the agent can run any program the jail sees, write any file it may write, and try anything the kernel allows.
+
+## What the agent cannot do
+
+| The agent tries to                                   | What stops it                                                                                                                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read your home directory, SSH keys or other projects | They are not mounted. The jail sees only the repository, the profile's paths and system paths.                                                            |
+| Read a token or send it elsewhere                    | Tokens stay in the proxy, which adds them only for the programs and hosts the profile names.                                                              |
+| Reach a host the profile does not name               | The jail has only loopback. The proxy refuses unknown hosts and holds them for you.                                                                       |
+| Reach your local network or a cloud metadata service | The proxy refuses private, link-local and metadata addresses, whatever name resolves to them.                                                             |
+| Merge, release or push without you                   | `[[http]]` rules hold those requests until you answer.                                                                                                    |
+| Approve its own requests                             | Decisions come only from your desktop, terminal or approvals page, which the jail cannot reach.                                                           |
+| Change your checkout or plant a git hook             | The checkout is read-only. git's and jj's config, hooks and info stay read-only, even in writable mounts.                                                 |
+| Rewrite or delete history                            | Existing packs are read-only, loose objects are restored at the end, and moved branches can be restored with `doriath restore`.                           |
+| Escape with a namespace, `ptrace` or `bpf`           | seccomp refuses them, and Landlock limits writes.                                                                                                         |
+| Use containers to reach more                         | A broker checks each podman API call: allowed images, the profile's mounts only, no privileged containers, and no host namespaces other than the network. |
+
+## What stays open
+
+<Aside type="caution">
+  doriath narrows what an agent can do. It does not make an agent safe to point
+  at work it should not see.
+</Aside>
+
+An agent can still send the mounted project to an allowed host. Allowing writes allows exfiltration: a request with the agent's own API key to an allowed host is valid, and `gh` can post comments. The profile is the boundary, so mount only the project and allow only the hosts the task needs.
+
+The agent drives the programs it may use. It runs them with any arguments and can steer them through config it can write, so a credential that only `gh` gets is still used however the agent asks `gh` to use it. Request rules and approvals control what those programs do.
+
+The jail runs as your user on your kernel. A kernel or bubblewrap bug lets the agent out as you. Container sandboxes make the same bet; only a virtual machine does better.
+
+Approvals rely on you. Requests can carry text the agent wrote, and doriath labels it as such. Many requests in a row invite clicking allow, so doriath refuses new ones while 32 are waiting.
+
+[Security limits](/reference/security-limits/) lists every gap, with the reason each one stays.

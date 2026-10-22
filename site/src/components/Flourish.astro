@@ -1,0 +1,17 @@
+---
+import Ornament from "./Ornament.astro";
+---
+
+<div class="doriath-ui not-content flourish" aria-hidden="true">
+  <div class="bar">
+    <Ornament name="curl-h" class="curl start" width={28} height={14} />
+    <svg class="track" height="14"><line class="fg" x1="0" x2="100%" y1="12" y2="12"></line></svg>
+    <Ornament name="curl-h" class="curl end" width={28} height={14} />
+  </div>
+</div>
+
+<style>
+  .flourish :global(.bar .curl.end) {
+    color: var(--ring);
+  }
+</style>

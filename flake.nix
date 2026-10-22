@@ -74,6 +74,7 @@
             pkgs.govulncheck
             pkgs.just
             pkgs.prettier
+            pkgs.nodejs_24
           ];
           DORIATH_STATIC_BWRAP = "${pkgs.pkgsStatic.bubblewrap}/bin/bwrap";
         };

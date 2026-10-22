@@ -1,0 +1,25 @@
+---
+title: Development
+description: Build doriath, run its checks, and change this site.
+---
+
+`nix develop` gives the toolchain: Go, the linters, the bundled bubblewrap, and Node for this site.
+
+```sh
+just check
+just test-integration
+just build
+```
+
+`just check` runs formatting, lint and the unit tests. `just test-integration` runs the tests that start real jails, including a script for every way out of the jail that doriath closes. The [engineering principles](https://github.com/fnune/doriath/blob/main/docs/engineering.md) describe how the code is written.
+
+## This site
+
+The site is [Starlight](https://starlight.astro.build) in `site/`. It shares its tokens, component styles, ornaments and fonts with the approvals page, from `internal/ui`, so both look the same. The modules page reads the module files from `internal/modules` at build time.
+
+```sh
+just site-dev
+just site-build
+```
+
+Some pages repeat the Markdown files in `docs/`. Change both until the repository links here instead.

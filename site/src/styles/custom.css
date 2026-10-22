@@ -1,0 +1,101 @@
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+  --sl-color-accent-low: var(--ring-soft);
+  --sl-color-accent: var(--ring);
+  --sl-color-accent-high: color-mix(in srgb, var(--ring) 55%, var(--ink));
+
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: color-mix(in srgb, var(--ink) 85%, var(--muted));
+  --sl-color-gray-2: color-mix(in srgb, var(--ink) 55%, var(--muted));
+  --sl-color-gray-3: var(--muted);
+  --sl-color-gray-4: color-mix(in srgb, var(--muted) 55%, var(--line));
+  --sl-color-gray-5: var(--line);
+  --sl-color-gray-6: var(--surface);
+  --sl-color-gray-7: var(--surface);
+  --sl-color-black: var(--bg);
+
+  --sl-color-bg: var(--bg);
+  --sl-color-bg-nav: var(--surface);
+  --sl-color-bg-sidebar: var(--bg);
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line);
+  --sl-color-bg-inline-code: var(--code);
+  --sl-color-text-accent: var(--ring);
+
+  --sl-font: var(--font-body);
+  --sl-font-mono: var(--font-mono);
+}
+
+h1,
+.sl-markdown-content :is(h2, h3) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-content .group-label .large,
+.sidebar-content summary .large {
+  font-family: var(--font-caps);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+body {
+  background-image: repeating-radial-gradient(
+    circle at 50% -40vh,
+    transparent 0 46px,
+    color-mix(in srgb, var(--ring) 7%, transparent) 46px 47px
+  );
+  background-attachment: fixed;
+}
+
+.hero {
+  padding-block: 3.5rem 2rem;
+}
+
+.hero h1 {
+  font-family: var(--font-caps);
+  letter-spacing: 0.04em;
+}
+
+.hero .tagline {
+  max-width: 40rem;
+}
+
+.content-panel:has(.hero) {
+  padding-top: 0;
+}
+
+.architecture {
+  margin-block: 1.5rem;
+  width: 100%;
+  height: auto;
+}
+
+.example {
+  margin-block: 1.5rem;
+  max-width: 44rem;
+}
+
+.flourish {
+  margin-block: 2rem;
+}
+
+.sl-link-button,
+.starlight-aside,
+.card,
+.card .icon,
+site-search button,
+.sidebar-content a,
+.right-sidebar a,
+.sl-markdown-content details,
+starlight-tabs [role="tab"] {
+  border-radius: var(--radius);
+}
+
+.card-grid > .card:nth-child(n) {
+  --sl-card-border: var(--ring);
+  --sl-card-bg: var(--ring-soft);
+}

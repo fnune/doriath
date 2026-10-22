@@ -1,0 +1,32 @@
+---
+import Ornament from "./Ornament.astro";
+
+const { siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="site-title sl-flex">
+  <Ornament name="mark" class="mark" width={30} height={30} />
+  <span class="wordmark" translate="no">Doriath</span>
+</a>
+
+<style>
+  @layer starlight.core {
+    .site-title {
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .site-title :global(.mark) {
+      color: var(--ring);
+      flex: none;
+    }
+    .wordmark {
+      font-family: var(--font-caps);
+      font-size: 1.45rem;
+      letter-spacing: 0.05em;
+      color: var(--ink);
+    }
+  }
+</style>

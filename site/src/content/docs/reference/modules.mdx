@@ -1,0 +1,80 @@
+---
+title: Modules
+description: The built-in modules a profile can list, and what each one allows.
+---
+
+import ModuleSource from "../../../components/ModuleSource.astro";
+
+A module is a profile part: mounts, caches, hosts, environment and request rules for one toolchain or service. A profile lists them in `modules`, and doriath applies them in order before the profile itself. A module of your own in `~/.config/doriath/modules/` with a built-in's name replaces it. Each section below shows the module's file as doriath ships it.
+
+## base
+
+What almost every session needs: your nix profile, jj's config and a terminal environment. It passes `PATH`, the terminal and locale variables, and nothing that grants network access.
+
+<ModuleSource name="base" />
+
+## vcs
+
+Commits, branches, git worktrees and jj workspaces in read-only repositories. Each repository's store becomes writable, while the checkout and everything that decides what git or jj runs stay read-only. See [repositories](/reference/configuration/#repositories).
+
+<ModuleSource name="vcs" />
+
+## docs
+
+Documentation sites, so the agent reads docs without asking you. Each host serves documentation and accepts no writes without a login, so allowing it gives the agent nowhere to send what it reads.
+
+<ModuleSource name="docs" />
+
+## github
+
+GitHub with a token the agent never sees, which only `gh` and `git` get. Reads and routine work on pull requests, issues and CI runs go through. Merges, releases, pushes and other writes wait for approval, and changes to webhooks, secrets, collaborators and deploy keys are refused. The profile says where the token comes from under `[secrets.github]`.
+
+<ModuleSource name="github" />
+
+## claude
+
+Claude Code with a `~/.claude` of the profile's own: your `CLAUDE.md`, settings, skills and plugins are read-only there, and the login is the profile's. Connectors are off, and requests that carry an `x-api-key` header are refused.
+
+<ModuleSource name="claude" />
+
+## go
+
+The Go module proxy and checksum database, and caches for builds, modules and golangci-lint.
+
+<ModuleSource name="go" />
+
+## node
+
+The npm and Yarn registries, Node.js downloads, and caches for npm, pnpm and node-gyp.
+
+<ModuleSource name="node" />
+
+## playwright
+
+Playwright's browser downloads and their cache.
+
+<ModuleSource name="playwright" />
+
+## pre-commit
+
+Hook environments for pre-commit, built in the profile's own cache from PyPI and the hook repositories.
+
+<ModuleSource name="pre-commit" />
+
+## nix
+
+Caches and hosts for nix tools that run in the jail. The nix daemon is not reachable without the `nix-daemon` module.
+
+<ModuleSource name="nix" />
+
+## nix-daemon
+
+The system nix daemon, for `nix-shell -p`, `nix build` and `nix develop` in the jail. The daemon runs builds outside the jail, where they reach the network without the allowlist, so entering a dev shell before `doriath run` is the narrower choice.
+
+<ModuleSource name="nix-daemon" />
+
+## podman
+
+A podman service for the session, in its own user namespace, behind a broker that checks each API call. Containers share the session's network: they reach the internet only through the proxy, and the agent reaches their ports on localhost. See [containers](/reference/configuration/#containers).
+
+<ModuleSource name="podman" />

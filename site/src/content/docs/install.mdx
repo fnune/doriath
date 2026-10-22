@@ -1,0 +1,89 @@
+---
+title: Install
+description: From nothing to a first agent session.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## Install doriath
+
+```sh
+nix profile install github:fnune/doriath
+doriath doctor
+```
+
+doriath needs Linux with unprivileged user namespaces, which `doriath doctor` checks. It is one static binary that bundles bubblewrap. The `podman` module also needs podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user:
+
+```sh
+grep $USER /etc/subuid /etc/subgid
+```
+
+With home-manager, see [profiles with home-manager](/guides/home-manager/) instead.
+
+## Create credentials for the agent
+
+Give the agent credentials of its own. doriath adds them to requests outside the jail, so the agent never reads them.
+
+For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories the agent works on, with an expiry, and read and write on Contents, Pull requests, Actions and Commit statuses.
+
+For commit signing, create an SSH key and add it to GitHub as a signing key. Commits stay authored by you and show as verified:
+
+```sh
+install -d -m 700 ~/.config/doriath/keys
+ssh-keygen -t ed25519 -N '' -C 'doriath agent signing' -f ~/.config/doriath/keys/agent-signing
+cat ~/.config/doriath/keys/agent-signing.pub
+```
+
+## Write a profile
+
+A profile says what one kind of work can reach. Save this as `~/.config/doriath/profiles/my-app.toml`:
+
+```toml title="~/.config/doriath/profiles/my-app.toml"
+description = "My app"
+modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+
+# A file (mode 600) or a command such as rbw, sops or secret-tool.
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+
+[secrets.agent-signing]
+file = "~/.config/doriath/keys/agent-signing"
+
+[signing]
+key = "agent-signing"
+```
+
+`doriath profiles show my-app` checks it. The agent sees the repository you start in, read-only, and commits in worktrees under `.claude/worktrees`. If you keep worktrees elsewhere, such as `~/Development/.worktrees/my-app`, add that directory with `mode = "write"`:
+
+```toml
+[[mounts]]
+path = "~/Development/.worktrees/my-app"
+mode = "write"
+```
+
+A first build usually needs hosts the modules do not name. Run it once in learning mode: every public host is reachable for that session, and at the end doriath prints the `[egress]` lines to add.
+
+```sh
+doriath run --profile my-app --learn -- make build
+```
+
+<Aside type="caution">
+  Learning mode reaches every public host. Use it for builds you start, not for
+  agents.
+</Aside>
+
+## Run an agent
+
+```sh
+cd ~/Development/my-app
+doriath run --profile my-app -- claude
+```
+
+Held requests show as desktop notifications. Without a desktop, run `doriath approvals web --open` for a page in your browser, or `doriath approvals watch` in another terminal. See [answering requests](/guides/approvals/).
+
+A plain `claude` still runs outside the jail. Use an alias, such as `alias claude-app='doriath run --profile my-app -- claude'`, or let direnv start it in the jail for the whole project: see [projects with direnv](/guides/direnv/).
+
+## Known issues
+
+- `git push -u` and `push.autoSetupRemote` write `.git/config`, which is read-only in the jail. The push works, but the upstream is not recorded.
+- Only `claude -p` is tested so far, not interactive sessions.

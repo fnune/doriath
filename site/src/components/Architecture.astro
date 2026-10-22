@@ -1,0 +1,110 @@
+<svg
+  class="architecture"
+  viewBox="0 0 760 380"
+  role="img"
+  aria-labelledby="architecture-title"
+>
+  <title id="architecture-title">
+    The agent runs in a jail with loopback only. Every request goes to doriath's proxy outside the jail, which reaches allowed hosts with credentials added and holds other requests for you.
+  </title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="head"></path>
+    </marker>
+  </defs>
+
+  <rect x="10" y="10" width="420" height="360" rx="4" class="jail"></rect>
+  <text x="30" y="40" class="label caps">The jail</text>
+  <text x="30" y="60" class="note">its own files, network and processes</text>
+  <text x="30" y="350" class="note">bubblewrap namespaces · seccomp · Landlock · systemd limits</text>
+
+  <rect x="40" y="90" width="170" height="80" rx="3" class="box strong"></rect>
+  <text x="125" y="125" class="label" text-anchor="middle">Agent</text>
+  <text x="125" y="146" class="note" text-anchor="middle">Claude Code, its tools</text>
+
+  <rect x="40" y="200" width="170" height="110" rx="3" class="box"></rect>
+  <text x="125" y="232" class="label" text-anchor="middle">Your repository</text>
+  <text x="125" y="254" class="note" text-anchor="middle">checkout read-only</text>
+  <text x="125" y="274" class="note" text-anchor="middle">git and jj store writable</text>
+  <text x="125" y="294" class="note" text-anchor="middle">worktrees for the agent</text>
+
+  <rect x="240" y="200" width="160" height="110" rx="3" class="box"></rect>
+  <text x="320" y="232" class="label" text-anchor="middle">Profile mounts</text>
+  <text x="320" y="254" class="note" text-anchor="middle">paths it names</text>
+  <text x="320" y="274" class="note" text-anchor="middle">caches of its own</text>
+  <text x="320" y="294" class="note" text-anchor="middle">nothing else of home</text>
+
+  <line x1="125" y1="170" x2="125" y2="198" class="edge" marker-end="url(#arrow)"></line>
+
+  <rect x="470" y="150" width="140" height="90" rx="3" class="box gold"></rect>
+  <text x="540" y="182" class="label" text-anchor="middle">Proxy</text>
+  <text x="540" y="204" class="note" text-anchor="middle">allowlist, rules</text>
+  <text x="540" y="224" class="note" text-anchor="middle">TLS, credentials</text>
+
+  <path d="M210 130 H330 Q350 130 350 150 V175 Q350 195 370 195 H468" class="edge" marker-end="url(#arrow)"></path>
+  <text x="250" y="120" class="note">every request</text>
+
+  <rect x="640" y="40" width="110" height="60" rx="3" class="box"></rect>
+  <text x="695" y="76" class="label" text-anchor="middle">Internet</text>
+  <path d="M540 150 V90 Q540 70 560 70 H638" class="edge" marker-end="url(#arrow)"></path>
+  <text x="552" y="58" class="note">allowed hosts</text>
+
+  <rect x="640" y="290" width="110" height="60" rx="3" class="box"></rect>
+  <text x="695" y="326" class="label" text-anchor="middle">You</text>
+  <path d="M540 240 V300 Q540 320 560 320 H638" class="edge held" marker-end="url(#arrow)"></path>
+  <text x="552" y="345" class="note">held requests</text>
+
+  <rect x="640" y="165" width="110" height="60" rx="3" class="box"></rect>
+  <text x="695" y="193" class="label" text-anchor="middle">Secrets</text>
+  <text x="695" y="212" class="note" text-anchor="middle">never in the jail</text>
+  <line x1="638" y1="195" x2="612" y2="195" class="edge" marker-end="url(#arrow)"></line>
+</svg>
+
+<style>
+  .architecture .jail {
+    fill: none;
+    stroke: var(--ring);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 4;
+  }
+  .architecture .box {
+    fill: var(--surface);
+    stroke: var(--line);
+  }
+  .architecture .box.strong {
+    stroke: var(--muted);
+  }
+  .architecture .box.gold {
+    stroke: var(--ring);
+    stroke-width: 1.5;
+  }
+  .architecture .label {
+    fill: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .architecture .label.caps {
+    font-family: var(--font-caps);
+    font-weight: 400;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    fill: var(--ring);
+  }
+  .architecture .note {
+    fill: var(--muted);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+  }
+  .architecture .edge {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.5;
+  }
+  .architecture .edge.held {
+    stroke-dasharray: 4 4;
+  }
+  .architecture .head {
+    fill: var(--muted);
+  }
+</style>

@@ -1,3 +1,6 @@
 /doriath
 /result
 /internal/bundle/assets/
+/site/node_modules/
+/site/dist/
+/site/.astro/

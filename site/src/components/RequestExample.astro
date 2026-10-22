@@ -1,0 +1,109 @@
+---
+import Ornament from "./Ornament.astro";
+
+interface Props {
+  profile: string;
+  hue: string;
+  session: string;
+  cwd: string;
+  kind: string;
+  summary: string;
+  timer: string;
+  fill: string;
+  status: string;
+  note?: string;
+  noteLabel?: string;
+  agent?: string;
+  details?: string;
+  scope: string;
+  keep?: string;
+  once?: boolean;
+}
+
+const {
+  profile,
+  hue,
+  session,
+  cwd,
+  kind,
+  summary,
+  timer,
+  fill,
+  status,
+  note,
+  noteLabel = "Description",
+  agent = "claude",
+  details,
+  scope,
+  keep,
+  once = true,
+} = Astro.props;
+const pace = timer === "parked" ? "parked" : "";
+---
+
+<figure class="doriath-ui not-content example" inert>
+  <div class="detail">
+    <div class="detail-head">
+      <div>
+        <span class="who"><span class={`profile ${hue}`}>{profile}</span><span class="kind">{kind}</span></span>
+        <h3>{summary}</h3>
+        <p class="status">{status}</p>
+      </div>
+      <span class={`timer ${pace}`}>{timer}</span>
+    </div>
+    <div class={`bar ${pace}`}>
+      <Ornament name="curl-h" class="curl start" width={28} height={14} />
+      <svg class="track" height="14" aria-hidden="true">
+        <line class="bg" x1="0" x2="100%" y1="12" y2="12"></line>
+        <line class="fg" x1="0" x2={fill} y1="12" y2="12"></line>
+      </svg>
+      <Ornament name="curl-h" class="curl end" width={28} height={14} />
+    </div>
+    {
+      note && (
+        <div class="agent-text">
+          <div class="rule">
+            <Ornament name="curl-v" class="curl start" width={14} height={28} />
+            <svg class="stem" width="14" aria-hidden="true">
+              <line x1="12" x2="12" y1="0" y2="100%" />
+            </svg>
+            <Ornament name="curl-v" class="curl end" width={14} height={28} />
+          </div>
+          <div class="body">
+            <span class="kind">
+              {noteLabel}, written by {agent}
+            </span>
+            <div class="quote">{note}</div>
+          </div>
+        </div>
+      )
+    }
+    {
+      details && (
+        <div>
+          {kind === "tool" && <p class="caption">Written by {agent}, not by doriath.</p>}
+          <pre>{details}</pre>
+        </div>
+      )
+    }
+    <dl class="facts">
+      <dt>Session</dt>
+      <dd><span class={`profile ${hue}`}>{profile}</span><span class="sid">{session}</span><span class="sid">{cwd}</span></dd>
+      <dt>An allow covers</dt>
+      <dd><code>{scope}</code></dd>
+    </dl>
+    {
+      keep && (
+        <div class="keep">
+          <p class="caption">To keep it after this session, add to profile {profile}:</p>
+          <pre>{keep}</pre>
+        </div>
+      )
+    }
+    <div class="actions">
+      {once && <button class="btn primary">Allow once</button>}
+      <button class={`btn ${once ? "secondary" : "primary"}`}>Allow for this session</button>
+      <button class="btn deny">Deny</button>
+    </div>
+  </div>
+</figure>
