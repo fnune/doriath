@@ -152,3 +152,18 @@ func TestFinishCoversSubmoduleStores(t *testing.T) {
 		t.Errorf("the submodule's moved branch is not kept: %+v\n%s", rec.Repos[1], out)
 	}
 }
+
+func TestStartRecordsASubmoduleWhoseCheckoutIsGone(t *testing.T) {
+	lib := repo(t)
+	r := repo(t)
+	git(t, r, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "lib")
+	git(t, r, "commit", "-q", "-m", "add lib")
+	git(t, r, "rm", "-q", "lib")
+	git(t, r, "commit", "-q", "-m", "drop lib")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	if len(rec.Repos) != 2 || len(rec.Repos[1].Branches) == 0 {
+		t.Fatalf("repos: %+v", rec.Repos)
+	}
+	f.finish()
+}

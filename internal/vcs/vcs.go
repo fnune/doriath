@@ -189,9 +189,9 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 	var notes []string
 	if colocated(repo) {
 		git := filepath.Join(repo, ".git")
-		if on, _ := run(ctx, t.Git, "--git-dir", git, "config", "--bool", "extensions.relativeWorktrees"); strings.TrimSpace(on) != "true" {
+		if on, _ := runStore(ctx, t, git, "config", "--bool", "extensions.relativeWorktrees"); strings.TrimSpace(on) != "true" {
 			for _, kv := range [][2]string{{"core.repositoryformatversion", "1"}, {"extensions.relativeWorktrees", "true"}} {
-				if _, err := run(ctx, t.Git, "--git-dir", git, "config", kv[0], kv[1]); err != nil {
+				if _, err := runStore(ctx, t, git, "config", kv[0], kv[1]); err != nil {
 					return nil, err
 				}
 			}
@@ -361,7 +361,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			if now[name] == r.Branches[name] {
 				continue
 			}
-			if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "update-ref", BackupRef(rec.Session, name), r.Branches[name]); err != nil {
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", BackupRef(rec.Session, name), r.Branches[name]); err != nil {
 				errs = append(errs, err)
 				continue
 			}
@@ -419,11 +419,11 @@ func Restore(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 	var errs []error
 	for _, r := range rec.Repos {
 		for _, name := range r.Moved {
-			if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "update-ref", name, r.Branches[name]); err != nil {
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", name, r.Branches[name]); err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
 				errs = append(errs, err)
 				continue
 			}
@@ -449,7 +449,7 @@ func DropBackups(ctx context.Context, t Tools, rec *Record) error {
 	var errs []error
 	for _, r := range rec.Repos {
 		for _, name := range r.Moved {
-			if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -485,7 +485,7 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 	if base == "" {
 		return dir, false
 	}
-	_, err = run(ctx, t.Git, "--git-dir", r.GitDir, "merge-base", "--is-ancestor", strings.TrimSpace(head), base)
+	_, err = runStore(ctx, t, r.GitDir, "merge-base", "--is-ancestor", strings.TrimSpace(head), base)
 	return dir, err == nil
 }
 
@@ -493,11 +493,11 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 // found already in the default branch.
 func RemoveWorktree(ctx context.Context, t Tools, r Repo, dir string) error {
 	branch, _ := run(ctx, t.Git, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "worktree", "remove", dir); err != nil {
+	if _, err := runStore(ctx, t, r.GitDir, "worktree", "remove", dir); err != nil {
 		return err
 	}
 	if b := strings.TrimSpace(branch); b != "" {
-		if _, err := run(ctx, t.Git, "--git-dir", r.GitDir, "branch", "-d", b); err != nil {
+		if _, err := runStore(ctx, t, r.GitDir, "branch", "-d", b); err != nil {
 			return err
 		}
 	}
@@ -505,11 +505,11 @@ func RemoveWorktree(ctx context.Context, t Tools, r Repo, dir string) error {
 }
 
 func defaultBranch(ctx context.Context, t Tools, gitDir string) string {
-	if ref, err := run(ctx, t.Git, "--git-dir", gitDir, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
+	if ref, err := runStore(ctx, t, gitDir, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
 		return strings.TrimSpace(ref)
 	}
 	for _, name := range []string{"refs/heads/main", "refs/heads/master"} {
-		if _, err := run(ctx, t.Git, "--git-dir", gitDir, "rev-parse", "--verify", "--quiet", name); err == nil {
+		if _, err := runStore(ctx, t, gitDir, "rev-parse", "--verify", "--quiet", name); err == nil {
 			return name
 		}
 	}
@@ -517,7 +517,7 @@ func defaultBranch(ctx context.Context, t Tools, gitDir string) string {
 }
 
 func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error) {
-	out, err := run(ctx, t.Git, "--git-dir", gitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads")
+	out, err := runStore(ctx, t, gitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
@@ -690,6 +690,10 @@ func resetCommondir(admin string) (bool, error) {
 // hooks and the fsmonitor are user config, which the jail cannot write, but
 // doriath's own commands need neither.
 var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false'"}
+
+func runStore(ctx context.Context, t Tools, gitDir string, args ...string) (string, error) {
+	return run(ctx, t.Git, append([]string{"--git-dir", gitDir, "--work-tree", gitDir}, args...)...)
+}
 
 func run(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)

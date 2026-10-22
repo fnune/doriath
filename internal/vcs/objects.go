@@ -25,7 +25,7 @@ import (
 // were there at the start are in mirror, and Finish restores those.
 func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []string {
 	newHash := sha1.New
-	if format, err := run(ctx, t.Git, "--git-dir", gitDir, "rev-parse", "--show-object-format"); err == nil && strings.TrimSpace(format) == "sha256" {
+	if format, err := runStore(ctx, t, gitDir, "rev-parse", "--show-object-format"); err == nil && strings.TrimSpace(format) == "sha256" {
 		newHash = sha256.New
 	}
 	objects := filepath.Join(gitDir, "objects")
@@ -61,7 +61,7 @@ func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []st
 	})
 	for _, pack := range packs {
 		base := strings.TrimSuffix(pack, ".pack")
-		if _, err := run(ctx, t.Git, "--git-dir", gitDir, "verify-pack", base+".idx"); err == nil {
+		if _, err := runStore(ctx, t, gitDir, "verify-pack", base+".idx"); err == nil {
 			continue
 		}
 		matches, _ := filepath.Glob(base + ".*")
