@@ -134,7 +134,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			switch {
 			case p.Host != "":
-				return s.manager.WaitScope(ctx, "rule egress "+strings.ToLower(p.Host))
+				return s.manager.WaitScope(ctx, "host egress "+strings.ToLower(p.Host))
 			case p.Path != "":
 				return s.manager.WaitScope(ctx, "path write "+filepath.Clean(p.Path))
 			}

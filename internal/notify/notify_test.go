@@ -56,7 +56,7 @@ func TestActionsAndBody(t *testing.T) {
 
 func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
 	for kind, want := range map[approval.Kind][]string{
-		approval.KindRule: {"allow-session", "Allow for this session", "deny", "Ignore"},
+		approval.KindHost: {"allow-session", "Allow for this session", "deny", "Ignore"},
 		approval.KindPath: {"allow-session", "Allow for this session", "deny", "Deny"},
 	} {
 		if got := Actions(approval.Request{Kind: kind, URL: "https://example.com"}); !slices.Equal(got, want) {
@@ -85,7 +85,7 @@ func TestDesktop(t *testing.T) {
 }
 
 func TestUrgency(t *testing.T) {
-	if Urgency(approval.Request{Kind: approval.KindHTTP}) != urgencyHi || Urgency(approval.Request{Kind: approval.KindRule}) != urgencyNormal {
+	if Urgency(approval.Request{Kind: approval.KindHTTP}) != urgencyHi || Urgency(approval.Request{Kind: approval.KindHost}) != urgencyNormal {
 		t.Fatal("held requests are urgent, drafted rules are not")
 	}
 }

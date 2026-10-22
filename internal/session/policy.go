@@ -99,10 +99,10 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
-		Kind:    approval.KindRule,
+		Kind:    approval.KindHost,
 		Summary: fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name),
 		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, host) + uploadWarning(host) + "\n" + keepHint(s.req.Profile.Name, []string{host}),
-		Scope:   "rule egress " + host,
+		Scope:   "host egress " + host,
 	}
 	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
 		if d.Verdict == approval.VerdictAllow {

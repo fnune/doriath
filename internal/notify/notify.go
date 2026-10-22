@@ -35,7 +35,7 @@ const (
 // specification wants.
 func Actions(req approval.Request) []string {
 	switch req.Kind {
-	case approval.KindRule:
+	case approval.KindHost:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Ignore"}
 	case approval.KindPath:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
@@ -196,7 +196,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 // lets drafted rules wait in the notification history like any other
 // notification.
 func Urgency(req approval.Request) byte {
-	if req.Kind == approval.KindRule {
+	if req.Kind == approval.KindHost {
 		return urgencyNormal
 	}
 	return urgencyHi

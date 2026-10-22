@@ -678,7 +678,7 @@ done
 	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "allowed after approval") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	if req.Kind != approval.KindRule || !strings.Contains(req.Summary, "drafted.example") || !strings.Contains(req.Details, "curl") {
+	if req.Kind != approval.KindHost || !strings.Contains(req.Summary, "drafted.example") || !strings.Contains(req.Details, "curl") {
 		t.Errorf("proposal = %+v", req)
 	}
 	if !strings.Contains(req.Details, `allow = ["drafted.example"]`) {

@@ -16,9 +16,9 @@ type Kind string
 const (
 	KindHTTP Kind = "http"
 	KindTool Kind = "tool"
-	// KindRule proposes a change to the profile, drafted from a denial. The
-	// agent does not wait for it.
-	KindRule Kind = "rule"
+	// KindHost asks to reach a host the profile does not name. An allow
+	// lasts for the session, and keeping it is an edit to the profile.
+	KindHost Kind = "host"
 	// KindPath asks to make a path writable in the running jail. An allow
 	// lasts for the session: a write has no natural "once", and keeping it
 	// is an edit to the profile.

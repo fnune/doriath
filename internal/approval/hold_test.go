@@ -92,16 +92,16 @@ func TestWaitForAnUnknownRequest(t *testing.T) {
 func TestWaitScopeAnswersWithTheNewestDecision(t *testing.T) {
 	m, _, _, _ := setup()
 	for _, verdict := range []Verdict{VerdictAllow, VerdictDeny} {
-		got := submitAsync(m, "rule egress a.example")
+		got := submitAsync(m, "host egress a.example")
 		if err := m.Decide(waitPending(t, m).ID, Decision{Verdict: verdict, Lasting: LastingOnce}); err != nil {
 			t.Fatal(err)
 		}
 		<-got
 	}
-	if d, err := m.WaitScope(context.Background(), "rule egress a.example"); err != nil || d.Verdict != VerdictDeny {
+	if d, err := m.WaitScope(context.Background(), "host egress a.example"); err != nil || d.Verdict != VerdictDeny {
 		t.Fatalf("WaitScope = %+v, %v", d, err)
 	}
-	if _, err := m.WaitScope(context.Background(), "rule egress b.example"); !errors.Is(err, ErrUnknownRequest) {
+	if _, err := m.WaitScope(context.Background(), "host egress b.example"); !errors.Is(err, ErrUnknownRequest) {
 		t.Fatalf("a scope nobody asked about: %v", err)
 	}
 }
