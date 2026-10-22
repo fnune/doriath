@@ -215,7 +215,7 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 // cannot drop what your branches point at.
 func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []string) error {
 	seen := map[string]bool{}
-	for i, path := range repos {
+	for _, path := range repos {
 		git := Store(path)
 		if git == "" || seen[git] {
 			continue
@@ -231,11 +231,11 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 				return fmt.Errorf("record the bookmarks of %s: %w", path, err)
 			}
 		}
-		if err := mirror(filepath.Join(git, "objects"), filepath.Join(backup, fmt.Sprint(i), "objects")); err != nil {
+		if err := mirror(filepath.Join(git, "objects"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "objects")); err != nil {
 			return fmt.Errorf("keep the objects of %s: %w", path, err)
 		}
 		if hasJJ(path) && !colocated(path) {
-			if err := mirror(filepath.Join(path, ".jj", "repo", "store", "extra"), filepath.Join(backup, fmt.Sprint(i), "extra")); err != nil {
+			if err := mirror(filepath.Join(path, ".jj", "repo", "store", "extra"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "extra")); err != nil {
 				return fmt.Errorf("keep the jj store of %s: %w", path, err)
 			}
 		}

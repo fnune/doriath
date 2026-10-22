@@ -167,3 +167,19 @@ func TestStartRecordsASubmoduleWhoseCheckoutIsGone(t *testing.T) {
 	}
 	f.finish()
 }
+
+func TestStartKeepsEachRepositoryInItsOwnBackup(t *testing.T) {
+	lib := repo(t)
+	first := repo(t)
+	git(t, first, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "lib")
+	git(t, first, "commit", "-q", "-m", "add lib")
+	second := repo(t)
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, first, second)
+	forged := filepath.Join(second, ".git", "objects", "11", strings.Repeat("1", 38))
+	writeLoose(t, forged, "blob 5\x00agent")
+	out := f.finish()
+	if _, err := os.Lstat(forged); !os.IsNotExist(err) {
+		t.Errorf("a forged object in the second repository stays\n%s", out)
+	}
+}
