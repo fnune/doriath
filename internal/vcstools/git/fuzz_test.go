@@ -26,7 +26,7 @@ func FuzzGitConfig(f *testing.F) {
 			key = "/run/doriath/signing.pub"
 		}
 		path := filepath.Join(dir, "gitconfig")
-		if err := os.WriteFile(path, config(desktop, vcstools.Jail{SigningKey: key, RewriteSSH: []vcstools.SSHRewrite{{Host: "github.com", User: "git", Port: 22}}}), 0o600); err != nil {
+		if err := os.WriteFile(path, config(desktop, vcstools.Jail{SigningKey: key, RewriteSSH: []vcstools.SSHRewrite{{Host: "github.com", User: "git", Port: 22}}}, nil), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		cmd := exec.Command(gitBin, "config", "-f", path, "--list", "-z")

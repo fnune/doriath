@@ -254,7 +254,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		return ""
 	}
 	if e.vcs == nil {
-		e.vcs = []vcstools.Tool{gittool.New(nil), jjtool.New(e.home, func(string) string { return "" })}
+		e.vcs = []vcstools.Tool{gittool.New(nil, nil), jjtool.New(e.home, func(string) string { return "" })}
 	}
 	deps := session.Deps{
 		VCS:           e.vcs,

@@ -221,7 +221,7 @@ func cmdRun(args []string) (int, error) {
 			notifier, informer = desktop, desktop
 		}
 	}
-	tools := signingTools(p)
+	tools := vcsJailTools(p)
 
 	deps := session.Deps{
 		Paths:       p,
@@ -344,9 +344,10 @@ func hostWait(a config.Approvals, n approval.Notifier) time.Duration {
 	return a.DefaultHostWait()
 }
 
-func signingTools(p config.Paths) []vcstools.Tool {
+func vcsJailTools(p config.Paths) []vcstools.Tool {
 	gitDesktop, _ := exec.Command("git", "config", "--global", "--includes", "--list", "-z").Output()
-	return []vcstools.Tool{gittool.New(gitDesktop), jjtool.New(p.Home, osKind)}
+	files := gittool.HostFiles(gitDesktop, p.Home, os.Getenv, os.ReadFile)
+	return []vcstools.Tool{gittool.New(gitDesktop, files), jjtool.New(p.Home, osKind)}
 }
 
 func osKind(p string) string {

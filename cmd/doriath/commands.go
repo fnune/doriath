@@ -449,7 +449,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 		return 1
 	}
 	cwd, _ := os.Getwd()
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Dir: cwd, Profile: *prof, VCS: signingTools(p)})
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}

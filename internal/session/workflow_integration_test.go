@@ -89,6 +89,19 @@ func TestAnAgentWorksInARepositorySetUpLikeYours(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repo, ".git", "packed-refs")); err != nil {
 		t.Fatalf("the clone has no packed refs, so this test checks nothing: %v", err)
 	}
+	globalIgnore := filepath.Join(e.home, ".config", "git", "ignore")
+	if err := os.MkdirAll(filepath.Dir(globalIgnore), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(globalIgnore, []byte(".idea/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, ".idea"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".idea", "workspace.xml"), []byte("<project/>\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	hostJJ("git", "init", "--colocate", repo)
 	hostJJ("-R", repo, "describe", "-m", "your work in progress")
 	if !strings.Contains(hostJJ("-R", repo, "log", "-r", "@", "--no-graph", "-T", `if(signature, "signed", "unsigned")`), "signed") {
@@ -96,7 +109,7 @@ func TestAnAgentWorksInARepositorySetUpLikeYours(t *testing.T) {
 	}
 
 	desktop := fmt.Appendf(nil, "user.name\nYou\x00user.email\nyou@example.org\x00commit.gpgsign\ntrue\x00gpg.format\nssh\x00user.signingkey\n%s\x00", yours)
-	e.vcs = []vcstools.Tool{gittool.New(desktop), jjtool.New(e.home, osKind)}
+	e.vcs = []vcstools.Tool{gittool.New(desktop, map[string][]byte{"core.excludesfile": []byte(".idea/\n")}), jjtool.New(e.home, osKind)}
 	e.secrets["agent-key"] = secret.Backend{File: agents}
 	p := e.profile(fmt.Sprintf(`
 [[mounts]]
@@ -113,6 +126,8 @@ key = "agent-key"
 	code, out := e.run(p, fmt.Sprintf(`
 R=%[1]s
 J="%[2]s --config user.name=You --config user.email=you@example.org"
+$J -R $R file list | grep -q .idea && echo "FAIL jj tracks what your global ignore covers"
+[ -z "$(git -C $R status --porcelain --ignored=no -- .idea)" ] || echo "FAIL git shows what your global ignore covers"
 $J -R $R describe -m "the agent describes your work" || echo "FAIL describe"
 $J -R $R new -m "the agent's work" || echo "FAIL new"
 $J -R $R bookmark create agent -r @- || echo "FAIL bookmark create"

@@ -6,6 +6,7 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -15,13 +16,49 @@ import (
 
 const configFile = "gitconfig"
 
+var hostFiles = []struct{ key, jailName, xdgDefault string }{
+	{"core.excludesfile", "gitignore", "git/ignore"},
+	{"core.attributesfile", "gitattributes", "git/attributes"},
+	{"commit.template", "gitmessage", ""},
+}
+
 type Tool struct {
 	desktop []byte
+	files   map[string][]byte
 }
 
 // New takes your global config as git config --global --includes --list -z
-// prints it.
-func New(desktop []byte) Tool { return Tool{desktop: desktop} }
+// prints it, and the files it names, as HostFiles reads them.
+func New(desktop []byte, files map[string][]byte) Tool { return Tool{desktop: desktop, files: files} }
+
+// HostFiles reads the files that your global config names, or that git
+// reads by default, keyed by setting.
+func HostFiles(desktop []byte, home string, getenv func(string) string, read func(string) ([]byte, error)) map[string][]byte {
+	set := map[string]string{}
+	for _, e := range parseGitList(desktop) {
+		set[strings.ToLower(e.key)] = e.value
+	}
+	xdg := getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		xdg = filepath.Join(home, ".config")
+	}
+	out := map[string][]byte{}
+	for _, f := range hostFiles {
+		path := set[f.key]
+		switch {
+		case path == "~" || strings.HasPrefix(path, "~/"):
+			path = filepath.Join(home, path[1:])
+		case path == "" && f.xdgDefault != "":
+			path = filepath.Join(xdg, f.xdgDefault)
+		case path == "":
+			continue
+		}
+		if data, err := read(path); err == nil {
+			out[f.key] = data
+		}
+	}
+	return out
+}
 
 func (Tool) Name() string { return "git" }
 
@@ -36,8 +73,17 @@ func (t Tool) HostSigns() string {
 }
 
 func (t Tool) Jail(j vcstools.Jail) vcstools.Config {
+	files := map[string][]byte{}
+	paths := map[string]string{}
+	for _, f := range hostFiles {
+		if data, ok := t.files[f.key]; ok {
+			files[f.jailName] = data
+			paths[f.key] = j.Path(f.jailName)
+		}
+	}
+	files[configFile] = config(t.desktop, j, paths)
 	return vcstools.Config{
-		Files: map[string][]byte{configFile: config(t.desktop, j)},
+		Files: files,
 		Env:   map[string]string{"GIT_CONFIG_GLOBAL": j.Path(configFile)},
 	}
 }
@@ -74,7 +120,7 @@ func parseGitList(data []byte) []gitEntry {
 	return out
 }
 
-func config(desktop []byte, j vcstools.Jail) []byte {
+func config(desktop []byte, j vcstools.Jail, files map[string]string) []byte {
 	var entries []gitEntry
 	for _, e := range parseGitList(desktop) {
 		if keyGitPrints.MatchString(e.key) && gitAllowed(e.key) {
@@ -91,6 +137,11 @@ func config(desktop []byte, j vcstools.Jail) []byte {
 	} else {
 		set("commit.gpgsign", "false")
 		set("tag.gpgsign", "false")
+	}
+	for _, f := range hostFiles {
+		if p, ok := files[f.key]; ok {
+			set(f.key, p)
+		}
 	}
 	set("credential.helper", "")
 	for _, r := range j.RewriteSSH {
