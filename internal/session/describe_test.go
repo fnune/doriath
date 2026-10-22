@@ -34,13 +34,14 @@ func TestDescribeStatus(t *testing.T) {
 		"Requests waiting for the user: 2\n",
 		"Blocked so far:\n  - pypi.org: host not in the profile (3 times)\n",
 		"Do not look for another way around a block.",
+		"To reach a host that is not listed, make the request",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("status lacks %q:\n%s", want, got)
 		}
 	}
 	bare := Status{Session: "s1", Profile: "k"}.Describe()
-	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting"} {
+	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting", "no other network access"} {
 		if strings.Contains(bare, absent) {
 			t.Errorf("an empty status mentions %q:\n%s", absent, bare)
 		}
