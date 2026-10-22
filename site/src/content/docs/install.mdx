@@ -108,7 +108,7 @@ mode = "write"
 
 Make new credentials for each profile, as you make a new password for each site. Then the token of one profile cannot reach the repositories of another profile, and you can revoke one token with no effect on the other profiles. doriath adds the credentials to requests outside the jail, so the agent never reads them.
 
-For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile only. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Keep it in your password manager under a name for the profile, such as `github-my-app`.
+This example uses GitHub. [Forges](/forges/) has the same steps for GitLab, Forgejo and Bitbucket. For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile only. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Keep it in your password manager under a name for the profile, such as `github-my-app`.
 
 For commit signing, create an SSH key for the profile and add it to GitHub as a signing key. The commits that the agent signs stay authored by you and show as verified:
 

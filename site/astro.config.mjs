@@ -66,6 +66,16 @@ export default defineConfig({
           ],
         },
         {
+          label: "Forges",
+          items: [
+            { label: "Overview", slug: "forges" },
+            { label: "GitHub", slug: "forges/github" },
+            { label: "GitLab", slug: "forges/gitlab" },
+            { label: "Forgejo and Codeberg", slug: "forges/forgejo" },
+            { label: "Bitbucket", slug: "forges/bitbucket" },
+          ],
+        },
+        {
           label: "Agents",
           items: [
             { label: "Overview", slug: "agents" },

@@ -1,0 +1,19 @@
+---
+title: Forgejo, Gitea and Codeberg
+description: Use the forgejo module for Codeberg, or for your own Forgejo or Gitea instance.
+---
+
+The [`forgejo` module](/reference/modules/#forgejo) gives `git` and the `tea`, `fj` and `berg` clients your token on `codeberg.org`. Forgejo and Gitea serve git and the API on one host. For another instance, copy the module and change the host, as [self-hosted forges](/forges/#self-hosted-forges) describes.
+
+## Token
+
+Create an access token in the settings of your account, with read and write access to repositories and issues, and add it to the profile:
+
+```toml
+[secrets.forgejo]
+command = ["rbw", "get", "codeberg-my-app"]
+```
+
+## What waits for you
+
+Merges of pull requests, releases, tags, changes to files through the API, pushes and the API requests that the module does not name wait for your answer. Reads, pull requests, reviews, issues and comments go through. Changes to webhooks, Actions secrets and variables, collaborators and deploy keys are refused.

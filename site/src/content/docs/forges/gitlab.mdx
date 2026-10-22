@@ -1,0 +1,27 @@
+---
+title: GitLab
+description: Use the gitlab module with a project access token for each profile.
+---
+
+The [`gitlab` module](/reference/modules/#gitlab) gives `git` and `glab` your token on `gitlab.com`. `git` sends it over basic auth, and `glab` in the `PRIVATE-TOKEN` header. Other programs reach `gitlab.com` without it.
+
+## Token
+
+Create a project access token or a group access token for the projects of the profile. Give it the Developer role, an expiry, and the scopes `api`, `read_repository` and `write_repository`. Then add it to the profile:
+
+```toml
+[secrets.gitlab]
+command = ["rbw", "get", "gitlab-my-app"]
+```
+
+`glab` needs a token to start. The module gives it a placeholder in `GITLAB_TOKEN`, and the proxy replaces the `PRIVATE-TOKEN` header with your token on each request.
+
+## Commit signing
+
+GitLab verifies commits signed with an SSH key that you add with the usage type Signing. Use the key of the profile, as [install](/install/#create-credentials-for-the-profile) shows.
+
+## What waits for you
+
+Merges of merge requests, releases, tags, commits through the API, pushes and the API requests that the module does not name, GraphQL included, wait for your answer. Reads, merge requests, issues, notes and retries or cancels of pipelines and jobs go through. Changes to webhooks, CI variables, members, deploy keys, deploy tokens, access tokens and protected branches are refused.
+
+GitLab names a project in its API by its ID or by its path, such as `group%2Fsub%2Fproject`. The module lets the proxy read these paths, and an allow for the session covers one project.

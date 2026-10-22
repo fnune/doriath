@@ -57,7 +57,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 ### Supporting forges
 
 - A forge is a module: its hosts, the credential the proxy adds for its programs, and the request rules that hold merges, releases and pushes or refuse changes to webhooks, secrets and deploy keys. GitHub is the `github` module.
-- Proxy code knows HTTP, git's smart HTTP protocol and the generic matchers, not one forge's API. What differs between forges, such as how a path names a repository, belongs in the forge's module.
+- Proxy code knows HTTP, git's smart HTTP protocol and the generic matchers, not one forge's API. What differs between forges belongs in the forge's module: `repositories` for how its API names a repository, `ssh` for its SSH remotes, `encoded_slashes` for paths that hold encoded slashes, a port on the host, and a credential per rule where git and the API take different ones.
 
 ### Strict typing and validated boundaries
 

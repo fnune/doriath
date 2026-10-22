@@ -29,9 +29,27 @@ Agents read documentation sites through `docs` without asking you. Every host in
 
 ## github
 
-`github` adds your token to requests from `gh` and `git`, and the agent never sees it. Reads go through, as does routine work on pull requests, issues and CI runs. Merges, releases, pushes and other writes wait for approval, and doriath refuses changes to webhooks, secrets, collaborators and deploy keys. Say where the token comes from under `[secrets.github]` in the profile.
+`github` adds your token to requests from `gh` and `git`, and the agent never sees it. Reads go through, as does routine work on pull requests, issues and CI runs. Merges, releases, pushes and other writes wait for approval, and doriath refuses changes to webhooks, secrets, collaborators and deploy keys. Say where the token comes from under `[secrets.github]` in the profile. See [GitHub](/forges/github/).
 
 <ModuleSource name="github" />
+
+## gitlab
+
+`gitlab` adds your token to requests from `git` and `glab` on `gitlab.com`, and reads the encoded project paths of GitLab's API. Merges, releases, tags and pushes wait for approval, and changes to webhooks, CI variables, members and access tokens are refused. See [GitLab](/forges/gitlab/).
+
+<ModuleSource name="gitlab" />
+
+## forgejo
+
+`forgejo` covers Codeberg, and Forgejo or Gitea on a host of your own. It adds your token to requests from `git`, `tea`, `fj` and `berg`. See [Forgejo, Gitea and Codeberg](/forges/forgejo/).
+
+<ModuleSource name="forgejo" />
+
+## bitbucket
+
+`bitbucket` adds your token to requests from `git` on `bitbucket.org` and from `curl` on `api.bitbucket.org`. See [Bitbucket](/forges/bitbucket/).
+
+<ModuleSource name="bitbucket" />
 
 ## claude
 

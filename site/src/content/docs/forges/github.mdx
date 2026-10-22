@@ -1,0 +1,25 @@
+---
+title: GitHub
+description: Use the github module with a fine-grained token and a signing key for each profile.
+---
+
+The [`github` module](/reference/modules/#github) gives `git` and `gh` your token on `github.com`, `api.github.com` and `uploads.github.com`. Other programs reach these hosts without it.
+
+## Token
+
+Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of the profile only. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Then add it to the profile:
+
+```toml
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+```
+
+`gh` needs a token to start. The module gives it a placeholder, and the proxy replaces the placeholder with your token on each request.
+
+## Commit signing
+
+Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub then shows the agent's commits as verified, authored by you. [Install](/install/#create-credentials-for-the-profile) shows the commands.
+
+## What waits for you
+
+Merges, releases, pushes and the API requests that the module does not name wait for your answer. Reads, pull requests, issues, comments and reruns of CI go through. Changes to webhooks, Actions secrets, collaborators and deploy keys are refused.
