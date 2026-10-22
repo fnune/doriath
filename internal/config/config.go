@@ -90,6 +90,13 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 // Secrets belong to the profiles that use them.
 type User struct {
 	Approvals Approvals
+	Terminal  Terminal
+}
+
+type Terminal struct {
+	// Title names the session's profile in the terminal's window title
+	// while a session runs.
+	Title bool
 }
 
 type Approvals struct {
@@ -116,11 +123,14 @@ type userFile struct {
 		Desktop  *bool   `toml:"desktop"`
 		HostWait *string `toml:"host_wait"`
 	} `toml:"approvals"`
+	Terminal struct {
+		Title *bool `toml:"title"`
+	} `toml:"terminal"`
 }
 
 // LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
-	u := User{Approvals: Approvals{Desktop: true}}
+	u := User{Approvals: Approvals{Desktop: true}, Terminal: Terminal{Title: true}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return u, nil
@@ -142,6 +152,9 @@ func LoadUser(path string) (User, error) {
 	}
 	if f.Approvals.Desktop != nil {
 		u.Approvals.Desktop = *f.Approvals.Desktop
+	}
+	if f.Terminal.Title != nil {
+		u.Terminal.Title = *f.Terminal.Title
 	}
 	if f.Approvals.HostWait != nil {
 		d, err := time.ParseDuration(*f.Approvals.HostWait)

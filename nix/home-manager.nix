@@ -105,8 +105,9 @@ let
   withoutNull = lib.filterAttrs (_: v: v != null);
 
   configFile = toml.generate "doriath-config.toml" (
-    withoutNull {
+    lib.filterAttrs (_: v: v != { }) {
       approvals = withoutNull { desktop = cfg.approvals.desktop; };
+      terminal = lib.optionalAttrs (!cfg.terminal.title) { title = false; };
     }
   );
 
@@ -146,6 +147,12 @@ in
       type = lib.types.bool;
       default = true;
       description = "Show approval requests as desktop notifications with buttons.";
+    };
+
+    terminal.title = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Name the session's profile in the terminal's window title while a session runs.";
     };
 
     approvals.web = {

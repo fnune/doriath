@@ -179,6 +179,13 @@ func TestStartAndEnd(t *testing.T) {
 	if argv[1] != "--settings" || argv[2] != "/run/doriath/claude-settings.json" || env["CLAUDE_CONFIG_DIR"] != filepath.Join(home, ".claude") {
 		t.Fatalf("argv %v, env %v", argv, env)
 	}
+	if _, ok := env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"]; ok {
+		t.Error("Claude may keep the title when doriath does not set it")
+	}
+	s.Titled = true
+	if _, env, err = (Adapter{}).Start(s, []string{"claude"}); err != nil || env["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] != "1" {
+		t.Errorf("titled session env %v, %v", env, err)
+	}
 	if _, err := os.Stat(filepath.Join(private, "projects", project, "earlier.jsonl")); err != nil {
 		t.Fatal("earlier transcripts must be there to resume")
 	}

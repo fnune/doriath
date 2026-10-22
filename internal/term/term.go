@@ -47,16 +47,29 @@ type Writer struct {
 }
 
 func New(w io.Writer) *Writer {
-	return &Writer{w: w, color: colors(w)}
+	return &Writer{w: w, color: IsTerminal(w) && os.Getenv("NO_COLOR") == ""}
 }
 
-func colors(w io.Writer) bool {
+func IsTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
-	if !ok || os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+	if !ok || os.Getenv("TERM") == "dumb" {
 		return false
 	}
 	_, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
 	return err == nil
+}
+
+// Title saves the terminal's window title on its title stack, sets it, and
+// returns a function that puts the saved title back.
+func Title(w io.Writer, title string) (restore func()) {
+	title = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, title)
+	_, _ = io.WriteString(w, "\x1b[22;0t\x1b]0;"+title+"\x07")
+	return func() { _, _ = io.WriteString(w, "\x1b[23;0t") }
 }
 
 func (t *Writer) paint(color, s string) string {

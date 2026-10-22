@@ -367,6 +367,12 @@ desktop = true
 # The default is 2m with desktop notifications and 0s without them.
 # The maximum is 1h.
 host_wait = "2m"
+
+# While a session runs in a terminal, show "doriath · PROFILE" as the
+# window title, so that tabs and panes tell sessions apart. The title
+# before the session comes back when it ends.
+[terminal]
+title = true
 ```
 
 ## Files doriath writes

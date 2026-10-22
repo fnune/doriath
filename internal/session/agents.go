@@ -68,6 +68,7 @@ func (s *Session) agentSession() agents.Session {
 		mcp = jail.InJail(mcpConfigFile)
 	}
 	return agents.Session{
+		Titled:    s.titled,
 		MCPConfig: mcp,
 		Profile:   s.req.Profile,
 		Home:      home,

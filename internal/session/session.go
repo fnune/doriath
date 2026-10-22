@@ -154,6 +154,7 @@ type Session struct {
 	// mu guards the profile's mounts, which promotion extends.
 	mu       sync.Mutex
 	listings *listingCache
+	titled   bool
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -189,6 +190,7 @@ func (s *Session) ID() string { return s.id }
 // Run prepares the jail, runs the command in it and returns its exit code.
 func (s *Session) Run(ctx context.Context) (int, error) {
 	defer s.cleanup()
+	s.titled = s.deps.User.Terminal.Title && term.IsTerminal(s.deps.Stderr)
 	if err := s.prepare(ctx); err != nil {
 		return 1, err
 	}
@@ -204,6 +206,10 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 		s.notes = append(s.notes, note{term.Warn, n})
 	}
 	printBlock(term.New(s.deps.Stderr), s.notes, s.req.Profile.Name, "session "+s.id)
+	if s.titled {
+		restore := term.Title(s.deps.Stderr, "doriath · "+s.req.Profile.Name)
+		defer restore()
+	}
 	return s.exec(ctx, spec)
 }
 

@@ -30,6 +30,9 @@ type Session struct {
 	// MCPConfig is the jail's path to the profile's MCP servers in the
 	// common mcpServers format, or "" when the profile names none.
 	MCPConfig string
+	// Titled says that doriath sets the terminal's title for the session,
+	// so the agent should leave it alone.
+	Titled bool
 }
 
 type Adapter interface {
