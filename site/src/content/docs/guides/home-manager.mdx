@@ -1,7 +1,9 @@
 ---
-title: Profiles with home-manager
-description: Install doriath, write profiles in nix, and keep private profiles out of a public configuration.
+title: home-manager
+description: Install doriath and write its profiles in a home-manager configuration, alongside TOML profiles kept elsewhere.
 ---
+
+[home-manager](https://github.com/nix-community/home-manager) manages a user's programs and dotfiles from a Nix configuration, the way NixOS manages a system. doriath ships a home-manager module, so the binary, its direnv and shell integration, the approvals page service and your profiles can all live in that configuration and change when you switch to a new generation. Without Nix, skip this page: the [release binary](/install/) and TOML profiles in `~/.config/doriath/profiles/` do the same.
 
 ## The module
 
@@ -28,20 +30,20 @@ Add the flake as an input and import its module:
 }
 ```
 
-| Option                 | Default                  | What it does                                                   |
-| ---------------------- | ------------------------ | -------------------------------------------------------------- |
-| `enable`               | `false`                  | Installs doriath and writes `~/.config/doriath/config.toml`.   |
-| `direnv`               | `programs.direnv.enable` | Installs the direnv library, for `use doriath PROFILE`.        |
-| `zsh.completion`       | `programs.zsh.enable`    | Loads the zsh completion.                                      |
-| `approvals.desktop`    | `true`                   | Shows requests as desktop notifications.                       |
-| `approvals.web.enable` | `false`                  | Runs the approvals page as a systemd user service.             |
-| `approvals.web.listen` | `"127.0.0.1:7341"`       | The loopback address of the page.                              |
-| `profiles.<name>`      | `{ }`                    | Profiles, with the same keys as their TOML.                    |
-| `modules.<name>`       | `{ }`                    | Your own modules. A module with a built-in's name replaces it. |
+| Option                 | Default                  | What it does                                                                                |
+| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
+| `enable`               | `false`                  | Installs doriath and writes `~/.config/doriath/config.toml`.                                |
+| `direnv`               | `programs.direnv.enable` | Installs the [direnv](/guides/direnv/) library, for `use doriath PROFILE`.                  |
+| `zsh.completion`       | `programs.zsh.enable`    | Loads the zsh completion.                                                                   |
+| `approvals.desktop`    | `true`                   | Shows requests as desktop notifications.                                                    |
+| `approvals.web.enable` | `false`                  | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service. |
+| `approvals.web.listen` | `"127.0.0.1:7341"`       | The loopback address of the page.                                                           |
+| `profiles.<name>`      | `{ }`                    | Profiles, with the same keys as their TOML.                                                 |
+| `modules.<name>`       | `{ }`                    | Your own modules. A module with a built-in's name replaces it.                              |
 
-## Profiles in nix
+## Profiles in Nix
 
-A profile takes the keys of its TOML as nix attributes, plus two that exist only in nix. `secrets` says where each secret comes from. With `packages`, tools land in front of the jail's `PATH` without being installed on the host.
+A profile in Nix takes the same keys as its TOML file, as attributes, and adds `packages`: tools that land in front of the jail's `PATH` without being installed on the host.
 
 ```nix
 programs.doriath.profiles.my-app = {
@@ -58,15 +60,15 @@ programs.doriath.profiles.my-app = {
 };
 ```
 
-For a profile home-manager wrote, `doriath profiles edit` refuses and points you to your nix configuration.
+home-manager writes each one to `~/.config/doriath/profiles/<name>.toml` as a link into the Nix store. `doriath profiles edit` refuses those and points you back to the Nix configuration.
 
-## Private profiles
+## Profiles kept elsewhere
 
-An allowlist describes its project, down to the hosts its build downloads from and the services its app calls. If your home-manager configuration is public, keep such profiles in a private repository of TOML files, and link that repository into the profiles folder once:
+Some profiles fit better outside the Nix configuration: one a team keeps in a repository of its own, one you change more often than you switch generations, or one that names more of a project than you want in a configuration other people read. Keep those as TOML files in a folder of their own, and link the folder into the profiles folder once:
 
 ```sh
-git clone git@github.com:you/doriath-profiles.git ~/Development/doriath-profiles
-ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private
+git clone git@github.com:acme/doriath-profiles.git ~/Development/doriath-profiles
+ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/acme
 ```
 
-doriath looks for profiles in `~/.config/doriath/profiles/` and in every folder inside it, following links and skipping names that start with a dot, such as `.git`. The file name is the profile name, so `private/acme-service.toml` is `--profile acme-service`, and two files with one name are an error. Profiles that home-manager writes sit next to the link without touching it.
+doriath looks for profiles in `~/.config/doriath/profiles/` and in every folder inside it, following links and skipping names that start with a dot, such as `.git`. The file name is the profile name, so `acme/acme-service.toml` is `--profile acme-service`, and two files with one name are an error. The profiles home-manager writes sit next to the link and leave it alone, so both kinds work side by side.

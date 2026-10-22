@@ -36,7 +36,7 @@ Inside the jail, the repository you started in is read-only, and the agent commi
 
 ## A held request
 
-When a rule holds a request, doriath waits for you. Here is a merge that the `github` module holds, drawn with the approvals page's own styles:
+When a rule holds a request, doriath waits for you. Here is a merge that the [`github` module](/reference/modules/#github) holds, as the [approvals page](/guides/approvals/) shows it:
 
 <RequestExample
   profile="my-app"
@@ -58,7 +58,7 @@ When a rule holds a request, doriath waits for you. Here is a merge that the `gi
 
 ## A first session
 
-A profile lists the modules a kind of work needs, plus any hosts and secrets of its own:
+A profile lists the [modules](/reference/modules/) a kind of work needs, plus any hosts and [secrets](/reference/configuration/#secrets) of its own:
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app: Go API and React frontend"

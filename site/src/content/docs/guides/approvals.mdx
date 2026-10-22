@@ -6,7 +6,7 @@ description: Desktop notifications, the approvals page, the terminal, and remote
 import { Aside } from "@astrojs/starlight/components";
 import RequestExample from "../../../components/RequestExample.astro";
 
-A request waits for you when a rule holds it, when the agent reaches a host the profile does not name, when it asks to write a path, or when Claude Code raises a permission prompt. All of them land in one queue, and any of the places below can answer.
+A request waits for you when an [`[[http]]` rule](/reference/configuration/#profile-keys) holds it, when the agent reaches a host the profile does not name, when it [asks to write a path](#writable-paths), or when [Claude Code](/guides/claude-code/) raises a permission prompt. All of them land in one queue, and any of the places below can answer.
 
 ## Reading a request
 
@@ -29,7 +29,13 @@ This is a request on the approvals page, doriath's web interface, which `doriath
 
 doriath writes the summary and the scope. Anything the agent wrote, such as a command's description or its reason for a write, sits beside the curled rule with the agent's name on it, and for a tool request the details are the agent's as well.
 
-The timer counts down the agent's wait. Once it runs out, the request is parked: the agent has an error and has moved on, and an allow still lets its next try through. Parked requests stay answerable until the session ends.
+The timer counts down the agent's wait. Once it runs out, the request is parked: the agent has an error and has moved on, and an allow still lets its next try through. Parked requests stay answerable until the session ends. How long the agent waits depends on the kind of request:
+
+| Kind                                 | The agent waits                                            | Set by                                                                    |
+| ------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `host`, `path`                       | 2 minutes with desktop notifications, no time without them | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) |
+| `http`, and image pushes from podman | 10 minutes                                                 | fixed                                                                     |
+| `tool`, from Claude Code             | 60 seconds, then Claude shows its own prompt               | `approval_timeout` under [`[claude]`](/guides/claude-code/)               |
 
 ## Answers
 
@@ -39,11 +45,11 @@ The timer counts down the agent's wait. Once it runs out, the request is parked:
 | Allow for this session | Lets identical requests through until the session ends. "An allow covers" shows what counts as identical. |
 | Deny                   | Refuses the request with an error the agent sees.                                                         |
 
-Hosts and writable paths have no "once", because a host stays reachable and a path stays written after the first allow. To keep an allow beyond the session, add the profile lines the request shows; doriath leaves profiles to you, since one may come from nix.
+Hosts and writable paths have no "once", because a host stays reachable and a path stays written after the first allow. To keep an allow beyond the session, add the profile lines the request shows to the [profile](/reference/configuration/); doriath leaves profiles to you, since one may come from nix.
 
 ## Desktop notifications
 
-Notifications are on by default, through `[approvals] desktop = true` in `config.toml`, with the answers as buttons. doriath holds each request for `host_wait`, two minutes unless you change it.
+On a machine with a desktop session, each request becomes a notification with the answers as buttons. They are on by default, through `[approvals] desktop = true` in `config.toml`. Where no desktop session runs, such as on a server over SSH, doriath turns them off when the session starts and says so; see [remote hosts](#remote-hosts) for what to use there.
 
 ## The approvals page
 
@@ -53,7 +59,7 @@ doriath approvals web --open
 
 Requests from every running session appear on the page, next to the last day's answers from the audit log. It serves on `127.0.0.1:7341` and prints a link with a token, which the browser then keeps in a cookie for 30 days. Other users of the machine and other sites have no token, so they can neither read nor answer, and the page loads nothing from the network.
 
-Running the command again while the page serves prints the link again, after the page proves it holds your token. With home-manager, `programs.doriath.approvals.web.enable = true` keeps the page running as a systemd user service.
+Running the command again while the page serves prints the link again, after the page proves it holds your token. With [home-manager](/guides/home-manager/#the-module), `programs.doriath.approvals.web.enable = true` keeps the page running as a systemd user service.
 
 ## The terminal
 
@@ -64,18 +70,25 @@ doriath approvals deny ID --reason "use the staging stack"
 doriath approvals watch
 ```
 
-`allow --for` takes `once`, `session` or a duration such as `30m`. `watch` goes through new requests one at a time.
+`allow --for` takes `once`, `session` or a duration such as `30m`. `watch` goes through new requests one at a time. [Commands](/reference/commands/) lists the flags.
 
 ## Remote hosts
 
-On a server, keep the page on its loopback address and tunnel to it over SSH, so that no port opens to the network:
+On a server, doriath and its jails run there, and you answer from your own machine. No desktop session runs on the server, so notifications are off, and with them the default wait for hosts and paths drops to nothing: the agent gets an error at once and the request parks. Give the agent time to wait for you in the server's `config.toml`:
+
+```toml title="~/.config/doriath/config.toml"
+[approvals]
+host_wait = "2m"
+```
+
+Then run the approvals page on the server, on its loopback address, and reach it through an SSH tunnel, so that no port opens to the network:
 
 ```sh
 ssh -L 7341:127.0.0.1:7341 server
 doriath approvals web
 ```
 
-Open the printed link in a browser on your own machine. Another local port works too, such as `-L 8000:127.0.0.1:7341`, with `8000` in the link. A terminal on the server running `doriath approvals watch` answers the same requests without a tunnel.
+Open the printed link in a browser on your own machine. Another local port works too, such as `-L 8000:127.0.0.1:7341`, with `8000` in the link. To keep the page up between logins, run it as the home-manager service on the server, and print the link again with `doriath approvals web` when you need it. Without a tunnel, `doriath approvals watch` in a terminal on the server answers the same requests.
 
 <Aside type="note">
   The page answers only to loopback names in the Host header. A site that

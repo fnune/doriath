@@ -20,7 +20,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
   </TabItem>
   <TabItem label="home-manager">
-    Add the flake as an input, import its module and turn it on. The module also installs the direnv library, the zsh completion and, if you want it, the approvals page as a service; [profiles with home-manager](/guides/home-manager/) lists every option.
+    Add the flake as an input, import its module and turn it on. The module also installs the direnv library, the zsh completion and, if you want it, the approvals page as a service; the [home-manager guide](/guides/home-manager/) lists every option.
 
     ```nix title="flake.nix"
     inputs.doriath = {
@@ -79,7 +79,7 @@ Then check the machine:
 doriath doctor
 ```
 
-doriath needs Linux with unprivileged user namespaces. For the `podman` module you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user, which `grep $USER /etc/subuid /etc/subgid` shows.
+doriath needs Linux with unprivileged user namespaces. For the [`podman` module](/reference/modules/#podman) you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user, which `grep $USER /etc/subuid /etc/subgid` shows.
 
 To try doriath without installing it, `nix run github:fnune/doriath -- doctor` runs the same check.
 

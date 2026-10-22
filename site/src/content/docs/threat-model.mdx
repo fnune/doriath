@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 ## Assumptions
 
-Doriath assumes an agent that acts against your intent. A prompt injection in a web page, an issue or a dependency can cause that, and so can a plain mistake or a misread task. The agent is assumed capable: it runs any program the jail sees, writes any file it may write, and tries whatever the kernel allows.
+Doriath assumes an agent that acts against your intent. [Architecture](/architecture/) describes the parts each guard below belongs to. A prompt injection in a web page, an issue or a dependency can cause that, and so can a plain mistake or a misread task. The agent is assumed capable: it runs any program the jail sees, writes any file it may write, and tries whatever the kernel allows.
 
 ## Guarded actions
 
@@ -17,7 +17,7 @@ Doriath assumes an agent that acts against your intent. A prompt injection in a 
 | Read a token, or send it elsewhere                   | Tokens stay in the proxy, which adds them for the programs and hosts the profile names.                                                               |
 | Reach a host the profile does not name               | Loopback is the jail's only network, and the proxy holds unknown hosts for you.                                                                       |
 | Reach your local network or a cloud metadata service | The proxy refuses private, link-local and metadata addresses, whatever name resolves to them.                                                         |
-| Merge, release or push without you                   | `[[http]]` rules hold those requests until you answer.                                                                                                |
+| Merge, release or push without you                   | `[[http]]` rules hold those requests until you [answer](/guides/approvals/).                                                                          |
 | Approve its own requests                             | Answers come from your desktop, terminal or approvals page, all out of the jail's reach.                                                              |
 | Change your checkout, or plant a git hook            | The checkout is read-only, and git's and jj's config, hooks and info stay read-only even in writable mounts.                                          |
 | Rewrite or delete history                            | Existing packs are read-only, loose objects come back at the end, and `doriath restore` puts moved branches back.                                     |

@@ -18,7 +18,12 @@ type snippet struct {
 	file    string
 	line    int
 	heading string
+	fence   string
 	body    string
+}
+
+func (s snippet) userConfig() bool {
+	return s.heading == "config.toml keys" || strings.Contains(s.fence, "config.toml")
 }
 
 func tomlSnippets(t *testing.T, path string) []snippet {
@@ -46,7 +51,7 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 		case current != nil:
 			body.WriteString(line + "\n")
 		case trimmed == "```toml" || strings.HasPrefix(trimmed, "```toml "):
-			current = &snippet{file: filepath.Base(path), line: n, heading: heading}
+			current = &snippet{file: filepath.Base(path), line: n, heading: heading, fence: trimmed}
 			body.Reset()
 		case strings.HasPrefix(line, "#"):
 			heading = strings.TrimSpace(strings.TrimLeft(line, "#"))
@@ -84,7 +89,7 @@ func TestDocExamplesLoad(t *testing.T) {
 	}
 	for _, s := range snippets {
 		t.Run(s.file+":"+s.heading, func(t *testing.T) {
-			if s.heading == "config.toml keys" {
+			if s.userConfig() {
 				path := filepath.Join(t.TempDir(), "config.toml")
 				if err := os.WriteFile(path, []byte(s.body), 0o600); err != nil {
 					t.Fatal(err)

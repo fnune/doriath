@@ -3,7 +3,7 @@ title: Projects with direnv
 description: Start a plain claude in the jail for a whole project, alongside use flake.
 ---
 
-With [direnv](https://direnv.net), one line in a project's `.envrc` makes a plain `claude` anywhere in the project start in a doriath session:
+[direnv](https://direnv.net) loads and unloads environment variables as you enter and leave a folder, from a file named `.envrc` in it. With doriath's direnv library, one line in a project's `.envrc` makes a plain `claude` anywhere in the project start in a doriath session:
 
 ```sh title=".envrc"
 use doriath my-app
@@ -32,6 +32,8 @@ Since the jail sees the `PATH` that direnv builds and can read `/nix/store`, the
 [env]
 pass = ["GOPRIVATE", "GOTOOLCHAIN"]
 ```
+
+[Profile keys](/reference/configuration/#profile-keys) lists the rest of `[env]`.
 
 ## A local .envrc
 

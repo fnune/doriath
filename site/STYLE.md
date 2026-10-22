@@ -48,6 +48,14 @@ Words to avoid, with what to say instead:
 - Describe doriath as it is meant to work, with no "yet", "so far", "known issues" or release status. Where the code falls short, the gap goes in the project's TODO list outside the repository, not on a page.
 - The security limits page is the exception: a protection the code does not provide stays listed there as a limit until it does.
 - Each topic has one page. Link to it instead of repeating it on another.
+- Link a config key, module, command or concept to its reference the first time a page names it.
+- Where a page describes behaviour a setting controls, link to where it is set.
+- Introduce every example and illustration: say what it shows, and how to open the real thing.
+- Open a page about an outside tool, such as home-manager or direnv, with a paragraph on what the tool does, and say who can skip the page.
+- Where behaviour depends on a desktop session or the local machine, say how it works on a remote or headless host.
+- Show alternatives, such as ways to install, as tabs, leading with the one that needs nothing beyond the operating system.
+- Say which names doriath or a module fixes and which the reader chooses.
+- Give the real reason for an option instead of a label that assumes the reader's setup, such as calling one kind of configuration public and another private.
 
 ## Look
 

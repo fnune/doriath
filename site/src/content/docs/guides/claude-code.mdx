@@ -7,7 +7,7 @@ Your Claude configuration needs no change. The `claude` module gives the profile
 
 doriath starts Claude with settings it generates. claude.ai connectors are off, the profile's `ask` and `deny` rules apply, and the repository's `.claude/settings.json` is frozen as it was at the start, so the agent cannot loosen its own permissions during the session. At session start, Claude also learns what the jail allows, what `doriath:` errors mean, and how to ask for a host or a writable path.
 
-Permission prompts go to the [approval queue](/guides/approvals/), and Claude falls back to its own prompt when you do not answer in time. MCP servers come from the profile's `[[mcp]]` list, while yours stay outside the jail. When the session ends, the project's transcripts are copied back to your `~/.claude`, so you can resume outside the jail.
+Permission prompts go to the [approval queue](/guides/approvals/), and Claude falls back to its own prompt when you do not answer in time. MCP servers come from the profile's [`[[mcp]]`](/reference/configuration/#mcp-servers) list, while yours stay outside the jail. When the session ends, the project's transcripts are copied back to your `~/.claude`, so you can resume outside the jail.
 
 Adapter settings live under `[claude]` in the profile:
 

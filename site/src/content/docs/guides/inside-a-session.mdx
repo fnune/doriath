@@ -30,4 +30,4 @@ doriath log --denied --follow
 
 `doriath status` lists what a session allows and what it blocked, with the profile lines that would allow it. The audit log at `~/.local/state/doriath/audit.jsonl` records every session, egress decision and approval, each with its session and profile, and `doriath log` reads it. For [lnav](https://lnav.org), the repository ships a format in `contrib/lnav`.
 
-A session prints one summary line when it ends, followed by the hosts it learned as profile lines. Branches the agent moved go back with `doriath restore SESSION`.
+A session prints one summary line when it ends, followed by the hosts it learned as profile lines. Branches the agent moved go back with `doriath restore SESSION`, as [repositories](/reference/configuration/#repositories) explains.

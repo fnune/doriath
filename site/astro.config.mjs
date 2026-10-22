@@ -60,7 +60,7 @@ export default defineConfig({
           label: "Guides",
           items: [
             { label: "Answering requests", slug: "guides/approvals" },
-            { label: "Profiles with home-manager", slug: "guides/home-manager" },
+            { label: "home-manager", slug: "guides/home-manager" },
             { label: "Projects with direnv", slug: "guides/direnv" },
             { label: "Claude Code", slug: "guides/claude-code" },
             { label: "Looking inside a session", slug: "guides/inside-a-session" },

@@ -4,6 +4,7 @@
 - Prose you write, in docs, the site, comments, commit messages and error messages, follows [site/STYLE.md](site/STYLE.md). Its list of patterns that read as generated applies everywhere: no sentences in matching pairs or triplets, no "not X, but Y", no question headings, and none of the listed words.
 - The approvals page and the documentation site share their look through `internal/ui`. Change it there, and check both.
 - User documentation lives in `site/src/content/docs` and is published at https://doriath.fnune.com. Link there from Markdown in the repository instead of repeating it. `docs/` holds only what contributors need.
+- [site/STYLE.md](site/STYLE.md) also sets how pages are structured: cross-link keys, modules and commands to their reference, introduce examples, explain outside tools before using them, cover remote hosts, and give real reasons instead of labels. Apply the same habits to READMEs and to Markdown elsewhere in the repository.
 - Docs describe doriath as it is meant to work. Track where the code falls short in the todo list, and remove an item when a change closes it.
 - When a change opens or closes a gap, update the security limits page with it. Escape scripts marked `expect: gap` fail until it matches.
 - Examples in TOML code blocks on the site must load: `TestDocExamplesLoad` checks each one.
