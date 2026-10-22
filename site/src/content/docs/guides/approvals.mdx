@@ -82,6 +82,6 @@ Open the printed link in a browser on your own machine. Another local port works
 
 ## Writable paths
 
-From inside the jail, `doriath request write PATH --reason TEXT` asks for a path to become writable, and `doriath request wait ID` blocks until you answer. Only paths the agent already sees qualify, and some are refused before you are asked, `.git`, `.ssh` and doriath's own configuration among them.
+From inside the jail, `doriath request write PATH --reason TEXT` asks for a path to become writable, and `doriath request wait ID` blocks until you answer. Only paths the agent already sees qualify, and some are refused before you are asked, `.git`, `.ssh` and doriath's own configuration among them; [configuration](/reference/configuration/#approvals) has the full list.
 
 `doriath grant write PATH` on the host makes a path writable in the running session directly. It can also attach a directory the jail does not see yet.

@@ -514,7 +514,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 		}
 	}
 	if len(names) == 0 {
-		note("profiles", "none yet; see docs/install.md")
+		note("profiles", "none yet; see https://doriath.fnune.com/install/")
 	}
 
 	secrets := 0

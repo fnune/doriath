@@ -46,7 +46,7 @@ Words to avoid, with what to say instead:
 - Config examples show only the keys that matter, not a whole file.
 - Use Starlight's `<Aside>` for notes and cautions.
 - Describe planned features as planned, never as if they exist.
-- Pages that repeat a file in `docs/` change together with it.
+- Each topic has one page. Link to it instead of repeating it on another.
 
 ## Look
 

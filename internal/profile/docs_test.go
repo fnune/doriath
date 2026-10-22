@@ -45,7 +45,7 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 			current = nil
 		case current != nil:
 			body.WriteString(line + "\n")
-		case trimmed == "```toml":
+		case trimmed == "```toml" || strings.HasPrefix(trimmed, "```toml "):
 			current = &snippet{file: filepath.Base(path), line: n, heading: heading}
 			body.Reset()
 		case strings.HasPrefix(line, "#"):
@@ -64,9 +64,20 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 // TestDocExamplesLoad keeps the examples in the docs loadable: a reader who
 // copies one gets a file doriath accepts.
 func TestDocExamplesLoad(t *testing.T) {
+	root := filepath.Join("..", "..")
+	docs := []string{filepath.Join(root, "README.md")}
+	err := filepath.WalkDir(filepath.Join(root, "site", "src", "content", "docs"), func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".mdx")) {
+			docs = append(docs, path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	var snippets []snippet
-	for _, doc := range []string{"docs/configuration.md", "docs/install.md", "README.md"} {
-		snippets = append(snippets, tomlSnippets(t, filepath.Join("..", "..", doc))...)
+	for _, doc := range docs {
+		snippets = append(snippets, tomlSnippets(t, doc)...)
 	}
 	if len(snippets) < 3 {
 		t.Fatalf("found %d toml examples in the docs; the extraction is broken", len(snippets))
