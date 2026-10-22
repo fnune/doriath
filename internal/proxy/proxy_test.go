@@ -205,6 +205,11 @@ func loadProfile(t *testing.T, toml string) *profile.Profile {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWith(t, testProfile)
+}
+
+func newHarnessWith(t *testing.T, toml string) *harness {
+	t.Helper()
 	up := &upstream{}
 	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com"}, time.Now)
 	if err != nil {
@@ -227,7 +232,7 @@ func newHarness(t *testing.T) *harness {
 	ev := &events{}
 	srv := New(
 		Config{Session: "s1", Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: upCA.Pool()},
-		loadPolicy(t),
+		loadProfile(t, toml),
 		approver,
 		mapSecrets{"github": "real-token"},
 		session,
@@ -825,5 +830,65 @@ func TestMethodCaseAndCompressedBodies(t *testing.T) {
 	}
 	if body(t, resp); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("a trailing slash got past the rule: %d", resp.StatusCode)
+	}
+}
+
+func pktLine(s string) string { return fmt.Sprintf("%04x%s", len(s)+4, s) }
+
+func TestParseRefCommands(t *testing.T) {
+	old, next := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	data := pktLine(old+" "+next+" refs/heads/main\x00report-status side-band-64k\n") +
+		pktLine(zeroID+" "+next+" refs/heads/feature/x\n") +
+		pktLine(old+" "+zeroID+" refs/tags/v1\n") + "0000PACK..."
+	got := parseRefCommands([]byte(data))
+	if len(got) != 3 {
+		t.Fatalf("got %+v", got)
+	}
+	shorts := []string{got[0].short(), got[1].short(), got[2].short()}
+	if strings.Join(shorts, ", ") != "main, feature/x, delete tag v1" {
+		t.Errorf("short names %q", shorts)
+	}
+	if got[0].line() != "update refs/heads/main aaaaaaaaaaaa..bbbbbbbbbbbb" || got[1].line() != "create refs/heads/feature/x at bbbbbbbbbbbb" || !strings.HasPrefix(got[2].line(), "delete refs/tags/v1") {
+		t.Errorf("lines %q, %q, %q", got[0].line(), got[1].line(), got[2].line())
+	}
+	for _, junk := range []string{"", "zzzz", "0005x", "0010short\n", "PACK"} {
+		if refs := parseRefCommands([]byte(junk)); len(refs) != 0 {
+			t.Errorf("%q gave %+v", junk, refs)
+		}
+	}
+}
+
+func TestPushRequestNamesItsRefs(t *testing.T) {
+	h := newHarnessWith(t, `
+[secrets.github]
+command = ["true"]
+
+[[http]]
+host = "github.com"
+credential = { secret = "github", scheme = "basic", username = "x-access-token" }
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+action = "approve"
+summary = "Push"
+`)
+	old, next := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	payload := pktLine(old+" "+next+" refs/heads/main\x00report-status\n") + "0000" + strings.Repeat("P", 200<<10)
+	resp, err := h.client().Post("https://github.com/group/sub/proj.git/git-receive-pack", "application/x-git-receive-pack-request", strings.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, b)
+	}
+	h.approver.mu.Lock()
+	req := h.approver.requests[0]
+	h.approver.mu.Unlock()
+	if req.Summary != "Push: main" || !strings.Contains(req.Details, "update refs/heads/main aaaaaaaaaaaa..bbbbbbbbbbbb") || !strings.HasSuffix(req.Scope, " in /group/sub/proj") {
+		t.Fatalf("approval request = %+v", req)
+	}
+	if _, got := h.upstream.last(t); string(got) != payload {
+		t.Fatalf("the upstream got %d bytes of %d", len(got), len(payload))
 	}
 }

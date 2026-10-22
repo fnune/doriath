@@ -323,12 +323,21 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
 			summary += " " + tools
 		}
+		details := fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body))
+		if refs := pushedRefs(r); len(refs) > 0 {
+			names := make([]string, len(refs))
+			for i, u := range refs {
+				names[i] = u.short()
+				details += "\n" + u.line()
+			}
+			summary += ": " + strings.Join(names, ", ")
+		}
 		d, err := s.approver.Submit(r.Context(), approval.Request{
 			Session: s.cfg.Session,
 			Profile: s.cfg.Profile,
 			Kind:    approval.KindHTTP,
 			Summary: summary,
-			Details: fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body)),
+			Details: details,
 			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body, rules.Repository(r.URL.Path)),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
