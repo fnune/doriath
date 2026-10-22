@@ -66,6 +66,7 @@ Words to avoid, with what to say instead:
 - Introduce every example and illustration: say what it shows, and how to open the real thing.
 - Open a page about an outside tool, such as home-manager or direnv, with a paragraph on what the tool does, and say who can skip the page.
 - Where behaviour depends on a desktop session or the local machine, say how it works on a remote or headless host.
+- Do not put long code, such as command usage, in table cells, where it wraps badly. Give each item a heading, its code on its own line, and its description under it.
 - Show alternatives, such as ways to install, as tabs, leading with the one that needs nothing beyond the operating system.
 - Say which names doriath or a module fixes and which the reader chooses.
 - Give the real reason for an option instead of a label that assumes the reader's setup, such as calling one kind of configuration public and another private.
