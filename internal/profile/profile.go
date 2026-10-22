@@ -420,6 +420,33 @@ func (p *Profile) AllowsHostFor(host, exe string) bool {
 	return false
 }
 
+// BinaryPaths lists the binaries of credentials and program egress that
+// name a path, as globs.
+func (p *Profile) BinaryPaths() []string {
+	var out []string
+	add := func(binaries []string) {
+		for _, b := range binaries {
+			if strings.Contains(b, "/") && !slices.Contains(out, b) {
+				out = append(out, b)
+			}
+		}
+	}
+	for _, prog := range p.Egress.Programs {
+		add(prog.Binaries)
+	}
+	for _, h := range p.HTTP {
+		if h.Credential != nil {
+			add(h.Credential.Binaries)
+		}
+		for _, r := range h.Rules {
+			if r.Credential != nil {
+				add(r.Credential.Binaries)
+			}
+		}
+	}
+	return out
+}
+
 // ProgramsFor lists the binaries that may reach a host only some programs
 // may reach, for a denial that says which.
 func (p *Profile) ProgramsFor(host string) []string {

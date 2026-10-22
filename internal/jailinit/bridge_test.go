@@ -2,6 +2,7 @@ package jailinit
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,8 +69,16 @@ func TestBridgeNamesTheClientProgramToTheSocket(t *testing.T) {
 
 	got := <-lines
 	real, _ := filepath.EvalSymlinks(bash)
-	if want := string(PeerHeader(Peer{PID: child.Process.Pid, Exe: real})); got[0] != want {
-		t.Errorf("header = %q, want %q", got[0], want)
+	info, err := os.Stat(real)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var peer Peer
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(got[0], "DORIATH-PEER ")), &peer); err != nil {
+		t.Fatalf("header %q: %v", got[0], err)
+	}
+	if peer.PID != child.Process.Pid || peer.Exe != real || peer.File != FileIDOf(info) || !slices.ContainsFunc(peer.Code, func(f MappedFile) bool { return f.Path == real && f.Ino == peer.File.Ino }) {
+		t.Errorf("header = %q, want bash %s and the code it maps", got[0], real)
 	}
 	if got[1] != "hello\n" {
 		t.Errorf("the client's bytes must follow the header: %q", got[1])

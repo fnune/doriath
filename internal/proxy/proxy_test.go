@@ -700,8 +700,9 @@ type fakePeers struct {
 	exe     string
 }
 
-func (f fakePeers) TrustsHeader(pid int) bool { return pid == f.trusted }
-func (f fakePeers) Exe(int) string            { return f.exe }
+func (f fakePeers) TrustsHeader(pid int) bool  { return pid == f.trusted }
+func (f fakePeers) Identify(pid int) Identity  { return Identity{PID: pid, Exe: f.exe} }
+func (f fakePeers) Vouch(id Identity) Identity { return id }
 
 func TestIdentifyingListener(t *testing.T) {
 	for name, tc := range map[string]struct {

@@ -205,7 +205,7 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	notes := slices.Concat(spec.Notes, programNotes(s.req.Profile))
+	notes := spec.Notes
 	if s.deps.SystemdRun == "" {
 		notes = append(notes, "systemd-run is not available, so this session runs without the profile's task and memory limits")
 	}
@@ -284,6 +284,11 @@ func (s *Session) prepare(ctx context.Context) error {
 	}
 	if err := s.startRepositories(ctx); err != nil {
 		return err
+	}
+	var pinNotes []string
+	s.peers.pins, pinNotes = pinBinaries(p, s.deps.Paths.Home, s.cacheRoot(), agentWritable(s.deps, p))
+	for _, n := range pinNotes {
+		s.notes = append(s.notes, note{term.Warn, n})
 	}
 	if err := s.startProxy(); err != nil {
 		return err
@@ -1072,22 +1077,6 @@ func shortPath(p string) string {
 		return p
 	}
 	return strings.Join(parts[:2], "/") + "/…/" + parts[len(parts)-1]
-}
-
-func programNotes(p *profile.Profile) []string {
-	var out []string
-	for _, prog := range p.Egress.Programs {
-		for _, bin := range prog.Binaries {
-			if strings.Contains(bin, "/") && !profile.UnderTrustedRoot(bin) {
-				hosts := fmt.Sprintf("%d hosts", len(prog.Allow))
-				if len(prog.Allow) == 1 {
-					hosts = fmt.Sprint(prog.Allow[0])
-				}
-				out = append(out, fmt.Sprintf("%s gets %s, but the agent can write that path, so a program it puts there gets them too", shortPath(bin), hosts))
-			}
-		}
-	}
-	return out
 }
 
 var userBusEnv = []string{"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"}

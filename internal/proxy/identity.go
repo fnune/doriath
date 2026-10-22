@@ -10,13 +10,29 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/jailinit"
 )
 
 // Identity is the program that opened a proxy connection, as far as doriath
 // can tell. Exe is empty when it is unknown.
 type Identity struct {
-	PID int
-	Exe string
+	PID  int
+	Exe  string
+	File jailinit.FileID
+	Code []jailinit.MappedFile
+	// Untrusted says why doriath cannot vouch that the program is the file
+	// that Exe names, or that only trusted code runs in it.
+	Untrusted string
+}
+
+// Program is the program that rules and credentials may trust, or ""
+// when doriath cannot vouch for it.
+func (id Identity) Program() string {
+	if id.Untrusted != "" {
+		return ""
+	}
+	return id.Exe
 }
 
 type identityKey struct{}
@@ -36,7 +52,9 @@ type PeerResolver interface {
 	// which forwards connections for other programs and names them in a
 	// header.
 	TrustsHeader(pid int) bool
-	Exe(pid int) string
+	Identify(pid int) Identity
+	// Vouch sets Untrusted on an identity that rules must not trust.
+	Vouch(id Identity) Identity
 }
 
 // IdentifyingListener learns who is on the other end of each unix
@@ -60,7 +78,7 @@ func (l *IdentifyingListener) Accept() (net.Conn, error) {
 		return &identifiedConn{Conn: conn}, nil
 	}
 	if !l.Peers.TrustsHeader(pid) {
-		return &identifiedConn{Conn: conn, id: Identity{PID: pid, Exe: l.Peers.Exe(pid)}}, nil
+		return &identifiedConn{Conn: conn, id: l.Peers.Vouch(l.Peers.Identify(pid))}, nil
 	}
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	r := bufio.NewReader(conn)
@@ -71,7 +89,7 @@ func (l *IdentifyingListener) Accept() (net.Conn, error) {
 		_ = conn.Close()
 		return &identifiedConn{Conn: closedConn{conn}}, nil
 	}
-	return &identifiedConn{Conn: prefixed(conn, r), id: id}, nil
+	return &identifiedConn{Conn: prefixed(conn, r), id: l.Peers.Vouch(id)}, nil
 }
 
 func parsePeerHeader(line string) (Identity, bool) {
@@ -79,12 +97,9 @@ func parsePeerHeader(line string) (Identity, bool) {
 	if !ok {
 		return Identity{}, false
 	}
-	var peer struct {
-		PID int    `json:"pid"`
-		Exe string `json:"exe"`
-	}
+	var peer jailinit.Peer
 	_ = json.Unmarshal([]byte(data), &peer)
-	return Identity{PID: peer.PID, Exe: peer.Exe}, true
+	return Identity{PID: peer.PID, Exe: peer.Exe, File: peer.File, Code: peer.Code}, true
 }
 
 type identifiedConn struct {

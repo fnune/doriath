@@ -8,6 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 type hostPeers struct {
@@ -15,6 +18,7 @@ type hostPeers struct {
 	known chan struct{}
 	once  sync.Once
 	exe   string
+	pins  pins
 }
 
 func newHostPeers(exe string) *hostPeers {
@@ -57,12 +61,17 @@ func (h *hostPeers) TrustsHeader(pid int) bool {
 	return err == nil && os.SameFile(running, own)
 }
 
-func (h *hostPeers) Exe(pid int) string {
-	exe, err := os.Readlink(filepath.Join("/proc", strconv.Itoa(pid), "exe"))
+func (h *hostPeers) Identify(pid int) proxy.Identity {
+	peer, err := jailinit.Describe("/proc", pid)
 	if err != nil {
-		return ""
+		return proxy.Identity{PID: pid}
 	}
-	return exe
+	return proxy.Identity{PID: pid, Exe: peer.Exe, File: peer.File, Code: peer.Code}
+}
+
+func (h *hostPeers) Vouch(id proxy.Identity) proxy.Identity {
+	id.Untrusted = h.pins.untrusted(id)
+	return id
 }
 
 func parentPID(pid int) int {

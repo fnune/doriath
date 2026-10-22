@@ -359,7 +359,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 	if matched && rule.Credential != nil {
 		c = rule.Credential
 	}
-	if c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Exe) {
+	if c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Program()) {
 		s.withheld(host, IdentityFrom(r.Context()))
 	} else if c != nil {
 		name, value, err := s.credentialHeader(r.Context(), *c)
@@ -513,13 +513,17 @@ func (s *Server) withheld(host string, id Identity) {
 	if exe == "" {
 		exe = "an unidentified program"
 	}
+	reason := "not allowed for " + exe
+	if id.Untrusted != "" {
+		reason = id.Untrusted
+	}
 	s.mu.Lock()
-	key := "withheld " + host + " " + exe
+	key := "withheld " + host + " " + reason
 	first := !s.seen[key]
 	s.seen[key] = true
 	s.mu.Unlock()
 	if first {
-		s.record(Event{Kind: "credential-withheld", Host: host, Reason: "not allowed for " + exe})
+		s.record(Event{Kind: "credential-withheld", Host: host, Exe: id.Exe, Reason: reason})
 	}
 }
 
@@ -617,7 +621,7 @@ const ReasonNotInProfile = "host not in the profile"
 
 func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string) bool {
 	exe := IdentityFrom(r.Context()).Exe
-	if s.policy.AllowsHostFor(host, exe) {
+	if s.policy.AllowsHostFor(host, IdentityFrom(r.Context()).Program()) {
 		return true
 	}
 	reason := s.hostReason(host)

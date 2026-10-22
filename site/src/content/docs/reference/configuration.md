@@ -104,8 +104,9 @@ tcp_ports = [3306]
 
 # Hosts that only some programs can reach.
 # A bare name matches a program under a read-only system path, such as
-# /nix/store. A path is a glob, and it can start with ~/.
-# doriath warns about a path that the agent can write.
+# /nix/store. A path is a glob, and it can start with ~/. doriath pins the
+# files that a path names when the session starts: another file there, a
+# changed file, or code loaded from outside the system paths gets nothing.
 [[egress.programs]]
 binaries = ["~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"]
 allow = ["js.stripe.com"]

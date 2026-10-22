@@ -87,11 +87,13 @@ Interception of every host would break gRPC clients such as Bazel's remote cache
 
 ### Allowed programs
 
-Credentials and `[[egress.programs]]` hosts go only to named programs. This stops only stray programs. The agent can still:
+Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`. doriath pins each program that `binaries` names by path when the session starts, with the files in its folder. A program gets nothing if it runs another file at that path, the same file after a change, or code from a file that is outside the system paths and was not pinned. This covers `LD_PRELOAD` and libraries that the program loads later, and also a program that the session builds.
 
-- run a named program with any arguments, steer it through writable config such as `~/.config/gh`, or preload a library into it.
+These checks stop stray programs and programs the agent changed. The agent can still:
+
+- run a named program with any arguments, or steer it through writable config such as `~/.config/gh`.
 - give a TCP socket to a named program after another program writes the request, because doriath names the program when the connection opens.
-- replace a program at a writable path, such as Playwright's browser in its cache. doriath warns about each such path, and a pin by hash for the session would stop this.
+- put a program at a writable path that `binaries` names, for the next session, which pins the file that it finds. doriath warns about each such path at session start.
 
 Request rules and approvals decide what named programs can do, because the agent needs them.
 

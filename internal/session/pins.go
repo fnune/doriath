@@ -1,0 +1,140 @@
+package session
+
+import (
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/proxy"
+)
+
+type pins struct {
+	programs map[string]jailinit.FileID
+	code     map[string]uint64
+}
+
+const maxPinnedCode = 10000
+
+func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) (pins, []string) {
+	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]uint64{}}
+	var notes []string
+	for _, pattern := range p.BinaryPaths() {
+		for _, jailPath := range globInJail(p, home, cacheRoot, pattern) {
+			if profile.UnderTrustedRoot(jailPath) {
+				continue
+			}
+			source, ok := hostSource(p, home, cacheRoot, jailPath)
+			if !ok {
+				continue
+			}
+			info, err := os.Lstat(source)
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			if isScript(source) {
+				notes = append(notes, fmt.Sprintf("%s is a script: the kernel names its interpreter, so the script never matches by path", shortPath(jailPath)))
+				continue
+			}
+			out.programs[jailPath] = jailinit.FileIDOf(info)
+			out.pinFolder(filepath.Dir(jailPath), filepath.Dir(source))
+			if slices.ContainsFunc(writable, func(w string) bool { return source == w || strings.HasPrefix(source, w+"/") }) {
+				notes = append(notes, fmt.Sprintf("the agent can write %s: a file that it puts there gets no credential in this session, but the next session trusts it", shortPath(jailPath)))
+			}
+		}
+	}
+	return out, notes
+}
+
+func (ps pins) untrusted(id proxy.Identity) string {
+	if id.Exe == "" || profile.UnderTrustedRoot(id.Exe) {
+		return ps.foreignCode(id)
+	}
+	pinned, ok := ps.programs[id.Exe]
+	switch {
+	case !ok:
+		return fmt.Sprintf("%s is not a file that the profile names, as it was when the session started", id.Exe)
+	case id.File != pinned:
+		return fmt.Sprintf("%s is not the file it was when the session started", id.Exe)
+	}
+	return ps.foreignCode(id)
+}
+
+func (ps pins) foreignCode(id proxy.Identity) string {
+	for _, code := range id.Code {
+		if ino, pinned := ps.code[code.Path]; (pinned && ino == code.Ino) || profile.UnderTrustedRoot(code.Path) {
+			continue
+		}
+		return fmt.Sprintf("%s runs code from %s, which is outside the system paths and not as it was when the session started", id.Exe, code.Path)
+	}
+	return ""
+}
+
+func (ps pins) pinFolder(jailDir, sourceDir string) {
+	_ = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || len(ps.code) >= maxPinnedCode {
+			return filepath.SkipDir
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		if info, err := d.Info(); err == nil {
+			ps.code[filepath.Join(jailDir, strings.TrimPrefix(path, sourceDir))] = jailinit.FileIDOf(info).Ino
+		}
+		return nil
+	})
+}
+
+func isScript(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	head := make([]byte, 2)
+	n, _ := f.Read(head)
+	return n == 2 && string(head) == "#!"
+}
+
+func hostSource(p *profile.Profile, home, cacheRoot, jailPath string) (string, bool) {
+	var deepest string
+	visible, cached := false, false
+	consider := func(root string, isCache, shown bool) {
+		if (jailPath == root || strings.HasPrefix(jailPath, root+"/")) && len(root) >= len(deepest) {
+			deepest, cached, visible = root, isCache, shown
+		}
+	}
+	for _, m := range p.Mounts {
+		consider(m.Path, false, m.Mode != profile.ModeHide)
+	}
+	for _, c := range p.Caches {
+		consider(c.Path, true, true)
+	}
+	switch {
+	case deepest == "" || !visible:
+		return "", false
+	case cached:
+		return filepath.Join(jail.CacheSource(cacheRoot, deepest, home), strings.TrimPrefix(jailPath, deepest)), true
+	}
+	return jailPath, true
+}
+
+func globInJail(p *profile.Profile, home, cacheRoot, pattern string) []string {
+	for _, c := range p.Caches {
+		if rest, ok := strings.CutPrefix(pattern, c.Path+"/"); ok {
+			source := jail.CacheSource(cacheRoot, c.Path, home)
+			matches, _ := filepath.Glob(filepath.Join(source, rest))
+			for i, m := range matches {
+				matches[i] = filepath.Join(c.Path, strings.TrimPrefix(m, source))
+			}
+			return matches
+		}
+	}
+	matches, _ := filepath.Glob(pattern)
+	return matches
+}

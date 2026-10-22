@@ -101,8 +101,8 @@ func TestFindPeerIdentifiesTheClientProcess(t *testing.T) {
 }
 
 func TestPeerHeader(t *testing.T) {
-	got := string(PeerHeader(Peer{PID: 7, Exe: "/nix/store/x-gh/bin/gh"}))
-	if got != "DORIATH-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n" {
+	got := string(PeerHeader(Peer{PID: 7, Exe: "/nix/store/x-gh/bin/gh", Code: []MappedFile{{Path: "/nix/store/x-glibc/lib/libc.so.6", Ino: 7}}}))
+	if got != "DORIATH-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\",\"code\":[{\"path\":\"/nix/store/x-glibc/lib/libc.so.6\",\"ino\":7}]}\n" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -122,9 +122,13 @@ func TestSoleOwnerRefusesDifferentPrograms(t *testing.T) {
 		if err := os.Symlink(filepath.Join(programs, program), filepath.Join(proc, pid, "exe")); err != nil {
 			t.Fatal(err)
 		}
+		maps := "7f00-7f10 r-xp 00000000 fe:01 42 " + filepath.Join(programs, program) + "\n7f20-7f30 rw-p 00000000 00:00 0 [heap]\n"
+		if err := os.WriteFile(filepath.Join(proc, pid, "maps"), []byte(maps), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	peer, err := soleOwner(proc, []int{10, 11})
-	if err != nil || peer.PID != 10 || filepath.Base(peer.Exe) != "gh" {
+	if err != nil || peer.PID != 10 || filepath.Base(peer.Exe) != "gh" || len(peer.Code) != 1 || filepath.Base(peer.Code[0].Path) != "gh" || peer.Code[0].Ino != 42 {
 		t.Fatalf("one program, two processes: %+v, %v", peer, err)
 	}
 	if _, err := soleOwner(proc, []int{10, 12}); err == nil {

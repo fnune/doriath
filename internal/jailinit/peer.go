@@ -8,8 +8,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Peer is the process on the other end of a connection accepted inside the
@@ -17,6 +19,35 @@ import (
 type Peer struct {
 	PID int    `json:"pid"`
 	Exe string `json:"exe"`
+	// File is the file that the process runs, which a path alone does not
+	// name: the agent can put another file at the path, or change the file
+	// through another link to it.
+	File FileID `json:"file,omitzero"`
+	// Code lists the files that the process maps as executable, such as its
+	// libraries and anything LD_PRELOAD added.
+	Code []MappedFile `json:"code,omitempty"`
+}
+
+// MappedFile is a file in /proc/PID/maps. Only the inode identifies it
+// there: the device number in maps can differ from the one stat reports.
+type MappedFile struct {
+	Path string `json:"path"`
+	Ino  uint64 `json:"ino"`
+}
+
+// FileID changes when the file at a path is replaced or written.
+type FileID struct {
+	Dev   uint64 `json:"dev"`
+	Ino   uint64 `json:"ino"`
+	Ctime int64  `json:"ctime"`
+}
+
+func FileIDOf(info os.FileInfo) FileID {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return FileID{}
+	}
+	return FileID{Dev: st.Dev, Ino: st.Ino, Ctime: st.Ctim.Nano()}
 }
 
 // PeerHeader prefixes a forwarded connection, so the proxy outside the jail
@@ -64,11 +95,43 @@ func soleOwner(procRoot string, pids []int) (Peer, error) {
 			return Peer{}, fmt.Errorf("processes %v running different programs share the socket", pids)
 		}
 	}
-	exe, err := os.Readlink(filepath.Join(procRoot, strconv.Itoa(pids[0]), "exe"))
+	return Describe(procRoot, pids[0])
+}
+
+// Describe names the program that pid runs, and the code it maps.
+func Describe(procRoot string, pid int) (Peer, error) {
+	dir := filepath.Join(procRoot, strconv.Itoa(pid))
+	exe, err := os.Readlink(filepath.Join(dir, "exe"))
 	if err != nil {
-		return Peer{}, fmt.Errorf("read executable of pid %d: %w", pids[0], err)
+		return Peer{}, fmt.Errorf("read executable of pid %d: %w", pid, err)
 	}
-	return Peer{PID: pids[0], Exe: exe}, nil
+	peer := Peer{PID: pid, Exe: exe}
+	if info, err := os.Stat(filepath.Join(dir, "exe")); err == nil {
+		peer.File = FileIDOf(info)
+	}
+	maps, err := os.ReadFile(filepath.Join(dir, "maps"))
+	if err != nil {
+		return Peer{}, fmt.Errorf("read the mappings of pid %d: %w", pid, err)
+	}
+	peer.Code = executableMappings(maps)
+	return peer, nil
+}
+
+func executableMappings(maps []byte) []MappedFile {
+	var out []MappedFile
+	for line := range strings.SplitSeq(string(maps), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 6 || !strings.Contains(fields[1], "x") {
+			continue
+		}
+		path := strings.Join(fields[5:], " ")
+		if !strings.HasPrefix(path, "/") || slices.ContainsFunc(out, func(f MappedFile) bool { return f.Path == path }) {
+			continue
+		}
+		ino, _ := strconv.ParseUint(fields[4], 10, 64)
+		out = append(out, MappedFile{Path: path, Ino: ino})
+	}
+	return out
 }
 
 func socketInode(procRoot string, client, server *net.TCPAddr) (string, error) {
