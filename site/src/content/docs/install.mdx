@@ -12,7 +12,7 @@ nix profile install github:fnune/doriath
 doriath doctor
 ```
 
-doriath needs Linux with unprivileged user namespaces, which `doriath doctor` checks. It is one static binary that bundles bubblewrap. The `podman` module also needs podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user:
+`doriath doctor` checks for what doriath needs: Linux with unprivileged user namespaces. bubblewrap comes bundled in the static binary. For the `podman` module you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user:
 
 ```sh
 grep $USER /etc/subuid /etc/subgid
@@ -26,7 +26,7 @@ Give the agent credentials of its own. doriath adds them to requests outside the
 
 For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories the agent works on, with an expiry, and read and write on Contents, Pull requests, Actions and Commit statuses.
 
-For commit signing, create an SSH key and add it to GitHub as a signing key. Commits stay authored by you and show as verified:
+Signing needs an SSH key of the agent's own, added to GitHub as a signing key. The commits it signs stay authored by you and show as verified:
 
 ```sh
 install -d -m 700 ~/.config/doriath/keys
@@ -53,7 +53,7 @@ file = "~/.config/doriath/keys/agent-signing"
 key = "agent-signing"
 ```
 
-`doriath profiles show my-app` checks it. The agent sees the repository you start in, read-only, and commits in worktrees under `.claude/worktrees`. If you keep worktrees elsewhere, such as `~/Development/.worktrees/my-app`, add that directory with `mode = "write"`:
+`doriath profiles show my-app` checks it. The repository you start in is read-only in the jail, and by default the agent commits in worktrees under `.claude/worktrees`. To keep them where yours are, such as `~/Development/.worktrees/my-app`, add that directory with `mode = "write"`:
 
 ```toml
 [[mounts]]
@@ -61,15 +61,15 @@ path = "~/Development/.worktrees/my-app"
 mode = "write"
 ```
 
-A first build usually needs hosts the modules do not name. Run it once in learning mode: every public host is reachable for that session, and at the end doriath prints the `[egress]` lines to add.
+A first build usually needs hosts the modules do not name. In learning mode every public host is reachable for one session, and doriath prints the `[egress]` lines to add once it ends:
 
 ```sh
 doriath run --profile my-app --learn -- make build
 ```
 
 <Aside type="caution">
-  Learning mode reaches every public host. Use it for builds you start, not for
-  agents.
+  Learning mode reaches every public host. Keep it for builds you start
+  yourself, and never give it to an agent.
 </Aside>
 
 ## Run an agent
@@ -79,11 +79,11 @@ cd ~/Development/my-app
 doriath run --profile my-app -- claude
 ```
 
-Held requests show as desktop notifications. Without a desktop, run `doriath approvals web --open` for a page in your browser, or `doriath approvals watch` in another terminal. See [answering requests](/guides/approvals/).
+Held requests show as desktop notifications. Without a desktop, `doriath approvals web --open` opens a page in your browser, and `doriath approvals watch` asks in another terminal; [answering requests](/guides/approvals/) has the details.
 
-A plain `claude` still runs outside the jail. Use an alias, such as `alias claude-app='doriath run --profile my-app -- claude'`, or let direnv start it in the jail for the whole project: see [projects with direnv](/guides/direnv/).
+A plain `claude` still runs outside the jail. An alias such as `alias claude-app='doriath run --profile my-app -- claude'` works, and so does a line in the project's `.envrc`, described in [projects with direnv](/guides/direnv/).
 
 ## Known issues
 
 - `git push -u` and `push.autoSetupRemote` write `.git/config`, which is read-only in the jail. The push works, but the upstream is not recorded.
-- Only `claude -p` is tested so far, not interactive sessions.
+- So far only `claude -p` is tested; interactive sessions are untested.

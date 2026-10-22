@@ -127,6 +127,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - Bold sparingly.
 - No em-dashes. Use a colon, comma, semicolon, period, or rephrase.
 - No rhetorical triplets.
+- No sentences in matching pairs or triplets, no "not X, but Y", and no headings phrased as questions. [site/STYLE.md](../site/STYLE.md) lists these patterns and the words to avoid.
 - No AI attribution in commit messages or code.
 
 ---

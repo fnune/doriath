@@ -9,7 +9,7 @@ With [direnv](https://direnv.net), one line in a project's `.envrc` makes a plai
 use doriath my-app
 ```
 
-`use doriath PROFILE` puts a small script named `claude` first on `PATH`. It runs `doriath run --profile PROFILE --current ROOT -- claude`, where `ROOT` is the folder of the `.envrc`. The script lives in `~/.cache/doriath/shims/`, outside the project, where no agent writes. `--command NAME` wraps another command than `claude`.
+`use doriath PROFILE` puts a small script named `claude` first on `PATH`, which runs `doriath run --profile PROFILE --current ROOT -- claude` with `ROOT` set to the folder of the `.envrc`. No agent writes to `~/.cache/doriath/shims/`, where the script lives. To wrap a command other than `claude`, add `--command NAME`.
 
 The home-manager module installs the library when direnv is on. Without it:
 
@@ -26,7 +26,7 @@ use flake
 use doriath my-app
 ```
 
-The jail sees the `PATH` that direnv builds, and `/nix/store` is readable in the jail, so the flake's tools work there. Other variables the `.envrc` sets stay outside: the jail sees only the variables the profile passes, which keeps cloud credentials such as `AWS_PROFILE` out. To pass more, list them in the profile:
+Since the jail sees the `PATH` that direnv builds and can read `/nix/store`, the flake's tools work inside it. Anything else the `.envrc` exports stays outside unless the profile passes it, which keeps cloud credentials such as `AWS_PROFILE` out of the jail. List further variables in the profile to pass them:
 
 ```toml
 [env]
@@ -35,7 +35,7 @@ pass = ["GOPRIVATE", "GOTOOLCHAIN"]
 
 ## A local .envrc
 
-If the project's `.envrc` is checked in, put the line in a file of your own that it sources, such as `.envrc.local`, and keep that file out of the repository:
+When the project's `.envrc` is checked in, the line belongs in a file of your own that it sources, such as `.envrc.local`, kept out of the repository:
 
 ```sh title=".envrc.local"
 use doriath my-app

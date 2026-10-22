@@ -6,9 +6,9 @@ description: Desktop notifications, the approvals page, the terminal, and remote
 import { Aside } from "@astrojs/starlight/components";
 import RequestExample from "../../../components/RequestExample.astro";
 
-A request waits for you when a rule holds it, when the agent reaches a host the profile does not name, when it asks to write a path, or when Claude Code asks for a permission. You answer it in one of three places, and every answer goes to the same queue.
+A request waits for you when a rule holds it, when the agent reaches a host the profile does not name, when it asks to write a path, or when Claude Code raises a permission prompt. All of them land in one queue, and any of the places below can answer.
 
-## What a request shows
+## Reading a request
 
 <RequestExample
   profile="infra"
@@ -25,21 +25,23 @@ A request waits for you when a rule holds it, when the agent reaches a host the 
   scope="tool claude Bash acme up"
 />
 
-The summary and the scope come from doriath. Text the agent wrote, such as a command's description or the reason for a write, sits beside a curled rule and says which agent wrote it. For a tool request, the details are the agent's too.
+doriath writes the summary and the scope. Anything the agent wrote, such as a command's description or its reason for a write, sits beside the curled rule with the agent's name on it, and for a tool request the details are the agent's as well.
 
-The time is how long the agent keeps waiting. After that the request is parked: the agent got an error and moved on, and allowing still lets its next try through. A parked request stays answerable until the session ends.
+The timer counts down the agent's wait. Once it runs out, the request is parked: the agent has an error and has moved on, and an allow still lets its next try through. Parked requests stay answerable until the session ends.
 
-## The answers
+## Answers
 
-- Allow once lets this request through. Later identical requests ask again.
-- Allow for this session lets this request and identical ones through until the session ends. "Identical" is the request's scope, shown as "An allow covers".
-- Deny refuses it. The agent gets an error that says so.
+| Answer                 | Effect                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| Allow once             | Lets this request through. The next identical one asks again.                                             |
+| Allow for this session | Lets identical requests through until the session ends. "An allow covers" shows what counts as identical. |
+| Deny                   | Refuses the request with an error the agent sees.                                                         |
 
-A host and a writable path offer no "once": once reached or written, they stay reachable, so those last for the session. To keep an allow for later sessions, add the profile lines the request shows. doriath never edits profiles itself, because a profile may come from nix.
+Hosts and writable paths have no "once", because a host stays reachable and a path stays written after the first allow. To keep an allow beyond the session, add the profile lines the request shows; doriath leaves profiles to you, since one may come from nix.
 
 ## Desktop notifications
 
-With `[approvals] desktop = true` in `config.toml`, which is the default, each request is a notification with its answers as buttons. It holds the request for `host_wait`, two minutes by default, while you decide.
+Notifications are on by default, through `[approvals] desktop = true` in `config.toml`, with the answers as buttons. doriath holds each request for `host_wait`, two minutes unless you change it.
 
 ## The approvals page
 
@@ -47,9 +49,9 @@ With `[approvals] desktop = true` in `config.toml`, which is the default, each r
 doriath approvals web --open
 ```
 
-The page lists the requests of every running session, and the last day's answers from the audit log. It serves on `127.0.0.1:7341` and prints a link with a token: the browser keeps the token in a cookie for 30 days, so other users of the machine and other sites cannot read or answer requests. The page loads nothing from the network.
+Requests from every running session appear on the page, next to the last day's answers from the audit log. It serves on `127.0.0.1:7341` and prints a link with a token, which the browser then keeps in a cookie for 30 days. Other users of the machine and other sites have no token, so they can neither read nor answer, and the page loads nothing from the network.
 
-Run the command again while the page serves, and it prints the link again, once the page proves it holds your token. With home-manager, `programs.doriath.approvals.web.enable = true` runs the page as a systemd user service, and `doriath approvals web --open` opens it.
+Running the command again while the page serves prints the link again, after the page proves it holds your token. With home-manager, `programs.doriath.approvals.web.enable = true` keeps the page running as a systemd user service.
 
 ## The terminal
 
@@ -60,26 +62,26 @@ doriath approvals deny ID --reason "use the staging stack"
 doriath approvals watch
 ```
 
-`allow --for` takes `once`, `session` or a duration such as `30m`. `watch` asks about each new request in turn.
+`allow --for` takes `once`, `session` or a duration such as `30m`. `watch` goes through new requests one at a time.
 
-## On a remote host
+## Remote hosts
 
-When doriath runs on a server, keep the page on the server's loopback address and reach it through SSH, so no port opens to the network:
+On a server, keep the page on its loopback address and tunnel to it over SSH, so that no port opens to the network:
 
 ```sh
 ssh -L 7341:127.0.0.1:7341 server
 doriath approvals web
 ```
 
-Open the link it prints in the browser on your own machine. Any local port works, such as `-L 8000:127.0.0.1:7341` with `8000` in the link. Without a tunnel, `doriath approvals watch` in a terminal on the server answers the same requests.
+Open the printed link in a browser on your own machine. Another local port works too, such as `-L 8000:127.0.0.1:7341`, with `8000` in the link. A terminal on the server running `doriath approvals watch` answers the same requests without a tunnel.
 
 <Aside type="note">
-  The page accepts only loopback names in the Host header, so a site that
-  resolves its own name to 127.0.0.1 cannot reach it from your browser.
+  The page answers only to loopback names in the Host header. A site that
+  resolves its own name to 127.0.0.1 gets no response from it in your browser.
 </Aside>
 
 ## Writable paths
 
-In the jail, `doriath request write PATH --reason TEXT` asks to make a path writable, and `doriath request wait ID` waits for the answer. The agent can ask only for a path it already sees. doriath refuses, before asking, paths such as `.git`, `.ssh` and its own configuration.
+From inside the jail, `doriath request write PATH --reason TEXT` asks for a path to become writable, and `doriath request wait ID` blocks until you answer. Only paths the agent already sees qualify, and some are refused before you are asked, `.git`, `.ssh` and doriath's own configuration among them.
 
-On the host, `doriath grant write PATH` makes a path writable in the running session directly, and can also attach a directory the jail does not see.
+`doriath grant write PATH` on the host makes a path writable in the running session directly. It can also attach a directory the jail does not see yet.

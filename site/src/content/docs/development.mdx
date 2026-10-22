@@ -3,7 +3,7 @@ title: Development
 description: Build doriath, run its checks, and change this site.
 ---
 
-`nix develop` gives the toolchain: Go, the linters, the bundled bubblewrap, and Node for this site.
+`nix develop` provides the toolchain, from Go and its linters to the bubblewrap the binary bundles and Node for this site.
 
 ```sh
 just check
@@ -11,15 +11,15 @@ just test-integration
 just build
 ```
 
-`just check` runs formatting, lint and the unit tests. `just test-integration` runs the tests that start real jails, including a script for every way out of the jail that doriath closes. The [engineering principles](https://github.com/fnune/doriath/blob/main/docs/engineering.md) describe how the code is written.
+`just check` covers formatting, lint and the unit tests. The integration tests start real jails, among them a script for every way out of the jail that doriath closes. How the code is written is up to the [engineering principles](https://github.com/fnune/doriath/blob/main/docs/engineering.md).
 
 ## This site
 
-The site is [Starlight](https://starlight.astro.build) in `site/`. It shares its tokens, component styles, ornaments and fonts with the approvals page, from `internal/ui`, so both look the same. The modules page reads the module files from `internal/modules` at build time.
+This site is a [Starlight](https://starlight.astro.build) project in `site/`. Its colors, fonts, ornaments and request cards come from `internal/ui`, which the approvals page uses too, and the modules page reads `internal/modules` at build time. `site/STYLE.md` sets how pages are written.
 
 ```sh
 just site-dev
 just site-build
 ```
 
-Some pages repeat the Markdown files in `docs/`. Change both until the repository links here instead.
+Pages that repeat a Markdown file in `docs/` change together with it, until the repository links here instead.

@@ -39,7 +39,7 @@ doriath run --profile my-app -- claude
 
 The agent sees the repository read-only and commits in worktrees of its own. Modules hold the hosts, caches and rules of a toolchain: `go` allows the Go module proxy, and `github` holds merges, releases and pushes for your approval. [Configuration](docs/configuration.md) lists every key.
 
-## What doriath is for
+## Purpose
 
 doriath lets coding agents work on your own host, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes such as [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell), which run the agent in a container or virtual machine with an image of its own: doriath shares your toolchain, checkouts and kernel, so the agent works as you do.
 
@@ -52,7 +52,7 @@ It protects you from an agent that does what you did not ask for, for example af
 
 It does not protect you from an agent that sends the project to a host the profile allows, from what an allowed program such as `gh` may do under the rules, or from a kernel bug. [Security limits](docs/security-limits.md) has the full list.
 
-## How it works
+## Architecture
 
 ```mermaid
 flowchart LR

@@ -51,8 +51,8 @@ export default defineConfig({
         {
           label: "Concepts",
           items: [
-            { label: "How it works", slug: "how-it-works" },
-            { label: "What it protects against", slug: "threat-model" },
+            { label: "Architecture", slug: "architecture" },
+            { label: "Threat model", slug: "threat-model" },
           ],
         },
         {

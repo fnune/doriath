@@ -1,0 +1,59 @@
+---
+title: Architecture
+description: The jail, the proxy outside it, credentials, approvals and repositories.
+---
+
+import Architecture from "../../components/Architecture.astro";
+
+`doriath run --profile NAME -- COMMAND` resolves the profile, starts a proxy and an approval queue on the host, and then the command in a jail that lasts as long as the command does. Once it exits, doriath repairs what the agent changed in your repositories and prints one line on what it allowed, held and refused.
+
+<Architecture />
+
+## The jail
+
+bubblewrap, bundled in the `doriath` binary, creates the jail's mount, process and network namespaces. The agent runs as your user inside them.
+
+| Part    | Inside the jail                                                                                                                                                                                                            |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files   | The system is read-only, and the home directory, `/run`, `/tmp` and `/var` start empty. The repository you start in is read-only, with its git and jj store writable. Other paths appear only when the profile names them. |
+| Kernel  | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes to the home directory, `/tmp` and the writable mounts.                                                      |
+| Network | Loopback only. A small init in the jail forwards the proxy's port, so every connection passes through doriath.                                                                                                             |
+| Limits  | Each session gets a systemd user scope with task and memory limits, and a CPU quota when the profile sets one.                                                                                                             |
+
+Host variables are dropped unless the profile passes them. The `base` module passes the usual ones, such as `PATH`, `TERM` and the locale.
+
+## The proxy
+
+The proxy runs on the host and checks each connection in order. A host must be one the profile or its modules name in `[egress] allow`; any other host becomes a request for you. Whatever name it resolves from, the address must be public, so private, link-local, shared and metadata addresses are refused, IPv4 hidden inside 6to4 and Teredo included. For a host with an `[[http]]` entry, the proxy also terminates TLS with a certificate from an authority that exists for this session and that only the jail trusts, then applies the entry's rules to each request and adds its credential.
+
+Every decision lands in the audit log, which `doriath log` reads.
+
+## Credentials
+
+A profile says where each secret comes from: a file, a command such as `rbw` or `secret-tool`, or an OAuth login that doriath keeps on the host. doriath reads each one once per session, and none of them enters the jail.
+
+An `[[http]]` entry names the secret, its scheme and the programs that get it. With the `github` module, requests from `gh` and `git` carry your token, while any other program reaches the same hosts without one. The agent pushes and opens pull requests through those programs, and has no way to read the token or send it elsewhere.
+
+Commit signing goes through an SSH agent outside the jail, holding a key meant for the agent alone. It signs commits and refuses SSH logins.
+
+## Approvals
+
+Requests wait for you in four cases: an `[[http]]` rule holds them (merges, releases and pushes, say), the host is one the profile does not name, the agent ran `doriath request write` for a path, or Claude Code raised a permission prompt.
+
+Each appears as a desktop notification and in `doriath approvals`, and doriath holds the request while you decide, so an allow lets the first try through. Past that wait, the agent gets an error telling it what to run, and the request stays open: allowing it then lets the agent's next try through. No allow outlives the session, and every request shows the profile lines that would keep it. [Answering requests](/guides/approvals/) covers each place you can answer.
+
+Answers come only from your desktop session, your terminal or the approvals page. The jail reaches none of them, so the agent cannot approve its own requests.
+
+## Repositories
+
+With the `vcs` module the agent commits, branches and adds worktrees while your checkout stays read-only. In each repository the store is writable: git's objects, refs, logs and worktrees, and jj's operation log. Config, hooks, `info`, `commondir` and jj's store pointers decide what git and jj run, and those stay read-only.
+
+doriath records your branches and bookmarks and copies the loose objects when a session starts. Once it ends, the old position of every branch the agent moved is kept, objects git cannot verify are removed, and each worktree the agent added points back at your repository again. `doriath restore SESSION` puts moved branches back.
+
+## Containers and MCP servers
+
+The `podman` module starts a podman service in its own user namespace, behind a broker that checks each API call. Containers may use the images the profile allows, and bind only what it mounts.
+
+MCP servers come from the profile's `[[mcp]]` list. For a remote server, doriath holds or refuses tools by name.
+
+To run a command in the jail or reach one of its ports, see [looking inside a session](/guides/inside-a-session/).

@@ -1,62 +1,43 @@
 ---
 title: Doriath
-description: Run coding agents in a jail that shows them only what their task needs.
+description: A jail on your Linux machine for coding agents, with a proxy that holds their network to a profile.
 template: splash
 hero:
   title: Doriath
-  tagline: Doriath runs a coding agent, such as Claude Code, in a jail on your Linux machine. The jail has its own files, network and processes. A proxy outside it decides which hosts the agent reaches, adds credentials the agent never sees, and holds the requests that matter until you answer.
+  tagline: Doriath runs a coding agent such as Claude Code in a jail on your Linux machine, and sends every request it makes through a proxy that follows the rules of a profile you write.
   actions:
     - text: Install
       link: /install/
       icon: right-arrow
-    - text: How it works
-      link: /how-it-works/
+    - text: Architecture
+      link: /architecture/
       variant: secondary
     - text: View on GitHub
       link: https://github.com/fnune/doriath
       variant: minimal
 ---
 
-import { Aside, Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+import { Aside, LinkCard, CardGrid } from "@astrojs/starlight/components";
 import RequestExample from "../../components/RequestExample.astro";
 import Flourish from "../../components/Flourish.astro";
 
 <Aside type="caution">
-  Doriath is pre-alpha software and runs on Linux only. Read [what it protects
-  against](/threat-model/) and its [security
-  limits](/reference/security-limits/) before you rely on it.
+  Doriath is pre-alpha and runs on Linux only. Read the [threat
+  model](/threat-model/) and the [security limits](/reference/security-limits/)
+  before you rely on it.
 </Aside>
 
-## What doriath is for
+## Scope
 
-Doriath lets coding agents work on your own machine, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes that run the agent in a container or virtual machine with an image of its own: the agent shares your toolchain, checkouts and kernel, so it works as you do.
+Agents in a doriath jail use your own toolchain and checkouts, on your kernel, so a session starts in under a second and builds the way your terminal does. A container or virtual machine with an image of its own isolates more, at the cost of that shared setup. Doriath guards against an agent that acts against your intent, for example after it reads a prompt injection in a web page or an issue.
 
-It protects you from an agent that does what you did not ask for, for example after a prompt injection in a web page or an issue it reads.
+## Boundaries
 
-<CardGrid>
-  <Card title="Files" icon="document">
-    The agent sees the repository you start in, read-only, and commits in
-    worktrees of its own. Your home directory, other projects, SSH keys and
-    tokens stay out of the jail.
-  </Card>
-  <Card title="Network" icon="external">
-    The jail has only loopback. Every request goes through a proxy that allows
-    the hosts the profile names and refuses private and metadata addresses.
-  </Card>
-  <Card title="Credentials" icon="seti:lock">
-    The proxy adds tokens to requests for the programs the profile names. The
-    agent can use `gh` and `git push` without ever reading the token.
-  </Card>
-  <Card title="Approvals" icon="approve-check">
-    Merges, releases, pushes and unknown hosts wait for you in a desktop
-    notification or a page in your browser. The agent cannot approve its own
-    requests.
-  </Card>
-</CardGrid>
+Inside the jail, the repository you started in is read-only, and the agent commits in worktrees of its own. Your home directory, SSH keys and other projects are absent. Loopback is the only network: doriath's proxy, outside the jail, forwards a request when the profile allows its host, and adds tokens on the way for the programs that may use them, so `gh` can push while the agent never reads the token. Merges, releases, pushes and unknown hosts wait for your answer, which nothing in the jail can give.
 
 ## A held request
 
-When an agent asks for something a rule holds, doriath shows you the request and waits. This is the request as the approvals page shows it, with the parts the agent wrote marked as its own:
+When a rule holds a request, doriath waits for you. Here is a merge that the `github` module holds, drawn with the approvals page's own styles:
 
 <RequestExample
   profile="my-app"
@@ -78,7 +59,7 @@ When an agent asks for something a rule holds, doriath shows you the request and
 
 ## A first session
 
-A profile says what one kind of work can reach. Modules hold the hosts, caches and rules of a toolchain:
+A profile lists the modules a kind of work needs, plus any hosts and secrets of its own:
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app: Go API and React frontend"
@@ -91,7 +72,7 @@ allow = ["api.stripe.com"]
 command = ["rbw", "get", "github-my-app"]
 ```
 
-Run the agent from the repository:
+Start the agent from the repository:
 
 ```sh
 cd ~/Development/my-app
@@ -105,8 +86,8 @@ doriath run --profile my-app -- claude
     href="/install/"
   />
   <LinkCard
-    title="How it works"
+    title="Architecture"
     description="The jail, the proxy, approvals and repositories."
-    href="/how-it-works/"
+    href="/architecture/"
   />
 </CardGrid>

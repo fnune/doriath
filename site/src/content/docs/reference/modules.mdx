@@ -5,76 +5,76 @@ description: The built-in modules a profile can list, and what each one allows.
 
 import ModuleSource from "../../../components/ModuleSource.astro";
 
-A module is a profile part: mounts, caches, hosts, environment and request rules for one toolchain or service. A profile lists them in `modules`, and doriath applies them in order before the profile itself. A module of your own in `~/.config/doriath/modules/` with a built-in's name replaces it. Each section below shows the module's file as doriath ships it.
+Modules hold the mounts, caches, hosts, environment and request rules of one toolchain or service. A profile lists them in `modules`, and doriath applies them in order before the profile itself. Put a module of your own in `~/.config/doriath/modules/` under a built-in's name to replace it. Under each section is the file doriath ships.
 
 ## base
 
-What almost every session needs: your nix profile, jj's config and a terminal environment. It passes `PATH`, the terminal and locale variables, and nothing that grants network access.
+Almost every profile starts here. `base` mounts your nix profile and jj's config, and passes `PATH` with the terminal and locale variables. Nothing in it grants network access.
 
 <ModuleSource name="base" />
 
 ## vcs
 
-Commits, branches, git worktrees and jj workspaces in read-only repositories. Each repository's store becomes writable, while the checkout and everything that decides what git or jj runs stay read-only. See [repositories](/reference/configuration/#repositories).
+With `vcs`, the agent commits, branches and adds git worktrees or jj workspaces in a read-only repository. Its store becomes writable, while the checkout and everything that decides what git or jj runs stay read-only; [repositories](/reference/configuration/#repositories) has the full list.
 
 <ModuleSource name="vcs" />
 
 ## docs
 
-Documentation sites, so the agent reads docs without asking you. Each host serves documentation and accepts no writes without a login, so allowing it gives the agent nowhere to send what it reads.
+Agents read documentation sites through `docs` without asking you. Every host in it accepts no writes without a login, which leaves the agent nowhere on them to send what it reads.
 
 <ModuleSource name="docs" />
 
 ## github
 
-GitHub with a token the agent never sees, which only `gh` and `git` get. Reads and routine work on pull requests, issues and CI runs go through. Merges, releases, pushes and other writes wait for approval, and changes to webhooks, secrets, collaborators and deploy keys are refused. The profile says where the token comes from under `[secrets.github]`.
+`github` adds your token to requests from `gh` and `git`, and the agent never sees it. Reads go through, as does routine work on pull requests, issues and CI runs. Merges, releases, pushes and other writes wait for approval, and doriath refuses changes to webhooks, secrets, collaborators and deploy keys. Say where the token comes from under `[secrets.github]` in the profile.
 
 <ModuleSource name="github" />
 
 ## claude
 
-Claude Code with a `~/.claude` of the profile's own: your `CLAUDE.md`, settings, skills and plugins are read-only there, and the login is the profile's. Connectors are off, and requests that carry an `x-api-key` header are refused.
+For Claude Code, `claude` gives the profile a `~/.claude` of its own, with your `CLAUDE.md`, settings, skills and plugins mounted read-only and a login that belongs to the profile. Connectors are off, and any request carrying an `x-api-key` header is refused. See [Claude Code](/guides/claude-code/).
 
 <ModuleSource name="claude" />
 
 ## go
 
-The Go module proxy and checksum database, and caches for builds, modules and golangci-lint.
+Go builds reach the module proxy and checksum database, and keep their build, module and golangci-lint caches in the profile.
 
 <ModuleSource name="go" />
 
 ## node
 
-The npm and Yarn registries, Node.js downloads, and caches for npm, pnpm and node-gyp.
+`node` allows the npm and Yarn registries and Node.js downloads, with caches for npm, pnpm and node-gyp.
 
 <ModuleSource name="node" />
 
 ## playwright
 
-Playwright's browser downloads and their cache.
+Playwright downloads its browsers into a cache of the profile's own.
 
 <ModuleSource name="playwright" />
 
 ## pre-commit
 
-Hook environments for pre-commit, built in the profile's own cache from PyPI and the hook repositories.
+pre-commit builds hook environments in the profile's cache, from PyPI and the hook repositories.
 
 <ModuleSource name="pre-commit" />
 
 ## nix
 
-Caches and hosts for nix tools that run in the jail. The nix daemon is not reachable without the `nix-daemon` module.
+Nix tools running in the jail get their caches and hosts from `nix`. Reaching the daemon takes the `nix-daemon` module.
 
 <ModuleSource name="nix" />
 
 ## nix-daemon
 
-The system nix daemon, for `nix-shell -p`, `nix build` and `nix develop` in the jail. The daemon runs builds outside the jail, where they reach the network without the allowlist, so entering a dev shell before `doriath run` is the narrower choice.
+`nix-daemon` connects the jail to your system's nix daemon, for `nix-shell -p`, `nix build` and `nix develop`. Builds then run outside the jail and reach the network without the allowlist, so entering a dev shell before `doriath run` keeps more inside the boundary.
 
 <ModuleSource name="nix-daemon" />
 
 ## podman
 
-A podman service for the session, in its own user namespace, behind a broker that checks each API call. Containers share the session's network: they reach the internet only through the proxy, and the agent reaches their ports on localhost. See [containers](/reference/configuration/#containers).
+`podman` starts a podman service for the session in its own user namespace, behind a broker that checks each API call. Containers share the session's network, so the internet is reachable for them only through the proxy, and the agent reaches their ports on localhost. [Containers](/reference/configuration/#containers) covers images and binds.
 
 <ModuleSource name="podman" />
