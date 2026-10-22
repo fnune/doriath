@@ -6,15 +6,7 @@ I build doriath because I want to run coding agents on a remote server, without 
 
 Pre-alpha, Linux only. A macOS version is possible, but out of scope while I build doriath for my own use. The documentation lives at [doriath.fnune.com](https://doriath.fnune.com).
 
-```sh
-base=https://github.com/fnune/doriath/releases/latest/download
-curl -fLO "$base/doriath-linux-amd64" -fLO "$base/doriath-linux-amd64.sha256"
-sha256sum -c doriath-linux-amd64.sha256
-install -m 755 doriath-linux-amd64 ~/.local/bin/doriath
-doriath doctor
-```
-
-- [Install](https://doriath.fnune.com/install/) also covers home-manager, NixOS and Go, and walks from there to a first session.
+- [Install](https://doriath.fnune.com/install/) covers the release binary, home-manager, NixOS and Go, and walks from there to a first session.
 - [Architecture](https://doriath.fnune.com/architecture/) covers the jail, the proxy, approvals and repositories.
 - [Threat model](https://doriath.fnune.com/threat-model/) says what doriath guards against, what it leaves open, and how other sandboxes handle the same threats.
 - [Configuration](https://doriath.fnune.com/reference/configuration/) lists every key.
