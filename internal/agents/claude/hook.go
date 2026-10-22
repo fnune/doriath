@@ -108,6 +108,10 @@ type Notification struct {
 	NotificationType string `json:"notification_type"`
 }
 
+// Idle reports a notice that Claude waits for your next message, which
+// Claude itself shows on no desktop by default.
+func (n Notification) Idle() bool { return n.NotificationType == "idle_prompt" }
+
 func ParseNotification(data []byte) (Notification, error) {
 	var n Notification
 	if err := json.Unmarshal(data, &n); err != nil {

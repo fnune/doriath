@@ -160,6 +160,9 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
+		if n.Idle() {
+			return nil
+		}
 		title := n.Title
 		if title == "" {
 			title = "Claude Code"

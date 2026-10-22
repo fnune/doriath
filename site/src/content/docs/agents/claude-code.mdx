@@ -14,6 +14,7 @@ doriath starts Claude with settings that it generates:
 - The `.claude/settings.json` of the repository stays as it was at session start, so the agent cannot loosen its own permissions.
 - At session start, Claude learns what the jail allows, what `doriath:` errors mean, and how to ask for a host or a writable path.
 - Permission prompts go to the [approval queue](/guides/approvals/). If you do not answer in time, Claude shows its own prompt. A question that Claude asks you, such as a choice between options or a plan to approve, stays in Claude.
+- Claude's notifications reach your desktop through doriath, except its notice that it waits for your next message, which Claude does not show on the desktop either.
 - MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. Your own MCP servers stay outside the jail.
 - When the session ends, doriath copies the transcripts back to your `~/.claude`, so you can resume outside the jail.
 

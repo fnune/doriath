@@ -137,6 +137,9 @@ func TestHookNotification(t *testing.T) {
 	if out, err := hook(t, "notification", `{"message":"Done","title":"Task finished"}`); err != nil || out != "" {
 		t.Fatalf("notification = %q, %v", out, err)
 	}
+	if out, err := hook(t, "notification", `{"message":"Claude is waiting for your input","notification_type":"idle_prompt"}`); err != nil || out != "" {
+		t.Fatalf("notification = %q, %v", out, err)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	want := []session.InformParams{
