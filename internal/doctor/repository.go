@@ -70,9 +70,15 @@ func envrcProfile(dir, repo string) (name, envrcDir string) {
 func useDoriath(envrc []byte) string {
 	lines := bufio.NewScanner(bytes.NewReader(envrc))
 	for lines.Scan() {
-		if f := strings.Fields(lines.Text()); len(f) >= 3 && f[0] == "use" && f[1] == "doriath" {
-			return f[2]
+		f := strings.Fields(lines.Text())
+		if len(f) < 3 || f[0] != "use" || f[1] != "doriath" {
+			continue
 		}
+		var names []string
+		for i := 2; i < len(f) && !strings.HasPrefix(f[i], "-"); i++ {
+			names = append(names, f[i])
+		}
+		return strings.Join(names, "+")
 	}
 	return ""
 }

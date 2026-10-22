@@ -114,7 +114,7 @@ func Run(ctx context.Context, opts Options) []Result {
 
 	secrets := 0
 	for _, prof := range profiles {
-		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokens(p.State, prof.Name))
+		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner))
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name

@@ -16,6 +16,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+
+	"github.com/fnune/doriath/internal/profile"
 )
 
 const maxSignedBody = 64 << 20
@@ -24,8 +26,13 @@ var errUnsignedGoesAsItCame = errors.New("not signed")
 
 type signOnTheWayOut func(*http.Request) error
 
-func (s *Server) sigv4(ctx context.Context, secret string, r *http.Request) (signOnTheWayOut, error) {
+func (s *Server) sigv4(ctx context.Context, c profile.Credential, r *http.Request) (signOnTheWayOut, error) {
+	secret := c.Secret
 	if query := r.URL.Query(); query.Get("X-Amz-Algorithm") != "" {
+		key, _, _ := strings.Cut(query.Get("X-Amz-Credential"), "/")
+		if c.KeyID != "" && key != c.KeyID {
+			return nil, errUnsignedGoesAsItCame
+		}
 		return s.presigned(ctx, secret, r, query)
 	}
 	auth := r.Header.Get("Authorization")

@@ -4,9 +4,12 @@
 package jail
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/vcs"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -151,7 +155,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		SeccompFD:  opts.SeccompFD,
 		SetIDs:     opts.SetIDs,
 		GID:        opts.GID,
-		Hostname:   "doriath-" + p.Name,
+		Hostname:   "doriath-" + strings.ReplaceAll(p.Name, "+", "-"),
 		UID:        opts.UID,
 		Home:       opts.Home,
 		Env:        map[string]string{},
@@ -319,7 +323,20 @@ func mountGuards(p *profile.Profile, layout Layout, host Host) (*guards, []error
 			}
 		}
 	}
+	g.binds = uniqueBinds(g.binds)
 	return g, errs
+}
+
+func uniqueBinds(binds []Bind) []Bind {
+	seen := map[Bind]bool{}
+	out := binds[:0]
+	for _, b := range binds {
+		if !seen[b] {
+			seen[b] = true
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 type guards struct {
@@ -327,6 +344,7 @@ type guards struct {
 	binds   []Bind
 	missing []Placeholder
 	roots   []string
+	guarded map[[2]string]bool
 }
 
 func (g *guards) guard(src, dest string, hold *Placeholder) {
@@ -485,6 +503,13 @@ var gitHolds = map[string]*Placeholder{
 }
 
 func (g *guards) gitDir(srcGit, destGit string, depth int) {
+	if g.guarded == nil {
+		g.guarded = map[[2]string]bool{}
+	}
+	if g.guarded[[2]string{srcGit, destGit}] {
+		return
+	}
+	g.guarded[[2]string{srcGit, destGit}] = true
 	g.roots = append(g.roots, srcGit)
 	for _, name := range GitControlFiles {
 		if name == vcs.Commondir {
@@ -581,7 +606,43 @@ func depth(p string) int {
 // Args returns the bubblewrap arguments, without the bwrap binary itself.
 // Option order matters: bubblewrap applies mounts in sequence, so the root
 // bind comes first and /proc after it.
+// ArgsFile holds the arguments for bubblewrap's --args, one after another
+// with a NUL after each. A jail that guards many repositories has more
+// arguments than one command line takes.
+func (s Spec) ArgsFile() (*os.File, error) {
+	fd, err := unix.MemfdCreate("doriath-bwrap-args", unix.MFD_CLOEXEC)
+	if err != nil {
+		return nil, fmt.Errorf("hold the bubblewrap arguments: %w", err)
+	}
+	f := os.NewFile(uintptr(fd), "bwrap-args")
+	var b bytes.Buffer
+	for _, arg := range s.options() {
+		b.WriteString(arg)
+		b.WriteByte(0)
+	}
+	if _, err := f.Write(b.Bytes()); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
 func (s Spec) Args() []string {
+	return append(append(s.options(), "--"), s.Command...)
+}
+
+// ArgsFrom is the command line of a jail whose options bubblewrap reads
+// from fd, which ArgsFile holds. The command stays on the command line,
+// because bubblewrap takes only options from --args.
+func (s Spec) ArgsFrom(fd int) []string {
+	return append([]string{"--args", strconv.Itoa(fd), "--"}, s.Command...)
+}
+
+func (s Spec) options() []string {
 	var args []string
 	if !s.SkipUserNS {
 		args = append(args, "--unshare-user")
@@ -639,8 +700,7 @@ func (s Spec) Args() []string {
 	for _, k := range keys {
 		args = append(args, "--setenv", k, s.Env[k])
 	}
-	args = append(args, "--chdir", s.Cwd, "--")
-	return append(args, s.Command...)
+	return append(args, "--chdir", s.Cwd)
 }
 
 func mountParentsBeforeChildren(binds []Bind) {

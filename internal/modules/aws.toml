@@ -14,7 +14,7 @@ set = { AWS_ACCESS_KEY_ID = "AKIADORIATHPLACEHOLD", AWS_SECRET_ACCESS_KEY = "dor
 # else is refused. These come before *.amazonaws.com, so they win.
 [[http]]
 host = "iam.amazonaws.com"
-credential = { secret = "aws", scheme = "sigv4" }
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "deny"
 operation = { form = "Action" }
 
@@ -32,7 +32,7 @@ action = "allow"
 
 [[http]]
 host = "organizations.us-east-1.amazonaws.com"
-credential = { secret = "aws", scheme = "sigv4" }
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "deny"
 operation = { header = "X-Amz-Target" }
 
@@ -56,7 +56,7 @@ action = "allow"
 # Lambda, name it with the method and the path.
 [[http]]
 host = "*.amazonaws.com"
-credential = { secret = "aws", scheme = "sigv4" }
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "approve"
 operation = { header = "X-Amz-Target", form = "Action" }
 

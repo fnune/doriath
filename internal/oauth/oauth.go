@@ -90,25 +90,32 @@ func (s State) save(path string) error {
 // and saving each refresh, since servers may rotate refresh tokens.
 type Tokens struct {
 	stateDir string
-	profile  string
+	owner    func(secret string) string
 
 	mu      sync.Mutex
 	sources map[string]oauth2.TokenSource
 }
 
 func NewTokens(stateDir, profile string) *Tokens {
-	return &Tokens{stateDir: stateDir, profile: profile, sources: map[string]oauth2.TokenSource{}}
+	return NewTokensOwnedBy(stateDir, func(string) string { return profile })
+}
+
+// NewTokensOwnedBy keeps each secret's login under the profile that owner
+// names for it, as a composed profile needs.
+func NewTokensOwnedBy(stateDir string, owner func(secret string) string) *Tokens {
+	return &Tokens{stateDir: stateDir, owner: owner, sources: map[string]oauth2.TokenSource{}}
 }
 
 func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {
 	t.mu.Lock()
 	src, ok := t.sources[name]
 	if !ok {
-		path := StatePath(t.stateDir, t.profile, name)
+		profile := t.owner(name)
+		path := StatePath(t.stateDir, profile, name)
 		s, err := load(path)
 		if errors.Is(err, os.ErrNotExist) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath profiles login %s %s", name, t.profile, name)
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath profiles login %s %s", name, profile, name)
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -120,7 +127,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath profiles login %s %s again", name, err, t.profile, name)
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath profiles login %s %s again", name, err, t.owner(name), name)
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }

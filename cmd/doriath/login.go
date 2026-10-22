@@ -32,7 +32,7 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, w io.Writer) err
 			if prof.Secrets[s].OAuth == nil {
 				continue
 			}
-			if _, err := os.Stat(oauth.StatePath(p.State, prof.Name, s)); err == nil {
+			if _, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(s), s)); err == nil {
 				fmt.Fprintf(w, "Already signed in for %s; name it to sign in again.\n", s)
 				continue
 			}
@@ -45,10 +45,10 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, w io.Writer) err
 	}
 	for _, s := range targets {
 		fmt.Fprintf(w, "Signing in for %s.\n", s)
-		if err := oauth.Login(context.Background(), *prof.Secrets[s].OAuth, oauth.StatePath(p.State, prof.Name, s), opener{}, w); err != nil {
+		if err := oauth.Login(context.Background(), *prof.Secrets[s].OAuth, oauth.StatePath(p.State, prof.SecretOwner(s), s), opener{}, w); err != nil {
 			return fmt.Errorf("login %s: %w", s, err)
 		}
-		fmt.Fprintf(w, "Signed in for %s in profile %s.\n", s, prof.Name)
+		fmt.Fprintf(w, "Signed in for %s in profile %s.\n", s, prof.SecretOwner(s))
 	}
 	return nil
 }

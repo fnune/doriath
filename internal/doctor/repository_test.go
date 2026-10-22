@@ -68,6 +68,12 @@ func TestARepositoryIsCheckedWithTheProfileItsEnvrcNames(t *testing.T) {
 	}
 }
 
+func TestAnEnvrcThatComposesProfilesNamesThemAll(t *testing.T) {
+	if got := useDoriath([]byte("use doriath work deploy --command agent\n")); got != "work+deploy" {
+		t.Errorf("profile = %q", got)
+	}
+}
+
 func TestARepositoryWithoutAProfileIsCheckedWithTheDefault(t *testing.T) {
 	opts := repoOptions(t, "", map[string]string{"default": "modules = [\"base\"]\n"})
 	got := details(repository(opts))

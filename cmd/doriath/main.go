@@ -226,7 +226,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokens(p.State, prof.Name)),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

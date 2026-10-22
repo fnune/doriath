@@ -141,6 +141,10 @@ type Credential struct {
 	Secret   string
 	Scheme   Scheme
 	Username string
+	// KeyID is the placeholder access key that the jail signs with for
+	// SchemeSigV4. A presigned URL with another key, such as one an AWS
+	// service hands out, passes as it is.
+	KeyID string
 	// Header names the header that carries the secret for SchemeHeader.
 	Header string
 	// Binaries limits the credential to these programs. Other programs reach
@@ -423,6 +427,10 @@ type Profile struct {
 	// in the profile, not in a shared table, so a profile reaches only the
 	// secrets written into it, and reusing one elsewhere is a deliberate copy.
 	Secrets map[string]secret.Backend
+	// SecretOwners names the profile that gives each secret, which differs
+	// from Name in a composed profile, so that a secret keeps the login of
+	// the profile it belongs to.
+	SecretOwners map[string]string
 	// Modules lists the modules the profile resolved to, in the order
 	// doriath applied them.
 	Modules []string
@@ -542,6 +550,15 @@ func (h HTTPHost) OperationOf(query url.Values, header http.Header, body []byte)
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+// SecretOwner is the profile whose state, such as an OAuth login, a secret
+// uses.
+func (p *Profile) SecretOwner(name string) string {
+	if owner, ok := p.SecretOwners[name]; ok {
+		return owner
+	}
+	return p.Name
 }
 
 // Decide returns the matching rule for one request to an intercepted host.

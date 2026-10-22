@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -115,46 +116,109 @@ func pathCause(err error) error {
 	return err
 }
 
+// Load reads a profile, or several joined with "+", such as
+// acme-service+review-stacks. Each later profile applies over the earlier
+// ones as a module does: access adds up, and where two give the same mount,
+// the lesser access holds. Two that give one secret different sources, or
+// different signing keys, are refused.
 func (l *Loader) Load(name string) (*Profile, error) {
-	if !namePattern.MatchString(name) {
-		return nil, fmt.Errorf("profile name %q: use lowercase letters, digits and dashes", name)
-	}
-	file, ok, err := l.File(name)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		file = name + ".toml"
-	}
-	data, err := fs.ReadFile(l.Profiles, file)
-	if err != nil {
-		return nil, fmt.Errorf("read profile %q: %w", name, err)
-	}
-	top, err := decodeLayer("profile "+name, data)
-	if err != nil {
-		return nil, err
-	}
-	if top.Name != "" && top.Name != name {
-		return nil, fmt.Errorf("profile %q: name field says %q", name, top.Name)
-	}
-	top.Name = name
-	top.source = "profile"
-
+	names := strings.Split(name, "+")
 	var layers []layer
-	if err := l.collect(top.Modules, &layers, nil, map[string]bool{}); err != nil {
-		return nil, fmt.Errorf("profile %q: %w", name, err)
+	var tops []layer
+	done := map[string]bool{}
+	for i, n := range names {
+		if !namePattern.MatchString(n) {
+			return nil, fmt.Errorf("profile name %q: use lowercase letters, digits and dashes", n)
+		}
+		if slices.Contains(names[:i], n) {
+			return nil, fmt.Errorf("profile %q: %s is named twice", name, n)
+		}
+		top, err := l.readProfile(n)
+		if err != nil {
+			return nil, err
+		}
+		if i > 0 {
+			top.source = "profile " + n
+		}
+		if err := l.collect(top.Modules, &layers, nil, done); err != nil {
+			return nil, fmt.Errorf("profile %q: %w", n, err)
+		}
+		layers = append(layers, top)
+		tops = append(tops, top)
 	}
-	layers = append(layers, top)
 
 	b := newBuilder(l.Home)
 	for _, ly := range layers {
 		b.apply(ly)
+	}
+	top := tops[0]
+	if len(tops) > 1 {
+		top.Name = name
+		top.Description = composedDescription(tops)
+		b.errs = append(b.errs, clashes(tops)...)
 	}
 	p, err := b.build(top)
 	if err != nil {
 		return nil, fmt.Errorf("profile %q: %w", name, err)
 	}
 	return p, nil
+}
+
+func (l *Loader) readProfile(name string) (layer, error) {
+	file, ok, err := l.File(name)
+	if err != nil {
+		return layer{}, err
+	}
+	if !ok {
+		file = name + ".toml"
+	}
+	data, err := fs.ReadFile(l.Profiles, file)
+	if err != nil {
+		return layer{}, fmt.Errorf("read profile %q: %w", name, err)
+	}
+	top, err := decodeLayer("profile "+name, data)
+	if err != nil {
+		return layer{}, err
+	}
+	if top.Name != "" && top.Name != name {
+		return layer{}, fmt.Errorf("profile %q: name field says %q", name, top.Name)
+	}
+	top.Name = name
+	top.source = "profile"
+	return top, nil
+}
+
+func composedDescription(tops []layer) string {
+	var parts []string
+	for _, t := range tops {
+		if t.Description != "" {
+			parts = append(parts, t.Description)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func clashes(tops []layer) []error {
+	var errs []error
+	secretFrom := map[string]layer{}
+	signingFrom := ""
+	signing := ""
+	for _, t := range tops {
+		for _, name := range slices.Sorted(maps.Keys(t.Secrets)) {
+			if prev, ok := secretFrom[name]; ok && !reflect.DeepEqual(prev.Secrets[name], t.Secrets[name]) {
+				errs = append(errs, fmt.Errorf("secret %q: profiles %s and %s give it different sources", name, prev.Name, t.Name))
+				continue
+			}
+			secretFrom[name] = t
+		}
+		if t.Signing != nil && t.Signing.Key != "" {
+			if signing != "" && signing != t.Signing.Key {
+				errs = append(errs, fmt.Errorf("signing: profiles %s and %s sign with different keys", signingFrom, t.Name))
+			}
+			signing, signingFrom = t.Signing.Key, t.Name
+		}
+	}
+	return errs
 }
 
 func within(dir, root string) bool {
@@ -215,39 +279,41 @@ func (l *Loader) readModule(name string) ([]byte, error) {
 }
 
 type builder struct {
-	home     string
-	deny     []string
-	mounts   []mountLayer
-	caches   []string
-	devices  []string
-	envSet   map[string]string
-	envPass  []string
-	envPath  []string
-	programs []programsLayer
-	allow    []string
-	ports    []int
-	tcp      []int
-	http     []httpLayer
-	signing  string
-	unsigned bool
-	podman   bool
-	images   []string
-	nix      bool
-	vcsStore bool
-	mcp      []mcpLayer
-	harden   Hardening
-	limits   Limits
-	claude   claudeLayer
-	disable  bool
-	agent    agentLayer
-	status   bool
-	secrets  map[string]secretLayer
-	modules  []string
-	sources  map[string][]string
+	home        string
+	deny        []string
+	mounts      []mountLayer
+	caches      []string
+	devices     []string
+	envSet      map[string]string
+	envPass     []string
+	envPath     []string
+	programs    []programsLayer
+	allow       []string
+	ports       []int
+	tcp         []int
+	http        []httpLayer
+	signing     string
+	unsigned    bool
+	podman      bool
+	images      []string
+	nix         bool
+	vcsStore    bool
+	mcp         []mcpLayer
+	harden      Hardening
+	limits      Limits
+	claude      claudeLayer
+	disable     bool
+	agent       agentLayer
+	status      bool
+	secrets     map[string]secretLayer
+	secretOwner map[string]string
+	errs        []error
+	modules     []string
+	sources     map[string][]string
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
+	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, secretOwner: map[string]string{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
 }
 
 func (b *builder) from(source, key string) {
@@ -255,7 +321,7 @@ func (b *builder) from(source, key string) {
 }
 
 func (b *builder) apply(l layer) {
-	if l.source != "profile" {
+	if !strings.HasPrefix(l.source, "profile") {
 		b.modules = append(b.modules, l.source)
 	}
 	b.record(l)
@@ -373,6 +439,9 @@ func (b *builder) apply(l layer) {
 	}
 	for k, v := range l.Secrets {
 		b.secrets[k] = v
+		if strings.HasPrefix(l.source, "profile") {
+			b.secretOwner[k] = l.Name
+		}
 	}
 }
 
@@ -479,7 +548,7 @@ var (
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func (b *builder) build(top layer) (*Profile, error) {
-	var errs []error
+	errs := slices.Clone(b.errs)
 	p := &Profile{
 		Name:            top.Name,
 		Description:     top.Description,
@@ -491,6 +560,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Hardening:       b.harden,
 		Limits:          b.limits,
 		Secrets:         map[string]secret.Backend{},
+		SecretOwners:    b.secretOwner,
 		Modules:         b.modules,
 		Sources:         b.sources,
 	}
@@ -806,6 +876,9 @@ func buildCredential(c credentialLayer) (Credential, error) {
 	if c.Header != "" && scheme != SchemeHeader {
 		return Credential{}, fmt.Errorf("header is only used with the header scheme")
 	}
+	if c.KeyID != "" && scheme != SchemeSigV4 {
+		return Credential{}, fmt.Errorf("key_id is only used with the sigv4 scheme")
+	}
 	switch scheme {
 	case SchemeBearer, SchemeToken, SchemeSigV4:
 	case SchemeBasic:
@@ -827,7 +900,7 @@ func buildCredential(c credentialLayer) (Credential, error) {
 			return Credential{}, fmt.Errorf("binary %q: a path must be absolute", b)
 		}
 	}
-	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), Binaries: c.Binaries}, nil
+	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), KeyID: c.KeyID, Binaries: c.Binaries}, nil
 }
 
 var methodPattern = regexp.MustCompile(`^(\*|[A-Z]+)$`)

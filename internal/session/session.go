@@ -636,14 +636,22 @@ func (s *Session) plan() (jail.Spec, error) {
 	}, s.listings)
 }
 
+const agentArgsFD = 5
+
 func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
-	cmd := exec.Command(s.deps.Bwrap, spec.Args()...)
+	args, err := spec.ArgsFile()
+	if err != nil {
+		return 1, err
+	}
+	defer args.Close()
+	bwrapArgs := spec.ArgsFrom(agentArgsFD)
+	cmd := exec.Command(s.deps.Bwrap, bwrapArgs...)
 	if s.netnsPID != 0 {
 		if s.deps.Nsenter == "" {
 			return 1, errors.New("joining the podman network namespace needs util-linux nsenter")
 		}
 		target := strconv.Itoa(s.netnsPID)
-		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, spec.Args()...)...)
+		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, bwrapArgs...)...)
 	}
 	cmd = s.limited(cmd, "agent")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.deps.Stdin, s.deps.Stdout, s.deps.Stderr
@@ -658,7 +666,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, err
 	}
 	defer filter.Close()
-	cmd.ExtraFiles = []*os.File{infoW, filter}
+	cmd.ExtraFiles = []*os.File{infoW, filter, args}
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	defer signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	sigs := make(chan os.Signal, 2)
@@ -923,7 +931,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	}
 	args := []string{
 		"--user", "--scope", "--quiet", "--collect",
-		"--unit", fmt.Sprintf("doriath-%s-%s-%s", s.req.Profile.Name, role, s.id),
+		"--unit", fmt.Sprintf("doriath-%s-%s-%s", strings.ReplaceAll(s.req.Profile.Name, "+", "-"), role, s.id),
 	}
 	if lim.Tasks > 0 {
 		args = append(args, "-p", fmt.Sprintf("TasksMax=%d", lim.Tasks))

@@ -373,7 +373,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		s.withheld(host, IdentityFrom(r.Context()))
 	case c.Scheme == profile.SchemeSigV4:
 		var err error
-		sign, err = s.sigv4(r.Context(), c.Secret, r)
+		sign, err = s.sigv4(r.Context(), *c, r)
 		if err != nil && !errors.Is(err, errUnsignedGoesAsItCame) {
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: err.Error()})
 			deny(w, http.StatusBadRequest, "doriath: cannot sign this request for "+host+": "+err.Error())

@@ -101,6 +101,19 @@ func storeHost() fakeHost {
 	return h
 }
 
+func TestAStoreThatManyWorktreesShareIsGuardedOnce(t *testing.T) {
+	const repo = "/home/u/repo"
+	g := &guards{host: storeHost()}
+	g.store(repo)
+	once := len(g.binds)
+	for range 50 {
+		g.store(repo)
+	}
+	if got := len(uniqueBinds(g.binds)); got != once {
+		t.Errorf("binds = %d after 51 visits of one store, %d after one: bubblewrap takes at most 9000 arguments", got, once)
+	}
+}
+
 func TestStoreBindsKeepWhatDecidesWhatRunsReadOnly(t *testing.T) {
 	const repo = "/home/u/repo"
 	expectAccess(t, storeBinds(repo, storeHost()), map[string]string{

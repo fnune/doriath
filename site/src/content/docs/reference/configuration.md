@@ -241,6 +241,17 @@ ask = ["mcp__claude-in-chrome__javascript_tool"]
 deny = []
 ```
 
+## Composed profiles
+
+A session can use more than one profile, joined with `+`, such as `doriath run --profile my-app+deploy`. A profile for one task, such as deploying, then adds what that task needs to the profile of the project.
+
+- Each profile applies over the ones before it, as a module does. Hosts, mounts, caches and rules add up. Where two profiles give the same path, the lesser access holds.
+- Two profiles that give one secret different sources, or that sign with different keys, are refused.
+- A secret keeps the login of the profile that gives it, so `doriath profiles login my-app linear` also serves `my-app+deploy`.
+- The composed session has its own caches and its own agent login, under the joined name. A session that holds deploy credentials cannot leave files in the caches that the project's own sessions trust.
+
+`doriath profiles show my-app+deploy` shows the result, with the profile behind each entry.
+
 ## Secrets
 
 A secret has a name that you select, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints it, or an [`oauth` login](#oauth-logins). These keys refer to a secret by its name:

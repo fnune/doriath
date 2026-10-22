@@ -31,7 +31,7 @@ func TestDirenvLibraryWritesAShim(t *testing.T) {
 log_error() { echo "error: $*" >&2; }
 PATH_add() { PATH="$1:$PATH"; }
 . "$1"
-cd "$2" && use_doriath work --command agent && cd / && agent --flag "two words"
+cd "$2" && use_doriath work deploy --command agent && cd / && agent --flag "two words"
 `
 	cmd := exec.Command("bash", "-c", script, "bash", lib, project)
 	cmd.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "XDG_CACHE_HOME=" + cache, "HOME=" + root}
@@ -40,7 +40,7 @@ cd "$2" && use_doriath work --command agent && cd / && agent --flag "two words"
 		t.Fatalf("%v\n%s", err, out)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	want := []string{"run", "--profile", "work", "--current", project, "--", "agent", "--flag", "two words"}
+	want := []string{"run", "--profile", "work+deploy", "--current", project, "--", "agent", "--flag", "two words"}
 	if len(lines) != len(want)+1 || strings.Join(lines[:len(want)], "|") != strings.Join(want, "|") {
 		t.Fatalf("doriath got:\n%s", out)
 	}

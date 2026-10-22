@@ -32,6 +32,9 @@ func (s *Session) holdControlPathsOf(p *profile.Profile, host jail.Host) error {
 			continue
 		}
 		f, err := os.OpenFile(h.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
+		if errors.Is(err, fs.ErrExist) && isRegularFile(h.Path) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("hold %s: %w", h.Path, err)
 		}
@@ -44,6 +47,11 @@ func (s *Session) holdControlPathsOf(p *profile.Profile, host jail.Host) error {
 		}
 	}
 	return nil
+}
+
+func isRegularFile(path string) bool {
+	info, err := os.Lstat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // holdHiddenPaths gives each missing hidden path inside a writable mount an

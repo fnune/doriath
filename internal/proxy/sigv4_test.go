@@ -19,7 +19,7 @@ command = ["creds"]
 
 [[http]]
 host = "sts.us-east-1.amazonaws.com"
-credential = { secret = "aws", scheme = "sigv4" }
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "allow"
 `
 
@@ -95,11 +95,11 @@ func TestARequestSignedWithPlaceholdersReachesAWSSignedWithTheRealKey(t *testing
 
 func TestRequestsThatCannotBeSignedAgainAreRefused(t *testing.T) {
 	h := newHarnessWith(t, awsProfile)
-	presigned, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc", nil)
-	presignedSigV2, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?X-Amz-Algorithm=AWS-HMAC-SHA1", nil)
+	presigned, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIADORIATHPLACEHOLD%2Fbroken&X-Amz-Signature=abc", nil)
+	presignedSigV2, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?X-Amz-Algorithm=AWS-HMAC-SHA1&X-Amz-Credential=AKIADORIATHPLACEHOLD%2F20261022%2Fus-east-1%2Fsts%2Faws4_request", nil)
 	other, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/", nil)
 	other.Header.Set("Authorization", "Bearer something")
-	for name, req := range map[string]*http.Request{"presigned without a credential": presigned, "presigned with another algorithm": presignedSigV2, "another scheme": other} {
+	for name, req := range map[string]*http.Request{"presigned with a broken credential": presigned, "presigned with another algorithm": presignedSigV2, "another scheme": other} {
 		resp, err := h.client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -146,6 +146,21 @@ func TestAPresignedURLIsSignedAgainInItsQuery(t *testing.T) {
 	q := got.URL.Query()
 	if !strings.HasPrefix(q.Get("X-Amz-Credential"), "AKIAREALKEY/") || q.Get("X-Amz-Security-Token") != "real-session" || q.Get("X-Amz-Date") != at.Format("20060102T150405Z") || q.Get("X-Amz-Expires") != "900" || q.Get("Action") != "GetCallerIdentity" {
 		t.Errorf("query = %v", q)
+	}
+}
+
+func TestAURLThatAWSPresignedPassesAsItIs(t *testing.T) {
+	h := newHarnessWith(t, awsProfile)
+	theirs := "https://sts.us-east-1.amazonaws.com/layer?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIAAWSOWNED%2F20261022%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261022T000000Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=abc"
+	resp, err := h.client().Get(theirs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, text)
+	}
+	if got, _ := h.upstream.last(t); got.URL.Query().Get("X-Amz-Signature") != "abc" {
+		t.Errorf("AWS's own presigned URL was changed: %s", got.URL.RawQuery)
 	}
 }
 

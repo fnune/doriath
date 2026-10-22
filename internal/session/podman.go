@@ -82,6 +82,18 @@ runroot = "/run/containers/storage"
 
 const containerProxyPort = 3129
 
+func podmanBinds(storage, socketDir, policy, policyDest string) []jail.Bind {
+	binds := []jail.Bind{
+		{Source: storage, Dest: storage},
+		{Source: socketDir, Dest: socketDir},
+		{Source: policy, Dest: policyDest, ReadOnly: true},
+	}
+	if info, err := os.Stat("/dev/fuse"); err == nil && info.Mode()&os.ModeDevice != 0 {
+		binds = append(binds, jail.Bind{Source: "/dev/fuse", Dest: "/dev/fuse", Device: true})
+	}
+	return binds
+}
+
 type bwrapInfo struct {
 	ChildPID int `json:"child-pid"`
 }
@@ -152,11 +164,7 @@ func (s *Session) startPodman() error {
 			"CONTAINERS_STORAGE_CONF":    jail.InJail("storage.conf"),
 			"CONTAINERS_REGISTRIES_CONF": jail.InJail("registries.conf"),
 		},
-		ExtraBinds: []jail.Bind{
-			{Source: root, Dest: root},
-			{Source: rawDir, Dest: rawDir},
-			{Source: s.jailPath("policy.json"), Dest: filepath.Join(userConf, "policy.json"), ReadOnly: true},
-		},
+		ExtraBinds: podmanBinds(root, rawDir, s.jailPath("policy.json"), filepath.Join(userConf, "policy.json")),
 		SkipUserNS: true,
 		InfoFD:     3,
 	}, osHost{})
@@ -178,9 +186,15 @@ func (s *Session) startPodman() error {
 	if err != nil {
 		return err
 	}
-	cmd := s.limited(exec.Command(s.deps.Unshare, append(unshareArgs, spec.Args()...)...), "podman")
+	args, err := spec.ArgsFile()
+	if err != nil {
+		_ = logFile.Close()
+		return err
+	}
+	defer args.Close()
+	cmd := s.limited(exec.Command(s.deps.Unshare, append(unshareArgs, spec.ArgsFrom(4)...)...), "podman")
 	cmd.Stdout, cmd.Stderr = logFile, logFile
-	cmd.ExtraFiles = []*os.File{infoW}
+	cmd.ExtraFiles = []*os.File{infoW, args}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		_ = infoW.Close()
