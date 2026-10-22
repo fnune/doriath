@@ -64,7 +64,7 @@ Repositories:
   doriath restore SESSION [BRANCH...]
 
 Setup:
-  doriath doctor [--secrets]
+  doriath doctor [--secrets] [--profile NAME]
   doriath direnv
   doriath completion zsh
   doriath version
@@ -221,8 +221,7 @@ func cmdRun(args []string) (int, error) {
 			notifier, informer = desktop, desktop
 		}
 	}
-	gitDesktop, _ := exec.Command("git", "config", "--global", "--includes", "--list", "-z").Output()
-	tools := []vcstools.Tool{gittool.New(gitDesktop), jjtool.New(p.Home, osKind)}
+	tools := signingTools(p)
 
 	deps := session.Deps{
 		Paths:       p,
@@ -343,6 +342,11 @@ func hostWait(a config.Approvals, n approval.Notifier) time.Duration {
 		return 0
 	}
 	return a.DefaultHostWait()
+}
+
+func signingTools(p config.Paths) []vcstools.Tool {
+	gitDesktop, _ := exec.Command("git", "config", "--global", "--includes", "--list", "-z").Output()
+	return []vcstools.Tool{gittool.New(gitDesktop), jjtool.New(p.Home, osKind)}
 }
 
 func osKind(p string) string {

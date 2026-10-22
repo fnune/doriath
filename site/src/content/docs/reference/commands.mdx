@@ -143,10 +143,12 @@ After you confirm, removes old backups and the agent worktrees that are already 
 ### `doriath doctor`
 
 ```txt frame="none"
-doriath doctor [--secrets]
+doriath doctor [--secrets] [--profile NAME]
 ```
 
 Checks the machine. `--secrets` also gets each secret one time, and can ask you to unlock a password manager.
+
+In a repository, doctor also checks it with the profile that its `.envrc` names in `use doriath PROFILE`, or with `--profile`, or with a profile named `default`. It tells whether the jail shows the repository, whether the agent can commit there, and whether the commits can be signed as your git or jj config asks.
 
 ### `doriath direnv`
 

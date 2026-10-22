@@ -16,16 +16,16 @@ func (signingTool) Jail(vcstools.Jail) vcstools.Config { return vcstools.Config{
 
 func TestASessionThatCouldNotSignWhatYourConfigSignsDoesNotStart(t *testing.T) {
 	signs := []vcstools.Tool{signingTool{}, signingTool{setting: "signing.behavior = own"}}
-	err := checkSigning(&profile.Profile{Name: "default"}, signs)
+	err := CheckSigning(&profile.Profile{Name: "default"}, signs)
 	if err == nil || !strings.Contains(err.Error(), "signing.behavior = own") || !strings.Contains(err.Error(), "enable = false") {
 		t.Errorf("err = %v", err)
 	}
 	for _, p := range []*profile.Profile{{Name: "a", SigningKey: "signing"}, {Name: "b", Unsigned: true}} {
-		if err := checkSigning(p, signs); err != nil {
+		if err := CheckSigning(p, signs); err != nil {
 			t.Errorf("%s: %v", p.Name, err)
 		}
 	}
-	if err := checkSigning(&profile.Profile{Name: "c"}, []vcstools.Tool{signingTool{}}); err != nil {
+	if err := CheckSigning(&profile.Profile{Name: "c"}, []vcstools.Tool{signingTool{}}); err != nil {
 		t.Errorf("a host that signs nothing: %v", err)
 	}
 }

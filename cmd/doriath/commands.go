@@ -438,6 +438,7 @@ func cmdAgentCommand(args []string, w io.Writer) error {
 func cmdDoctor(args []string, w io.Writer) int {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fetch := flags.Bool("secrets", false, "also fetch every secret once, which can prompt for an unlock")
+	prof := flags.String("profile", "", "the profile to check this repository with, instead of the one its .envrc names")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -447,7 +448,8 @@ func cmdDoctor(args []string, w io.Writer) int {
 		t.Line(term.Problem, "directories: "+err.Error())
 		return 1
 	}
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}})
+	cwd, _ := os.Getwd()
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Dir: cwd, Profile: *prof, VCS: signingTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}

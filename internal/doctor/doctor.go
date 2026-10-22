@@ -23,6 +23,7 @@ import (
 	"github.com/fnune/doriath/internal/seccomp"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/vcstools"
 )
 
 type Level string
@@ -46,6 +47,11 @@ type Options struct {
 	// manager. Runner runs the secret commands.
 	FetchSecrets bool
 	Runner       secret.Runner
+	// Dir, when it is in a repository, adds checks of that repository with
+	// Profile, or the profile its .envrc names, or DefaultProfile.
+	Dir     string
+	Profile string
+	VCS     []vcstools.Tool
 }
 
 const fetchTimeout = 2 * time.Minute
@@ -157,6 +163,8 @@ func Run(ctx context.Context, opts Options) []Result {
 			}
 		}
 	}
+
+	out = append(out, repository(opts)...)
 
 	if desktop, err := notify.NewDesktop(time.Now); err != nil {
 		note("desktop notifications", "unavailable; approvals work through doriath approvals only")

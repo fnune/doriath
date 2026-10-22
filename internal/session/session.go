@@ -170,7 +170,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
 	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Paths.State)
 	stopNote()
-	if err := checkSigning(req.Profile, deps.VCS); err != nil {
+	if err := CheckSigning(req.Profile, deps.VCS); err != nil {
 		return nil, err
 	}
 	if err := checkHelpers(deps, req.Profile); err != nil {
@@ -507,7 +507,9 @@ func (s *Session) writeVCSFiles() error {
 	return nil
 }
 
-func checkSigning(p *profile.Profile, tools []vcstools.Tool) error {
+// CheckSigning refuses a profile without a signing key when your git or jj
+// signs every commit, since commits in the jail would then fail.
+func CheckSigning(p *profile.Profile, tools []vcstools.Tool) error {
 	if p.SigningKey != "" || p.Unsigned {
 		return nil
 	}
