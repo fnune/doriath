@@ -201,7 +201,15 @@ type HTTPHost struct {
 	// /repos/*/* on GitHub's API. A grant for a request under one is
 	// scoped to that repository.
 	Repositories []PathPattern
-	Rules        []Rule
+	// SSH says that git reaches this host over SSH too. Inside the jail,
+	// git sends those remotes over HTTPS instead, through the proxy.
+	SSH   *SSHRemote
+	Rules []Rule
+}
+
+type SSHRemote struct {
+	User string
+	Port int
 }
 
 // Repository returns the part of path that names a repository: the prefix

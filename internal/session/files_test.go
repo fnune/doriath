@@ -22,7 +22,7 @@ func TestGitConfigWithRealGit(t *testing.T) {
 	if err != nil {
 		t.Skip("git not installed")
 	}
-	data := GitConfig(GitOptions{SigningKey: "/run/doriath/signing.pub", RewriteSSH: []string{"github.com"}, Desktop: []byte(desktopGit)})
+	data := GitConfig(GitOptions{SigningKey: "/run/doriath/signing.pub", RewriteSSH: []SSHRewrite{{Host: "github.com", User: "git", Port: 22}}, Desktop: []byte(desktopGit)})
 	path := filepath.Join(t.TempDir(), "gitconfig")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
@@ -111,5 +111,14 @@ func TestJavaTrustStoreHoldsTheBundle(t *testing.T) {
 	}
 	if _, err := JavaTrustStore([]byte("nothing")); err == nil {
 		t.Error("an empty trust store would make Java trust nothing")
+	}
+}
+
+func TestGitConfigRewritesSSHWithItsUserAndPort(t *testing.T) {
+	data := string(GitConfig(GitOptions{RewriteSSH: []SSHRewrite{{Host: "git.example.org", User: "forgejo", Port: 2222}}}))
+	for _, want := range []string{"forgejo@git.example.org:", "ssh://forgejo@git.example.org/", "ssh://forgejo@git.example.org:2222/"} {
+		if !strings.Contains(data, want) {
+			t.Errorf("gitconfig lacks %q:\n%s", want, data)
+		}
 	}
 }

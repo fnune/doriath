@@ -21,6 +21,7 @@ set = { GH_TOKEN = "doriath-placeholder-token" }
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git-remote-http", "git"] }
 default = "approve"
+ssh = { user = "git" }
 
 [[http.rules]]
 method = "GET"

@@ -49,9 +49,15 @@ func parseGitList(data []byte) []gitEntry {
 	return out
 }
 
+type SSHRewrite struct {
+	Host string
+	User string
+	Port int
+}
+
 type GitOptions struct {
 	SigningKey string
-	RewriteSSH []string
+	RewriteSSH []SSHRewrite
 	Desktop    []byte
 }
 
@@ -76,9 +82,13 @@ func GitConfig(o GitOptions) []byte {
 		set("tag.gpgsign", "false")
 	}
 	set("credential.helper", "")
-	for _, host := range o.RewriteSSH {
-		set(fmt.Sprintf("url.https://%s/.insteadof", host), fmt.Sprintf("git@%s:", host))
-		set(fmt.Sprintf("url.https://%s/.insteadof", host), fmt.Sprintf("ssh://git@%s/", host))
+	for _, r := range o.RewriteSSH {
+		https := fmt.Sprintf("url.https://%s/.insteadof", r.Host)
+		set(https, fmt.Sprintf("%s@%s:", r.User, r.Host))
+		set(https, fmt.Sprintf("ssh://%s@%s/", r.User, r.Host))
+		if r.Port != 22 {
+			set(https, fmt.Sprintf("ssh://%s@%s:%d/", r.User, r.Host, r.Port))
+		}
 	}
 	return renderGit(entries)
 }

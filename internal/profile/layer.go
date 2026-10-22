@@ -64,7 +64,13 @@ type httpLayer struct {
 	Credential   *credentialLayer `toml:"credential"`
 	Default      string           `toml:"default"`
 	Repositories []string         `toml:"repositories"`
+	SSH          *sshLayer        `toml:"ssh"`
 	Rules        []ruleLayer      `toml:"rules"`
+}
+
+type sshLayer struct {
+	User string `toml:"user"`
+	Port int    `toml:"port"`
 }
 
 type credentialLayer struct {

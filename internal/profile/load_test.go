@@ -392,3 +392,25 @@ allow = ["*.launchdarkly.com"]
 		}
 	}
 }
+
+func TestSSHRemoteDefaultsAndLimits(t *testing.T) {
+	load := func(body string) (*Profile, error) {
+		return loader(fstest.MapFS{"p.toml": file(body)}, fstest.MapFS{}).Load("p")
+	}
+	p, err := load("[[http]]\nhost = \"codeberg.org\"\nssh = {}\n")
+	if err != nil || p.HTTP[0].SSH == nil || *p.HTTP[0].SSH != (SSHRemote{User: "git", Port: 22}) {
+		t.Fatalf("defaults: %+v, %v", p, err)
+	}
+	for _, body := range []string{
+		"[[http]]\nhost = \"*.example.org\"\nssh = {}\n",
+		"[[http]]\nhost = \"example.org\"\nssh = { port = 70000 }\n",
+		"[[http]]\nhost = \"example.org\"\nssh = { user = \"git; rm\" }\n",
+	} {
+		if _, err := load(body); err == nil {
+			t.Errorf("%q must be refused", body)
+		}
+	}
+	if p, err := load("[[http]]\nhost = \"example.org\"\ncredential = { secret = \"s\", scheme = \"basic\", username = \"u\" }\n[secrets.s]\ncommand = [\"true\"]\n"); err != nil || p.HTTP[0].SSH != nil {
+		t.Fatalf("a basic credential alone must not turn on the rewrite: %+v, %v", p, err)
+	}
+}

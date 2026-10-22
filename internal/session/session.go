@@ -456,10 +456,10 @@ func (s *Session) writeGitFiles() error {
 	if p.SigningKey != "" {
 		signing = jail.InJail("signing.pub")
 	}
-	var rewrite []string
+	var rewrite []SSHRewrite
 	for _, h := range p.HTTP {
-		if !strings.HasPrefix(string(h.Host), "*.") && h.Credential != nil && h.Credential.Scheme == profile.SchemeBasic {
-			rewrite = append(rewrite, string(h.Host))
+		if h.SSH != nil {
+			rewrite = append(rewrite, SSHRewrite{Host: string(h.Host), User: h.SSH.User, Port: h.SSH.Port})
 		}
 	}
 	if err := writeFile(s.jailPath("gitconfig"), GitConfig(GitOptions{SigningKey: signing, RewriteSSH: rewrite, Desktop: s.deps.GitDesktop}), 0o644); err != nil {

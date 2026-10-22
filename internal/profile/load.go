@@ -420,6 +420,9 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	for _, r := range h.Repositories {
 		cur.Repositories = appendNew(cur.Repositories, r)
 	}
+	if h.SSH != nil {
+		cur.SSH = h.SSH
+	}
 	cur.Rules = append(slices.Clone(h.Rules), cur.Rules...)
 	b.http[i] = cur
 }
@@ -669,6 +672,22 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		if h.Default == "" {
 			out.Default = ActionApprove
 		}
+	}
+	if ssh := h.SSH; ssh != nil {
+		if strings.HasPrefix(h.Host, "*.") {
+			return HTTPHost{}, fmt.Errorf("http %s ssh: name one host, not a pattern", h.Host)
+		}
+		remote := SSHRemote{User: ssh.User, Port: ssh.Port}
+		if remote.User == "" {
+			remote.User = "git"
+		}
+		if remote.Port == 0 {
+			remote.Port = 22
+		}
+		if !namePattern.MatchString(remote.User) || remote.Port < 1 || remote.Port > 65535 {
+			return HTTPHost{}, fmt.Errorf("http %s ssh: want a user such as git and a port from 1 to 65535", h.Host)
+		}
+		out.SSH = &remote
 	}
 	for _, r := range h.Repositories {
 		pattern, err := ParsePathPattern(r)
