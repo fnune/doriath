@@ -5,7 +5,64 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/approval"
 )
+
+func (Adapter) Hook(call agents.HookCall) ([]byte, error) {
+	switch call.Event {
+	case "session-start":
+		text, err := call.Broker.Describe()
+		if err != nil {
+			return nil, err
+		}
+		return SessionStart(text)
+	case "permission-request":
+		return permissionRequest(call)
+	case "notification":
+		n, err := ParseNotification(call.Input)
+		if err != nil {
+			return nil, err
+		}
+		if n.Idle() {
+			return nil, nil
+		}
+		title := n.Title
+		if title == "" {
+			title = "Claude Code"
+		}
+		return nil, call.Broker.Inform(title, n.Message)
+	}
+	return nil, fmt.Errorf("hook: unknown event %q", call.Event)
+}
+
+func permissionRequest(call agents.HookCall) ([]byte, error) {
+	req, err := ParsePermissionRequest(call.Input)
+	if err != nil {
+		return nil, err
+	}
+	if req.AsksYou() {
+		return nil, nil
+	}
+	summary, note, details := req.Describe()
+	scope := "tool " + req.ToolName
+	if req.ToolName == "Bash" {
+		scope += " " + details
+	}
+	d, err := call.Broker.Ask(agents.Question{Summary: summary, Note: note, Details: details, Scope: scope})
+	if err != nil {
+		fmt.Fprintln(call.Stderr, "doriath: no decision, falling back to Claude's prompt:", err)
+		return nil, nil
+	}
+	switch d.Verdict {
+	case approval.VerdictAllow:
+		return PermissionDecision(true, "")
+	case approval.VerdictDeny:
+		return PermissionDecision(false, agents.DenialMessage(d))
+	}
+	return nil, nil
+}
 
 // PermissionRequest is the part of Claude Code's PermissionRequest hook input
 // that doriath uses.

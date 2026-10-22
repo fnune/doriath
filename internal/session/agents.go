@@ -30,6 +30,15 @@ func (s *Session) writeMCPConfig() error {
 	return writeFile(filepath.Join(s.jailDir, mcpConfigFile), data, 0o644)
 }
 
+func AdapterNamed(name string) agents.Adapter {
+	for _, a := range adapters {
+		if a.Name() == name {
+			return a
+		}
+	}
+	return nil
+}
+
 func (s *Session) writeInstructions() error {
 	text := s.status().Describe()
 	for i, path := range s.req.Profile.Agent.Instructions {

@@ -19,7 +19,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/fnune/doriath/internal/agents/claude"
+	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/confine"
@@ -80,7 +80,8 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) < 2 {
 		return errors.New("__hook: usage: doriath __hook AGENT EVENT")
 	}
-	if args[0] != (claude.Adapter{}).Name() {
+	hooks, ok := session.AdapterNamed(args[0]).(agents.Hooks)
+	if !ok {
 		return fmt.Errorf("hook: doriath has no hooks for agent %q", args[0])
 	}
 	flags := flag.NewFlagSet("__hook", flag.ContinueOnError)
@@ -96,82 +97,52 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if broker == "" {
 		return errors.New("hook: DORIATH_BROKER is not set; is this running inside doriath?")
 	}
-	ctx := context.Background()
-	switch args[1] {
-	case "session-start":
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		st, err := sessionStatus(ctx, "")
-		if err != nil {
-			return err
-		}
-		out, err := claude.SessionStart(st.Describe())
-		if err != nil {
-			return err
-		}
-		_, err = stdout.Write(out)
+	out, err := hooks.Hook(agents.HookCall{
+		Event:   args[1],
+		Input:   input,
+		Timeout: *timeout,
+		Broker:  hookBroker{socket: broker, agent: args[0], timeout: *timeout},
+		Stderr:  os.Stderr,
+	})
+	if err != nil || len(out) == 0 {
 		return err
-	case "permission-request":
-		req, err := claude.ParsePermissionRequest(input)
-		if err != nil {
-			return err
-		}
-		if req.AsksYou() {
-			return nil
-		}
-		summary, note, details := req.Describe()
-		scope := "tool " + req.ToolName
-		if req.ToolName == "Bash" {
-			scope += " " + details
-		}
-		var d approval.Decision
-		ctx, cancel := context.WithTimeout(ctx, *timeout+5*time.Second)
-		defer cancel()
-		err = control.Call(ctx, broker, session.MethodSubmit, session.SubmitParams{
-			Agent:          "claude",
-			Summary:        summary,
-			Note:           note,
-			Details:        details,
-			Scope:          scope,
-			TimeoutSeconds: int(timeout.Seconds()),
-		}, &d)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "doriath: no decision, falling back to Claude's prompt:", err)
-			return nil
-		}
-		if d.Verdict == approval.VerdictNone {
-			return nil
-		}
-		message := ""
-		if d.Verdict == approval.VerdictDeny {
-			message = "Denied by the user through doriath."
-			if d.Reason != "" {
-				message += " Reason: " + d.Reason
-			}
-		}
-		out, err := claude.PermissionDecision(d.Verdict == approval.VerdictAllow, message)
-		if err != nil {
-			return err
-		}
-		_, err = stdout.Write(out)
-		return err
-	case "notification":
-		n, err := claude.ParseNotification(input)
-		if err != nil {
-			return err
-		}
-		if n.Idle() {
-			return nil
-		}
-		title := n.Title
-		if title == "" {
-			title = "Claude Code"
-		}
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		return control.Call(ctx, broker, session.MethodInform, session.InformParams{Title: title, Body: n.Message}, nil)
 	}
-	return fmt.Errorf("hook: unknown event %q", args[1])
+	_, err = stdout.Write(out)
+	return err
+}
+
+type hookBroker struct {
+	socket  string
+	agent   string
+	timeout time.Duration
+}
+
+func (b hookBroker) Describe() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st, err := sessionStatus(ctx, "")
+	return st.Describe(), err
+}
+
+func (b hookBroker) Ask(q agents.Question) (approval.Decision, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), b.timeout+5*time.Second)
+	defer cancel()
+	var d approval.Decision
+	err := control.Call(ctx, b.socket, session.MethodSubmit, session.SubmitParams{
+		Agent:          b.agent,
+		Summary:        q.Summary,
+		Note:           q.Note,
+		Details:        q.Details,
+		Scope:          q.Scope,
+		TimeoutSeconds: int(b.timeout.Seconds()),
+	}, &d)
+	return d, err
+}
+
+func (b hookBroker) Inform(title, body string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return control.Call(ctx, b.socket, session.MethodInform, session.InformParams{Title: title, Body: body}, nil)
 }
 
 type liveSession struct {
