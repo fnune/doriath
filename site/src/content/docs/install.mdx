@@ -53,6 +53,8 @@ file = "~/.config/doriath/keys/agent-signing"
 key = "agent-signing"
 ```
 
+Each `[secrets.NAME]` table says where one secret comes from, and the name is how the rest of the configuration refers to it. `github` is the name the `github` module asks for: its `[[http]]` entries carry `credential = { secret = "github", ... }`, so the proxy adds that token to requests from `gh` and `git`. `agent-signing` is a name of your own choosing, used only because `[signing] key` names it; call it anything, as long as both match. doriath reads each one on the host once per session, and none of them enters the jail.
+
 `doriath profiles show my-app` checks it. The repository you start in is read-only in the jail, and by default the agent commits in worktrees under `.claude/worktrees`. To keep them where yours are, such as `~/Development/.worktrees/my-app`, add that directory with `mode = "write"`:
 
 ```toml

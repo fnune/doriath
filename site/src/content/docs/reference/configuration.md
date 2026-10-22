@@ -180,6 +180,18 @@ deny = []
 approval_timeout = "60s"
 ```
 
+## Secrets
+
+A secret has a name, which the profile picks, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints it, or an `oauth` login. Three keys refer to a secret by that name:
+
+| Key                          | Uses the secret as                       |
+| ---------------------------- | ---------------------------------------- |
+| `[[http]] credential.secret` | the credential the proxy adds for a host |
+| `[[mcp]] secret`             | the bearer token for a remote MCP server |
+| `[signing] key`              | the agent's SSH key for signing commits  |
+
+A module can refer to a secret it does not define, and leaves its source to the profile. The `github` module's credentials name `github`, so a profile with that module needs `[secrets.github]`. doriath refuses a profile whose credential or signing key names a secret without a source, and says which table to add. Any other name is free, such as `agent-signing` for `[signing] key`.
+
 ## Mounts
 
 Two placeholders resolve when a session starts, so one profile serves many projects: `{current}` is where `doriath run` starts (or `--current DIR`), and `{repository}` is the root of the git or jj repository that holds it. Entries with `{repository}` are skipped outside a repository.
