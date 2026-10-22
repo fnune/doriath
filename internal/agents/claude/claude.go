@@ -23,6 +23,10 @@ import (
 
 type Adapter struct{}
 
+func (Adapter) Name() string { return "claude" }
+
+func (Adapter) Command() string { return "claude" }
+
 func (Adapter) Matches(argv []string) bool {
 	return len(argv) > 0 && filepath.Base(argv[0]) == "claude"
 }

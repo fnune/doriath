@@ -33,6 +33,12 @@ type Session struct {
 }
 
 type Adapter interface {
+	// Name is the adapter's agent, and the name of the module that gives
+	// the agent its config, state and hosts. A profile gets the adapter
+	// only when it lists that module.
+	Name() string
+	// Command is the agent's command, which a project's direnv shim wraps.
+	Command() string
 	Matches(argv []string) bool
 	// Seeds lists state to start a new profile with, so that the agent does
 	// not greet each profile as a fresh install.

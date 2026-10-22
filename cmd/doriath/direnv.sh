@@ -2,13 +2,15 @@
 #
 #   use doriath PROFILE [--command NAME]
 #
-# puts a shim for NAME (default claude) first on PATH, so that running it
+# puts a shim for NAME first on PATH, so that running it
 # anywhere in the project starts it in a doriath session of PROFILE for this
-# project. The shim lives outside the project, where no agent writes.
+# project. Without --command, NAME is the command of the agent whose module
+# the profile lists, such as claude. The shim lives outside the project,
+# where no agent writes.
 use_doriath() {
   local profile=${1:?use doriath: name the profile}
   shift
-  local command=claude
+  local command=
   while [ $# -gt 0 ]; do
     case $1 in
       --command) command=${2:?use doriath: --command needs a name}; shift 2 ;;
@@ -17,6 +19,9 @@ use_doriath() {
   done
   local doriath
   doriath=$(command -v doriath) || { log_error "use doriath: doriath is not on PATH"; return 1; }
+  if [ -z "$command" ]; then
+    command=$("$doriath" profiles command "$profile") || { log_error "use doriath: name the agent's command with --command"; return 1; }
+  fi
   local root=$PWD
   local dir
   dir="${XDG_CACHE_HOME:-$HOME/.cache}/doriath/shims/$(printf '%s' "$root" | sha256sum | cut -c1-16)"

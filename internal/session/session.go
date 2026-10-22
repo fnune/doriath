@@ -283,7 +283,8 @@ func (s *Session) prepare(ctx context.Context) error {
 		return err
 	}
 	s.command = s.req.Command
-	if s.agent = adapterFor(s.req.Command); s.agent != nil {
+	var warning string
+	if s.agent, warning = adapterFor(s.req.Profile, s.req.Command); s.agent != nil {
 		if err := agents.Plant(s.agent.Seeds(s.agentSession())); err != nil {
 			return err
 		}
@@ -292,6 +293,9 @@ func (s *Session) prepare(ctx context.Context) error {
 			return err
 		}
 		s.command, s.agentEnv = command, env
+	}
+	if warning != "" {
+		fmt.Fprintln(s.deps.Stderr, "doriath: "+warning)
 	}
 	return s.writeInfo()
 }

@@ -84,8 +84,11 @@ func parseInit(args []string) ([]jailinit.Forward, []string, error) {
 const maxHookInput = 1 << 20
 
 func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
-	if len(args) < 2 || args[0] != "claude" {
-		return errors.New("hook: usage: doriath hook claude permission-request|notification")
+	if len(args) < 2 {
+		return errors.New("hook: usage: doriath hook AGENT EVENT")
+	}
+	if args[0] != (claude.Adapter{}).Name() {
+		return fmt.Errorf("hook: doriath has no hooks for agent %q", args[0])
 	}
 	flags := flag.NewFlagSet("hook", flag.ContinueOnError)
 	timeout := flags.Duration("timeout", time.Minute, "how long to wait for a decision")
@@ -443,6 +446,18 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 	if args[0] == "edit" && len(args) == 2 {
 		return profilesEdit(l, p.Profiles(), args[1], stdin, stdout)
 	}
+	if args[0] == "command" && len(args) == 2 {
+		prof, err := l.Load(args[1])
+		if err != nil {
+			return err
+		}
+		command, err := session.AgentCommand(prof)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, command)
+		return nil
+	}
 	if args[0] == "show" && (len(args) == 2 || len(args) == 3 && args[2] == "--json") {
 		prof, err := l.Load(args[1])
 		if err != nil {
@@ -455,7 +470,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return printProfile(stdout, prof)
 	}
-	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME]")
+	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME | command NAME]")
 }
 
 func cmdDoctor(args []string, w io.Writer) int {

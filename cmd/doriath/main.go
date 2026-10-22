@@ -52,7 +52,7 @@ Usage:
   doriath direnv
   doriath status [SESSION]
   doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  doriath profiles [list | show NAME [--json] | edit NAME]
+  doriath profiles [list | show NAME [--json] | edit NAME | command NAME]
   doriath modules [list | show NAME [--path] | edit NAME]
   doriath doctor [--secrets]
   doriath completion zsh
@@ -63,7 +63,7 @@ Inside a jail:
   doriath request wait ID|HOST|PATH
   doriath init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
   doriath sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
-  doriath hook claude session-start|permission-request|notification
+  doriath hook AGENT EVENT
   doriath statusline
 `
 
