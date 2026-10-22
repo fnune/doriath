@@ -26,6 +26,10 @@ import Flourish from "../../components/Flourish.astro";
   [security limits](/reference/security-limits/) before you rely on it.
 </Aside>
 
+## Motivation
+
+I build doriath because I want to run coding agents on a remote server, without watching them all the time. An agent with access to my whole file system, my keys and my logins is not safe to leave alone. It is not safe when I watch it either: I read fast, and one prompt injection in a web page or an issue is enough. doriath gives each agent only what its task needs, and holds the actions that matter until I answer, from wherever I am.
+
 ## Scope
 
 Agents in a doriath jail use your own toolchain and checkouts, on your kernel, so a session starts in under a second and builds the way your terminal does. A container or virtual machine with an image of its own isolates more, at the cost of that shared setup. Doriath guards against an agent that acts against your intent, for example after it reads a prompt injection in a web page or an issue.

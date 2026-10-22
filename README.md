@@ -2,6 +2,8 @@
 
 Doriath runs a coding agent such as Claude Code in a jail on your Linux machine, and sends every request it makes through a proxy that follows the rules of a profile you write. Tokens stay in the proxy, and merges, pushes and unknown hosts wait for your answer.
 
+I build doriath because I want to run coding agents on a remote server, without watching them all the time. An agent with access to my whole file system, my keys and my logins is not safe to leave alone, and it is not safe when I watch it either.
+
 Pre-alpha, Linux only. The documentation lives at [doriath.fnune.com](https://doriath.fnune.com).
 
 ```sh
