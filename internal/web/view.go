@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -27,6 +28,7 @@ type page struct {
 	Sessions    []sessionView
 	Pending     []requestView
 	Selected    *requestView
+	Answer      *answeredView
 	Answered    []answeredView
 	Problem     string
 	Status      statusView
@@ -86,13 +88,16 @@ type requestView struct {
 }
 
 type answeredView struct {
-	Summary string
-	Kind    string
-	Profile sessionView
-	Verdict string
-	Label   string
-	Ago     string
-	By      string
+	Key      string
+	Selected bool
+	Detail   requestView
+	Summary  string
+	Kind     string
+	Profile  sessionView
+	Verdict  string
+	Label    string
+	Ago      string
+	By       string
 }
 
 func (s *Server) view(ctx context.Context, selected string) (page, error) {
@@ -111,7 +116,6 @@ func (s *Server) view(ctx context.Context, selected string) (page, error) {
 		}
 	}
 	sort.SliceStable(p.Pending, func(i, j int) bool { return p.Pending[i].created.Before(p.Pending[j].created) })
-	p.Selected = pick(p.Pending, selected)
 	p.Count = count(len(sessions), len(p.Pending))
 
 	answered, err := s.history.Answered(ctx, now.Add(-answeredSince))
@@ -125,7 +129,13 @@ func (s *Server) view(ctx context.Context, selected string) (page, error) {
 	for _, a := range answered {
 		p.Answered = append(p.Answered, answeredOf(a, now))
 	}
-	if p.Selected == nil {
+	if i := slices.IndexFunc(p.Answered, func(a answeredView) bool { return a.Key == selected }); i >= 0 && !slices.ContainsFunc(p.Pending, func(r requestView) bool { return r.Key == selected }) {
+		p.Answered[i].Selected = true
+		p.Answer = &p.Answered[i]
+	} else {
+		p.Selected = pick(p.Pending, selected)
+	}
+	if p.Selected == nil && p.Answer == nil {
 		if p.Status, err = s.status(ctx, now, p.HasSessions); err != nil {
 			return p, err
 		}
@@ -262,7 +272,10 @@ func clock(d time.Duration) string {
 }
 
 func answeredOf(a Answered, now time.Time) answeredView {
+	sv := sessionView{ID: a.Request.Session, Profile: a.Request.Profile, Hue: hue(a.Request.Profile)}
 	return answeredView{
+		Key:     a.Request.Session + "/" + a.Request.ID,
+		Detail:  requestOf(a.Request, sv, now),
 		Summary: session.Printable(a.Request.Summary),
 		Kind:    string(a.Request.Kind),
 		Profile: sessionView{Profile: a.Request.Profile, Hue: hue(a.Request.Profile)},

@@ -422,3 +422,22 @@ func TestACodeSignsInOnceAndOnlyForTheTokenHolder(t *testing.T) {
 		t.Fatalf("the code works twice: status %d", again.Code)
 	}
 }
+
+func TestAnAnsweredRequestOpensWithWhatToAddToTheProfile(t *testing.T) {
+	req := request("h1", approval.KindHost, "Allow linear.app?")
+	req.Keep = "[egress]\nallow = [\"linear.app\"]"
+	history := fakeHistory{{Time: testNow.Add(-3 * time.Minute), Request: req, Decision: approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}}}
+	srv, err := New(&fakeSessions{}, history, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := get(srv.Handler(), "/?request=s1/h1", true).Body.String()
+	for _, want := range []string{"Answered request", "Allowed for the session</span>, on the desktop, 3 min ago", "To allow it in every session, add to profile my-app", `allow = [&#34;linear.app&#34;]`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if strings.Contains(body, `name="answer"`) {
+		t.Error("an answered request offers answers")
+	}
+}

@@ -20,13 +20,13 @@
 {{end}}
 
 {{define "main"}}<div id="main" hx-get="/main" hx-trigger="every 1s" hx-include="#selected" hx-swap="morph:outerHTML" hx-disinherit="*">
-<input type="hidden" id="selected" name="request" value="{{with .Selected}}{{.Key}}{{end}}">
+<input type="hidden" id="selected" name="request" value="{{with .Selected}}{{.Key}}{{else}}{{with .Answer}}{{.Key}}{{end}}{{end}}">
 <header>
   <div class="wrap">
-    <div class="brand">
+    <a class="brand" href="/" hx-get="/main" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/" title="Status">
       <svg width="38" height="38" aria-hidden="true"><use href="/ui/ornaments.svg#mark"/></svg>
       <div><h1>Doriath</h1><small>{{.Count}}</small></div>
-    </div>
+    </a>
     <div class="sessions">
       {{range .Sessions}}<span class="who" title="{{.Cwd}}">{{template "profile" .}}<span class="sid">{{.ID}}</span></span>{{end}}
     </div>
@@ -52,26 +52,69 @@
       <h2 class="section-title">Answered</h2>
       <div class="list done">
         {{range .Answered}}
-        <div class="item">
+        <a class="item" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
           <span class="sum">{{.Summary}}</span>
           <span class="verdict {{.Verdict}}"{{with .By}} title="Answered {{.}}"{{end}}>{{.Label}}</span>
           <span class="who">{{template "profile" .Profile}}<span class="dot">·</span><span>{{.Ago}}</span></span>
           <span class="kind">{{.Kind}}</span>
-        </div>
+        </a>
         {{else}}
         <div class="empty">Nothing answered in the last day.</div>
         {{end}}
       </div>
     </section>
-    <section aria-label="{{if .Selected}}Selected request{{else}}Status{{end}}">
-      {{with .Selected}}<h2 class="section-title">Request <span class="sid">{{.ID}}</span></h2>{{else}}<h2 class="section-title">Status</h2>{{end}}
+    <section aria-label="{{if or .Selected .Answer}}Selected request{{else}}Status{{end}}">
+      {{with .Selected}}<h2 class="section-title">Request <span class="sid">{{.ID}}</span></h2>{{else}}{{with .Answer}}<h2 class="section-title">Answered request <span class="sid">{{.Detail.ID}}</span></h2>{{else}}<h2 class="section-title">Status</h2>{{end}}{{end}}
       <div class="detail" aria-live="polite">
-        {{with .Selected}}{{template "detail" .}}{{else}}{{template "status" .Status}}{{end}}
+        {{with .Selected}}{{template "detail" .}}{{else}}{{with .Answer}}{{template "answered" .}}{{else}}{{template "status" .Status}}{{end}}{{end}}
       </div>
     </section>
   </div>
 </main>
 </div>{{end}}
+
+{{define "answered"}}
+<div class="detail-head">
+  <div>
+    <span class="who">{{template "profile" .Detail.Session}}<span class="kind">{{.Detail.Kind}}</span></span>
+    <h3>{{.Detail.Summary}}</h3>
+    <p class="status"><span class="verdict {{.Verdict}}">{{.Label}}</span>{{with .By}}, {{.}}{{end}}, {{.Ago}}.</p>
+  </div>
+</div>
+{{with .Detail}}
+{{if .Note}}
+<div class="agent-text">
+  <div class="rule">
+    {{template "curl-v" "start"}}
+    <svg class="stem" width="14" aria-hidden="true"><line x1="12" x2="12" y1="0" y2="100%"/></svg>
+    {{template "curl-v" "end"}}
+  </div>
+  <div class="body">
+    <span class="kind">{{.NoteLabel}}, written by {{.Agent}}</span>
+    <div class="quote">{{.Note}}</div>
+  </div>
+</div>
+{{end}}
+{{if .Details}}
+<div>
+  {{if .ByAgent}}<p class="caption">Written by {{.Agent}}, not by doriath.</p>{{end}}
+  <pre>{{.Details}}</pre>
+</div>
+{{end}}
+<dl class="facts">
+  <dt>Session</dt>
+  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span></dd>
+  {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}
+</dl>
+{{with .Keep}}
+<div class="keep">
+  <p class="caption">To allow it in every session, add to profile {{$.Detail.Session.Profile}}:</p>
+  <pre>{{.}}</pre>
+</div>
+{{end}}
+{{end}}
+{{end}}
 
 {{define "status"}}
 {{if .FirstRun}}

@@ -32,3 +32,7 @@ main .wrap { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1f
 .ended { display: flex; flex-direction: column; gap: 6px; }
 .ended + .ended { margin-top: 6px; }
 .blocked { margin: 0; font-size: 13.5px; }
+.doriath-ui .done a.item { cursor: pointer; }
+.doriath-ui .done a.item:hover { background: color-mix(in srgb, var(--ring) 5%, transparent); }
+.doriath-ui .done a.item[aria-current="true"] { background: var(--ring-soft); }
+a.brand { color: inherit; text-decoration: none; }
