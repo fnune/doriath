@@ -442,6 +442,9 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	if h.Operation != nil {
 		cur.Operation = h.Operation
 	}
+	for _, o := range h.Only {
+		cur.Only = appendNew(cur.Only, o)
+	}
 	cur.EncodedSlashes = cur.EncodedSlashes || h.EncodedSlashes
 	cur.Rules = append(slices.Clone(h.Rules), cur.Rules...)
 	b.http[i] = cur
@@ -717,6 +720,13 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		return HTTPHost{}, fmt.Errorf("http: %w", err)
 	}
 	out := HTTPHost{Host: host, Default: ActionAllow, EncodedSlashes: h.EncodedSlashes}
+	for _, o := range h.Only {
+		only, err := ParseHostPattern(o)
+		if err != nil || !host.Covers(only) {
+			return HTTPHost{}, fmt.Errorf("http %s only %q: want a host or pattern within %s", h.Host, o, h.Host)
+		}
+		out.Only = append(out.Only, only)
+	}
 	if o := h.Operation; o != nil {
 		if o.Header != "" && !headerName.MatchString(o.Header) {
 			return HTTPHost{}, fmt.Errorf("http %s operation header %q: want a header name such as X-Amz-Target", h.Host, o.Header)

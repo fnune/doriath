@@ -34,11 +34,17 @@ The module decides each request by its operation:
 
 If a tool assumes a role itself, as in a profile with `role_arn`, give the command that role's credentials instead.
 
-Some requests cannot be signed again, and doriath refuses them with a `doriath:` error:
+A presigned URL that the jail makes, such as with `aws s3 presign`, works through the proxy, which signs it again with its own date and expiry. Outside the jail, the URL stays signed with the placeholder and does not work. Uploads that sign each chunk are signed again chunk by chunk.
 
-- Presigned URLs that the jail makes. A URL that leaves the jail stays signed with the placeholder.
-- S3 uploads that sign each chunk. Uploads with unsigned chunks, as recent AWS CLIs send, work.
-- `aws eks get-token`, which presigns a request for kubectl.
+The module covers every AWS host. To limit it to the hosts that the profile uses, list them under `only`. Other AWS hosts are then not allowed:
+
+```toml
+[[http]]
+host = "*.amazonaws.com"
+only = ["sts.us-west-2.amazonaws.com", "cloudformation.us-west-2.amazonaws.com", "*.s3.us-west-2.amazonaws.com"]
+```
+
+kubectl to EKS does not work yet. `aws eks get-token` signs a token in the jail, and kubectl trusts only the cluster's own certificate authority, so the proxy cannot sign the token again.
 
 ## Google Cloud and Azure
 

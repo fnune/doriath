@@ -88,12 +88,24 @@ run s3api create-bucket --bucket `+bucket+`
 head -c 300000 /dev/urandom > big.bin
 run s3 cp big.bin s3://`+bucket+`/big.bin
 run s3 ls s3://`+bucket+`/
+url=$("$aws" s3 presign s3://`+bucket+`/big.bin)
+case "$url" in *AKIADORIATHPLACEHOLD*) ;; *) echo "FAIL the presigned URL is not signed with the placeholder: $url" ;; esac
+curl -fsS -o fetched.bin "$url" && cmp -s big.bin fetched.bin || echo "FAIL a presigned URL through the proxy"
+zeros=0000000000000000000000000000000000000000000000000000000000000000
+now=$(date -u +%Y%m%dT%H%M%SZ)
+{ printf '5;chunk-signature=%s\r\nhello\r\n0;chunk-signature=%s\r\n\r\n' $zeros $zeros; } > chunked.body
+curl -fsS -X PUT --data-binary @chunked.body \
+	-H "Authorization: AWS4-HMAC-SHA256 Credential=AKIADORIATHPLACEHOLD/${now%%T*}/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-date, Signature=$zeros" \
+	-H "X-Amz-Date: $now" -H "X-Amz-Content-Sha256: STREAMING-AWS4-HMAC-SHA256-PAYLOAD" \
+	-H "Content-Encoding: aws-chunked" -H "X-Amz-Decoded-Content-Length: 5" -H "Content-Type: text/plain" \
+	https://s3.us-east-1.amazonaws.com/`+bucket+`/chunked.txt >/dev/null || echo "FAIL an upload with signed chunks"
+[ "$("$aws" s3 cp s3://`+bucket+`/chunked.txt -)" = hello ] || echo "FAIL the chunked upload stored something else"
 run dynamodb list-tables
 run cloudformation describe-stacks
 "$aws" sts assume-role --role-arn arn:aws:iam::000000000000:role/x --role-session-name s >/dev/null 2>&1 && echo "FAIL assume-role went through"
 echo done
 `, func() {
-		for range 2 {
+		for range 3 {
 			e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"})
 		}
 	})

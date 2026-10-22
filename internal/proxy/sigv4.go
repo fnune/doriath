@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -24,8 +25,8 @@ var errUnsignedGoesAsItCame = errors.New("not signed")
 type signOnTheWayOut func(*http.Request) error
 
 func (s *Server) sigv4(ctx context.Context, secret string, r *http.Request) (signOnTheWayOut, error) {
-	if r.URL.Query().Get("X-Amz-Algorithm") != "" {
-		return nil, errors.New("presigned requests are not signed again; send the request with an Authorization header")
+	if query := r.URL.Query(); query.Get("X-Amz-Algorithm") != "" {
+		return s.presigned(ctx, secret, r, query)
 	}
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
@@ -36,8 +37,9 @@ func (s *Server) sigv4(ctx context.Context, secret string, r *http.Request) (sig
 		return nil, errors.New("the Authorization header is not an AWS4-HMAC-SHA256 signature")
 	}
 	payload := r.Header.Get("X-Amz-Content-Sha256")
-	if strings.HasPrefix(payload, "STREAMING-AWS4-") {
-		return nil, errors.New("uploads that sign each chunk are not signed again; send the upload without chunk signatures")
+	chunked := payload == signedChunks || payload == signedChunksTrailer
+	if strings.HasPrefix(payload, "STREAMING-AWS4-") && !chunked {
+		return nil, fmt.Errorf("uploads signed as %s are not signed again", payload)
 	}
 	if payload == "" {
 		hash, err := hashBody(r)
@@ -46,20 +48,83 @@ func (s *Server) sigv4(ctx context.Context, secret string, r *http.Request) (sig
 		}
 		payload = hash
 	}
-	v, err := s.secrets.Get(ctx, secret)
+	creds, err := s.awsCredentials(ctx, secret)
 	if err != nil {
 		return nil, err
-	}
-	creds, err := parseAWSCredentials(v.Reveal())
-	if err != nil {
-		return nil, fmt.Errorf("secret %q: %w", secret, err)
 	}
 	return func(out *http.Request) error {
 		out.Header.Del("Authorization")
 		out.Header.Del("X-Amz-Date")
 		out.Header.Del("X-Amz-Security-Token")
-		return v4.NewSigner().SignHTTP(out.Context(), creds, out, payload, service, region, time.Now())
+		if err := v4.NewSigner().SignHTTP(out.Context(), creds, out, payload, service, region, time.Now()); err != nil {
+			return err
+		}
+		if !chunked {
+			return nil
+		}
+		chain, err := newChainSigner(creds, out, region, service)
+		if err != nil {
+			return err
+		}
+		out.Body = resignChunks(out.Body, chain, payload == signedChunksTrailer)
+		return nil
 	}, nil
+}
+
+var presignFields = []string{"X-Amz-Algorithm", "X-Amz-Credential", "X-Amz-Date", "X-Amz-SignedHeaders", "X-Amz-Signature", "X-Amz-Security-Token"}
+
+func (s *Server) presigned(ctx context.Context, secret string, r *http.Request, query url.Values) (signOnTheWayOut, error) {
+	if query.Get("X-Amz-Algorithm") != "AWS4-HMAC-SHA256" {
+		return nil, fmt.Errorf("presigned with %q, not AWS4-HMAC-SHA256", query.Get("X-Amz-Algorithm"))
+	}
+	f := strings.Split(query.Get("X-Amz-Credential"), "/")
+	if len(f) != 5 || f[2] == "" || f[3] == "" || f[4] != "aws4_request" {
+		return nil, errors.New("the presigned URL has no valid X-Amz-Credential")
+	}
+	region, service := f[2], f[3]
+	at, err := time.Parse("20060102T150405Z", query.Get("X-Amz-Date"))
+	if err != nil {
+		return nil, errors.New("the presigned URL has no valid X-Amz-Date")
+	}
+	payload := "UNSIGNED-PAYLOAD"
+	if service != "s3" {
+		if payload, err = hashBody(r); err != nil {
+			return nil, err
+		}
+	}
+	creds, err := s.awsCredentials(ctx, secret)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range presignFields {
+		query.Del(name)
+	}
+	r.URL.RawQuery = query.Encode()
+	return func(out *http.Request) error {
+		out.Header.Del("Authorization")
+		signed, _, err := v4.NewSigner().PresignHTTP(out.Context(), creds, out, payload, service, region, at)
+		if err != nil {
+			return err
+		}
+		u, err := url.Parse(signed)
+		if err != nil {
+			return err
+		}
+		out.URL.RawQuery = u.RawQuery
+		return nil
+	}, nil
+}
+
+func (s *Server) awsCredentials(ctx context.Context, secret string) (aws.Credentials, error) {
+	v, err := s.secrets.Get(ctx, secret)
+	if err != nil {
+		return aws.Credentials{}, err
+	}
+	creds, err := parseAWSCredentials(v.Reveal())
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("secret %q: %w", secret, err)
+	}
+	return creds, nil
 }
 
 func sigv4Scope(auth string) (region, service string, ok bool) {

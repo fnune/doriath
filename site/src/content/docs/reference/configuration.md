@@ -112,7 +112,9 @@ binaries = ["~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-sh
 allow = ["js.stripe.com"]
 
 # A host where the proxy terminates TLS, to add a credential and to apply
-# rules to each request.
+# rules to each request. host can be a pattern, such as *.example.com, and
+# only then narrows it to some hosts or patterns, for example the region of
+# a profile on a module's *.amazonaws.com.
 [[http]]
 host = "api.github.com"
 # scheme is bearer, token, basic with username, header with the name of

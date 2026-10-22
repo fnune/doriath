@@ -75,6 +75,7 @@ type httpLayer struct {
 	SSH            *sshLayer        `toml:"ssh"`
 	EncodedSlashes bool             `toml:"encoded_slashes"`
 	Operation      *operationLayer  `toml:"operation"`
+	Only           []string         `toml:"only"`
 	Rules          []ruleLayer      `toml:"rules"`
 }
 

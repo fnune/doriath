@@ -96,11 +96,10 @@ func TestARequestSignedWithPlaceholdersReachesAWSSignedWithTheRealKey(t *testing
 func TestRequestsThatCannotBeSignedAgainAreRefused(t *testing.T) {
 	h := newHarnessWith(t, awsProfile)
 	presigned, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc", nil)
-	chunked := signedAsInTheJail(t, http.MethodPut, "https://sts.us-east-1.amazonaws.com/upload", "")
-	chunked.Header.Set("X-Amz-Content-Sha256", "STREAMING-AWS4-HMAC-SHA256-PAYLOAD")
+	presignedSigV2, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?X-Amz-Algorithm=AWS-HMAC-SHA1", nil)
 	other, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/", nil)
 	other.Header.Set("Authorization", "Bearer something")
-	for name, req := range map[string]*http.Request{"presigned": presigned, "chunked": chunked, "another scheme": other} {
+	for name, req := range map[string]*http.Request{"presigned without a credential": presigned, "presigned with another algorithm": presignedSigV2, "another scheme": other} {
 		resp, err := h.client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -126,6 +125,31 @@ func TestAnUploadWithUnsignedChunksIsSignedAgain(t *testing.T) {
 		t.Errorf("Authorization = %q", got.Header.Get("Authorization"))
 	}
 }
+
+func TestAPresignedURLIsSignedAgainInItsQuery(t *testing.T) {
+	h := newHarnessWith(t, awsProfile)
+	req, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15&X-Amz-Expires=900", nil)
+	at := time.Now().Add(-time.Minute).UTC()
+	signed, _, err := v4.NewSigner().PresignHTTP(context.Background(), placeholder, req, emptyHash, "sts", "us-east-1", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get, _ := http.NewRequest(http.MethodGet, signed, nil)
+	resp, err := h.client().Do(get)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, text)
+	}
+	got, _ := h.upstream.last(t)
+	q := got.URL.Query()
+	if !strings.HasPrefix(q.Get("X-Amz-Credential"), "AKIAREALKEY/") || q.Get("X-Amz-Security-Token") != "real-session" || q.Get("X-Amz-Date") != at.Format("20060102T150405Z") || q.Get("X-Amz-Expires") != "900" || q.Get("Action") != "GetCallerIdentity" {
+		t.Errorf("query = %v", q)
+	}
+}
+
+const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 func TestSigV4Scope(t *testing.T) {
 	region, service, ok := sigv4Scope("AWS4-HMAC-SHA256 Credential=AKIA/20261022/eu-west-1/s3/aws4_request, SignedHeaders=host;x-amz-date, Signature=abc")

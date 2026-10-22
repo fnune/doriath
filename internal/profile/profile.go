@@ -282,6 +282,10 @@ type HTTPHost struct {
 	// with the encoded slash kept, so a segment such as group%2Fproj stays
 	// one segment for the rules as it does for the forge.
 	EncodedSlashes bool
+	// Only narrows a pattern such as *.amazonaws.com to these hosts or
+	// patterns. Another host that the pattern matches is not intercepted,
+	// and so not allowed.
+	Only []HostPattern
 	// Operation says where a request names its operation when the path does
 	// not, as on APIs that send every call to /. An approval then names the
 	// operation, and an allow for the session covers only that operation.
@@ -430,7 +434,7 @@ type Profile struct {
 // Intercepted returns the HTTP host entry that covers host, if any.
 func (p *Profile) Intercepted(host string) (HTTPHost, bool) {
 	for _, h := range p.HTTP {
-		if h.Host.Match(host) {
+		if h.Host.Match(host) && (len(h.Only) == 0 || matchAny(h.Only, host)) {
 			return h, true
 		}
 	}
@@ -679,6 +683,25 @@ func (p HostPattern) Match(host string) bool {
 		return false
 	}
 	return HostPattern(pattern).matchName(name)
+}
+
+// Covers reports whether every host that other matches, p matches too.
+func (p HostPattern) Covers(other HostPattern) bool {
+	name, port := SplitTarget(string(other))
+	if p == other {
+		return true
+	}
+	if suffix, ok := strings.CutPrefix(name, "*."); ok {
+		name = "covered." + suffix
+	}
+	return p.Match(profileTarget(name, port))
+}
+
+func profileTarget(name, port string) string {
+	if port == "" {
+		return name
+	}
+	return net.JoinHostPort(name, port)
 }
 
 func (p HostPattern) matchName(host string) bool {

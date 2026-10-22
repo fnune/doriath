@@ -226,3 +226,33 @@ func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 		}
 	}
 }
+
+func TestAProfileNarrowsTheAWSHostsToItsRegion(t *testing.T) {
+	body := "modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n\n[[http]]\nhost = \"*.amazonaws.com\"\nonly = [\"sts.us-west-2.amazonaws.com\", \"*.s3.us-west-2.amazonaws.com\"]\n"
+	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte(body)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for host, want := range map[string]bool{
+		"sts.us-west-2.amazonaws.com":             true,
+		"my-bucket.s3.us-west-2.amazonaws.com":    true,
+		"sts.us-east-1.amazonaws.com":             false,
+		"their-bucket.s3.eu-west-1.amazonaws.com": false,
+		"iam.amazonaws.com":                       true,
+	} {
+		h, ok := p.Intercepted(host)
+		if ok != want || ok && h.Credential.Scheme != profile.SchemeSigV4 {
+			t.Errorf("%s: intercepted %v, want %v", host, ok, want)
+		}
+		if p.AllowsHost(host) && !want {
+			t.Errorf("%s is allowed outside the profile's hosts", host)
+		}
+	}
+	for _, bad := range []string{"example.com", "*.com"} {
+		body := "[[http]]\nhost = \"*.amazonaws.com\"\nonly = [\"" + bad + "\"]\n"
+		if _, err := (&profile.Loader{Profiles: fstest.MapFS{"b.toml": {Data: []byte(body)}}, Home: "/home/u"}).Load("b"); err == nil {
+			t.Errorf("only %q outside the host must be refused", bad)
+		}
+	}
+}
