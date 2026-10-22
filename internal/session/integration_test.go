@@ -38,6 +38,9 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/vcstools"
+	gittool "github.com/fnune/doriath/internal/vcstools/git"
+	jjtool "github.com/fnune/doriath/internal/vcstools/jj"
 )
 
 var doriathBin string
@@ -250,6 +253,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		return ""
 	}
 	deps := session.Deps{
+		VCS:           []vcstools.Tool{gittool.New(nil), jjtool.New(e.home, func(string) string { return "" })},
 		Paths:         e.paths,
 		Secrets:       secret.NewConfigured(p.Secrets, nil, secret.OSFiles{}),
 		Notifier:      notify.None{},

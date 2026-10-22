@@ -40,3 +40,12 @@ func TestEditRulesThatCannotWork(t *testing.T) {
 		}
 	}
 }
+
+func TestSigningEitherAKeyOrUnsigned(t *testing.T) {
+	if p := mustLoad(t, "[signing]\nenable = false\n", nil); !p.Unsigned {
+		t.Error("enable = false is not unsigned")
+	}
+	if _, err := load(t, "[signing]\nkey = \"k\"\nenable = false\n\n[secrets.k]\nfile = \"/k\"\n", nil); err == nil || !strings.Contains(err.Error(), "not both") {
+		t.Errorf("err = %v", err)
+	}
+}

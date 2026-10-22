@@ -30,6 +30,9 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/term"
+	"github.com/fnune/doriath/internal/vcstools"
+	gittool "github.com/fnune/doriath/internal/vcstools/git"
+	jjtool "github.com/fnune/doriath/internal/vcstools/jj"
 	"golang.org/x/sys/unix"
 )
 
@@ -219,6 +222,7 @@ func cmdRun(args []string) (int, error) {
 		}
 	}
 	gitDesktop, _ := exec.Command("git", "config", "--global", "--includes", "--list", "-z").Output()
+	tools := []vcstools.Tool{gittool.New(gitDesktop), jjtool.New(p.Home, osKind)}
 
 	deps := session.Deps{
 		Paths:       p,
@@ -237,7 +241,7 @@ func cmdRun(args []string) (int, error) {
 		Stderr:      os.Stderr,
 		Bwrap:       bwrap,
 		Exe:         exe,
-		GitDesktop:  gitDesktop,
+		VCS:         tools,
 		Unshare:     lookPath("unshare"),
 		Nsenter:     lookPath("nsenter"),
 		Podman:      lookPath("podman"),
@@ -339,4 +343,15 @@ func hostWait(a config.Approvals, n approval.Notifier) time.Duration {
 		return 0
 	}
 	return a.DefaultHostWait()
+}
+
+func osKind(p string) string {
+	info, err := os.Stat(p)
+	switch {
+	case err != nil:
+		return ""
+	case info.IsDir():
+		return "dir"
+	}
+	return "file"
 }

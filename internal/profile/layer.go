@@ -109,7 +109,8 @@ type graphQLLayer struct {
 }
 
 type signingLayer struct {
-	Key string `toml:"key"`
+	Key    string `toml:"key"`
+	Enable *bool  `toml:"enable"`
 }
 
 type limitsLayer struct {

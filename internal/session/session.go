@@ -41,6 +41,7 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/sshagent"
 	"github.com/fnune/doriath/internal/term"
+	"github.com/fnune/doriath/internal/vcstools"
 )
 
 const (
@@ -79,9 +80,8 @@ type Deps struct {
 	Bwrap string
 	// Exe is doriath's own binary, which runs as init inside the jail.
 	Exe string
-	// GitDesktop is the desktop's global git config as git config --list -z
-	// prints it.
-	GitDesktop []byte
+	// VCS are the version control tools the jail configures.
+	VCS []vcstools.Tool
 	// Unshare and Nsenter are util-linux tools for the podman service and
 	// for joining its network namespace. Podman is the podman binary.
 	Unshare string
@@ -153,6 +153,7 @@ type Session struct {
 
 	mu       sync.Mutex
 	listings *listingCache
+	vcsEnv   map[string]string
 	titled   bool
 }
 
@@ -169,6 +170,9 @@ func New(deps Deps, req Request) (*Session, error) {
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
 	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Paths.State)
 	stopNote()
+	if err := checkSigning(req.Profile, deps.VCS); err != nil {
+		return nil, err
+	}
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
@@ -292,7 +296,7 @@ func (s *Session) prepare(ctx context.Context) error {
 			return err
 		}
 	}
-	if err := s.writeGitFiles(); err != nil {
+	if err := s.writeVCSFiles(); err != nil {
 		return err
 	}
 	if err := s.writeMCPConfig(); err != nil {
@@ -479,22 +483,40 @@ func (s *Session) startSigning(context.Context) error {
 	return nil
 }
 
-func (s *Session) writeGitFiles() error {
+func (s *Session) writeVCSFiles() error {
 	p := s.req.Profile
-	signing := ""
+	j := vcstools.Jail{Path: jail.InJail}
 	if p.SigningKey != "" {
-		signing = jail.InJail("signing.pub")
+		j.SigningKey = jail.InJail("signing.pub")
 	}
-	var rewrite []SSHRewrite
 	for _, h := range p.HTTP {
 		if h.SSH != nil {
-			rewrite = append(rewrite, SSHRewrite{Host: string(h.Host), User: h.SSH.User, Port: h.SSH.Port})
+			j.RewriteSSH = append(j.RewriteSSH, vcstools.SSHRewrite{Host: string(h.Host), User: h.SSH.User, Port: h.SSH.Port})
 		}
 	}
-	if err := writeFile(s.jailPath("gitconfig"), GitConfig(GitOptions{SigningKey: signing, RewriteSSH: rewrite, Desktop: s.deps.GitDesktop}), 0o644); err != nil {
-		return err
+	s.vcsEnv = map[string]string{}
+	for _, t := range s.deps.VCS {
+		c := t.Jail(j)
+		for name, data := range c.Files {
+			if err := writeFile(s.jailPath(name), data, 0o644); err != nil {
+				return err
+			}
+		}
+		maps.Copy(s.vcsEnv, c.Env)
 	}
-	return writeFile(s.jailPath("jj.toml"), JJConfig(signing), 0o644)
+	return nil
+}
+
+func checkSigning(p *profile.Profile, tools []vcstools.Tool) error {
+	if p.SigningKey != "" || p.Unsigned {
+		return nil
+	}
+	for _, t := range tools {
+		if setting := t.HostSigns(); setting != "" {
+			return fmt.Errorf("profile %s: your %s signs commits (%s), but the profile has no signing key, so commits in the jail would fail. Add [signing] with a key for this profile, or set [signing] enable = false to commit unsigned", p.Name, t.Name(), setting)
+		}
+	}
+	return nil
 }
 
 func (s *Session) writeInfo() error {
@@ -536,11 +558,10 @@ func (s *Session) plan() (jail.Spec, error) {
 		"REQUESTS_CA_BUNDLE":  jail.InJail("ca-bundle.pem"),
 		"NODE_EXTRA_CA_CERTS": jail.InJail("ca-bundle.pem"),
 		"JAVA_TOOL_OPTIONS":   javaToolOptions(p.Env.Set["JAVA_TOOL_OPTIONS"]),
-		"GIT_CONFIG_GLOBAL":   jail.InJail("gitconfig"),
-		"JJ_CONFIG":           JJConfigPath(home, osHost{}.Kind, jail.InJail("jj.toml")),
 		"DORIATH_SESSION":     s.id,
 		"DORIATH_BROKER":      jail.InJail(BrokerSocket),
 	}
+	maps.Copy(env, s.vcsEnv)
 	if p.SigningKey != "" {
 		env["SSH_AUTH_SOCK"] = jail.InJail(AgentSocket)
 	}

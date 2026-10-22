@@ -179,7 +179,9 @@ deny = ["notion-delete-*"]
 command = ["rbw", "get", "notion-mcp"]
 
 # An SSH key for the agent only, named as a secret.
-# It signs git commits and refuses SSH logins.
+# It signs git and jj commits and refuses SSH logins. If your own git or jj
+# config signs commits, a profile without a key does not start: give it a
+# key, or set enable = false in place of key to commit unsigned.
 [signing]
 key = "agent-signing"
 

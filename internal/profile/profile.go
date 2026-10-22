@@ -344,7 +344,10 @@ type Profile struct {
 	Egress     Egress
 	HTTP       []HTTPHost
 	SigningKey string
-	Podman     bool
+	// Unsigned says that the profile commits unsigned on purpose, even when
+	// your own config signs.
+	Unsigned bool
+	Podman   bool
 	// ContainerImages limits which images containers may use, as globs over
 	// full references such as docker.io/library/*, or "*" for any image.
 	// Empty allows none.

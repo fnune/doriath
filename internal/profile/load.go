@@ -229,6 +229,7 @@ type builder struct {
 	tcp      []int
 	http     []httpLayer
 	signing  string
+	unsigned bool
 	podman   bool
 	images   []string
 	nix      bool
@@ -301,7 +302,12 @@ func (b *builder) apply(l layer) {
 		b.mergeHTTP(h)
 	}
 	if l.Signing != nil {
-		b.signing = l.Signing.Key
+		if l.Signing.Key != "" {
+			b.signing = l.Signing.Key
+		}
+		if l.Signing.Enable != nil {
+			b.unsigned = !*l.Signing.Enable
+		}
 	}
 	if l.Podman != nil && l.Podman.Enabled != nil {
 		b.podman = *l.Podman.Enabled
@@ -641,6 +647,10 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		p.Secrets[name] = backend
 	}
+	if b.unsigned && b.signing != "" {
+		errs = append(errs, fmt.Errorf("signing: set key to sign commits, or enable = false to commit unsigned, not both"))
+	}
+	p.Unsigned = b.unsigned
 	if b.signing != "" {
 		if _, ok := p.Secrets[b.signing]; !ok {
 			errs = append(errs, fmt.Errorf("signing key %q: add it under [secrets.%s] in the profile", b.signing, b.signing))
