@@ -2,8 +2,11 @@
 # first. The Chrome bridge host is not allowed, so claude-in-chrome stays off
 # unless a profile adds it.
 
+# Telemetry, error reports, feedback and updates are off one by one.
+# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC would also stop the feature-flag
+# fetch that Remote Control needs.
 [env]
-set = { DISABLE_AUTOUPDATER = "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1" }
+set = { DISABLE_AUTOUPDATER = "1", DISABLE_TELEMETRY = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com"]

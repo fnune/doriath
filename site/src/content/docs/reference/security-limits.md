@@ -62,5 +62,6 @@ Restarting the session for each writable path would lose the agent's work.
 - The `nix-daemon` module's builds run outside the jail, without the allowlist.
 - A secret given as a command runs on the host with your environment, which trusts whoever wrote the profile.
 - OAuth logins keep refresh tokens in doriath's state directory, readable by your user outside the jail, as your other logins are.
+- Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session from the web or the app, and answer Claude's own permission prompts there. The jail and the proxy's rules still apply to what the agent then does.
 - Approvals rely on you. Tool requests carry text the agent wrote, and the notification says so; many requests in a row invite clicking allow. doriath refuses new ones while 32 are waiting, and shows the agent's other notifications 10 at once, then one a minute.
 - Sessions get task and memory limits but no CPU quota by default; `[limits] cpu` sets one.
