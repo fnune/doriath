@@ -1,0 +1,32 @@
+---
+title: Agents
+description: How doriath supports a coding agent, and what an agent gets with and without an adapter.
+---
+
+doriath runs any command in a jail, so it runs any coding agent. Two parts decide how well an agent fits in the jail: a module, which is data, and an adapter, which is code in doriath.
+
+## Modules
+
+An agent's module says what the agent needs, in the same keys as any other module. It mounts the agent's config, gives the agent a state folder of the profile's own, and allows the hosts of the agent's provider. The [`claude` module](/reference/modules/#claude) is an example. To use an agent, a profile lists its module next to the modules of the project's tools.
+
+An agent without a built-in module works with a module of your own in `~/.config/doriath/modules/`. Start from the files of the agent: where it keeps config, state and logins, and which hosts it calls. Put the state folder under `[[caches]]`, so that each profile gets its own copy. Put the config files that the agent only reads under `[[mounts]]`.
+
+## Adapters
+
+Some things cannot be data. An adapter is code in doriath that does them for one agent:
+
+| What                       | With an adapter                                           | Without an adapter                                         |
+| -------------------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
+| Permission prompts         | Go to doriath's [approval queue](/guides/approvals/).     | Stay in the agent, in its own terminal.                    |
+| Permission rules           | Are frozen for the session. The agent cannot loosen them. | Are the agent's own, and the agent can change them.        |
+| The session text           | Reaches the agent at the start of the session.            | The agent learns of the jail from the errors of the proxy. |
+| MCP servers from `[[mcp]]` | Reach the agent in its own format.                        | Do not reach the agent.                                    |
+| Transcripts                | Come back to your own config when the session ends.       | Stay in the profile's state folder.                        |
+
+doriath uses an adapter only when the profile lists the agent's module. If you run the agent without its module, doriath warns you and runs the command as it is.
+
+Claude Code has an adapter. See [Claude Code](/agents/claude-code/).
+
+## Without an adapter
+
+An agent without an adapter still works in a jail. Tell it one thing in its instructions: "When something is blocked, run `doriath status`." `doriath status` shows what the jail allows, what it blocked, and how to ask for a host or a path. The errors of the proxy also say what was blocked and what to run.

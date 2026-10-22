@@ -52,6 +52,12 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - doriath teaches every agent the same way: the `doriath status` text, built from the live session, and errors that say what was blocked and what to run. The text goes where the agent reads instructions, never into the repository's AGENTS.md.
 - A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach doriath's approval queue, its own permission rules cannot be loosened mid-session, the session text and the MCP servers reach it through its own channel, a new profile starts with your onboarding choices (an allowlist of keys, never accounts or servers), and its transcripts come back to your own config when the session ends.
 - An agent without an adapter still works in a jail with a one-line instruction: "When something is blocked, run `doriath status`."
+- An adapter has the name of its agent's module, and runs only for a profile that lists that module. Generic code never names an agent: the direnv shim, the protected paths and the hook command take the agent from the profile's modules.
+
+### Supporting forges
+
+- A forge is a module: its hosts, the credential the proxy adds for its programs, and the request rules that hold merges, releases and pushes or refuse changes to webhooks, secrets and deploy keys. GitHub is the `github` module.
+- Proxy code knows HTTP, git's smart HTTP protocol and the generic matchers, not one forge's API. What differs between forges, such as how a path names a repository, belongs in the forge's module.
 
 ### Strict typing and validated boundaries
 

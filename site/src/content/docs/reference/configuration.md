@@ -283,5 +283,5 @@ host_wait = "2m"
 | `~/.local/state/doriath/oauth/`           | OAuth logins per profile, with their refresh tokens                                                  |
 | `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                      |
 | `~/.local/state/doriath/backups/`         | Branches each session started with, and object hardlinks until it ends                               |
-| `~/.cache/doriath/agents/<profile>/`      | The profile's caches, `/tmp`, Claude state and container storage                                     |
+| `~/.cache/doriath/agents/<profile>/`      | The profile's caches, `/tmp`, agent state and container storage                                      |
 | `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                     |

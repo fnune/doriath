@@ -83,42 +83,20 @@ doriath needs Linux with unprivileged user namespaces. For the [`podman` module]
 
 To try doriath without installing it, `nix run github:fnune/doriath -- doctor` runs the same check.
 
-## Create credentials for the agent
-
-Give the agent credentials of its own. doriath adds them to requests outside the jail, so the agent never reads them.
-
-For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories the agent works on, with an expiry, and read and write on Contents, Pull requests, Actions and Commit statuses.
-
-Signing needs an SSH key of the agent's own, added to GitHub as a signing key. The commits it signs stay authored by you and show as verified:
-
-```sh
-install -d -m 700 ~/.config/doriath/keys
-ssh-keygen -t ed25519 -N '' -C 'doriath agent signing' -f ~/.config/doriath/keys/agent-signing
-cat ~/.config/doriath/keys/agent-signing.pub
-```
-
 ## Write a profile
 
-A profile says what one kind of work can reach. Save this as `~/.config/doriath/profiles/my-app.toml`:
+A profile describes one kind of work. It says what the agent can read and write, which hosts it can reach, and which credentials the proxy adds for it. One profile usually serves one project, or a group of projects with the same tools. Each profile is a TOML file in `~/.config/doriath/profiles/`.
+
+A profile lists [modules](/reference/modules/). Each module holds the hosts, caches and rules of one tool, so the profile itself stays short. Save this as `~/.config/doriath/profiles/my-app.toml`:
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
-modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
-
-# A file (mode 600) or a command such as rbw, sops or secret-tool.
-[secrets.github]
-command = ["rbw", "get", "github-my-app"]
-
-[secrets.agent-signing]
-file = "~/.config/doriath/keys/agent-signing"
-
-[signing]
-key = "agent-signing"
+modules = ["base", "vcs", "docs", "go", "node", "claude"]
 ```
 
-Each `[secrets.NAME]` table says where one secret comes from, and the name is how the rest of the configuration refers to it. `github` is the name the `github` module asks for: its `[[http]]` entries carry `credential = { secret = "github", ... }`, so the proxy adds that token to requests from `gh` and `git`. `agent-signing` is a name of your own choosing, used only because `[signing] key` names it; call it anything, as long as both match. doriath reads each one on the host once per session, and none of them enters the jail.
+This profile builds with Go and Node, commits with git, reads documentation sites and runs Claude Code. `claude` is the module of the agent. For another agent, use its module instead, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
 
-`doriath profiles show my-app` checks it. The repository you start in is read-only in the jail, and by default the agent commits in worktrees under `.claude/worktrees`. To keep them where yours are, such as `~/Development/.worktrees/my-app`, add that directory with `mode = "write"`:
+The repository that you start in is read-only in the jail, and the agent commits in worktrees of its own. The `claude` module puts these worktrees in `.claude/worktrees` in the repository. To keep them in another folder, such as `~/Development/.worktrees/my-app`, add the folder with `mode = "write"`:
 
 ```toml
 [[mounts]]
@@ -126,14 +104,48 @@ path = "~/Development/.worktrees/my-app"
 mode = "write"
 ```
 
-A first build usually needs hosts the modules do not name. In learning mode every public host is reachable for one session, and doriath prints the `[egress]` lines to add once it ends:
+## Create credentials for the profile
+
+Make new credentials for each profile, as you make a new password for each site. Then the token of one profile cannot reach the repositories of another profile, and you can revoke one token with no effect on the other profiles. doriath adds the credentials to requests outside the jail, so the agent never reads them.
+
+For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile only. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Keep it in your password manager under a name for the profile, such as `github-my-app`.
+
+For commit signing, create an SSH key for the profile and add it to GitHub as a signing key. The commits that the agent signs stay authored by you and show as verified:
+
+```sh
+install -d -m 700 ~/.config/doriath/keys
+ssh-keygen -t ed25519 -N '' -C 'doriath my-app signing' -f ~/.config/doriath/keys/my-app-signing
+cat ~/.config/doriath/keys/my-app-signing.pub
+```
+
+Then add the `github` module to the profile, so that the agent can push and open pull requests, and say where each credential is:
+
+```toml title="~/.config/doriath/profiles/my-app.toml"
+description = "My app"
+modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+
+[secrets.signing]
+file = "~/.config/doriath/keys/my-app-signing"
+
+[signing]
+key = "signing"
+```
+
+Each `[secrets.NAME]` table gives the source of one secret: a file with mode 600, or a command such as `rbw`, `sops` or `secret-tool` that prints it. The name is how the rest of the configuration refers to the secret. The `github` module asks for a secret named `github`, so that name is fixed. You choose the name of the signing secret, and `[signing] key` must use the same name. doriath reads each secret on the host once per session, and no secret enters the jail. [Secrets](/reference/configuration/#secrets) has the details.
+
+## Find the hosts of a build
+
+A first build usually needs hosts that the modules do not name. In learning mode, every public host is reachable for one session. When the session ends, doriath prints the `[egress]` lines to add to the profile:
 
 ```sh
 doriath run --profile my-app --learn -- make build
 ```
 
 <Aside type="caution">
-  Learning mode reaches every public host. Keep it for builds you start
+  Learning mode reaches every public host. Use it only for builds that you start
   yourself, and never give it to an agent.
 </Aside>
 
@@ -144,6 +156,6 @@ cd ~/Development/my-app
 doriath run --profile my-app -- claude
 ```
 
-Held requests show as desktop notifications. Without a desktop, `doriath approvals web --open` opens a page in your browser, and `doriath approvals watch` asks in another terminal; [answering requests](/guides/approvals/) has the details.
+For another agent, use its command instead of `claude`. Held requests show as desktop notifications. Without a desktop, `doriath approvals web --open` opens a page in your browser, and `doriath approvals watch` asks in another terminal. [Answering requests](/guides/approvals/) has the details.
 
-A plain `claude` still runs outside the jail. An alias such as `alias claude-app='doriath run --profile my-app -- claude'` works, and so does a line in the project's `.envrc`, described in [projects with direnv](/guides/direnv/).
+A plain `claude` still runs outside the jail. An alias such as `alias claude-app='doriath run --profile my-app -- claude'` starts it in the jail. A line in the `.envrc` of the project does the same for the whole project, as [projects with direnv](/guides/direnv/) describes.

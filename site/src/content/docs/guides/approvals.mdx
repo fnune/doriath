@@ -6,7 +6,7 @@ description: Desktop notifications, the approvals page, the terminal, and remote
 import { Aside } from "@astrojs/starlight/components";
 import RequestExample from "../../../components/RequestExample.astro";
 
-A request waits for you when an [`[[http]]` rule](/reference/configuration/#profile-keys) holds it, when the agent reaches a host the profile does not name, when it [asks to write a path](#writable-paths), or when [Claude Code](/guides/claude-code/) raises a permission prompt. All of them land in one queue, and any of the places below can answer.
+A request waits for you when an [`[[http]]` rule](/reference/configuration/#profile-keys) holds it, when the agent reaches a host the profile does not name, when it [asks to write a path](#writable-paths), or when an agent with an [adapter](/agents/#adapters), such as Claude Code, raises a permission prompt. All of them land in one queue, and any of the places below can answer.
 
 ## Reading a request
 
@@ -31,11 +31,11 @@ doriath writes the summary and the scope. Anything the agent wrote, such as a co
 
 The timer counts down the agent's wait. Once it runs out, the request is parked: the agent has an error and has moved on, and an allow still lets its next try through. Parked requests stay answerable until the session ends. How long the agent waits depends on the kind of request:
 
-| Kind                                 | The agent waits                                            | Set by                                                                    |
-| ------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `host`, `path`                       | 2 minutes with desktop notifications, no time without them | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) |
-| `http`, and image pushes from podman | 10 minutes                                                 | fixed                                                                     |
-| `tool`, from Claude Code             | 60 seconds, then Claude shows its own prompt               | `approval_timeout` under [`[claude]`](/guides/claude-code/)               |
+| Kind                                 | The agent waits                                                                   | Set by                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `host`, `path`                       | 2 minutes with desktop notifications, no time without them                        | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys)    |
+| `http`, and image pushes from podman | 10 minutes                                                                        | fixed                                                                        |
+| `tool`, from an agent's adapter      | Set by the adapter. For Claude Code, 60 seconds, then Claude shows its own prompt | For Claude Code, `approval_timeout` under [`[claude]`](/agents/claude-code/) |
 
 ## Answers
 

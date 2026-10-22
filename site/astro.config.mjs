@@ -62,8 +62,14 @@ export default defineConfig({
             { label: "Answering requests", slug: "guides/approvals" },
             { label: "home-manager", slug: "guides/home-manager" },
             { label: "Projects with direnv", slug: "guides/direnv" },
-            { label: "Claude Code", slug: "guides/claude-code" },
             { label: "Looking inside a session", slug: "guides/inside-a-session" },
+          ],
+        },
+        {
+          label: "Agents",
+          items: [
+            { label: "Overview", slug: "agents" },
+            { label: "Claude Code", slug: "agents/claude-code" },
           ],
         },
         {

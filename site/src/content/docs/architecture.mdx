@@ -38,7 +38,7 @@ Commit signing goes through an SSH agent outside the jail, holding a key meant f
 
 ## Approvals
 
-Requests wait for you in four cases: an `[[http]]` rule holds them (merges, releases and pushes, say), the host is one the profile does not name, the agent ran `doriath request write` for a path, or Claude Code raised a permission prompt. doriath holds each one while you decide, so an allow lets the first try through, and no allow outlives the session. [Answering requests](/guides/approvals/) covers how long each kind waits and where you answer.
+Requests wait for you in four cases: an `[[http]]` rule holds them (merges, releases and pushes, say), the host is one the profile does not name, the agent ran `doriath request write` for a path, or an agent with an [adapter](/agents/#adapters), such as Claude Code, raised a permission prompt. doriath holds each one while you decide, so an allow lets the first try through, and no allow outlives the session. [Answering requests](/guides/approvals/) covers how long each kind waits and where you answer.
 
 Answers come only from your desktop session, your terminal or the approvals page. The jail reaches none of them, so the agent cannot approve its own requests.
 
