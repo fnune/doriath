@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/vcs"
 )
 
@@ -136,12 +137,28 @@ func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
 	jjRun("bookmark", "create", "main", "-r", "@")
 	jjRun("new")
 
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n\n[vcs]\nstore = true\n", repo))
+	p := e.profile(fmt.Sprintf(`
+[[mounts]]
+path = %q
+mode = "read"
+
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = ["extensions.relativeworktrees = true", "core.repositoryformatversion = 1"] }
+
+[vcs]
+store = true
+`, repo))
 	code, out := e.run(p, fmt.Sprintf(`
 set -u
 J="%[1]s --config user.name=a --config user.email=a@b"
 R=%[2]s
 $J --repository $R log -r 'all()' --no-graph -T 'description' >/dev/null || echo "FAIL log in the read-only checkout"
+$J --repository $R workspace add /tmp/ws 2>/dev/null && echo "FAIL workspace add without the setting"
+cp $R/.git/config /tmp/c
+git config --file /tmp/c core.repositoryformatversion 1
+git config --file /tmp/c extensions.relativeWorktrees true
+/run/doriath-bin/doriath request edit $R/.git/config < /tmp/c || echo "FAIL request edit"
 $J --repository $R workspace add /tmp/ws || echo "FAIL workspace add"
 cd /tmp/ws && echo x > f && $J describe -m agent && $J new && $J bookmark create agent -r @- || echo "FAIL commit in the workspace"
 echo x >> $R/.jj/repo/store/git_target 2>/dev/null && echo "FAIL git_target writable"
@@ -263,5 +280,56 @@ echo done
 `, jj), nil)
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
 		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
+
+func TestRequestEditChangesSafeSettingsAndAsksForTheRest(t *testing.T) {
+	e := newEnv(t)
+	repo := filepath.Join(e.home, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "first")
+	git(t, repo, "remote", "add", "origin", "https://example.com/repo.git")
+	p := e.profile(fmt.Sprintf(`
+[[mounts]]
+path = %q
+mode = "read"
+
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = ["branch.*.remote = *", "branch.*.merge = refs/heads/**"] }
+
+[vcs]
+store = true
+`, repo))
+	var asked approval.Request
+	code, out := e.run(p, fmt.Sprintf(`
+R=%[1]s
+git -C $R config branch.main.remote origin 2>/dev/null && echo "FAIL config writable"
+cp $R/.git/config /tmp/c
+git config --file /tmp/c branch.main.remote origin
+git config --file /tmp/c branch.main.merge refs/heads/main
+/run/doriath-bin/doriath request edit $R/.git/config < /tmp/c || echo "FAIL safe edit"
+[ "$(git -C $R config branch.main.merge)" = refs/heads/main ] || echo "FAIL the jail sees the old config"
+git config --file /tmp/c core.fsmonitor /tmp/evil
+/run/doriath-bin/doriath request edit $R/.git/config --reason "watch files" < /tmp/c && echo "FAIL unsafe edit applied"
+echo done
+`, repo), func() {
+		asked = e.decideNext(approval.Decision{Verdict: approval.VerdictDeny, By: "test"})
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if got := git(t, repo, "config", "branch.main.merge"); got != "refs/heads/main" {
+		t.Errorf("branch.main.merge = %q\n%s", got, out)
+	}
+	cmd := exec.Command("git", "-C", repo, "config", "core.fsmonitor")
+	if v, err := cmd.Output(); err == nil {
+		t.Errorf("core.fsmonitor = %q after a denial", v)
+	}
+	if asked.Kind != approval.KindEdit || !strings.Contains(asked.Details, "core.fsmonitor = /tmp/evil  (not on the safe list)") || strings.Contains(asked.Details, "branch.main") {
+		t.Errorf("request = %+v", asked)
 	}
 }

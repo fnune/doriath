@@ -23,6 +23,9 @@ const (
 	// lasts for the session: a write has no natural "once", and keeping it
 	// is an edit to the profile.
 	KindPath Kind = "path"
+	// KindEdit asks to change a file that is read-only in the jail. doriath
+	// writes the change once.
+	KindEdit Kind = "edit"
 )
 
 // AllowsOnce says whether an allow can cover one request only. A host or a

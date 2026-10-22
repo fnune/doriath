@@ -182,6 +182,14 @@ doriath request write PATH [--reason TEXT]
 
 Asks you to make a path writable.
 
+### `doriath request edit`
+
+```txt frame="none"
+doriath request edit PATH [--reason TEXT] < NEW_CONTENT
+```
+
+Asks you to change a read-only file to the new content, and writes the change once. Changes that the profile marks as safe need no answer. See [edits](/reference/configuration/#edits).
+
 ### `doriath request wait`
 
 ```txt frame="none"

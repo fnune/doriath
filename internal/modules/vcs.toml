@@ -8,3 +8,15 @@
 
 [vcs]
 store = true
+
+# doriath request edit changes .git/config for the agent. These settings
+# change without asking: upstream tracking, as git push -u records it, and
+# the extension jj needs for a workspace. Any other change waits for you.
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = [
+  "branch.*.remote = *",
+  "branch.*.merge = refs/heads/**",
+  "extensions.relativeworktrees = true",
+  "core.repositoryformatversion = 1",
+] }

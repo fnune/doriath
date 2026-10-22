@@ -70,6 +70,12 @@ mode = "write"
 path = "{repository}/.env"
 mode = "hide"
 
+# How doriath request edit changes a read-only file. A text edit always
+# waits for you. See "Edits".
+[[mounts]]
+path = "{repository}/.envrc"
+edit = { format = "text" }
+
 # Writable paths in a directory of the profile.
 # Nothing outside the jail reads them.
 [[caches]]
@@ -268,6 +274,32 @@ Entries combine by least privilege:
 doriath refuses to start if a mount, or a guarded path in a repository, goes through a symlink in a directory that the jail can write. An agent can put such a link there in an earlier session. Other symlinks, such as `~/.nix-profile`, mount their target.
 
 doriath also refuses `/`, the home directory and the directories above it, in all modes. It refuses writable mounts under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, because programs there get credentials by name.
+
+## Edits
+
+The agent can ask to change one file that is read-only in the jail, such as `.git/config` when git or jj cannot write it. It writes the whole new content to a file, and runs `doriath request edit PATH --reason TEXT < FILE`. doriath compares the new content with the file, shows you what changes, and writes it once if you allow it. The file stays read-only in the jail before and after.
+
+An `edit` table on a read-only mount says how doriath compares the file:
+
+- `format = "git-config"` compares settings as git reads them, without following includes. Comments and layout are no change, and doriath writes only the changed settings, never the agent's file.
+- `format = "text"` compares the whole file, and shows you a line diff.
+
+`safe` lists the settings that change without asking you, as `KEY = VALUE`. In a key, `*` matches anything. In a value, `*` matches anything but `/` and `:`, and `**` matches anything. Any other change waits for your answer, with the settings that are not on the list marked.
+
+`{git}` stands for every git directory that doriath guards, submodules included. A mount of `{git}/config` gives only an edit rule, since doriath already keeps the file read-only. The [`vcs` module](/reference/modules/#vcs) sets one:
+
+```toml
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = [
+  "branch.*.remote = *",
+  "branch.*.merge = refs/heads/**",
+  "extensions.relativeworktrees = true",
+  "core.repositoryformatversion = 1",
+] }
+```
+
+Upstream tracking, as `git push -u` records it, and the setting that jj needs for a workspace then change at once. A setting that names a program, such as `core.fsmonitor`, or a remote's URL, waits for you. A read-only file without an `edit` table changes as text, and also waits for you.
 
 ## Repositories
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/edit"
 	"github.com/fnune/doriath/internal/session"
 )
 
@@ -35,9 +36,11 @@ func cmdRequest(args []string, w io.Writer) error {
 			return fmt.Errorf("request: %w", err)
 		}
 		return reportDecision(w, d, args[1]+" is allowed.")
+	case len(args) >= 2 && args[0] == "edit":
+		return requestEdit(ctx, broker, args[1:], os.Stdin, w)
 	case len(args) >= 2 && args[0] == "write":
 	default:
-		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request wait ID|HOST|PATH")
+		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request edit PATH [--reason TEXT] < NEW_CONTENT | doriath request wait ID|HOST|PATH")
 	}
 	flags := flag.NewFlagSet("request write", flag.ContinueOnError)
 	reason := flags.String("reason", "", "why the agent needs to write there, shown to you")
@@ -56,6 +59,37 @@ func cmdRequest(args []string, w io.Writer) error {
 		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: doriath request wait %s", res.Pending, res.Pending)
 	}
 	return reportDecision(w, res.Decision, path+" is writable now.")
+}
+
+func requestEdit(ctx context.Context, broker string, args []string, in io.Reader, w io.Writer) error {
+	flags := flag.NewFlagSet("request edit", flag.ContinueOnError)
+	reason := flags.String("reason", "", "why the agent needs the change, shown to you")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	path, err := filepath.Abs(args[0])
+	if err != nil {
+		return err
+	}
+	content, err := io.ReadAll(io.LimitReader(in, edit.MaxSize+1))
+	if err != nil {
+		return err
+	}
+	if len(content) > edit.MaxSize {
+		return fmt.Errorf("request edit: the new content is larger than %d bytes", edit.MaxSize)
+	}
+	var res session.RequestEditResult
+	if err := control.Call(ctx, broker, session.MethodRequestEdit, session.RequestEditParams{Path: path, Content: string(content), Reason: *reason}, &res); err != nil {
+		return fmt.Errorf("request: %w", err)
+	}
+	if res.Pending != "" {
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: doriath request wait %s, then run doriath request edit again", res.Pending, res.Pending)
+	}
+	if res.Changes == "" {
+		fmt.Fprintf(w, "%s already has that content.\n", path)
+		return nil
+	}
+	return reportDecision(w, res.Decision, "Changed "+path+":\n"+strings.TrimSuffix(res.Changes, "\n"))
 }
 
 // waitParams reads what a request names: a path when it has a slash or

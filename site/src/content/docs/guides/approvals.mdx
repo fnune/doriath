@@ -100,4 +100,6 @@ Open the printed link in your local browser within a minute. If you use another 
 
 To ask for a writable path from inside the jail, run `doriath request write PATH --reason TEXT`. To wait for your answer, run `doriath request wait ID`. The agent can ask only for paths that it sees. doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
 
+To change one read-only file instead, such as `.git/config`, the agent runs `doriath request edit PATH --reason TEXT` with the new content as input. The request shows what changes, and doriath writes it once. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
+
 On the host, `doriath approvals grant PATH` makes a path writable in the running session. It can also attach a directory that the jail does not see yet.

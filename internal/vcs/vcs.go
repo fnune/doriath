@@ -182,18 +182,6 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 	if !hasJJ(repo) {
 		return nil, nil
 	}
-	var notes []string
-	if colocated(repo) {
-		git := filepath.Join(repo, ".git")
-		if on, _ := runStore(ctx, t, git, "config", "--bool", "extensions.relativeWorktrees"); strings.TrimSpace(on) != "true" {
-			for _, kv := range [][2]string{{"core.repositoryformatversion", "1"}, {"extensions.relativeWorktrees", "true"}} {
-				if _, err := runStore(ctx, t, git, "config", kv[0], kv[1]); err != nil {
-					return nil, err
-				}
-			}
-			notes = append(notes, fmt.Sprintf("doriath turned on git's relativeWorktrees extension in %s, as jj does on its first workspace, because the jail cannot write .git/config", repo))
-		}
-	}
 	for _, name := range jjLocks {
 		f, err := os.OpenFile(filepath.Join(repo, ".jj", "repo", name), os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
@@ -203,7 +191,7 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 			return nil, err
 		}
 	}
-	return notes, nil
+	return nil, nil
 }
 
 // Start records the branches, bookmarks and worktrees of each repository,

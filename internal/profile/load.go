@@ -473,6 +473,12 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Sources:         b.sources,
 	}
 	for _, m := range b.mounts {
+		if name, ok := strings.CutPrefix(m.Path, GitDir+"/"); ok {
+			if err := addGitEdit(p, name, m); err != nil {
+				errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
+			}
+			continue
+		}
 		path, placeholder := placeholderPath(m.Path)
 		if !placeholder {
 			var err error
@@ -497,7 +503,12 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
-		p.Mounts = mergeKeepingLessAccess(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
+		e, err := buildEdit(m.Edit, mode)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
+			continue
+		}
+		p.Mounts = mergeKeepingLessAccess(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Edit: e})
 	}
 	for _, img := range b.images {
 		if err := imagePattern(img); err != nil {
@@ -989,4 +1000,62 @@ func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 func validGlob(g string) bool {
 	_, err := path.Match(g, "")
 	return g != "" && err == nil
+}
+
+// GitDir stands for every git directory doriath guards, submodules' stores
+// included, in a mount that only gives one of their files an edit rule.
+const GitDir = "{git}"
+
+var gitEditable = []string{"config"}
+
+func addGitEdit(p *Profile, name string, m mountLayer) error {
+	if !slices.Contains(gitEditable, name) {
+		return fmt.Errorf("%s/ names only %s, which doriath already keeps read-only", GitDir, strings.Join(gitEditable, ", "))
+	}
+	if m.Edit == nil {
+		return errors.New("a mount of a git directory's file sets only its edit rule; add edit")
+	}
+	if m.Mode != "" && m.Mode != string(ModeRead) {
+		return errors.New("doriath keeps it read-only; leave mode out")
+	}
+	e, err := buildEdit(m.Edit, ModeRead)
+	if err != nil {
+		return err
+	}
+	if p.GitEdits == nil {
+		p.GitEdits = map[string]*Edit{}
+	}
+	if old := p.GitEdits[name]; old != nil {
+		e.Safe = append(old.Safe, e.Safe...)
+	}
+	p.GitEdits[name] = e
+	return nil
+}
+
+func buildEdit(l *editLayer, mode Mode) (*Edit, error) {
+	if l == nil {
+		return nil, nil
+	}
+	if mode != ModeRead {
+		return nil, errors.New("edit is for read-only files; a writable file needs no request")
+	}
+	e := &Edit{Format: EditFormat(l.Format)}
+	switch e.Format {
+	case FormatGitConfig:
+	case FormatText:
+		if len(l.Safe) > 0 {
+			return nil, errors.New("safe needs a format with settings, such as git-config: a text file has none")
+		}
+	default:
+		return nil, fmt.Errorf("edit format %q: want git-config or text", l.Format)
+	}
+	for _, s := range l.Safe {
+		key, value, ok := strings.Cut(s, " = ")
+		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+		if !ok || key == "" || value == "" {
+			return nil, fmt.Errorf("edit safe %q: want KEY = VALUE, such as \"branch.*.merge = refs/heads/**\"", s)
+		}
+		e.Safe = append(e.Safe, SafeChange{Key: strings.ToLower(key), Value: value})
+	}
+	return e, nil
 }

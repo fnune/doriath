@@ -37,6 +37,33 @@ type Mount struct {
 	// is missing, for writable entries inside the repository, such as an
 	// agent's worktrees.
 	Create bool
+	// Edit says how doriath request edit changes this read-only file.
+	Edit *Edit
+}
+
+// Edit is how doriath request edit changes a read-only file for the agent:
+// the file's format, and the changes that need no answer from you.
+type Edit struct {
+	Format EditFormat
+	Safe   []SafeChange
+}
+
+type EditFormat string
+
+const (
+	// FormatGitConfig compares settings, as git reads them.
+	FormatGitConfig EditFormat = "git-config"
+	// FormatText compares the whole file.
+	FormatText EditFormat = "text"
+)
+
+// SafeChange is a setting the agent may change without asking: Key is a
+// glob over git's names for settings, where * matches anything, and Value
+// a pattern for each new value, where * matches anything but / and :, and
+// ** anything.
+type SafeChange struct {
+	Key   string
+	Value string
 }
 
 // Cache is a path that the jail sees as writable, backed by a directory that
@@ -305,13 +332,16 @@ type Profile struct {
 	Name        string
 	Description string
 	Mounts      []Mount
-	Caches      []Cache
-	Devices     []string
-	Env         Env
-	Egress      Egress
-	HTTP        []HTTPHost
-	SigningKey  string
-	Podman      bool
+	// GitEdits are the edit rules for files in every git directory that
+	// doriath guards, by file name, from mounts of {git}/NAME.
+	GitEdits   map[string]*Edit
+	Caches     []Cache
+	Devices    []string
+	Env        Env
+	Egress     Egress
+	HTTP       []HTTPHost
+	SigningKey string
+	Podman     bool
 	// ContainerImages limits which images containers may use, as globs over
 	// full references such as docker.io/library/*, or "*" for any image.
 	// Empty allows none.

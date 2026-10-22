@@ -126,6 +126,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.requestWrite(p.Path, p.Reason)
 		},
+		MethodRequestEdit: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestEditParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestEdit(p.Path, p.Content, p.Reason)
+		},
 		MethodWait: func(ctx context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[WaitParams](raw)
 			if err != nil {

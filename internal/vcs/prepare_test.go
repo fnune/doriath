@@ -49,24 +49,21 @@ func TestPrepareCreatesWhatGitWouldOnFirstUse(t *testing.T) {
 	}
 }
 
-func TestPrepareTurnsOnRelativeWorktreesOnceInAColocatedRepository(t *testing.T) {
+func TestPrepareLeavesTheGitConfigOfAColocatedRepositoryAlone(t *testing.T) {
 	r := jjRepo(t, true)
-	ctx, tools := context.Background(), Tools{Git: "git", JJ: "jj"}
-	notes, err := Prepare(ctx, tools, r, []string{"git_import_export.lock"})
-	if err != nil || len(notes) != 1 {
+	before, err := os.ReadFile(filepath.Join(r, ".git", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r, []string{"git_import_export.lock"})
+	if err != nil || len(notes) != 0 {
 		t.Fatalf("Prepare = %q, %v", notes, err)
 	}
-	if got := git(t, r, "config", "--bool", "extensions.relativeWorktrees"); got != "true" {
-		t.Errorf("extensions.relativeWorktrees = %q", got)
-	}
-	if got := git(t, r, "config", "core.repositoryformatversion"); got != "1" {
-		t.Errorf("core.repositoryformatversion = %q", got)
+	if after, _ := os.ReadFile(filepath.Join(r, ".git", "config")); string(after) != string(before) {
+		t.Errorf("the config changed:\n%s", after)
 	}
 	if _, err := os.Stat(filepath.Join(r, ".jj", "repo", "git_import_export.lock")); err != nil {
 		t.Errorf("the jj lock file is missing: %v", err)
-	}
-	if notes, err := Prepare(ctx, tools, r, nil); err != nil || len(notes) != 0 {
-		t.Errorf("a second Prepare has nothing to change: %q, %v", notes, err)
 	}
 }
 

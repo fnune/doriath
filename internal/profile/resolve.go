@@ -57,6 +57,9 @@ func mergeKeepingLessAccess(mounts []Mount, m Mount) []Mount {
 	if privilege[m.Mode] < privilege[mounts[i].Mode] {
 		mounts[i].Mode = m.Mode
 	}
+	if mounts[i].Edit == nil {
+		mounts[i].Edit = m.Edit
+	}
 	mounts[i].Optional = mounts[i].Optional && m.Optional
 	return mounts
 }

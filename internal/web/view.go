@@ -222,7 +222,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		agent = "the agent"
 	}
 	noteLabel := "Description"
-	if r.Kind == approval.KindPath {
+	if r.Kind == approval.KindPath || r.Kind == approval.KindEdit {
 		noteLabel = "Reason"
 	}
 	v := requestView{
