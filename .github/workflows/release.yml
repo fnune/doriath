@@ -1,0 +1,54 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+
+  binary:
+    needs: draft
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
+      - name: Build
+        run: nix build .#default
+      - name: Check the version matches the tag
+        run: test "$(./result/bin/doriath version)" = "doriath ${GITHUB_REF_NAME#v}"
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: doriath-linux-${{ matrix.arch }}
+        run: |
+          install -m 755 result/bin/doriath "$NAME"
+          sha256sum "$NAME" > "$NAME.sha256"
+          gh release upload "$GITHUB_REF_NAME" "$NAME" "$NAME.sha256" --repo "$GITHUB_REPOSITORY"
+
+  publish:
+    needs: binary
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

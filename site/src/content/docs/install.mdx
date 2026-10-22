@@ -3,22 +3,85 @@ title: Install
 description: From nothing to a first agent session.
 ---
 
-import { Aside } from "@astrojs/starlight/components";
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
-## Install doriath
+## Get doriath
+
+<Tabs syncKey="install">
+  <TabItem label="Release binary">
+    doriath is one static binary with bubblewrap inside. Download it for your architecture, `amd64` or `arm64`, check it, and put it on your `PATH`:
+
+    ```sh
+    base=https://github.com/fnune/doriath/releases/latest/download
+    curl -fLO "$base/doriath-linux-amd64" -fLO "$base/doriath-linux-amd64.sha256"
+    sha256sum -c doriath-linux-amd64.sha256
+    install -m 755 doriath-linux-amd64 ~/.local/bin/doriath
+    ```
+
+  </TabItem>
+  <TabItem label="home-manager">
+    Add the flake as an input, import its module and turn it on. The module also installs the direnv library, the zsh completion and, if you want it, the approvals page as a service; [profiles with home-manager](/guides/home-manager/) lists every option.
+
+    ```nix title="flake.nix"
+    inputs.doriath = {
+      url = "github:fnune/doriath";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
+    ```
+
+    ```nix title="home.nix"
+    {
+      imports = [ inputs.doriath.homeManagerModules.default ];
+      programs.doriath.enable = true;
+    }
+    ```
+
+  </TabItem>
+  <TabItem label="NixOS">
+    doriath runs per user and needs no system service, so a NixOS configuration only adds the package:
+
+    ```nix title="flake.nix"
+    inputs.doriath = {
+      url = "github:fnune/doriath";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    ```
+
+    ```nix title="configuration.nix"
+    environment.systemPackages = [ inputs.doriath.packages.${pkgs.system}.default ];
+    ```
+
+  </TabItem>
+  <TabItem label="Go">
+    A build from `go install` has no bubblewrap inside. It uses the `bwrap` on your `PATH`, or the one `DORIATH_BWRAP` names:
+
+    ```sh
+    go install github.com/fnune/doriath/cmd/doriath@latest
+    ```
+
+  </TabItem>
+  <TabItem label="From source">
+    The dev shell brings Go, the linters and the static bubblewrap that `just build` embeds:
+
+    ```sh
+    git clone https://github.com/fnune/doriath
+    cd doriath
+    nix develop --command just build
+    ```
+
+  </TabItem>
+</Tabs>
+
+Then check the machine:
 
 ```sh
-nix profile install github:fnune/doriath
 doriath doctor
 ```
 
-`doriath doctor` checks for what doriath needs: Linux with unprivileged user namespaces. bubblewrap comes bundled in the static binary. For the `podman` module you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user:
+doriath needs Linux with unprivileged user namespaces. For the `podman` module you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user, which `grep $USER /etc/subuid /etc/subgid` shows.
 
-```sh
-grep $USER /etc/subuid /etc/subgid
-```
-
-With home-manager, see [profiles with home-manager](/guides/home-manager/) instead.
+To try doriath without installing it, `nix run github:fnune/doriath -- doctor` runs the same check.
 
 ## Create credentials for the agent
 

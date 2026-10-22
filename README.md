@@ -5,13 +5,14 @@ Doriath runs a coding agent such as Claude Code in a jail on your Linux machine,
 Pre-alpha, Linux only. The documentation lives at [doriath.fnune.com](https://doriath.fnune.com).
 
 ```sh
-nix profile install github:fnune/doriath
+base=https://github.com/fnune/doriath/releases/latest/download
+curl -fLO "$base/doriath-linux-amd64" -fLO "$base/doriath-linux-amd64.sha256"
+sha256sum -c doriath-linux-amd64.sha256
+install -m 755 doriath-linux-amd64 ~/.local/bin/doriath
 doriath doctor
-cd ~/Development/my-app
-doriath run --profile my-app -- claude
 ```
 
-- [Install](https://doriath.fnune.com/install/) walks from nothing to a first session, profile and credentials included.
+- [Install](https://doriath.fnune.com/install/) also covers home-manager, NixOS and Go, and walks from there to a first session.
 - [Architecture](https://doriath.fnune.com/architecture/) covers the jail, the proxy, approvals and repositories.
 - [Threat model](https://doriath.fnune.com/threat-model/) and [security limits](https://doriath.fnune.com/reference/security-limits/) say what doriath guards against and what it leaves open.
 - [Configuration](https://doriath.fnune.com/reference/configuration/) lists every key.

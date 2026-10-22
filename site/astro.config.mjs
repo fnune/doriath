@@ -21,6 +21,7 @@ export default defineConfig({
       customCss: ["../internal/ui/tokens.css", "../internal/ui/components.css", "./src/styles/custom.css"],
       expressiveCode: {
         themes: ["github-dark", "github-light"],
+        defaultProps: { wrap: true },
         styleOverrides: {
           borderRadius: "3px",
           borderColor: "var(--line)",
