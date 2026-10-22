@@ -96,3 +96,10 @@ func TestToolRequestsAreLabeled(t *testing.T) {
 		t.Errorf("body = %q", body)
 	}
 }
+
+func TestThePageBodyNamesTheProfileAndLeavesTheRestToThePage(t *testing.T) {
+	got := PageBody(approval.Request{Agent: "Claude Code", Profile: "work", Details: "secret details"})
+	if got != "Claude Code in profile work is waiting. Open the approvals page to answer." {
+		t.Errorf("body = %q", got)
+	}
+}

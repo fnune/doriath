@@ -19,6 +19,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -226,7 +227,11 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		target := "/"
+		if req := q.Get("request"); req != "" {
+			target += "?request=" + url.QueryEscape(req)
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
 	if !s.signedIn(r) {

@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -69,6 +70,11 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 		return fmt.Errorf("web: %w", err)
 	}
 	addr := l.Addr().String()
+	if err := os.MkdirAll(filepath.Dir(p.WebAddr()), 0o700); err == nil {
+		if err := os.WriteFile(p.WebAddr(), []byte(addr), 0o600); err == nil {
+			defer os.Remove(p.WebAddr())
+		}
+	}
 	checks := &doctorChecks{paths: p}
 	go checks.Refresh(ctx)
 	srv, err := web.New(liveApprovals{paths: p}, &auditHistory{path: p.AuditLog()}, checks, c, token, addr)
@@ -94,7 +100,7 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 
 func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Writer) error {
 	flags := flag.NewFlagSet("web open", flag.ContinueOnError)
-	listen := flags.String("listen", defaultWebAddr, "the HOST:PORT the page serves on")
+	listen := flags.String("listen", servedAddr(p), "the HOST:PORT the page serves on")
 	print := flags.Bool("print", false, "print a link that works once, in place of opening a browser")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -103,7 +109,34 @@ func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Write
 	if err != nil {
 		return fmt.Errorf("web open: %w", err)
 	}
-	return openPage(ctx, *listen, token, *print || overSSH() || !hasDisplay(), out)
+	return openPage(ctx, *listen, token, "", *print || overSSH() || !hasDisplay(), out)
+}
+
+func servedAddr(p config.Paths) string {
+	if data, err := os.ReadFile(p.WebAddr()); err == nil && web.Loopback(string(data)) == nil {
+		return string(data)
+	}
+	return defaultWebAddr
+}
+
+type webPage struct{ paths config.Paths }
+
+func (w webPage) Running() bool {
+	token, err := webToken(w.paths.WebToken())
+	if err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return servesPage(ctx, servedAddr(w.paths), token)
+}
+
+func (w webPage) Open(request string) error {
+	token, err := webToken(w.paths.WebToken())
+	if err != nil {
+		return err
+	}
+	return openPage(context.Background(), servedAddr(w.paths), token, request, false, io.Discard)
 }
 
 func hasDisplay() bool { return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("DISPLAY") != "" }
@@ -125,9 +158,15 @@ func sshHost() string {
 	return "HOST"
 }
 
-func codeLink(addr, code string) string { return "http://" + addr + "/?code=" + code }
+func codeLink(addr, code, request string) string {
+	link := "http://" + addr + "/?code=" + code
+	if request != "" {
+		link += "&request=" + url.QueryEscape(request)
+	}
+	return link
+}
 
-func openPage(ctx context.Context, addr, token string, print bool, out io.Writer) error {
+func openPage(ctx context.Context, addr, token, request string, print bool, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with doriath web, or enable approvals.web in home-manager", addr)
@@ -151,7 +190,7 @@ func openPage(ctx context.Context, addr, token string, print bool, out io.Writer
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("web open: %s", strings.TrimSpace(string(code)))
 	}
-	link := codeLink(addr, string(code))
+	link := codeLink(addr, string(code), request)
 	if print {
 		fmt.Fprintf(out, "%s\nThe link works once, for a minute.\n", link)
 		return nil

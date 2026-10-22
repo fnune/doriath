@@ -214,6 +214,7 @@ func cmdRun(args []string) (int, error) {
 			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use doriath approvals\n", err)
 		} else {
 			defer func() { _ = desktop.Close() }()
+			desktop.Page = webPage{paths: p}
 			notifier, informer = desktop, desktop
 		}
 	}

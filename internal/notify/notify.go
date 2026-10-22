@@ -29,7 +29,17 @@ const (
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
+	actionOpen         = "open"
+	actionDefault      = "default"
 )
+
+// Page is the approvals page, when it runs. A notification then opens it
+// in place of answering, so that the answer is made with the whole request
+// in view.
+type Page interface {
+	Running() bool
+	Open(request string) error
+}
 
 // Actions are the buttons, as key and label pairs in the order the
 // specification wants.
@@ -96,6 +106,7 @@ func Body(req approval.Request, now time.Time) string {
 type Desktop struct {
 	conn *dbus.Conn
 	now  func() time.Time
+	Page Page
 
 	owner string
 
@@ -177,14 +188,23 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 		"resident":      dbus.MakeVariant(true),
 		"desktop-entry": dbus.MakeVariant("doriath"),
 	}
+	actions, body := Actions(req), Body(req, d.now())
+	page := d.Page != nil && d.Page.Running()
+	if page {
+		actions, body = []string{actionOpen, "Open", actionDefault, ""}, PageBody(req)
+	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
-		appName, uint32(0), "dialog-password", req.Summary, Body(req, d.now()), Actions(req), hints, int32(0))
+		appName, uint32(0), "dialog-password", req.Summary, body, actions, hints, int32(0))
 	if err := call.Store(&id); err != nil {
 		return nil, fmt.Errorf("show notification: %w", err)
 	}
 	d.mu.Lock()
 	d.handlers[id] = func(action string) {
+		if page && (action == actionOpen || action == actionDefault) {
+			_ = d.Page.Open(req.Session + "/" + req.ID)
+			return
+		}
 		if dec, ok := DecisionFor(action); ok {
 			respond(dec)
 		}
@@ -196,6 +216,16 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 		d.mu.Unlock()
 		_ = d.conn.Object(busName, objPath).Call(iface+".CloseNotification", 0, id).Err
 	}, nil
+}
+
+// PageBody is the text of a notification that opens the approvals page:
+// enough to tell requests apart, since the page shows the rest.
+func PageBody(req approval.Request) string {
+	agent := req.Agent
+	if agent == "" {
+		agent = "The agent"
+	}
+	return fmt.Sprintf("%s in profile %s is waiting. Open the approvals page to answer.", html.EscapeString(agent), html.EscapeString(req.Profile))
 }
 
 // Urgency keeps held requests on screen, because an agent is waiting, and

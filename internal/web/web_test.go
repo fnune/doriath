@@ -441,3 +441,19 @@ func TestAnAnsweredRequestOpensWithWhatToAddToTheProfile(t *testing.T) {
 		t.Error("an answered request offers answers")
 	}
 }
+
+func TestACodeLinkOpensItsRequest(t *testing.T) {
+	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app"}}}
+	srv, err := New(sessions, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := srv.NewCode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := get(srv.Handler(), "/?code="+code+"&request=s1/a1", false)
+	if got := w.Header().Get("Location"); got != "/?request=s1%2Fa1" {
+		t.Errorf("redirect = %q", got)
+	}
+}

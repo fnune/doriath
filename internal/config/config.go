@@ -31,6 +31,7 @@ func (p Paths) Modules() string    { return filepath.Join(p.Config, "modules") }
 func (p Paths) UserConfig() string { return filepath.Join(p.Config, "config.toml") }
 func (p Paths) AuditLog() string   { return filepath.Join(p.State, "audit.jsonl") }
 func (p Paths) WebToken() string   { return filepath.Join(p.State, "web-token") }
+func (p Paths) WebAddr() string    { return filepath.Join(p.Runtime, "web-addr") }
 func (p Paths) Sessions() string   { return filepath.Join(p.Runtime, "sessions") }
 
 // ImagePins holds the digests a profile's container image tags resolved to.
