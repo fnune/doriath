@@ -189,15 +189,19 @@ func (s *Session) startPodman() error {
 		return fmt.Errorf("start podman service: %w", err)
 	}
 	_ = infoW.Close()
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
+	exited := make(chan struct{})
+	var exitErr error
+	go func() {
+		exitErr = cmd.Wait()
+		close(exited)
+	}()
 	s.closers = append(s.closers, func() {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		select {
-		case <-waited:
+		case <-exited:
 		case <-time.After(5 * time.Second):
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			<-waited
+			<-exited
 		}
 		_ = logFile.Close()
 	})
@@ -215,9 +219,8 @@ func (s *Session) startPodman() error {
 			break
 		}
 		select {
-		case err := <-waited:
-			waited <- err
-			return fmt.Errorf("podman service exited: %w (see %s)", err, logPath)
+		case <-exited:
+			return fmt.Errorf("podman service exited: %w (see %s)", exitErr, logPath)
 		default:
 		}
 		if time.Now().After(deadline) {
