@@ -11,7 +11,6 @@ for f in "$R/.git/commondir" "$R/.git/config.worktree" "$R/.git/hooks/post-check
 done
 echo '[core] fsmonitor = /tmp/x' >> "$R/.git/config" 2>/dev/null && { echo "ESCAPED: wrote .git/config"; exit 1; }
 echo '[core] fsmonitor = /tmp/x' >> "$R/.git/modules/lib/config" 2>/dev/null && { echo "ESCAPED: wrote a submodule config"; exit 1; }
-mkdir "$R/.git/rebase-merge" 2>/dev/null && { echo "ESCAPED: planted rebase state"; exit 1; }
 mkdir "$R/.git/rr-cache/planted" 2>/dev/null && { echo "ESCAPED: planted a rerere resolution"; exit 1; }
 echo /tmp >> "$R/.git/objects/info/alternates" 2>/dev/null && { echo "ESCAPED: pointed host git at other objects"; exit 1; }
 pack=$(ls "$R"/.git/objects/pack/*.pack 2>/dev/null | head -1)

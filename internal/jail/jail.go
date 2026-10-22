@@ -72,6 +72,9 @@ type Bind struct {
 	Dest     string
 	ReadOnly bool
 	Device   bool
+	// Try skips the bind when Source is gone by the time the jail starts,
+	// for a file that a program on the host may delete at any time.
+	Try bool
 }
 
 type Spec struct {
@@ -399,14 +402,14 @@ func (g *guards) jj(repo string) {
 func (g *guards) store(repo string) {
 	switch {
 	case filepath.Base(repo) == ".git":
-		g.gitStore(repo, 0)
+		g.gitStore(repo)
 		return
 	case isJJRepo(repo):
 		g.jjRepoStore(repo)
 		return
 	}
 	if git := filepath.Join(repo, ".git"); g.host.Kind(git) == "dir" {
-		g.gitStore(git, 0)
+		g.gitStore(git)
 	}
 	g.writable(filepath.Join(repo, ".jj", "working_copy"))
 	if jjRepo := filepath.Join(repo, ".jj", "repo"); g.host.Kind(jjRepo) == "dir" {
@@ -425,39 +428,26 @@ func (g *guards) jjRepoStore(jjRepo string) {
 	for _, name := range jjLockFiles {
 		p := filepath.Join(jjRepo, name)
 		if g.host.Kind(p) == "file" {
-			g.binds = append(g.binds, Bind{Source: p, Dest: p})
+			g.binds = append(g.binds, Bind{Source: p, Dest: p, Try: true})
 			continue
 		}
 		g.missing = append(g.missing, Placeholder{Path: p})
 	}
 	if s := filepath.Join(jjRepo, "store", "git"); g.host.Kind(s) == "dir" {
-		g.gitStore(s, 0)
+		g.gitStore(s)
 	}
 }
 
 var (
-	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs"}
-	jjRepoData   = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
-	jjLockFiles  = []string{"git_import_export.lock"}
+	jjRepoData  = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
+	jjLockFiles = []string{"git_import_export.lock"}
 
 	worktreeControlFiles = map[string]*Placeholder{"commondir": nil, "gitdir": nil, "config.worktree": {}}
 )
 
-func (g *guards) gitStore(gitDir string, depth int) {
-	for _, name := range gitStoreData {
-		g.writable(filepath.Join(gitDir, name))
-	}
-	if p := filepath.Join(gitDir, "objects", "info", "alternates"); g.host.Kind(p) == "file" {
-		g.binds = append(g.binds, Bind{Source: p, Dest: p, ReadOnly: true})
-	}
-	g.packs(gitDir)
-	g.worktrees(gitDir)
-	if depth >= vcs.MaxSubmoduleDepth {
-		return
-	}
-	for _, sub := range vcs.ModuleStores(filepath.Join(gitDir, "modules"), g.host) {
-		g.gitStore(sub, depth+1)
-	}
+func (g *guards) gitStore(gitDir string) {
+	g.writable(gitDir)
+	g.gitDir(gitDir, gitDir, 0)
 }
 
 func (g *guards) worktrees(gitDir string) {
@@ -471,8 +461,8 @@ func (g *guards) worktrees(gitDir string) {
 }
 
 // GitControlFiles are the entries of a .git directory that decide what git
-// runs or which config it reads.
-var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates"}
+// runs, which config it reads, or how it resolves your next merge.
+var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates", "rr-cache"}
 
 var gitHolds = map[string]*Placeholder{
 	"config.worktree":         {},
@@ -618,6 +608,8 @@ func (s Spec) Args() []string {
 			args = append(args, "--dev-bind", b.Source, b.Dest)
 		case b.ReadOnly:
 			args = append(args, "--ro-bind", b.Source, b.Dest)
+		case b.Try:
+			args = append(args, "--bind-try", b.Source, b.Dest)
 		default:
 			args = append(args, "--bind", b.Source, b.Dest)
 		}

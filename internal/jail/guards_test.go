@@ -102,8 +102,7 @@ func TestSubmoduleStoresWithSlashedNamesAreCovered(t *testing.T) {
 	}
 	g := &guards{host: h}
 	g.store(git)
-	g.gitDir(git, git, 0)
-	expectModes(t, g.binds, map[string]string{
+	expectAccess(t, g.binds, map[string]string{
 		foo + "/objects":             "write",
 		foo + "/objects/pack/p.pack": "read",
 		foo + "/config":              "read",

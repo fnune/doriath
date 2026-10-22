@@ -178,51 +178,8 @@ func Prepare(ctx context.Context, t Tools, repo string) ([]string, error) {
 		if err := guardAlternates(git, 0); err != nil {
 			return nil, err
 		}
-		for _, store := range append([]string{git}, submoduleStores(git, 1)...) {
-			if err := unpackRefs(store); err != nil {
-				return nil, fmt.Errorf("unpack the refs of %s: %w", store, err)
-			}
-		}
 	}
 	return nil, nil
-}
-
-// unpackRefs writes each ref of packed-refs as a loose ref, unless a loose
-// one already overrides it, and removes packed-refs. git then changes a ref
-// without its lock in the store's root, which the jail keeps read-only.
-func unpackRefs(gitDir string) error {
-	packed := filepath.Join(gitDir, "packed-refs")
-	data, err := os.ReadFile(packed)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		id, name, ok := strings.Cut(line, " ")
-		if !ok || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "^") {
-			continue
-		}
-		if !strings.HasPrefix(name, "refs/") || filepath.Clean(name) != name || strings.Contains(name, "..") {
-			return fmt.Errorf("packed-refs names %q, which is not a ref", name)
-		}
-		loose := filepath.Join(gitDir, name)
-		if _, err := os.Lstat(loose); err == nil {
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(loose), 0o755); err != nil {
-			return err
-		}
-		tmp := loose + ".doriath-unpack"
-		if err := os.WriteFile(tmp, []byte(id+"\n"), 0o644); err != nil {
-			return err
-		}
-		if err := os.Rename(tmp, loose); err != nil {
-			return err
-		}
-	}
-	return os.Remove(packed)
 }
 
 // Start records the branches, bookmarks and worktrees of each repository,
@@ -403,6 +360,9 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 				errs = append(errs, err)
 			}
 		}
+		if err := setAsideAgentState(r.GitDir, rec, w); err != nil {
+			errs = append(errs, err)
+		}
 		report(w, rec.Session, r)
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -410,6 +370,44 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 	}
 	rec.Finished = true
 	return os.RemoveAll(backup)
+}
+
+var agentState = []string{"rebase-merge", "rebase-apply", "sequencer", "rr-cache"}
+
+func setAsideAgentState(gitDir string, rec *Record, w io.Writer) error {
+	var errs []error
+	aside := func(p, what string) {
+		to := p + ".doriath-" + rec.Session
+		if err := os.Rename(p, to); err != nil {
+			errs = append(errs, err)
+			return
+		}
+		fmt.Fprintf(w, "moved %s the agent left in %s aside, to %s\n", what, gitDir, to)
+	}
+	for _, name := range agentState {
+		if p := filepath.Join(gitDir, name); isDir(p) && changedWithin(p, rec.Started) {
+			aside(p, name)
+		}
+	}
+	for _, sub := range submoduleStores(gitDir, 1) {
+		known := slices.ContainsFunc(rec.Repos, func(r Repo) bool { return r.GitDir == sub })
+		if !known && changedSince(sub, rec.Started) {
+			aside(sub, "a submodule store")
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func changedWithin(dir string, since time.Time) bool {
+	changed := false
+	_ = filepath.WalkDir(dir, func(p string, _ fs.DirEntry, err error) error {
+		if err == nil && changedSince(p, since) {
+			changed = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return changed
 }
 
 func report(w io.Writer, session string, r *Repo) {

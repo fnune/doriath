@@ -58,7 +58,7 @@ export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER
 git -C $R worktree add -q /tmp/wt -b agent || echo "FAIL worktree add"
 cd /tmp/wt && echo x > f && git add f && git commit -qm agent || echo "FAIL commit"
 git -C $R branch -f spare agent || echo "FAIL move a branch"
-rm $R/.git/refs/heads/gone || echo "FAIL delete a branch"
+git -C $R branch -q -D gone || echo "FAIL delete a packed branch"
 git -C $R prune --expire=now || echo "FAIL prune"
 echo x >> $R/.git/config 2>/dev/null && echo "FAIL config writable"
 touch $R/.git/hooks/post-checkout 2>/dev/null && echo "FAIL hooks writable"

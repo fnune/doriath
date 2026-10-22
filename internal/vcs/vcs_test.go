@@ -352,3 +352,47 @@ func TestFinishKeepsTheBackupUntilItSucceeds(t *testing.T) {
 		t.Error("the second Finish must complete")
 	}
 }
+
+func TestFinishSetsAsideWhatTheAgentLeftForGitToContinue(t *testing.T) {
+	r := repo(t)
+	gitDir := filepath.Join(r, ".git")
+	yours := filepath.Join(gitDir, "sequencer")
+	if err := os.MkdirAll(yours, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	todo := filepath.Join(gitDir, "rebase-merge", "git-rebase-todo")
+	module := filepath.Join(gitDir, "modules", "lib")
+	rerere := filepath.Join(gitDir, "rr-cache")
+	for _, d := range []string{filepath.Dir(todo), filepath.Join(module, "objects"), filepath.Join(rerere, "planted")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(todo, []byte("exec touch /tmp/pwned\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"HEAD": "ref: refs/heads/main\n", "config": "[core]\n\tfsmonitor = touch /tmp/pwned\n"} {
+		if err := os.WriteFile(filepath.Join(module, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := f.finish()
+	for p, why := range map[string]string{
+		filepath.Dir(todo): "git rebase --continue runs its exec lines",
+		module:             "git submodule update takes it up with its config",
+		rerere:             "its presence alone turns on rerere for your next merge",
+	} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s is still there, and %s:\n%s", p, why, out)
+		}
+		if !isDir(p + ".doriath-s1") {
+			t.Errorf("%s must be kept aside, not deleted", p)
+		}
+	}
+	if !isDir(yours) {
+		t.Error("the cherry-pick you had in progress before the session must stay")
+	}
+}

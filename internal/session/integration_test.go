@@ -118,6 +118,7 @@ type env struct {
 	lastID     string
 
 	cwd      string
+	vcs      []vcstools.Tool
 	hostWait time.Duration
 	resolver session.Resolver
 }
@@ -252,8 +253,11 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		}
 		return ""
 	}
+	if e.vcs == nil {
+		e.vcs = []vcstools.Tool{gittool.New(nil), jjtool.New(e.home, func(string) string { return "" })}
+	}
 	deps := session.Deps{
-		VCS:           []vcstools.Tool{gittool.New(nil), jjtool.New(e.home, func(string) string { return "" })},
+		VCS:           e.vcs,
 		Paths:         e.paths,
 		Secrets:       secret.NewConfigured(p.Secrets, nil, secret.OSFiles{}),
 		Notifier:      notify.None{},

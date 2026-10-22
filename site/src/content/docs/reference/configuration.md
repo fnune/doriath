@@ -310,14 +310,12 @@ Upstream tracking, as `git push -u` records it, and the setting that jj needs fo
 
 With `[vcs] store = true`, each git or jj repository gets a writable store. The agent can commit, branch and add worktrees, and your checkout stays read-only:
 
-| Repository | Writable                                                                                                                          | Read-only                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| git        | `.git/objects`, `refs`, `logs`, `worktrees`, `lfs`, and the same in submodules                                                    | the rest of `.git`, such as `config`, `hooks`, `info` and `HEAD`, and each worktree's `commondir`  |
-| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store` and `store/extra` | `.jj/repo/config.toml`, `config-id`, `store/git_target`, `store/type`, and jj's git store as above |
+| Repository | Writable                                                                                                                                                    | Read-only                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| git        | `.git` and its submodule stores, such as `objects`, `refs`, `HEAD`, `index`, `packed-refs` and their lock files                                             | `config`, `config.worktree`, `hooks`, `info`, `commondir`, `objects/info/alternates`, `rr-cache`, existing packs, and each worktree's `commondir` and `gitdir` |
+| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store`, `store/extra` and `git_import_export.lock` | the rest of `.jj/repo`, such as `config.toml`, `config-id`, `store/git_target` and `store/type`, and jj's git store as above                                   |
 
-`rr-cache` also stays read-only, so that the agent cannot plant a merge resolution for your next merge.
-
-In a linked git worktree or a secondary jj workspace, doriath mounts the store of the main repository. Because `.git` stays read-only, `git branch -d` fails in the jail. In a colocated jj repository, doriath turns on the git extension `relativeWorktrees` one time, as the first jj workspace does.
+In a linked git worktree or a secondary jj workspace, doriath mounts the store of the main repository. Because `.git/config` stays read-only, git in the jail warns that it cannot remove a deleted branch's upstream settings. [Edits](#edits) lets the agent change them.
 
 At the start, doriath records your branches and bookmarks, and copies the loose objects. Existing packs, which hold almost all of the history, stay read-only. Thus objects that the agent deletes or rewrites in place do not stay that way after the session. `git gc` in the jail cannot remove old packs, and its background runs warn about this.
 
@@ -326,6 +324,7 @@ At the end, doriath does these steps:
 - It keeps the start value of each branch that the agent moved as `refs/doriath/<session>/<branch>`.
 - It removes new LFS objects whose content does not match their name, because your checkout takes file content from the object with that name.
 - It repairs each worktree that the agent added. The `.git` file and `commondir` point to your repository again, and doriath removes a planted `config.worktree`.
+- It moves aside, to `NAME.doriath-<session>`, what the agent left in a store for git on your machine to act on: a rebase, cherry-pick or revert to continue, a new `rr-cache`, and a new submodule store. Until then, do not continue a rebase that the agent started.
 
 Do not run git in an agent worktree until the session ends. `doriath restore SESSION [BRANCH...]` puts moved branches and bookmarks back. It never runs automatically, because doriath cannot tell the moves of the agent from your moves. [`doriath clean`](/reference/commands/#doriath-clean) removes old agent worktrees and backups.
 

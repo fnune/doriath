@@ -21,6 +21,28 @@ func mode(binds []Bind, dest string) string {
 	return "write"
 }
 
+func access(binds []Bind, path string) string {
+	got, depth := "read", -1
+	for _, b := range binds {
+		if within(path, b.Dest) && len(b.Dest) >= depth {
+			got, depth = "write", len(b.Dest)
+			if b.ReadOnly {
+				got = "read"
+			}
+		}
+	}
+	return got
+}
+
+func expectAccess(t *testing.T, binds []Bind, want map[string]string) {
+	t.Helper()
+	for _, p := range slices.Sorted(maps.Keys(want)) {
+		if got := access(binds, p); got != want[p] {
+			t.Errorf("%s: %s, want %s", p, got, want[p])
+		}
+	}
+}
+
 func storeBinds(repo string, h Host) []Bind {
 	g := &guards{host: h}
 	g.store(repo)
@@ -79,50 +101,52 @@ func storeHost() fakeHost {
 	return h
 }
 
-func TestStoreBindsMakeOnlyTheDataWritable(t *testing.T) {
+func TestStoreBindsKeepWhatDecidesWhatRunsReadOnly(t *testing.T) {
 	const repo = "/home/u/repo"
-	expectModes(t, storeBinds(repo, storeHost()), map[string]string{
-		repo + "/.git":                            "none",
-		repo + "/.git/config":                     "none",
-		repo + "/.git/hooks":                      "none",
+	expectAccess(t, storeBinds(repo, storeHost()), map[string]string{
+		repo + "/.git":                            "write",
+		repo + "/.git/packed-refs.lock":           "write",
+		repo + "/.git/index.lock":                 "write",
+		repo + "/.git/HEAD":                       "write",
 		repo + "/.git/objects":                    "write",
 		repo + "/.git/refs":                       "write",
-		repo + "/.git/logs":                       "write",
-		repo + "/.git/worktrees":                  "write",
-		repo + "/.git/lfs":                        "none",
+		repo + "/.git/config":                     "read",
+		repo + "/.git/hooks":                      "read",
 		repo + "/.git/objects/info/alternates":    "read",
 		repo + "/.git/objects/pack/p.pack":        "read",
 		repo + "/.git/worktrees/wt/commondir":     "read",
 		repo + "/.git/worktrees/wt/gitdir":        "read",
-		repo + "/.git/worktrees/wt/HEAD":          "none",
+		repo + "/.git/worktrees/wt/HEAD":          "write",
 		repo + "/.jj/working_copy":                "write",
-		repo + "/.jj/repo":                        "none",
-		repo + "/.jj/repo/config.toml":            "none",
+		repo + "/.jj/repo":                        "read",
+		repo + "/.jj/repo/config.toml":            "read",
 		repo + "/.jj/repo/index":                  "write",
 		repo + "/.jj/repo/op_heads":               "write",
 		repo + "/.jj/repo/op_store":               "write",
 		repo + "/.jj/repo/store/extra":            "write",
 		repo + "/.jj/repo/git_import_export.lock": "write",
 		repo + "/.jj/repo/store/git/objects":      "write",
-		repo + "/.jj/repo/store/git/config":       "none",
+		repo + "/.jj/repo/store/git/config":       "read",
 	})
 }
 
 func TestStoreBindsOfAMountedStore(t *testing.T) {
 	const repo = "/home/u/repo"
 	h := storeHost()
-	expectModes(t, storeBinds(repo+"/.git", h), map[string]string{
+	expectAccess(t, storeBinds(repo+"/.git", h), map[string]string{
 		repo + "/.git/objects":                "write",
+		repo + "/.git/config":                 "read",
 		repo + "/.git/objects/pack/p.pack":    "read",
 		repo + "/.git/worktrees/wt/commondir": "read",
-		repo + "/.jj/repo/index":              "none",
+		repo + "/.jj/repo/index":              "read",
 	})
-	expectModes(t, storeBinds(repo+"/.jj/repo", h), map[string]string{
+	expectAccess(t, storeBinds(repo+"/.jj/repo", h), map[string]string{
 		repo + "/.jj/repo/index":                  "write",
 		repo + "/.jj/repo/git_import_export.lock": "write",
 		repo + "/.jj/repo/store/git/objects":      "write",
-		repo + "/.jj/working_copy":                "none",
-		repo + "/.git/objects":                    "none",
+		repo + "/.jj/repo/store/git/config":       "read",
+		repo + "/.jj/working_copy":                "read",
+		repo + "/.git/objects":                    "read",
 	})
 }
 
@@ -137,7 +161,7 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mode(s.Binds, "/home/u/repo/.git/objects"); got != "none" {
+	if got := access(s.Binds, "/home/u/repo/.git/objects"); got != "read" {
 		t.Errorf("without the vcs module the store stays read-only: %s", got)
 	}
 	p.VCSStore = true
@@ -145,12 +169,12 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mode(s.Binds, "/home/u/repo/.git/objects"); got != "write" {
+	if got := access(s.Binds, "/home/u/repo/.git/objects"); got != "write" {
 		t.Errorf("with the vcs module the objects are writable: %s", got)
 	}
 	idx := func(dest string) int { return slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == dest }) }
-	if idx("/home/u/repo") > idx("/home/u/repo/.git/objects") {
-		t.Error("the read-only mount must come before the store binds inside it")
+	if idx("/home/u/repo") > idx("/home/u/repo/.git") || idx("/home/u/repo/.git") > idx("/home/u/repo/.git/config") {
+		t.Error("each bind must come before the binds inside it")
 	}
 }
 
