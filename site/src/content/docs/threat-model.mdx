@@ -118,6 +118,7 @@ git on your machine follows the `.git` file and admin directory of an agent work
 - doriath only reports a worktree that claims a path outside the writable mounts, or reaches outside them through a symlink.
 - git on your machine follows the config and hooks of a `.git` directory that the agent creates elsewhere in a write mount, as with an `.envrc`.
 - In a `write` mount of your checkout, `.envrc` and editor tasks are writable. Only git's and jj's control files stay read-only.
+- The agent can write a `commondir` into a store whose root it can write, which sends git on your machine to another repository. doriath removes it in milliseconds, and again at the end.
 - While the session runs, a rebase or cherry-pick that the agent left in a store can hold `exec` lines, which git on your machine runs if you continue it. doriath moves this state aside only at the end.
 - The agent can change what your index stages and which branch `HEAD` names. Neither runs code.
 
