@@ -7,7 +7,7 @@ Arguments in capitals are values that you give. Arguments in brackets are option
 
 ## Sessions
 
-### doriath run
+### `doriath run`
 
 ```txt frame="none"
 doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
@@ -15,7 +15,7 @@ doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
 
 Runs a command in a jail for the profile. `--current DIR` sets the folder the session is for, instead of the working folder. `--learn` makes every public host reachable and prints the hosts that the session used, as [install](/install/#find-the-hosts-of-a-build) describes.
 
-### doriath exec
+### `doriath exec`
 
 ```txt frame="none"
 doriath exec [--session ID] [-- COMMAND]
@@ -23,7 +23,7 @@ doriath exec [--session ID] [-- COMMAND]
 
 Runs a command as one more process of a running jail. Without a command, it starts a shell. See [looking inside a session](/guides/inside-a-session/).
 
-### doriath forward
+### `doriath forward`
 
 ```txt frame="none"
 doriath forward [--session ID] PORT[:JAIL_PORT]
@@ -31,7 +31,7 @@ doriath forward [--session ID] PORT[:JAIL_PORT]
 
 Makes a port of the jail reachable on the loopback address of the host.
 
-### doriath sessions
+### `doriath sessions`
 
 ```txt frame="none"
 doriath sessions
@@ -39,7 +39,7 @@ doriath sessions
 
 Lists the running sessions and their IDs.
 
-### doriath status
+### `doriath status`
 
 ```txt frame="none"
 doriath status [SESSION]
@@ -47,7 +47,7 @@ doriath status [SESSION]
 
 Shows what a session allows and what it blocked. In a jail, the agent runs it to learn the same.
 
-### doriath log
+### `doriath log`
 
 ```txt frame="none"
 doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
@@ -59,7 +59,7 @@ Reads the [audit log](/guides/inside-a-session/#session-history).
 
 See [answering requests](/guides/approvals/).
 
-### doriath approvals
+### `doriath approvals`
 
 ```txt frame="none"
 doriath approvals [list]
@@ -67,7 +67,7 @@ doriath approvals [list]
 
 Lists the requests that wait in every running session.
 
-### doriath approvals allow
+### `doriath approvals allow`
 
 ```txt frame="none"
 doriath approvals allow ID [--for once|session|DURATION]
@@ -75,7 +75,7 @@ doriath approvals allow ID [--for once|session|DURATION]
 
 Allows a request, once, for the session, or for a duration such as `30m`.
 
-### doriath approvals deny
+### `doriath approvals deny`
 
 ```txt frame="none"
 doriath approvals deny ID [--reason TEXT]
@@ -83,7 +83,7 @@ doriath approvals deny ID [--reason TEXT]
 
 Denies a request. The agent sees the reason.
 
-### doriath approvals watch
+### `doriath approvals watch`
 
 ```txt frame="none"
 doriath approvals watch
@@ -91,7 +91,7 @@ doriath approvals watch
 
 Asks about each new request in the terminal.
 
-### doriath approvals web
+### `doriath approvals web`
 
 ```txt frame="none"
 doriath approvals web [--listen HOST:PORT] [--open]
@@ -99,7 +99,7 @@ doriath approvals web [--listen HOST:PORT] [--open]
 
 Serves the [approvals page](/guides/approvals/#the-approvals-page).
 
-### doriath grant write
+### `doriath grant write`
 
 ```txt frame="none"
 doriath grant write PATH [--session ID]
@@ -109,7 +109,7 @@ Makes a path writable in a running session.
 
 ## Profiles and modules
 
-### doriath profiles
+### `doriath profiles`
 
 ```txt frame="none"
 doriath profiles [list | show NAME [--json] | edit NAME | command NAME]
@@ -117,7 +117,7 @@ doriath profiles [list | show NAME [--json] | edit NAME | command NAME]
 
 Lists, shows or edits profiles. `show` names the module behind each mount, host and rule. `command` prints the command of the agent of the profile, which the [direnv](/guides/direnv/) library uses.
 
-### doriath modules
+### `doriath modules`
 
 ```txt frame="none"
 doriath modules [list | show NAME [--path] | edit NAME]
@@ -125,7 +125,7 @@ doriath modules [list | show NAME [--path] | edit NAME]
 
 Lists modules and where each comes from, prints one or a path to it, or copies a built-in module so that you can edit your own copy. See [modules](/reference/modules/).
 
-### doriath login
+### `doriath login`
 
 ```txt frame="none"
 doriath login --profile NAME [SECRET]
@@ -135,7 +135,7 @@ Signs in to the OAuth secrets of a profile. See [OAuth logins](/reference/config
 
 ## Repositories
 
-### doriath restore
+### `doriath restore`
 
 ```txt frame="none"
 doriath restore SESSION
@@ -143,7 +143,7 @@ doriath restore SESSION
 
 Puts back the branches and bookmarks that a session moved. See [repositories](/reference/configuration/#repositories).
 
-### doriath clean
+### `doriath clean`
 
 ```txt frame="none"
 doriath clean [--caches PROFILE]
@@ -153,7 +153,7 @@ Removes agent worktrees that are already in the default branch, and old backups,
 
 ## Setup
 
-### doriath doctor
+### `doriath doctor`
 
 ```txt frame="none"
 doriath doctor [--secrets]
@@ -161,7 +161,7 @@ doriath doctor [--secrets]
 
 Checks the machine. `--secrets` also gets each secret once, which can ask you to unlock a password manager.
 
-### doriath direnv
+### `doriath direnv`
 
 ```txt frame="none"
 doriath direnv
@@ -169,7 +169,7 @@ doriath direnv
 
 Prints the [direnv](/guides/direnv/) library.
 
-### doriath completion
+### `doriath completion`
 
 ```txt frame="none"
 doriath completion zsh
@@ -177,7 +177,7 @@ doriath completion zsh
 
 Prints the zsh completion.
 
-### doriath version
+### `doriath version`
 
 ```txt frame="none"
 doriath version
@@ -187,7 +187,7 @@ Prints the version.
 
 ## Inside a jail
 
-### doriath request write
+### `doriath request write`
 
 ```txt frame="none"
 doriath request write PATH [--reason TEXT]
@@ -195,7 +195,7 @@ doriath request write PATH [--reason TEXT]
 
 Asks you to make a path writable.
 
-### doriath request wait
+### `doriath request wait`
 
 ```txt frame="none"
 doriath request wait ID|HOST|PATH
