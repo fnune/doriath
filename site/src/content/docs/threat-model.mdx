@@ -1,6 +1,6 @@
 ---
 title: Threat model
-description: The agent doriath assumes, the actions it guards, and the paths that stay open.
+description: The agent doriath assumes, the actions it guards, what stays open, and how other sandboxes handle the same threats.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -24,19 +24,133 @@ Doriath assumes an agent that acts against your intent. [Architecture](/architec
 | Escape through namespaces, `ptrace` or `bpf`         | seccomp refuses those calls, and Landlock limits writes.                                                                                              |
 | Reach more through containers                        | A broker checks each podman API call: allowed images and the profile's mounts only, nothing privileged, and no host namespace other than the network. |
 
-## Open paths
+## Limits
 
 <Aside type="caution">
-  Keep work an agent should not see out of its profile. Doriath limits what an
+  Keep work an agent should not see out of its profile. doriath limits what an
   agent reaches, and an allowed host can still receive whatever the agent reads.
 </Aside>
 
-Allowing writes allows exfiltration. A request to an allowed host with the agent's own API key is valid, and `gh` can post comments, so the mounted project can leave through any host the profile allows. Mount only the project, and allow only the hosts the task needs.
+None of these lets an agent leave the jail, read your home directory or other projects, take a credential, change what runs outside the jail, or reach a host the profile does not name. What remains is narrower: an agent can send the mounted project to an allowed host, and do what an allowed program does under the rules and your approvals. Every sandbox that lets an agent do real work has this limit, so the blast radius comes from the profile: mount only the project, allow only the hosts the task needs, and keep secrets out of world-readable paths.
 
-Programs the agent may use are programs it drives, with any arguments and through any config it can write. A credential that only `gh` gets is still used however the agent asks `gh` to use it; request rules and approvals decide what those calls may do.
+### Allowed hosts are a way out
 
-The jail shares your user and your kernel, so a kernel or bubblewrap bug lets the agent out as you. Container sandboxes rest on the same kernel; a virtual machine adds a boundary doriath does not have.
+A write to an allowed host can carry data out: a request to api.anthropic.com with the agent's own API key is valid, and the `github` module lets `gh` post comments. For a host without an `[[http]]` entry, doriath checks only the host and TLS server name. Behind a CDN that serves many sites, that name can front another site: the request inside the tunnel can name any host the CDN serves, and with Encrypted Client Hello so can the hidden server name. The shipped modules allow dozens of hosts, so the list is the boundary.
 
-Your answers are part of the boundary. Requests can carry text the agent wrote, which doriath labels as the agent's, and a long run of requests invites clicking allow. Once 32 are waiting, doriath refuses new ones.
+Work needs writes, and allowing writes allows exfiltration. Intercepting every host would make each write visible, but the interceptor speaks only HTTP/1.1, which breaks gRPC clients such as Bazel's remote cache. The `claude` module already refuses requests that carry `x-api-key`. GitHub comments outside your repositories cannot be held, since GraphQL names the repository by an opaque ID.
 
-[Security limits](/reference/security-limits/) lists every gap, each with the reason it stays.
+### The agent drives the programs it may use
+
+Credentials and `[[egress.programs]]` hosts go only to named programs, which stops stray programs and stops little else. Over TCP, doriath names the program that holds the socket when the connection opens, and a socket outlives the program that opened it, so a program can write its request and hand the socket to a named one before doriath looks. The agent can still run those programs with any arguments, steer them through config it can write, such as `~/.config/gh` in the jail, or preload a library into them. A program named by a writable path, such as Playwright's browser in its cache, can be replaced; doriath warns about each such path.
+
+The agent needs these programs, so request rules and approvals decide what they may do. Pinning each program by hash for the session would close the replacement case.
+
+### The host filesystem is readable
+
+The jail sees `/etc`, `/nix/store`, `/usr`, `/sys` and other system paths read-only, under Unix permissions. Anything world-readable there, including secrets in the nix store, is readable by the agent.
+
+Agents use the host's toolchain, which reads widely; a read allowlist would break tools until each profile listed everything they read.
+
+### The kernel surface programs need
+
+seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules, keyrings, terminal injection and rare socket families. It allows netlink beyond routing, nested seccomp filters, and `memfd_create`, which Chromium, .NET and `ss` need.
+
+Those tools break without these calls. Running a program from memory adds nothing, since a file the agent writes runs as well.
+
+### Same user, shared kernel
+
+The jail runs as your UID, separated by user namespaces, seccomp and Landlock, so a kernel or bubblewrap bug lets the agent out as you. Container sandboxes make the same bet; only a virtual machine does better. The podman service runs as root in a subordinate user namespace without seccomp of its own, so a container runtime escape lands there, though the agent only reaches the broker in front of it. Base images a build pulls inside podman are not checked or pinned. doriath's init in the jail is non-dumpable, but the agent can signal it, which ends the session, or stop it, which holds new connections to the proxy until it continues and lets the agent choose when doriath names the program behind one.
+
+In exchange, files the agent writes belong to you, and a session starts in under a second on the toolchain you already use.
+
+### Writable repositories
+
+With the `vcs` module, the agent creates, moves and deletes branches and adds worktrees in your repository. doriath keeps the start value of every moved branch for `doriath restore`, keeps existing packs read-only, and at the end restores deleted or rewritten loose objects and removes new objects and packs git cannot verify, along with new bitmaps and commit graphs, which git rebuilds. Submodule stores get the same treatment. A worktree the agent adds has a `.git` file and an admin directory the agent can write, and git on your machine follows them, to another store's config and hooks, so `git status` there could run the agent's code. doriath watches them while the session runs: when one changes, it points both back at your repository, moves aside a `.git` directory put in their place, and removes a planted `config.worktree`, within milliseconds. It repeats this when the session ends, or at the next `doriath run` if doriath died, and reports what it changed; a worktree that claims to be outside the session's writable mounts, or reaches outside them through a symlink, is left alone and reported, and an admin directory the agent replaced with a symlink is removed. A `.git` directory the agent creates anywhere else in a write mount is a repository of its own, and git on your machine follows its config and hooks, like an `.envrc`. Review an agent worktree's files as you would a pull request. A `write` mount of a checkout is your checkout itself: git's and jj's control files are read-only, including those that did not exist, but `.envrc` and editor tasks are not.
+
+Worktrees let agents work in parallel without touching your checkout. A copy per session would cost disk and time, and need a step to land the work.
+
+### Trust that comes back to the host
+
+- Claude's transcripts return to `~/.claude/projects`, so resuming one outside the jail reads agent-written history. They also go the other way: a session starts with the project's earlier transcripts, so the agent reads every earlier conversation about the project, including what you pasted into one outside the jail.
+- Agent output reaches your terminal as it is; escape sequences can change its title or state.
+- Caches and container storage are shared by a profile's sessions, so one can plant files a later one trusts.
+
+These paths exist for resuming sessions, reading the agent's output and reusing build caches.
+
+### Grants change mounts from the host
+
+`doriath request write` and `doriath grant write` change the running jail's mounts through a helper with full capabilities over them. It runs doriath's own read-only binary and never follows symlinks. A request from the agent only makes writable what the jail already sees; `doriath grant write`, which you type on the host, can also attach a directory the jail does not see, and so exposes its contents for reading. A grant lasts until the session ends, because an open file outlives taking a mount back.
+
+Restarting the session for each writable path would lose the agent's work.
+
+### Other trust
+
+- `doriath run --learn` reaches every public host for that session. Keep it for builds you start yourself, and never give it to an agent.
+- `doriath forward` listens on the host's loopback, which every local user reaches. On a shared server, that includes the other users.
+- The `nix-daemon` module's builds run outside the jail, without the allowlist.
+- A secret given as a command runs on the host with your environment, which trusts whoever wrote the profile.
+- OAuth logins keep refresh tokens in doriath's state directory, readable by your user outside the jail, as your other logins are.
+- Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session from the web or the app, and answer Claude's own permission prompts there. The jail and the proxy's rules still apply to what the agent then does.
+- Approvals rely on you. Tool requests carry text the agent wrote, and the notification says so; many requests in a row invite clicking allow. doriath refuses new ones while 32 are waiting, and shows the agent's other notifications 10 at once, then one a minute.
+- Sessions get task and memory limits but no CPU quota by default; `[limits] cpu` sets one.
+
+## Other sandboxes
+
+This table compares doriath with other ways to isolate a coding agent. Each cell says what the tool does for the threat in its default or documented setup. "Not covered" means the tool has no control for it. The facts come from each project's documentation and source, read in October 2026.
+
+<div class="comparison">
+
+| Threat                               | doriath                                                        | Claude Code sandbox                                             | OpenShell                                                                | Docker Sandboxes                                         | Hosted microVM (E2B, Claude cloud)                                     | Plain container                                        | Separate Unix user                               | nono                                                             |
+| ------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------- |
+| Read files outside the project       | Not mounted. System paths readable.                            | Readable by default. Deny rules optional.                       | Landlock allowlist. Host files absent unless uploaded or mounted.        | Only the workspace enters the VM.                        | Only the cloned repository is in the VM.                               | Only bind mounts are visible.                          | Unix permissions. World-readable files readable. | Landlock or Seatbelt allowlist of granted paths.                 |
+| Credentials the agent uses           | Proxy adds tokens outside the jail.                            | Optional mask mode. Proxy swaps a sentinel. Off by default.     | Proxy resolves placeholders outside the sandbox.                         | Host proxy swaps a sentinel.                             | Proxy adds secrets outside the VM.                                     | Held inside the container.                             | Held in the agent user's home.                   | Proxy injects. Agent gets a phantom token.                       |
+| Hosts outside an allowlist           | Proxy holds unknown hosts for approval.                        | Proxy checks host names.                                        | Denied unless a rule names host, port and binary.                        | Deny by default. Host proxy enforces policy.             | E2B: open by default, allowOut rules. Claude cloud: default allowlist. | Not covered. Reference devcontainer: iptables IP list. | Not covered. nftables owner match possible.      | Open by default. Domain allowlist optional.                      |
+| Local network and metadata service   | Refuses private, link-local and metadata addresses.            | Refuses loopback, link-local, metadata. Private ranges allowed. | Loopback and link-local always refused. Private refused unless declared. | Not documented.                                          | Runs off the user's network. Metadata rules not documented.            | Not covered. Reference firewall allows host /24.       | Not covered.                                     | Metadata and link-local refused. Private ranges allowed.         |
+| Exfiltration through an allowed host | Not covered. Request rules on [[http]] hosts.                  | Not covered. No content filter.                                 | L7 rules per method, path, GraphQL. Default mode audits.                 | Not covered.                                             | Not covered.                                                           | Not covered.                                           | Not covered.                                     | L7 endpoint rules on intercepted routes.                         |
+| Merges, pushes, releases             | Held for user approval. Agent cannot answer.                   | Ask rules on command text, answered in Claude's UI.             | L7 deny. Human approves new rules, not single requests.                  | Not documented.                                          | Token scope only.                                                      | Not covered.                                           | Token scope only.                                | Command policies can require terminal or webhook approval.       |
+| Checkout, git hooks and config       | Checkout read-only. Hooks and config read-only. Repair at end. | Project writable. .git hooks and config denied.                 | Workspace in sandbox. Files return only by download.                     | Direct mount writes the checkout. Clone mode: read-only. | Agent works on a clone in the VM.                                      | Bind mount writable, hooks included.                   | Agent keeps its own clones.                      | Project writable. Rollback snapshots. Hook guard not documented. |
+| Kernel escape                        | Shared kernel. seccomp, Landlock, namespaces.                  | Shared kernel. seccomp, namespaces.                             | Shared kernel, or separate with opt-in MicroVM driver.                   | Separate guest kernel.                                   | Separate guest kernel.                                                 | Shared kernel.                                         | Shared kernel. No sandbox layer.                 | Shared kernel. seccomp, Landlock.                                |
+| Persistence across sessions          | Caches and container storage shared per profile.               | Host home and caches shared.                                    | Workspace kept across stop and start.                                    | Sandbox kept until removed.                              | E2B: pause, resume, snapshots. Claude cloud: VM reclaimed.             | Named volumes, image layers.                           | Agent home persists.                             | Host paths shared. Snapshots on host.                            |
+| Toolchain                            | Host toolchain and /nix/store.                                 | Host toolchain.                                                 | Image.                                                                   | Template image in the VM.                                | Template image.                                                        | Image.                                                 | Host system, own home config.                    | Host toolchain.                                                  |
+
+</div>
+
+### doriath
+
+doriath runs the agent in a bubblewrap jail with user, mount, PID and network namespaces. seccomp refuses namespaces, mounts, ptrace, bpf and io_uring. Landlock limits writes. The jail has only loopback. A proxy on the host allows the hosts the profile names, refuses private and metadata addresses, and adds credentials. Request rules hold merges, releases and pushes for approval. The jail shares the host's kernel, toolchain and system paths. The sections above describe it.
+
+### Claude Code sandbox
+
+The built-in sandbox covers Bash, PowerShell and Monitor commands. File tools, MCP servers and hooks run outside it. The `srt` runtime can wrap the whole process. Reads cover "the entire computer, except certain denied directories". The proxy decides on the host name and does not inspect TLS by default, and the docs warn about domain fronting. Mask mode needs `tlsTerminate` and settings outside the repository. Claude can retry a command unsandboxed unless `allowUnsandboxedCommands` is false. Sources: https://code.claude.com/docs/en/sandboxing, https://github.com/anthropics/sandbox-runtime, https://code.claude.com/docs/en/sandbox-environments.
+
+### NVIDIA OpenShell
+
+A supervisor outside the workload decides each connection. The workload has no network of its own. Rules name the host, port and calling binary. L7 `enforcement` defaults to `audit`, which logs and forwards. Agents can propose rules through the policy advisor. A human approves them, or automatic approval applies when the risk checks pass. Docker, Podman and Kubernetes share the host kernel. The MicroVM driver needs KVM and is not auto-detected. Bind mounts need `enable_bind_mounts` and "can bypass workspace isolation". Version 0.1.5, October 2026. Sources: https://docs.nvidia.com/openshell/latest/about/architecture, https://docs.nvidia.com/openshell/latest/security/best-practices, https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/sandboxes/runtimes.mdx, https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/policies/advisor.mdx.
+
+### Docker Sandboxes
+
+This column is here because it is a widely available local microVM for agents, and Claude Code's docs name it. Each sandbox is a microVM with its own Docker daemon. A host proxy carries all outbound TCP, and "raw credential values never enter the VM". The docs warn that git hooks "do not appear in git diff output". It is closed source. Sources: https://docs.docker.com/ai/sandboxes/architecture/, https://docs.docker.com/ai/sandboxes/security/.
+
+### Hosted microVM
+
+E2B runs each sandbox in a Firecracker microVM. Outbound access is on by default. Domain rules match only HTTP Host and TLS SNI. A proxy adds secret headers outside the sandbox. Claude Code cloud sessions run in an Anthropic VM. A GitHub proxy holds the credential, and the docs say the Anthropic API stays reachable with network access off. Both run away from the user's machine, so the agent sees no local files. Sources: https://docs.e2b.dev/sandbox/internet-access, https://docs.e2b.dev/sandbox/persistence, https://docs.e2b.dev/agents/vercel-ai-sdk, https://code.claude.com/docs/en/claude-code-on-the-web.
+
+### Plain container
+
+A devcontainer shares the host kernel and bind-mounts the project read-write. Claude Code's docs say a container does "not prevent a malicious project from exfiltrating anything accessible inside the container, including the Claude Code credentials". The reference `init-firewall.sh` resolves allowed domains to IP addresses at start and allows the host's /24 network. Sources: https://code.claude.com/docs/en/devcontainer, https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh.
+
+### Separate Unix user
+
+A second account relies on Unix file permissions and adds no namespaces, seccomp or proxy. Files of mode 700 in the user's home stay closed. World-readable files and shared /tmp stay open. Network limits need root, for example an nftables `meta skuid` rule to a proxy. Source: https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation.
+
+### nono
+
+nono is an Apache-2.0 tool, version 0.80.0 from 13 October 2026, with commits in the week of writing. It uses Landlock and seccomp on Linux and Seatbelt on macOS. Network access is "unrestricted" until a domain rule applies. Plain allowed hosts are tunnelled with end-to-end TLS. A supervisor can prompt on the terminal for file access outside the grants. Sources: https://github.com/nolabs-ai/nono, https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/networking.mdx, https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/credential-injection.mdx, https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/supervisor.mdx.
+
+### Facts not confirmed
+
+- Docker Sandboxes: refusal of private or metadata addresses, and any approval step for single requests.
+- E2B: refusal of private or metadata addresses by default.
+- OpenShell: whether middleware can hold one request for a human.
+- nono: guards against writes to `.git/hooks` or `.git/config`, and whether the agent can reach the supervisor's terminal prompt.
+- Claude Code cloud sessions: which git operations the GitHub proxy limits.

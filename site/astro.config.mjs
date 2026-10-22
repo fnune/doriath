@@ -78,7 +78,6 @@ export default defineConfig({
             { label: "Configuration", slug: "reference/configuration" },
             { label: "Modules", slug: "reference/modules" },
             { label: "Commands", slug: "reference/commands" },
-            { label: "Security limits", slug: "reference/security-limits" },
           ],
         },
         { label: "Development", slug: "development" },

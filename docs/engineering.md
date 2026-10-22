@@ -37,7 +37,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - No service locator and no ambient context. Do not reach for `time.Now()`, `os.Getenv` or `os.Exec` from domain code. Receive a `Clock`, the config, or a `Runner` instead.
 - A growing constructor argument list is a sign that a type does too much.
 - Tests follow the seams DI creates. Hand-written in-memory fakes for volatile dependencies, no mocking frameworks. Integration tests run the real jail (bubblewrap, sockets, proxy) where the machine supports it.
-- Every way out of the jail that doriath closes has a script in `internal/session/testdata/escapes`, run in a real jail by `TestEscapes`. A script names its threat and exits 0 when the guard held. A new finding becomes a new script. Scripts marked `expect: gap` document a limit from [security limits](https://doriath.fnune.com/reference/security-limits/), whose source is `site/src/content/docs/reference/security-limits.md`, and fail once the gap closes, so the docs change with the code.
+- Every way out of the jail that doriath closes has a script in `internal/session/testdata/escapes`, run in a real jail by `TestEscapes`. A script names its threat and exits 0 when the guard held. A new finding becomes a new script. Scripts marked `expect: gap` document a limit from the [threat model](https://doriath.fnune.com/threat-model/#limits), whose source is `site/src/content/docs/threat-model.mdx`, and fail once the gap closes, so the docs change with the code.
 
 ### Layered architecture and abstraction ownership
 

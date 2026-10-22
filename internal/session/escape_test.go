@@ -27,7 +27,7 @@ import (
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
-// from the security limits page of the site: the escape must still succeed, so closing the
+// from the limits on the threat model page of the site: the escape must still succeed, so closing the
 // gap fails the test until the docs and the script are updated.
 func TestEscapes(t *testing.T) {
 	scripts, err := filepath.Glob("testdata/escapes/*.sh")
@@ -56,7 +56,7 @@ func TestEscapes(t *testing.T) {
 				}
 			case "gap":
 				if code == 0 {
-					t.Fatalf("a documented gap no longer opens: update site/src/content/docs/reference/security-limits.md and this script\nthreat: %s\n%s", h.threat, out)
+					t.Fatalf("a documented gap no longer opens: update the limits in site/src/content/docs/threat-model.mdx and this script\nthreat: %s\n%s", h.threat, out)
 				}
 			}
 		})

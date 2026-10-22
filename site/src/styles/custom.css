@@ -79,6 +79,24 @@ body {
   max-width: 44rem;
 }
 
+.comparison {
+  overflow-x: auto;
+  margin-block: 1.5rem;
+}
+
+.comparison table {
+  min-width: 110rem;
+  font-size: var(--sl-text-sm);
+}
+
+.comparison th:first-child,
+.comparison td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  min-width: 12rem;
+}
+
 .flourish {
   margin-block: 2rem;
 }

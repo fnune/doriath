@@ -16,7 +16,7 @@ doriath doctor
 
 - [Install](https://doriath.fnune.com/install/) also covers home-manager, NixOS and Go, and walks from there to a first session.
 - [Architecture](https://doriath.fnune.com/architecture/) covers the jail, the proxy, approvals and repositories.
-- [Threat model](https://doriath.fnune.com/threat-model/) and [security limits](https://doriath.fnune.com/reference/security-limits/) say what doriath guards against and what it leaves open.
+- [Threat model](https://doriath.fnune.com/threat-model/) says what doriath guards against, what it leaves open, and how other sandboxes handle the same threats.
 - [Configuration](https://doriath.fnune.com/reference/configuration/) lists every key.
 
 ## Development

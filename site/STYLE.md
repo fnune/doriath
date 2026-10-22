@@ -21,9 +21,9 @@ Write in Simplified Technical English, after ASD-STE100, in a pragmatic form: th
 - No bold, no em-dashes, no emoji.
 - Second person ("you"), present tense ("doriath refuses"), imperative mood for instructions ("run the command").
 - Prefer short paragraphs to bullets. Bullets are for lists of items, not for explaining how something works.
-- No value judgements and no comparisons that rank doriath. State what it does and what it leaves open.
+- No value judgements and no comparisons that rank doriath. State what it does and what it leaves open. A comparison with other tools states the facts of each tool, with sources, and leaves the conclusion to the reader.
 - Backticks for commands, paths, config keys, module names and code.
-- Say what a limit is when a page describes a protection. Link to the security limits page for the full list.
+- Say what a limit is when a page describes a protection. Link to the limits on the threat model page for the full list.
 
 ## Patterns that read as generated
 
@@ -59,7 +59,7 @@ Words to avoid, with what to say instead:
 - Config examples show only the keys that matter, not a whole file.
 - Use Starlight's `<Aside>` for notes and cautions.
 - Describe doriath as it is meant to work, with no "yet", "so far", "known issues" or release status. Where the code falls short, the gap goes in the project's TODO list outside the repository, not on a page.
-- The security limits page is the exception: a protection the code does not provide stays listed there as a limit until it does.
+- The limits on the threat model page are the exception: a protection the code does not provide stays listed there as a limit until it does.
 - Each topic has one page. Link to it instead of repeating it on another.
 - Link a config key, module, command or concept to its reference the first time a page names it.
 - Where a page describes behaviour a setting controls, link to where it is set.
