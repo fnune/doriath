@@ -63,7 +63,7 @@
         {{end}}
       </div>
     </section>
-    <section aria-label="{{if or .Selected .Answer}}Selected request{{else}}Status{{end}}">
+    <section class="side" aria-label="{{if or .Selected .Answer}}Selected request{{else}}Status{{end}}">
       {{with .Selected}}<h2 class="section-title">Request <span class="sid">{{.ID}}</span></h2>{{else}}{{with .Answer}}<h2 class="section-title">Answered request <span class="sid">{{.Detail.ID}}</span></h2>{{else}}<h2 class="section-title">Status</h2>{{end}}{{end}}
       <div class="detail" aria-live="polite">
         {{with .Selected}}{{template "detail" .}}{{else}}{{with .Answer}}{{template "answered" .}}{{else}}{{template "status" .Status}}{{end}}{{end}}
