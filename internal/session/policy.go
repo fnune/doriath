@@ -38,7 +38,11 @@ func (l *livePolicy) AllowsHostFor(host, exe string) bool {
 	if l.extra[host] {
 		return true
 	}
-	if ip, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil && !publicAddr(ip) {
+	name, port := profile.SplitTarget(host)
+	if ip, err := netip.ParseAddr(strings.Trim(name, "[]")); err == nil && !publicAddr(ip) {
+		return false
+	}
+	if port != "" {
 		return false
 	}
 	if l.learn {

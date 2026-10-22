@@ -160,23 +160,19 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
-	if port := r.URL.Port(); port != "" && port != "443" {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 443 is proxied for HTTPS"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed", port))
+	target := profile.Target(host, r.URL.Port(), "443")
+	if !s.admit(w, r, target, r.URL.Port()) {
 		return
 	}
-	if !s.admit(w, r, host, "") {
-		return
-	}
-	r.Host = host
+	r.Host = target
 	r.Header.Del("Proxy-Authorization")
-	if rules, ok := s.policy.Intercepted(host); ok {
-		s.firstSeen(host, "intercept")
-		s.intercepted(w, r, host, rules)
+	if rules, ok := s.policy.Intercepted(target); ok {
+		s.firstSeen(target, "intercept")
+		s.intercepted(w, r, host, target, rules)
 		return
 	}
-	s.firstSeen(host, "https")
-	s.forward(w, r, "https", host)
+	s.firstSeen(target, "https")
+	s.forward(w, r, "https", target)
 }
 
 func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
@@ -186,12 +182,8 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host = strings.ToLower(host)
-	if port != "443" {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 443 is tunneled"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed; only HTTPS on 443 goes through the proxy", port))
-		return
-	}
-	if !s.admit(w, r, host, port) {
+	target := profile.Target(host, port, "443")
+	if !s.admit(w, r, target, port) {
 		return
 	}
 	hj, ok := w.(http.Hijacker)
@@ -199,7 +191,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusInternalServerError, "doriath: connection cannot be hijacked")
 		return
 	}
-	if intercept, ok := s.policy.Intercepted(host); ok {
+	if intercept, ok := s.policy.Intercepted(target); ok {
 		conn, buf, err := hj.Hijack()
 		if err != nil {
 			return
@@ -208,8 +200,8 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close()
 			return
 		}
-		s.firstSeen(host, "intercept")
-		s.intercept(prefixed(conn, buf.Reader), host, intercept, IdentityFrom(r.Context()))
+		s.firstSeen(target, "intercept")
+		s.intercept(prefixed(conn, buf.Reader), host, target, intercept, IdentityFrom(r.Context()))
 		return
 	}
 
@@ -242,11 +234,11 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		_ = upstream.Close()
 		return
 	}
-	s.firstSeen(host, "tunnel")
+	s.firstSeen(target, "tunnel")
 	pipe(client, upstream)
 }
 
-func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, id Identity) {
+func (s *Server) intercept(conn net.Conn, host, target string, rules profile.HTTPHost, id Identity) {
 	tlsConn := tls.Server(conn, &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"http/1.1"},
@@ -259,7 +251,7 @@ func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, i
 		},
 	})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.intercepted(w, r, host, rules)
+		s.intercepted(w, r, host, target, rules)
 	})
 	srv := &http.Server{
 		Handler:           handler,
@@ -269,7 +261,7 @@ func (s *Server) intercept(conn net.Conn, host string, rules profile.HTTPHost, i
 	_ = srv.Serve(newOneConnListener(tlsConn))
 }
 
-func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string, rules profile.HTTPHost) {
+func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, target string, rules profile.HTTPHost) {
 	reqHost := strings.ToLower(r.Host)
 	if h, _, err := net.SplitHostPort(reqHost); err == nil {
 		reqHost = h
@@ -374,25 +366,21 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		}
 		r.Header.Set(name, value)
 	}
-	s.forwardAudited(w, r, host)
+	s.forwardAudited(w, r, target)
 }
 
 func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
-	if _, ok := s.policy.Intercepted(host); ok {
-		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "plain HTTP to an intercepted host"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: use https for %s", host))
+	target := profile.Target(host, r.URL.Port(), "80")
+	if _, ok := s.policy.Intercepted(target); ok {
+		s.record(Event{Kind: "denied", Host: target, Method: r.Method, Path: r.URL.Path, Reason: "plain HTTP to an intercepted host"})
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: use https for %s", target))
 		return
 	}
-	if port := r.URL.Port(); port != "" && port != "80" {
-		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 80 is proxied for plain HTTP"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed", port))
+	if !s.admit(w, r, target, r.URL.Port()) {
 		return
 	}
-	if !s.admit(w, r, host, "") {
-		return
-	}
-	s.firstSeen(host, "http")
+	s.firstSeen(target, "http")
 	r.Header.Del("Proxy-Authorization")
 	s.forward(w, r, "http", r.URL.Host)
 }

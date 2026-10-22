@@ -541,7 +541,7 @@ func TestMissingSecretFailsClosed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
 	host, _ := p.Intercepted("api.github.com")
-	srv.intercepted(rec, req, "api.github.com", host)
+	srv.intercepted(rec, req, "api.github.com", "api.github.com", host)
 	if rec.Code != http.StatusBadGateway || h.upstream.count() != 0 {
 		t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
 	}
@@ -677,7 +677,7 @@ func TestCredentialOnlyForListedBinaries(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
 		req = req.WithContext(withIdentity(req.Context(), Identity{PID: 9, Exe: exe}))
 		rec := httptest.NewRecorder()
-		srv.intercepted(rec, req, "api.github.com", host)
+		srv.intercepted(rec, req, "api.github.com", "api.github.com", host)
 		if rec.Code != http.StatusOK || h.upstream.count() != before+1 {
 			t.Fatalf("%s: status %d", exe, rec.Code)
 		}
@@ -931,5 +931,46 @@ credential = { secret = "github", scheme = "header", header = "PRIVATE-TOKEN" }
 	got, _ = h.upstream.last(t)
 	if !strings.HasPrefix(got.Header.Get("Authorization"), "Basic ") || got.Header.Get("Private-Token") != "" {
 		t.Fatalf("a path no rule credential covers must get the host's: %v", got.Header)
+	}
+}
+
+func TestAPortReachesOnlyTheHostsThatNameIt(t *testing.T) {
+	h := newHarnessWith(t, `
+[secrets.github]
+command = ["true"]
+
+[egress]
+allow = ["example.com:8443"]
+
+[[http]]
+host = "github.com:8443"
+credential = { secret = "github", scheme = "bearer" }
+default = "allow"
+`)
+	resp, err := h.client().Get("https://example.com:8443/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("a named port: status %d: %s", resp.StatusCode, b)
+	}
+	for _, refused := range []string{"https://example.com:9443/x", "https://example.com/x"} {
+		resp, err := h.client().Get(refused)
+		if err == nil {
+			_ = body(t, resp)
+			if resp.StatusCode != http.StatusForbidden {
+				t.Errorf("%s: status %d", refused, resp.StatusCode)
+			}
+		}
+	}
+	resp, err = h.client().Get("https://github.com:8443/api/v1/repos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("an inspected host on a port: status %d: %s", resp.StatusCode, b)
+	}
+	if got, _ := h.upstream.last(t); got.Header.Get("Authorization") != "Bearer real-token" {
+		t.Fatalf("the credential must reach a host on its port: %v", got.Header)
 	}
 }

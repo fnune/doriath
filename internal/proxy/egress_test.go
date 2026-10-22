@@ -197,7 +197,7 @@ deny = ["notion-delete-*"]
 			host, _ := p.Intercepted("mcp.example.com")
 			req := httptest.NewRequest(http.MethodPost, "https://mcp.example.com/mcp", strings.NewReader(tc.body))
 			rec := httptest.NewRecorder()
-			srv.intercepted(rec, req, "mcp.example.com", host)
+			srv.intercepted(rec, req, "mcp.example.com", "mcp.example.com", host)
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status %d: %s", rec.Code, rec.Body)
 			}
@@ -241,7 +241,7 @@ func TestRefusedApprovalSaysWhy(t *testing.T) {
 			host, _ := p.Intercepted("api.github.com")
 			req := httptest.NewRequest(http.MethodPost, "https://api.github.com/repos/a/b/releases", strings.NewReader("{}"))
 			rec := httptest.NewRecorder()
-			h.server(t, p, Config{}, h.dialer()).intercepted(rec, req, "api.github.com", host)
+			h.server(t, p, Config{}, h.dialer()).intercepted(rec, req, "api.github.com", "api.github.com", host)
 			if rec.Code != http.StatusForbidden || h.upstream.count() != 0 {
 				t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
 			}

@@ -425,3 +425,37 @@ func TestRuleCredentialsNeedTheirSecret(t *testing.T) {
 		t.Fatalf("a header scheme without a header: %v", err)
 	}
 }
+
+func TestHostPatternsWithAPort(t *testing.T) {
+	p, err := ParseHostPattern("Git.Example.org:3000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target, want := range map[string]bool{
+		"git.example.org:3000": true,
+		"git.example.org":      false,
+		"git.example.org:3001": false,
+	} {
+		if got := p.Match(target); got != want {
+			t.Errorf("%s.Match(%q) = %v", p, target, got)
+		}
+	}
+	plain, _ := ParseHostPattern("example.org")
+	if plain.Match("example.org:8443") || !plain.Match("example.org") {
+		t.Error("a pattern without a port must match only the default port")
+	}
+	for _, bad := range []string{"example.org:", "example.org:0", "example.org:70000", "example.org:08", "example.org:x", "*:80"} {
+		if _, err := ParseHostPattern(bad); err == nil {
+			t.Errorf("%q must be refused", bad)
+		}
+	}
+	if Target("Example.org", "443", "443") != "example.org" || Target("example.org", "8443", "443") != "example.org:8443" || Target("2001:db8::1", "8443", "443") != "[2001:db8::1]:8443" {
+		t.Error("Target")
+	}
+	if h, port := SplitTarget("[2001:db8::1]:8443"); h != "2001:db8::1" || port != "8443" {
+		t.Errorf("SplitTarget = %q, %q", h, port)
+	}
+	if h, port := SplitTarget("2001:db8::1"); h != "2001:db8::1" || port != "" {
+		t.Errorf("SplitTarget of a bare IPv6 address = %q, %q", h, port)
+	}
+}

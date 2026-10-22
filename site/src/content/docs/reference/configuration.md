@@ -70,8 +70,10 @@ path_prepend = ["/nix/store/...-xvfb-21.1.24/bin"]
 
 [egress]
 # Hosts reachable on port 443 (and 80 for plain HTTP). "*.example.com"
-# matches subdomains but not example.com itself.
-allow = ["proxy.golang.org", "*.githubusercontent.com"]
+# matches subdomains but not example.com itself. host:port names another
+# port, such as a self-hosted forge on git.example.org:3000; the connection
+# must still be HTTP or TLS.
+allow = ["proxy.golang.org", "*.githubusercontent.com", "git.example.org:3000"]
 # Host localhost ports the jail may reach over HTTP, and as raw TCP.
 ports = [4200]
 tcp_ports = [3306]

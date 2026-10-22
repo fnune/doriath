@@ -6,10 +6,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -461,13 +464,47 @@ func jsonStrings(body []byte) [][]byte {
 }
 
 // HostPattern is an exact host name, or "*." followed by a domain, which
-// matches every subdomain of that domain but not the domain itself.
+// matches every subdomain of that domain but not the domain itself. Either
+// may end in ":PORT" to allow that port instead of 443 for HTTPS and 80 for
+// plain HTTP, such as git.example.org:3000 for a self-hosted forge.
 type HostPattern string
+
+// Target names what a connection reaches, in the form host patterns match:
+// the host alone on the default port, or host:port on any other.
+func Target(host, port, defaultPort string) string {
+	host = strings.ToLower(host)
+	if port == "" || port == defaultPort {
+		return host
+	}
+	return net.JoinHostPort(host, port)
+}
+
+// SplitTarget takes a target apart again. A bare IPv6 address has no port.
+func SplitTarget(target string) (host, port string) {
+	if h, p, err := net.SplitHostPort(target); err == nil {
+		return h, p
+	}
+	if _, err := netip.ParseAddr(target); err == nil {
+		return target, ""
+	}
+	host, port, _ = strings.Cut(target, ":")
+	return host, port
+}
 
 var hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 func ParseHostPattern(s string) (HostPattern, error) {
 	host := strings.ToLower(strings.TrimSpace(s))
+	if name, port, ok := strings.Cut(host, ":"); ok {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 || strconv.Itoa(n) != port {
+			return "", fmt.Errorf("host pattern %q: want a port from 1 to 65535 after the colon", s)
+		}
+		if _, err := ParseHostPattern(name); err != nil {
+			return "", err
+		}
+		return HostPattern(host), nil
+	}
 	rest := strings.TrimPrefix(host, "*.")
 	if rest == "" || strings.ContainsAny(rest, "*/:@") {
 		return "", fmt.Errorf("host pattern %q: want a host name or *.domain", s)
@@ -481,7 +518,16 @@ func ParseHostPattern(s string) (HostPattern, error) {
 }
 
 func (p HostPattern) Match(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	name, port := SplitTarget(strings.ToLower(host))
+	name = strings.TrimSuffix(name, ".")
+	pattern, wantPort, _ := strings.Cut(string(p), ":")
+	if port != wantPort {
+		return false
+	}
+	return HostPattern(pattern).matchName(name)
+}
+
+func (p HostPattern) matchName(host string) bool {
 	if suffix, ok := strings.CutPrefix(string(p), "*."); ok {
 		sub, ok := strings.CutSuffix(host, "."+suffix)
 		return ok && !slices.Contains(strings.Split(sub, "."), "")
