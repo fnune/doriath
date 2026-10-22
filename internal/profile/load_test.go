@@ -146,7 +146,7 @@ func TestLoadRejects(t *testing.T) {
 		},
 		"unknown scheme": {
 			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"digest\" }",
-			want:    "want bearer, token or basic",
+			want:    "want bearer, token, basic or header",
 		},
 		"empty credential binary": {
 			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"\"] }",
@@ -412,5 +412,16 @@ func TestSSHRemoteDefaultsAndLimits(t *testing.T) {
 	}
 	if p, err := load("[[http]]\nhost = \"example.org\"\ncredential = { secret = \"s\", scheme = \"basic\", username = \"u\" }\n[secrets.s]\ncommand = [\"true\"]\n"); err != nil || p.HTTP[0].SSH != nil {
 		t.Fatalf("a basic credential alone must not turn on the rewrite: %+v, %v", p, err)
+	}
+}
+
+func TestRuleCredentialsNeedTheirSecret(t *testing.T) {
+	_, err := loader(fstest.MapFS{"p.toml": file("[[http]]\nhost = \"gitlab.com\"\n[[http.rules]]\npath = \"/api/**\"\naction = \"allow\"\ncredential = { secret = \"gitlab\", scheme = \"header\", header = \"PRIVATE-TOKEN\" }\n")}, fstest.MapFS{}).Load("p")
+	if err == nil || !strings.Contains(err.Error(), "[secrets.gitlab]") {
+		t.Fatalf("got %v", err)
+	}
+	_, err = loader(fstest.MapFS{"p.toml": file("[secrets.gitlab]\ncommand = [\"true\"]\n[[http]]\nhost = \"gitlab.com\"\ncredential = { secret = \"gitlab\", scheme = \"header\" }\n")}, fstest.MapFS{}).Load("p")
+	if err == nil || !strings.Contains(err.Error(), "needs a header name") {
+		t.Fatalf("a header scheme without a header: %v", err)
 	}
 }

@@ -92,12 +92,17 @@ const (
 	SchemeBearer Scheme = "bearer"
 	SchemeToken  Scheme = "token"
 	SchemeBasic  Scheme = "basic"
+	// SchemeHeader sends the secret as the value of a header of its own,
+	// such as GitLab's PRIVATE-TOKEN.
+	SchemeHeader Scheme = "header"
 )
 
 type Credential struct {
 	Secret   string
 	Scheme   Scheme
 	Username string
+	// Header names the header that carries the secret for SchemeHeader.
+	Header string
 	// Binaries limits the credential to these programs. Other programs reach
 	// the host without it. Empty means any program.
 	Binaries []string
@@ -179,6 +184,9 @@ type Rule struct {
 	MCPNone bool
 	Action  Action
 	Summary string
+	// Credential replaces the host's credential for requests the rule
+	// matches, for a forge whose git and API paths take different ones.
+	Credential *Credential
 }
 
 // NeedsBody reports whether any rule for this host looks at request bodies.

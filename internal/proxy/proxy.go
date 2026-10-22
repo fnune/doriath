@@ -356,16 +356,23 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		s.record(Event{Kind: "approved", Host: host, Method: r.Method, Path: r.URL.Path, Reason: summary})
 	}
 
-	if c := rules.Credential; c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Exe) {
+	c := rules.Credential
+	if matched && rule.Credential != nil {
+		c = rule.Credential
+	}
+	if c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Exe) {
 		s.withheld(host, IdentityFrom(r.Context()))
 	} else if c != nil {
-		header, err := s.authorization(r.Context(), *c)
+		name, value, err := s.credentialHeader(r.Context(), *c)
 		if err != nil {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
 			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot load the credential for %s: %v", host, err))
 			return
 		}
-		r.Header.Set("Authorization", header)
+		if name != "Authorization" {
+			r.Header.Del("Authorization")
+		}
+		r.Header.Set(name, value)
 	}
 	s.forwardAudited(w, r, host)
 }
@@ -426,19 +433,21 @@ type noCloseNotify struct{ http.ResponseWriter }
 
 func (w noCloseNotify) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-func (s *Server) authorization(ctx context.Context, c profile.Credential) (string, error) {
+func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (string, string, error) {
 	v, err := s.secrets.Get(ctx, c.Secret)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	token := string(v.Reveal())
 	switch c.Scheme {
 	case profile.SchemeBasic:
-		return "Basic " + base64.StdEncoding.EncodeToString([]byte(c.Username+":"+token)), nil
+		return "Authorization", "Basic " + base64.StdEncoding.EncodeToString([]byte(c.Username+":"+token)), nil
 	case profile.SchemeToken:
-		return "token " + token, nil
+		return "Authorization", "token " + token, nil
+	case profile.SchemeHeader:
+		return c.Header, token, nil
 	default:
-		return "Bearer " + token, nil
+		return "Authorization", "Bearer " + token, nil
 	}
 }
 

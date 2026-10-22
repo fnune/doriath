@@ -892,3 +892,44 @@ summary = "Push"
 		t.Fatalf("the upstream got %d bytes of %d", len(got), len(payload))
 	}
 }
+
+func TestARuleCredentialReplacesTheHosts(t *testing.T) {
+	h := newHarnessWith(t, `
+[secrets.github]
+command = ["true"]
+
+[[http]]
+host = "github.com"
+credential = { secret = "github", scheme = "basic", username = "oauth2" }
+default = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/**"
+action = "allow"
+credential = { secret = "github", scheme = "header", header = "PRIVATE-TOKEN" }
+`)
+	req, _ := http.NewRequest(http.MethodGet, "https://github.com/api/v4/projects", nil)
+	req.Header.Set("Authorization", "Bearer brought-by-the-agent")
+	req.Header.Set("PRIVATE-TOKEN", "placeholder")
+	resp, err := h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, b)
+	}
+	got, _ := h.upstream.last(t)
+	if got.Header.Get("Private-Token") != "real-token" || got.Header.Get("Authorization") != "" {
+		t.Fatalf("upstream headers: %v", got.Header)
+	}
+	resp, err = h.client().Get("https://github.com/group/proj.git/info/refs?service=git-upload-pack")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = body(t, resp)
+	got, _ = h.upstream.last(t)
+	if !strings.HasPrefix(got.Header.Get("Authorization"), "Basic ") || got.Header.Get("Private-Token") != "" {
+		t.Fatalf("a path no rule credential covers must get the host's: %v", got.Header)
+	}
+}

@@ -87,8 +87,10 @@ allow = ["js.stripe.com"]
 # per request.
 [[http]]
 host = "api.github.com"
-# scheme is bearer, token, or basic with username. binaries limits the
-# credential to these programs, matched like egress.programs.
+# scheme is bearer, token, basic with username, or header with the name of
+# the header, such as PRIVATE-TOKEN. binaries limits the credential to these
+# programs, matched like egress.programs. A rule can carry a credential of its
+# own, for the requests it matches.
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 # For requests no rule matches: allow, approve or deny. Hosts with a
 # credential default to approve, others to allow.

@@ -624,8 +624,17 @@ func (b *builder) build(top layer) (*Profile, error) {
 		p.SigningKey = b.signing
 	}
 	for _, h := range p.HTTP {
-		if c := h.Credential; c != nil {
+		creds := []*Credential{h.Credential}
+		for _, r := range h.Rules {
+			creds = append(creds, r.Credential)
+		}
+		var missing []string
+		for _, c := range creds {
+			if c == nil || slices.Contains(missing, c.Secret) {
+				continue
+			}
 			if _, ok := p.Secrets[c.Secret]; !ok {
+				missing = append(missing, c.Secret)
 				errs = append(errs, fmt.Errorf("http %s: secret %q: add it under [secrets.%s] in the profile", h.Host, c.Secret, c.Secret))
 			}
 		}
@@ -717,17 +726,24 @@ func buildCredential(c credentialLayer) (Credential, error) {
 	if c.Scheme == "" {
 		scheme = SchemeBearer
 	}
+	if c.Username != "" && scheme != SchemeBasic {
+		return Credential{}, fmt.Errorf("username is only used with the basic scheme")
+	}
+	if c.Header != "" && scheme != SchemeHeader {
+		return Credential{}, fmt.Errorf("header is only used with the header scheme")
+	}
 	switch scheme {
 	case SchemeBearer, SchemeToken:
-		if c.Username != "" {
-			return Credential{}, fmt.Errorf("username is only used with the basic scheme")
-		}
 	case SchemeBasic:
 		if c.Username == "" {
 			return Credential{}, fmt.Errorf("the basic scheme needs a username")
 		}
+	case SchemeHeader:
+		if !headerName.MatchString(c.Header) {
+			return Credential{}, fmt.Errorf("the header scheme needs a header name, such as PRIVATE-TOKEN")
+		}
 	default:
-		return Credential{}, fmt.Errorf("scheme %q: want bearer, token or basic", c.Scheme)
+		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic or header", c.Scheme)
 	}
 	for _, b := range c.Binaries {
 		if b == "" {
@@ -737,7 +753,7 @@ func buildCredential(c credentialLayer) (Credential, error) {
 			return Credential{}, fmt.Errorf("binary %q: a path must be absolute", b)
 		}
 	}
-	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Binaries: c.Binaries}, nil
+	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), Binaries: c.Binaries}, nil
 }
 
 var methodPattern = regexp.MustCompile(`^(\*|[A-Z]+)$`)
@@ -781,6 +797,13 @@ func buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, err
 		}
 		rule.GraphQL = &g
+	}
+	if r.Credential != nil {
+		cred, err := buildCredential(*r.Credential)
+		if err != nil {
+			return Rule{}, fmt.Errorf("credential: %w", err)
+		}
+		rule.Credential = &cred
 	}
 	return rule, nil
 }

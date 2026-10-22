@@ -256,16 +256,17 @@ func TestCredentialSchemes(t *testing.T) {
 	h := newHarness(t)
 	srv := h.server(t, loadPolicy(t), Config{}, h.dialer())
 	for _, tc := range []struct {
-		cred profile.Credential
-		want string
+		cred         profile.Credential
+		header, want string
 	}{
-		{profile.Credential{Secret: "github", Scheme: profile.SchemeBearer}, "Bearer real-token"},
-		{profile.Credential{Secret: "github", Scheme: profile.SchemeToken}, "token real-token"},
-		{profile.Credential{Secret: "github", Scheme: profile.SchemeBasic, Username: "x-access-token"}, "Basic eC1hY2Nlc3MtdG9rZW46cmVhbC10b2tlbg=="},
+		{profile.Credential{Secret: "github", Scheme: profile.SchemeBearer}, "Authorization", "Bearer real-token"},
+		{profile.Credential{Secret: "github", Scheme: profile.SchemeToken}, "Authorization", "token real-token"},
+		{profile.Credential{Secret: "github", Scheme: profile.SchemeBasic, Username: "x-access-token"}, "Authorization", "Basic eC1hY2Nlc3MtdG9rZW46cmVhbC10b2tlbg=="},
+		{profile.Credential{Secret: "github", Scheme: profile.SchemeHeader, Header: "Private-Token"}, "Private-Token", "real-token"},
 	} {
-		got, err := srv.authorization(context.Background(), tc.cred)
-		if err != nil || got != tc.want {
-			t.Errorf("%s: got %q, %v; want %q", tc.cred.Scheme, got, err, tc.want)
+		header, got, err := srv.credentialHeader(context.Background(), tc.cred)
+		if err != nil || header != tc.header || got != tc.want {
+			t.Errorf("%s: got %s: %q, %v; want %s: %q", tc.cred.Scheme, header, got, err, tc.header, tc.want)
 		}
 	}
 }

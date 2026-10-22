@@ -77,20 +77,22 @@ type credentialLayer struct {
 	Secret   string   `toml:"secret"`
 	Scheme   string   `toml:"scheme"`
 	Username string   `toml:"username"`
+	Header   string   `toml:"header"`
 	Binaries []string `toml:"binaries"`
 }
 
 type ruleLayer struct {
-	Method       string        `toml:"method"`
-	Path         string        `toml:"path"`
-	BodyContains []string      `toml:"body_contains"`
-	GraphQL      *graphQLLayer `toml:"graphql"`
-	Header       string        `toml:"header"`
-	HeaderPrefix string        `toml:"header_prefix"`
-	MCPTools     []string      `toml:"mcp_tools"`
-	MCPNone      bool          `toml:"-"`
-	Action       string        `toml:"action"`
-	Summary      string        `toml:"summary"`
+	Method       string           `toml:"method"`
+	Path         string           `toml:"path"`
+	BodyContains []string         `toml:"body_contains"`
+	GraphQL      *graphQLLayer    `toml:"graphql"`
+	Header       string           `toml:"header"`
+	HeaderPrefix string           `toml:"header_prefix"`
+	MCPTools     []string         `toml:"mcp_tools"`
+	MCPNone      bool             `toml:"-"`
+	Action       string           `toml:"action"`
+	Summary      string           `toml:"summary"`
+	Credential   *credentialLayer `toml:"credential"`
 }
 
 type graphQLLayer struct {
