@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/ui"
 )
 
 type Session struct {
@@ -110,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(static)))
+	mux.Handle("GET /ui/", http.StripPrefix("/ui/", http.FileServerFS(ui.Assets)))
 	mux.HandleFunc("GET /proof", s.proof)
 	mux.HandleFunc("GET /main", s.authorized(s.main))
 	mux.HandleFunc("POST /decide", s.authorized(s.decide))

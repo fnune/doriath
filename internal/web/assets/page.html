@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"selfRequestsOnly":true}'>
 <title>Doriath</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/page.css">
 <script src="/assets/vendor/htmx.min.js" defer></script>
 <script src="/assets/vendor/idiomorph-ext.min.js" defer></script>
 <noscript><meta http-equiv="refresh" content="3"></noscript>
 </head>
-<body hx-ext="morph">
+<body class="doriath-ui" hx-ext="morph">
 {{template "main" .}}
 </body>
 </html>
@@ -21,11 +23,7 @@
 <header>
   <div class="wrap">
     <div class="brand">
-      <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true">
-        <circle cx="19" cy="19" r="17" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="19" cy="19" r="12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 2.5"/>
-        <circle cx="19" cy="19" r="3" fill="currentColor"/>
-      </svg>
+      <svg width="38" height="38" aria-hidden="true"><use href="/ui/ornaments.svg#mark"/></svg>
       <div><h1>Doriath</h1><small>{{.Count}}</small></div>
     </div>
     <div class="sessions">
@@ -131,6 +129,6 @@
 </form>
 {{end}}
 
-{{define "curl-h"}}<svg class="curl {{.}}" width="28" height="14" viewBox="0 0 28 14" aria-hidden="true"><path d="M28 12 H12 C6 12 2 10 2 6.5 C2 3.5 4.5 1.8 7 1.8 C9.5 1.8 11 3.6 11 5.6 C11 7.4 9.6 8.6 8 8.5"/><path class="bud" d="M11.96 12 Q9.43 11.97 7.34 13.85"/><circle class="leaf" cx="7.34" cy="13.85" r="1"/><path class="bud" d="M4.64 10.5 Q2.47 9.2 -0.28 9.76"/><circle class="leaf" cx="-0.28" cy="9.76" r="1"/></svg>{{end}}
+{{define "curl-h"}}<svg class="curl {{.}}" width="28" height="14" aria-hidden="true"><use href="/ui/ornaments.svg#curl-h"/></svg>{{end}}
 
-{{define "curl-v"}}<svg class="curl {{.}}" width="14" height="28" viewBox="0 0 14 28" aria-hidden="true"><path d="M12 28 V12 C12 6 10 2 6.5 2 C3.5 2 1.8 4.5 1.8 7 C1.8 9.5 3.6 11 5.6 11 C7.4 11 8.6 9.6 8.5 8"/><path class="bud" d="M12 11.96 Q11.97 9.43 13.85 7.34"/><circle class="leaf" cx="13.85" cy="7.34" r="1"/><path class="bud" d="M10.5 4.64 Q9.2 2.47 9.76 -0.28"/><circle class="leaf" cx="9.76" cy="-0.28" r="1"/></svg>{{end}}
+{{define "curl-v"}}<svg class="curl {{.}}" width="14" height="28" aria-hidden="true"><use href="/ui/ornaments.svg#curl-v"/></svg>{{end}}

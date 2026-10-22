@@ -1,0 +1,44 @@
+@font-face { font-family: "Hanken Grotesk"; src: url("fonts/hanken-grotesk-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Hanken Grotesk"; src: url("fonts/hanken-grotesk-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Hanken Grotesk"; src: url("fonts/hanken-grotesk-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Spline Sans Mono"; src: url("fonts/spline-sans-mono-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Spline Sans Mono"; src: url("fonts/spline-sans-mono-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Marcellus"; src: url("fonts/marcellus-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Marcellus SC"; src: url("fonts/marcellus-sc-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+:root {
+  --bg: #e8ebe4;
+  --surface: #f5f6f2;
+  --ink: #1d2622;
+  --muted: #5b6760;
+  --line: #cdd3ca;
+  --ring: #8c6b1e;
+  --ring-soft: #ece3cb;
+  --allow: #3c6a3f;
+  --allow-ink: #f5f6f2;
+  --deny: #a3402c;
+  --deny-soft: #f1ddd6;
+  --code: #edf0ea;
+  --p0: #4f7fa8; --p1: #a0629a; --p2: #3f8a7a; --p3: #b0703a; --p4: #6b6fb8; --p5: #8a8a3a;
+  --font-display: "Marcellus", Georgia, serif;
+  --font-caps: "Marcellus SC", "Marcellus", Georgia, serif;
+  --radius: 3px;
+  --rule: color-mix(in srgb, var(--ring) 70%, var(--surface));
+  --font-body: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1513; --surface: #151e1b; --ink: #dfe5dc; --muted: #8d9a92; --line: #26322d;
+    --ring: #d4b45e; --ring-soft: #2c2716; --allow: #7fb47a; --allow-ink: #0e1513;
+    --deny: #e08470; --deny-soft: #3a201a; --code: #111916;
+    --p0: #7fa8cf; --p1: #c890c2; --p2: #6fb8a6; --p3: #d69a66; --p4: #9a9de0; --p5: #b8b866;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1513; --surface: #151e1b; --ink: #dfe5dc; --muted: #8d9a92; --line: #26322d;
+  --ring: #d4b45e; --ring-soft: #2c2716; --allow: #7fb47a; --allow-ink: #0e1513;
+  --deny: #e08470; --deny-soft: #3a201a; --code: #111916;
+  --p0: #7fa8cf; --p1: #c890c2; --p2: #6fb8a6; --p3: #d69a66; --p4: #9a9de0; --p5: #b8b866;
+  color-scheme: dark;
+}
