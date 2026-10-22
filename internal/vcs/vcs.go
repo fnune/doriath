@@ -736,13 +736,17 @@ func mirror(src, dst string) error {
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o700)
 		}
-		if !d.Type().IsRegular() {
+		if !d.Type().IsRegular() || strings.HasSuffix(p, ".lock") {
 			return nil
 		}
+		put := copyFile
 		if filepath.Dir(rel) == "pack" {
-			return linkOrCopy(p, target)
+			put = linkOrCopy
 		}
-		return copyFile(p, target)
+		if err := put(p, target); !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
 	})
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -394,5 +395,46 @@ func TestFinishSetsAsideWhatTheAgentLeftForGitToContinue(t *testing.T) {
 	}
 	if !isDir(yours) {
 		t.Error("the cherry-pick you had in progress before the session must stay")
+	}
+}
+
+func TestTheBackupSkipsFilesThatGitRemovesWhileItCopies(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	for i := range 200 {
+		dir := filepath.Join(src, fmt.Sprintf("%02x", i))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "object"), []byte("content"), 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			lock := filepath.Join(src, "maintenance.lock")
+			_ = os.WriteFile(lock, nil, 0o600)
+			_ = os.Remove(lock)
+			tmp := filepath.Join(src, fmt.Sprintf("%02x", i%200), "tmp_obj")
+			_ = os.WriteFile(tmp, nil, 0o600)
+			_ = os.Remove(tmp)
+		}
+	}()
+	defer func() { close(stop); <-done }()
+	for i := range 50 {
+		target := filepath.Join(dst, fmt.Sprint(i))
+		if err := mirror(src, target); err != nil {
+			t.Fatalf("copy %d: %v", i, err)
+		}
+		if _, err := os.Stat(filepath.Join(target, "maintenance.lock")); err == nil {
+			t.Fatal("the backup copied git's lock file")
+		}
 	}
 }
