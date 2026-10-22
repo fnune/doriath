@@ -74,7 +74,13 @@ type httpLayer struct {
 	Repositories   []string         `toml:"repositories"`
 	SSH            *sshLayer        `toml:"ssh"`
 	EncodedSlashes bool             `toml:"encoded_slashes"`
+	Operation      *operationLayer  `toml:"operation"`
 	Rules          []ruleLayer      `toml:"rules"`
+}
+
+type operationLayer struct {
+	Header string `toml:"header"`
+	Form   string `toml:"form"`
 }
 
 type sshLayer struct {
@@ -92,17 +98,19 @@ type credentialLayer struct {
 }
 
 type ruleLayer struct {
-	Method       string           `toml:"method"`
-	Path         string           `toml:"path"`
-	BodyContains []string         `toml:"body_contains"`
-	GraphQL      *graphQLLayer    `toml:"graphql"`
-	Header       string           `toml:"header"`
-	HeaderPrefix string           `toml:"header_prefix"`
-	MCPTools     []string         `toml:"mcp_tools"`
-	MCPNone      bool             `toml:"-"`
-	Action       string           `toml:"action"`
-	Summary      string           `toml:"summary"`
-	Credential   *credentialLayer `toml:"credential"`
+	Method       string            `toml:"method"`
+	Path         string            `toml:"path"`
+	BodyContains []string          `toml:"body_contains"`
+	GraphQL      *graphQLLayer     `toml:"graphql"`
+	Header       string            `toml:"header"`
+	HeaderPrefix string            `toml:"header_prefix"`
+	HeaderGlob   string            `toml:"header_glob"`
+	Form         map[string]string `toml:"form"`
+	MCPTools     []string          `toml:"mcp_tools"`
+	MCPNone      bool              `toml:"-"`
+	Action       string            `toml:"action"`
+	Summary      string            `toml:"summary"`
+	Credential   *credentialLayer  `toml:"credential"`
 }
 
 type graphQLLayer struct {
@@ -180,7 +188,10 @@ func decodeLayer(origin string, data []byte) (layer, error) {
 	}
 
 	for _, key := range md.Keys() {
-		for _, part := range key {
+		for i, part := range key {
+			if i > 0 && key[i-1] == "form" {
+				continue
+			}
 			if part != strings.ToLower(part) && fieldNames[strings.ToLower(part)] {
 				return layer{}, fmt.Errorf("%s: key %q: write it in lower case", origin, key.String())
 			}

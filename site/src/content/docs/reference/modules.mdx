@@ -57,6 +57,12 @@ With `docs`, the agent can read documentation sites without an approval. No host
 
 <ModuleSource name="bitbucket" />
 
+## aws
+
+`aws` gives the jail placeholder AWS keys, and the proxy signs each request again with the credentials of `[secrets.aws]`, which stay on your machine. Reads go through, other calls wait for your answer, and calls that return credentials are refused. See [Cloud credentials](/guides/cloud/).
+
+<ModuleSource name="aws" />
+
 ## claude
 
 For Claude Code, `claude` gives the profile its own `~/.claude` and its own login. Your `CLAUDE.md`, settings, skills and plugins are mounted read-only. Connectors are off, and doriath refuses all requests with an `x-api-key` header. See [Claude Code](/agents/claude-code/).

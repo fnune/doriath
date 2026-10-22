@@ -97,6 +97,10 @@ These checks stop stray programs and programs the agent changed. The agent can s
 
 Request rules and approvals decide what named programs can do, because the agent needs them.
 
+### Cloud credentials
+
+The credentials of the [`aws` module](/guides/cloud/) never enter the jail, but the agent can use them through the proxy within the rules. The rules refuse calls that return credentials. A call that returns other secrets, such as a database password in a stack output or a function's settings, reaches the agent if a rule lets it through. An allowed read can also carry data out, such as a request to a bucket that someone else owns.
+
 ### System paths and kernel calls
 
 The agent can read each world-readable file in `/etc`, `/nix/store`, `/usr`, `/sys` and other system paths, including secrets in the nix store. A read allowlist would break the host toolchain, which reads widely.

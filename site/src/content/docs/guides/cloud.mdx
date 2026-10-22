@@ -1,0 +1,67 @@
+---
+title: Cloud credentials
+description: Give the agent AWS, Google Cloud or Azure access with credentials that stay on your machine.
+---
+
+Cloud tools in the jail have no credentials of their own. Your `~/.aws`, `~/.config/gcloud` and `~/.azure` stay hidden, because they hold logins that can mint credentials for every account you can reach. Instead, a command on your machine prints a short-lived credential, and the proxy adds it to each request. The agent never holds it.
+
+A cloud command, such as `aws configure export-credentials`, runs outside the jail. Keep its program at a path that the agent cannot write, such as the Nix store, as [secrets](/reference/configuration/#secrets) describes.
+
+## AWS
+
+AWS signs each request with a key, so the proxy cannot add a header. The [`aws` module](/reference/modules/#aws) gives the jail placeholder keys. Every AWS tool signs with them, and the proxy signs each request again with the real credentials, for the same region and service.
+
+Give the credentials as a command that prints the JSON of `credential_process`. With AWS SSO, the AWS CLI prints it for a profile of yours:
+
+```toml
+modules = ["aws"]
+
+[env]
+set = { AWS_REGION = "us-west-2" }
+
+[secrets.aws]
+command = ["aws", "configure", "export-credentials", "--profile", "my-dev", "--format", "process"]
+```
+
+Other tools that print the same JSON work too, such as `aws-vault exec my-dev --json`. doriath runs the command again 5 minutes before the credentials expire.
+
+The module decides each request by its operation:
+
+- Go through: reads, such as `Describe*`, `Get*` and `List*` calls, and `GET` on S3.
+- Wait for your answer: every other call, named by its operation, such as `Action=DeleteStack` or `DynamoDB_20120810.DeleteTable`. An allow for the session covers that operation only.
+- Wait with their own summary: reads of secrets from Secrets Manager and SSM, and KMS decryption.
+- Refused: calls that return credentials, which would enter the jail, such as `AssumeRole`, `GetSessionToken`, AWS SSO role credentials and registry tokens. All IAM and Organizations writes are refused too.
+
+If a tool assumes a role itself, as in a profile with `role_arn`, give the command that role's credentials instead.
+
+Some requests cannot be signed again, and doriath refuses them with a `doriath:` error:
+
+- Presigned URLs that the jail makes. A URL that leaves the jail stays signed with the placeholder.
+- S3 uploads that sign each chunk. Uploads with unsigned chunks, as recent AWS CLIs send, work.
+- `aws eks get-token`, which presigns a request for kubectl.
+
+## Google Cloud and Azure
+
+Both send a short-lived access token as a bearer token, so the proxy adds it as it adds a GitHub token. A token lasts about one hour, so set `refresh` to read it again:
+
+```toml
+[secrets.gcp]
+command = ["gcloud", "auth", "print-access-token"]
+refresh = "45m"
+
+[[http]]
+host = "*.googleapis.com"
+credential = { secret = "gcp", scheme = "bearer" }
+default = "approve"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+```
+
+For Azure, the command is `az account get-access-token --query accessToken --output tsv`, and the host is `management.azure.com`. Their APIs name each call by its method and path, so ordinary rules decide them.
+
+## Limits
+
+The agent cannot take the credentials out of the jail, but it can use them through the proxy within the rules. The role's permissions bound what it can do, so give the command a role for this work only. An allowed read can still carry data out, such as a `GET` to a bucket that someone else owns.

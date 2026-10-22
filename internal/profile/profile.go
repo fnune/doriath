@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -212,6 +215,14 @@ type Rule struct {
 	// ignoring case, such as "Bearer sk-ant-a" for an API key sent as a
 	// bearer token.
 	HeaderPrefix string
+	// HeaderGlob narrows a header rule to values that match this glob, such
+	// as "DynamoDB_*.DeleteTable" for the operation AWS names in
+	// X-Amz-Target.
+	HeaderGlob string
+	// Form narrows the rule to requests whose query string or form body has
+	// each of these fields with a value that matches its glob, such as
+	// Action = "DeleteStack" for the APIs that name their operation there.
+	Form map[string]string
 	// MCPTools narrows the rule to MCP tools/call requests for tools whose
 	// names match these globs. An allow rule needs every call in the body to
 	// match; other actions need one.
@@ -229,11 +240,22 @@ type Rule struct {
 // NeedsBody reports whether any rule for this host looks at request bodies.
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone || len(r.Form) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
 	return false
+}
+
+// NeedsFormBody reports whether the host names its operation in a form
+// field and the request sends a form, so that its body must be read.
+func (h HTTPHost) NeedsFormBody(header http.Header) bool {
+	return h.Operation.Form != "" && isForm(header)
+}
+
+func isForm(header http.Header) bool {
+	mediaType, _, _ := mime.ParseMediaType(header.Get("Content-Type"))
+	return mediaType == "application/x-www-form-urlencoded"
 }
 
 // HTTPHost is a host whose TLS traffic the proxy terminates, so that it can
@@ -254,7 +276,11 @@ type HTTPHost struct {
 	// with the encoded slash kept, so a segment such as group%2Fproj stays
 	// one segment for the rules as it does for the forge.
 	EncodedSlashes bool
-	Rules          []Rule
+	// Operation says where a request names its operation when the path does
+	// not, as on APIs that send every call to /. An approval then names the
+	// operation, and an allow for the session covers only that operation.
+	Operation Operation
+	Rules     []Rule
 }
 
 type SSHRemote struct {
@@ -486,6 +512,28 @@ func (p *Profile) AllowsHost(host string) bool {
 	return false
 }
 
+type Operation struct {
+	Header string
+	Form   string
+}
+
+// OperationOf names the operation of a request, or "" when the host does
+// not say where it is or the request does not carry it.
+func (h HTTPHost) OperationOf(query url.Values, header http.Header, body []byte) string {
+	var parts []string
+	if h.Operation.Header != "" {
+		if v := header.Get(h.Operation.Header); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	if h.Operation.Form != "" {
+		if v := formFields(query, header, body).Get(h.Operation.Form); v != "" {
+			parts = append(parts, h.Operation.Form+"="+v)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 // Decide returns the matching rule for one request to an intercepted host.
 // The first matching rule wins. body is nil when no rule needs it.
 func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
@@ -494,13 +542,20 @@ func (h HTTPHost) Decide(method, path string, body []byte) (Rule, bool) {
 
 // DecideRequest is Decide for a request whose headers rules may look at.
 func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []byte) (Rule, bool) {
+	return h.DecideWithQuery(method, path, nil, header, body)
+}
+
+// DecideWithQuery is DecideRequest for a request whose query string rules
+// may look at too.
+func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header http.Header, body []byte) (Rule, bool) {
+	form := sync.OnceValue(func() url.Values { return formFields(query, header, body) })
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
 	tools := sync.OnceValue(func() mcpCalls {
 		t, ok := MCPToolCalls(body)
 		return mcpCalls{t, ok}
 	})
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) {
 			return r, true
 		}
 	}
@@ -710,9 +765,47 @@ func (r Rule) matchHeader(header http.Header) bool {
 		return true
 	}
 	for _, v := range header.Values(r.Header) {
-		if r.HeaderPrefix == "" && v != "" || r.HeaderPrefix != "" && len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix) {
+		switch {
+		case r.HeaderGlob != "":
+			if ok, _ := path.Match(r.HeaderGlob, v); ok {
+				return true
+			}
+		case r.HeaderPrefix != "":
+			if len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix) {
+				return true
+			}
+		case v != "":
 			return true
 		}
 	}
 	return false
+}
+
+func (r Rule) matchForm(form func() url.Values) bool {
+	if len(r.Form) == 0 {
+		return true
+	}
+	fields := form()
+	for name, glob := range r.Form {
+		values, ok := fields[name]
+		if !ok || !slices.ContainsFunc(values, func(v string) bool { ok, _ := path.Match(glob, v); return ok }) {
+			return false
+		}
+	}
+	return true
+}
+
+func formFields(query url.Values, header http.Header, body []byte) url.Values {
+	fields := url.Values{}
+	for k, v := range query {
+		fields[k] = append(fields[k], v...)
+	}
+	if isForm(header) {
+		if parsed, err := url.ParseQuery(string(body)); err == nil {
+			for k, v := range parsed {
+				fields[k] = append(fields[k], v...)
+			}
+		}
+	}
+	return fields
 }

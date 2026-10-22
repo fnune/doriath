@@ -342,7 +342,7 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	push := profile.Rule{Method: "POST", Path: "/**/git-receive-pack", Action: profile.ActionApprove}
 	var forge profile.HTTPHost
 	at := func(path string) string {
-		return scope(push, true, "POST", path, "github.com", nil, forge.Repository(path))
+		return scope(push, true, "POST", path, "github.com", nil, forge.Repository(path), "")
 	}
 	a := at("/fnune/project.git/git-receive-pack")
 	if a != "http POST github.com /**/git-receive-pack in /fnune/project" {
@@ -367,10 +367,10 @@ func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
 	}
 	gitlab := profile.HTTPHost{Repositories: []profile.PathPattern{pattern}}
 	path := "/api/v4/projects/42/merge_requests/7/merge"
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, gitlab.Repository(path)); !strings.HasSuffix(s, " in /api/v4/projects/42") {
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, gitlab.Repository(path), ""); !strings.HasSuffix(s, " in /api/v4/projects/42") {
 		t.Errorf("scope = %q", s)
 	}
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, profile.HTTPHost{}.Repository(path)); strings.Contains(s, " in ") {
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, profile.HTTPHost{}.Repository(path), ""); strings.Contains(s, " in ") {
 		t.Errorf("without repositories the API path names no repository: %q", s)
 	}
 }

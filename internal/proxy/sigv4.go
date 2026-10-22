@@ -36,8 +36,8 @@ func (s *Server) sigv4(ctx context.Context, secret string, r *http.Request) (sig
 		return nil, errors.New("the Authorization header is not an AWS4-HMAC-SHA256 signature")
 	}
 	payload := r.Header.Get("X-Amz-Content-Sha256")
-	if strings.HasPrefix(payload, "STREAMING-") {
-		return nil, errors.New("uploads that sign each chunk are not signed again; turn off chunked signing, such as with the AWS CLI's s3 payload_signing_enabled")
+	if strings.HasPrefix(payload, "STREAMING-AWS4-") {
+		return nil, errors.New("uploads that sign each chunk are not signed again; send the upload without chunk signatures")
 	}
 	if payload == "" {
 		hash, err := hashBody(r)

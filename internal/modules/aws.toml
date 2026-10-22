@@ -1,0 +1,210 @@
+# AWS with credentials the agent never sees. The jail gets placeholder keys,
+# every AWS tool signs with them, and the proxy signs each request again with
+# the credentials that a command on your machine prints, such as
+# aws configure export-credentials --profile NAME --format process. Say where
+# they come from under [secrets.aws], and set AWS_REGION in the profile.
+# Reads go through, and so does anything else that matches no rule only
+# after you approve it, named by its operation. Calls that return
+# credentials are refused, because the credentials would enter the jail.
+
+[env]
+set = { AWS_ACCESS_KEY_ID = "AKIADORIATHPLACEHOLD", AWS_SECRET_ACCESS_KEY = "doriath-placeholder" }
+
+# IAM and Organizations change who can do what. Reads pass, and everything
+# else is refused. These come before *.amazonaws.com, so they win.
+[[http]]
+host = "iam.amazonaws.com"
+credential = { secret = "aws", scheme = "sigv4" }
+default = "deny"
+operation = { form = "Action" }
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "Get*" }
+action = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "List*" }
+action = "allow"
+
+[[http]]
+host = "organizations.us-east-1.amazonaws.com"
+credential = { secret = "aws", scheme = "sigv4" }
+default = "deny"
+operation = { header = "X-Amz-Target" }
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Describe*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.List*"
+action = "allow"
+
+# Every other AWS service. Query APIs, such as STS, CloudFormation and EC2,
+# name the operation in the Action field. JSON APIs, such as DynamoDB, ECS
+# and Secrets Manager, name it in X-Amz-Target. REST APIs, such as S3 and
+# Lambda, name it with the method and the path.
+[[http]]
+host = "*.amazonaws.com"
+credential = { secret = "aws", scheme = "sigv4" }
+default = "approve"
+operation = { header = "X-Amz-Target", form = "Action" }
+
+# Refused: these return credentials.
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "AssumeRole*" }
+action = "deny"
+summary = "Assume a role: its credentials would enter the jail"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "GetSessionToken" }
+action = "deny"
+summary = "Get a session token: its credentials would enter the jail"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "GetFederationToken" }
+action = "deny"
+summary = "Get a federation token: its credentials would enter the jail"
+
+[[http.rules]]
+method = "GET"
+path = "/federation/credentials"
+action = "deny"
+summary = "Get role credentials from AWS SSO: they would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.GetCredentialsForIdentity"
+action = "deny"
+summary = "Get Cognito credentials: they would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.GetAuthorizationToken"
+action = "deny"
+summary = "Get a registry token: it would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/v1/authorization-token"
+action = "deny"
+summary = "Get a CodeArtifact token: it would enter the jail"
+
+# Held: these read secrets into the jail.
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "secretsmanager.GetSecretValue"
+action = "approve"
+summary = "Read a secret from Secrets Manager"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "AmazonSSM.GetParameter*"
+action = "approve"
+summary = "Read SSM parameters"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "TrentService.Decrypt"
+action = "approve"
+summary = "Decrypt with KMS"
+
+# Reads.
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "Describe*" }
+action = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "Get*" }
+action = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "List*" }
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Describe*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Get*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.List*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.BatchGet*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Query"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Scan"
+action = "allow"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"

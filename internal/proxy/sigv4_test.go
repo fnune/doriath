@@ -111,6 +111,22 @@ func TestRequestsThatCannotBeSignedAgainAreRefused(t *testing.T) {
 	}
 }
 
+func TestAnUploadWithUnsignedChunksIsSignedAgain(t *testing.T) {
+	h := newHarnessWith(t, awsProfile)
+	req := signedAsInTheJail(t, http.MethodPut, "https://sts.us-east-1.amazonaws.com/upload", "")
+	req.Header.Set("X-Amz-Content-Sha256", "STREAMING-UNSIGNED-PAYLOAD-TRAILER")
+	resp, err := h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, text)
+	}
+	if got, _ := h.upstream.last(t); !strings.Contains(got.Header.Get("Authorization"), "Credential=AKIAREALKEY/") {
+		t.Errorf("Authorization = %q", got.Header.Get("Authorization"))
+	}
+}
+
 func TestSigV4Scope(t *testing.T) {
 	region, service, ok := sigv4Scope("AWS4-HMAC-SHA256 Credential=AKIA/20261022/eu-west-1/s3/aws4_request, SignedHeaders=host;x-amz-date, Signature=abc")
 	if !ok || region != "eu-west-1" || service != "s3" {
@@ -118,5 +134,26 @@ func TestSigV4Scope(t *testing.T) {
 	}
 	if _, _, ok := sigv4Scope("AWS4-HMAC-SHA256 Credential=AKIA/20261022/aws4_request"); ok {
 		t.Error("a short credential scope must not parse")
+	}
+}
+
+func TestAnApprovalNamesTheOperationThatThePathDoesNot(t *testing.T) {
+	h := newHarnessWith(t, strings.Replace(awsProfile, `default = "allow"`, `operation = { header = "X-Amz-Target", form = "Action" }`, 1))
+	for _, action := range []string{"DeleteStack", "DescribeStacks"} {
+		resp, err := h.client().Do(signedAsInTheJail(t, http.MethodPost, "https://sts.us-east-1.amazonaws.com/", "Action="+action))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = body(t, resp)
+	}
+	reqs := h.approver.requests
+	if len(reqs) != 2 {
+		t.Fatalf("approvals = %d", len(reqs))
+	}
+	if !strings.Contains(reqs[0].Summary, "Action=DeleteStack") || !strings.HasSuffix(reqs[0].Scope, "operation Action=DeleteStack") {
+		t.Errorf("approval = %q, scope %q", reqs[0].Summary, reqs[0].Scope)
+	}
+	if reqs[0].Scope == reqs[1].Scope {
+		t.Errorf("an allow for the session of one operation covers another: %q", reqs[0].Scope)
 	}
 }

@@ -13,11 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -285,12 +287,13 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		return
 	}
 	var body []byte
-	if rules.NeedsBody(r.Method, reqPath) && !identityEncoding(r.Header.Get("Content-Encoding")) {
+	needsBody := rules.NeedsBody(r.Method, reqPath) || rules.NeedsFormBody(r.Header)
+	if needsBody && !identityEncoding(r.Header.Get("Content-Encoding")) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: "compressed body on an inspected request"})
 		deny(w, http.StatusUnsupportedMediaType, "doriath: send this request uncompressed, so its body can be checked")
 		return
 	}
-	if rules.NeedsBody(r.Method, reqPath) {
+	if needsBody {
 		var tooLarge bool
 		var err error
 		body, tooLarge, err = readBody(r, maxInspectedBody)
@@ -304,7 +307,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			return
 		}
 	}
-	rule, matched := rules.DecideRequest(r.Method, reqPath, r.Header, body)
+	rule, matched := rules.DecideWithQuery(r.Method, reqPath, r.URL.Query(), r.Header, body)
 	action, summary := rule.Action, rule.Summary
 	switch action {
 	case profile.ActionDeny:
@@ -316,8 +319,12 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		deny(w, http.StatusForbidden, msg)
 		return
 	case profile.ActionApprove:
+		operation := rules.OperationOf(r.URL.Query(), r.Header, body)
 		if summary == "" {
 			summary = fmt.Sprintf("%s %s%s", r.Method, host, reqPath)
+			if operation != "" {
+				summary += " " + operation
+			}
 		}
 		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
 			summary += " " + tools
@@ -337,7 +344,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: details,
-			Scope:   scope(rule, matched, r.Method, reqPath, host, body, rules.Repository(reqPath)),
+			Scope:   scope(rule, matched, r.Method, reqPath, host, body, rules.Repository(reqPath), operation),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
@@ -461,11 +468,14 @@ func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (st
 	}
 }
 
-func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo string) string {
+func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {
 	if !matched {
 		s := fmt.Sprintf("http %s %s %s", method, host, path)
 		if gql := profile.DescribeGraphQL(body); gql != "" {
 			s += " graphql " + gql
+		}
+		if operation != "" {
+			s += " operation " + operation
 		}
 		return s
 	}
@@ -478,6 +488,12 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte,
 	}
 	if len(r.MCPTools) > 0 {
 		s += " mcp " + profile.DescribeMCP(body)
+	}
+	if r.HeaderGlob != "" {
+		s += " " + r.Header + "=" + r.HeaderGlob
+	}
+	for _, name := range slices.Sorted(maps.Keys(r.Form)) {
+		s += " " + name + "=" + r.Form[name]
 	}
 	if repo != "" {
 		s += " in " + repo

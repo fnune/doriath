@@ -23,7 +23,7 @@ func TestEveryModuleLoads(t *testing.T) {
 		}
 	}
 	body := "modules = [" + strings.Join(names, ", ") + "]\n"
-	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket", "aws"} {
 		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
 	}
 	l := &profile.Loader{
@@ -183,5 +183,46 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 	gitlab, _ := p.Intercepted("gitlab.com")
 	if !gitlab.EncodedSlashes || gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge") != "/api/v4/projects/42" {
 		t.Errorf("gitlab.com: encoded slashes %v, repository %q", gitlab.EncodedSlashes, gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge"))
+	}
+}
+
+func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte("modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	target := func(v string) http.Header { return http.Header{"X-Amz-Target": {v}} }
+	for _, c := range []struct {
+		host, method, path string
+		header             http.Header
+		body, want         string
+	}{
+		{"sts.amazonaws.com", "POST", "/", form, "Action=GetCallerIdentity", "allow"},
+		{"sts.us-east-1.amazonaws.com", "POST", "/", form, "Action=AssumeRole&RoleArn=x", "deny"},
+		{"sts.amazonaws.com", "POST", "/", form, "Action=GetSessionToken", "deny"},
+		{"portal.sso.eu-west-1.amazonaws.com", "GET", "/federation/credentials", http.Header{}, "", "deny"},
+		{"api.ecr.us-east-1.amazonaws.com", "POST", "/", target("AmazonEC2ContainerRegistry_V20150921.GetAuthorizationToken"), "", "deny"},
+		{"secretsmanager.us-east-1.amazonaws.com", "POST", "/", target("secretsmanager.GetSecretValue"), "", "approve"},
+		{"secretsmanager.us-east-1.amazonaws.com", "POST", "/", target("secretsmanager.ListSecrets"), "", "allow"},
+		{"cloudformation.us-east-1.amazonaws.com", "POST", "/", form, "Action=DescribeStacks", "allow"},
+		{"cloudformation.us-east-1.amazonaws.com", "POST", "/", form, "Action=DeleteStack", "approve"},
+		{"dynamodb.us-east-1.amazonaws.com", "POST", "/", target("DynamoDB_20120810.Query"), "", "allow"},
+		{"dynamodb.us-east-1.amazonaws.com", "POST", "/", target("DynamoDB_20120810.DeleteTable"), "", "approve"},
+		{"my-bucket.s3.us-east-1.amazonaws.com", "GET", "/key", http.Header{}, "", "allow"},
+		{"my-bucket.s3.us-east-1.amazonaws.com", "PUT", "/key", http.Header{}, "", "approve"},
+		{"iam.amazonaws.com", "POST", "/", form, "Action=ListRoles", "allow"},
+		{"iam.amazonaws.com", "POST", "/", form, "Action=CreateAccessKey", "deny"},
+		{"iam.amazonaws.com", "POST", "/", form, "Action=AttachRolePolicy", "deny"},
+		{"organizations.us-east-1.amazonaws.com", "POST", "/", target("AWSOrganizationsV20161128.InviteAccountToOrganization"), "", "deny"},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok || h.Credential == nil || h.Credential.Scheme != profile.SchemeSigV4 {
+			t.Fatalf("%s is not signed again: %+v", c.host, h)
+		}
+		if r, _ := h.DecideWithQuery(c.method, c.path, nil, c.header, []byte(c.body)); string(r.Action) != c.want {
+			t.Errorf("%s %s%s %v %s: %s, want %s", c.method, c.host, c.path, c.header, c.body, r.Action, c.want)
+		}
 	}
 }

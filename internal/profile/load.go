@@ -439,6 +439,9 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	if h.SSH != nil {
 		cur.SSH = h.SSH
 	}
+	if h.Operation != nil {
+		cur.Operation = h.Operation
+	}
 	cur.EncodedSlashes = cur.EncodedSlashes || h.EncodedSlashes
 	cur.Rules = append(slices.Clone(h.Rules), cur.Rules...)
 	b.http[i] = cur
@@ -714,6 +717,12 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		return HTTPHost{}, fmt.Errorf("http: %w", err)
 	}
 	out := HTTPHost{Host: host, Default: ActionAllow, EncodedSlashes: h.EncodedSlashes}
+	if o := h.Operation; o != nil {
+		if o.Header != "" && !headerName.MatchString(o.Header) {
+			return HTTPHost{}, fmt.Errorf("http %s operation header %q: want a header name such as X-Amz-Target", h.Host, o.Header)
+		}
+		out.Operation = Operation{Header: http.CanonicalHeaderKey(o.Header), Form: o.Form}
+	}
 	if h.Default != "" {
 		action, err := parseAction(h.Default)
 		if err != nil {
@@ -840,12 +849,25 @@ func buildRule(r ruleLayer) (Rule, error) {
 	if r.HeaderPrefix != "" && r.Header == "" {
 		return Rule{}, fmt.Errorf("header_prefix needs header")
 	}
+	switch {
+	case r.HeaderGlob != "" && r.Header == "":
+		return Rule{}, fmt.Errorf("header_glob needs header")
+	case r.HeaderGlob != "" && r.HeaderPrefix != "":
+		return Rule{}, fmt.Errorf("set header_prefix or header_glob, not both")
+	case r.HeaderGlob != "" && !validGlob(r.HeaderGlob):
+		return Rule{}, fmt.Errorf("header_glob %q: want a glob such as DynamoDB_*.DeleteTable", r.HeaderGlob)
+	}
+	for name, g := range r.Form {
+		if name == "" || !validGlob(g) {
+			return Rule{}, fmt.Errorf("form %s = %q: want a field name and a value or glob, such as Action = \"DeleteStack\"", name, g)
+		}
+	}
 	for _, g := range r.MCPTools {
 		if !validGlob(g) {
 			return Rule{}, fmt.Errorf("mcp_tools %q: want a tool name or a glob such as notion-create-*", g)
 		}
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
+	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {
