@@ -788,7 +788,7 @@ func buildCredential(c credentialLayer) (Credential, error) {
 		return Credential{}, fmt.Errorf("header is only used with the header scheme")
 	}
 	switch scheme {
-	case SchemeBearer, SchemeToken:
+	case SchemeBearer, SchemeToken, SchemeSigV4:
 	case SchemeBasic:
 		if c.Username == "" {
 			return Credential{}, fmt.Errorf("the basic scheme needs a username")
@@ -798,7 +798,7 @@ func buildCredential(c credentialLayer) (Credential, error) {
 			return Credential{}, fmt.Errorf("the header scheme needs a header name, such as PRIVATE-TOKEN")
 		}
 	default:
-		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic or header", c.Scheme)
+		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic, header or sigv4", c.Scheme)
 	}
 	for _, b := range c.Binaries {
 		if b == "" {

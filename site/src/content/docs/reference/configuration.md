@@ -115,8 +115,10 @@ allow = ["js.stripe.com"]
 # rules to each request.
 [[http]]
 host = "api.github.com"
-# scheme is bearer, token, basic with username, or header with the name of
-# a header, such as PRIVATE-TOKEN.
+# scheme is bearer, token, basic with username, header with the name of
+# a header, such as PRIVATE-TOKEN, or sigv4. With sigv4, the agent signs
+# AWS requests with placeholder keys, and the proxy signs them again with
+# the secret, which is the JSON that credential_process prints.
 # binaries gives the credential only to these programs, as in
 # egress.programs. A rule can have its own credential.
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }

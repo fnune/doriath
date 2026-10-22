@@ -146,7 +146,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 
-	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example", "programs.example"}, time.Now)
+	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example", "programs.example", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

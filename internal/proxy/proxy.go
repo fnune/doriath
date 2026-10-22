@@ -359,9 +359,20 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 	if matched && rule.Credential != nil {
 		c = rule.Credential
 	}
-	if c != nil && !c.AllowsBinary(IdentityFrom(r.Context()).Program()) {
+	var sign signOnTheWayOut
+	switch {
+	case c == nil:
+	case !c.AllowsBinary(IdentityFrom(r.Context()).Program()):
 		s.withheld(host, IdentityFrom(r.Context()))
-	} else if c != nil {
+	case c.Scheme == profile.SchemeSigV4:
+		var err error
+		sign, err = s.sigv4(r.Context(), c.Secret, r)
+		if err != nil && !errors.Is(err, errUnsignedGoesAsItCame) {
+			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: err.Error()})
+			deny(w, http.StatusBadRequest, "doriath: cannot sign this request for "+host+": "+err.Error())
+			return
+		}
+	default:
 		name, value, err := s.credentialHeader(r.Context(), *c)
 		if err != nil {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
@@ -373,7 +384,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		}
 		r.Header.Set(name, value)
 	}
-	s.forwardAudited(w, r, target)
+	s.forwardAudited(w, r, target, sign)
 }
 
 func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
@@ -392,19 +403,23 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	s.forward(w, r, "http", r.URL.Host)
 }
 
-func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string) {
+func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string, sign signOnTheWayOut) {
 	exe := IdentityFrom(r.Context()).Exe
-	s.forwardWith(w, r, "https", host, func(resp *http.Response) error {
+	s.forwardWith(w, r, "https", host, sign, func(resp *http.Response) error {
 		s.record(Event{Kind: "request", Host: host, Method: r.Method, Path: r.URL.Path, Exe: exe, Status: resp.StatusCode})
 		return nil
 	})
 }
 
 func (s *Server) forward(w http.ResponseWriter, r *http.Request, scheme, host string) {
-	s.forwardWith(w, r, scheme, host, nil)
+	s.forwardWith(w, r, scheme, host, nil, nil)
 }
 
-func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, host string, onResponse func(*http.Response) error) {
+func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, host string, sign signOnTheWayOut, onResponse func(*http.Response) error) {
+	var transport http.RoundTripper = s.transport
+	if sign != nil {
+		transport = signingTransport{base: s.transport, sign: sign}
+	}
 	rp := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = scheme
@@ -413,7 +428,7 @@ func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, hos
 			pr.Out.Header.Del("Proxy-Authorization")
 			pr.Out.Header.Del("Proxy-Connection")
 		},
-		Transport:      s.transport,
+		Transport:      transport,
 		FlushInterval:  -1,
 		ModifyResponse: onResponse,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {

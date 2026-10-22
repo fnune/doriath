@@ -577,6 +577,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		"CURL_CA_BUNDLE":      jail.InJail("ca-bundle.pem"),
 		"GIT_SSL_CAINFO":      jail.InJail("ca-bundle.pem"),
 		"REQUESTS_CA_BUNDLE":  jail.InJail("ca-bundle.pem"),
+		"AWS_CA_BUNDLE":       jail.InJail("ca-bundle.pem"),
 		"NODE_EXTRA_CA_CERTS": jail.InJail("ca-bundle.pem"),
 		"JAVA_TOOL_OPTIONS":   javaToolOptions(p.Env.Set["JAVA_TOOL_OPTIONS"]),
 		"DORIATH_SESSION":     s.id,

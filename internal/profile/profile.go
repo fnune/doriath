@@ -128,6 +128,10 @@ const (
 	// SchemeHeader sends the secret as the value of a header of its own,
 	// such as GitLab's PRIVATE-TOKEN.
 	SchemeHeader Scheme = "header"
+	// SchemeSigV4 signs each request again with AWS credentials from the
+	// secret, in the JSON that credential_process prints. The agent signs
+	// with placeholder keys.
+	SchemeSigV4 Scheme = "sigv4"
 )
 
 type Credential struct {
