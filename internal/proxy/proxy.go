@@ -33,6 +33,8 @@ type Policy interface {
 	AllowsHostFor(host, exe string) bool
 	// ProgramsFor names the programs that alone may reach host, if any.
 	ProgramsFor(host string) []string
+	// Refuses reports whether the profile refuses host without asking.
+	Refuses(host string) bool
 	Intercepted(host string) (profile.HTTPHost, bool)
 }
 
@@ -635,7 +637,12 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 	return false
 }
 
+const reasonRefused = "refused by the profile"
+
 func (s *Server) hostReason(host string) string {
+	if s.policy.Refuses(host) {
+		return reasonRefused
+	}
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		return "host allowed only for " + strings.Join(progs, ", ")
 	}
@@ -643,6 +650,10 @@ func (s *Server) hostReason(host string) string {
 }
 
 func (s *Server) denyHost(w http.ResponseWriter, host string) {
+	if s.policy.Refuses(host) {
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: profile %q refuses %s; work without it", s.cfg.Profile, host))
+		return
+	}
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: profile %q lets only %s reach %s", s.cfg.Profile, strings.Join(progs, ", "), host))
 		return

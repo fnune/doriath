@@ -94,6 +94,9 @@ path_prepend = ["/nix/store/...-xvfb-21.1.24/bin"]
 # "*.example.com" matches subdomains, but not example.com.
 # host:port gives a different port. The connection must use HTTP or TLS.
 allow = ["proxy.golang.org", "*.githubusercontent.com", "git.example.org:3000"]
+# Hosts refused at once, without asking you, unless an allow entry names
+# them too. The claude module refuses downloads.claude.ai this way.
+deny = ["telemetry.example.com"]
 # Localhost ports of the host that the jail can reach over HTTP,
 # and as raw TCP.
 ports = [4200]

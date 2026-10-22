@@ -47,3 +47,14 @@ func TestUploadWarning(t *testing.T) {
 		}
 	}
 }
+
+func TestARefusedHostStaysRefusedWhileLearningUnlessAllowed(t *testing.T) {
+	p := &profile.Profile{Egress: profile.Egress{Deny: []profile.HostPattern{"downloads.claude.ai"}}}
+	if newLivePolicy(p, true).AllowsHostFor("downloads.claude.ai", "") || !p.Refuses("downloads.claude.ai") {
+		t.Error("a refused host goes through in learning mode")
+	}
+	p.Egress.Allow = []profile.HostPattern{"downloads.claude.ai"}
+	if !newLivePolicy(p, false).AllowsHostFor("downloads.claude.ai", "") || p.Refuses("downloads.claude.ai") {
+		t.Error("an allow entry does not win over a deny")
+	}
+}

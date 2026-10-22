@@ -42,7 +42,7 @@ func (l *livePolicy) AllowsHostFor(host, exe string) bool {
 	if ip, err := netip.ParseAddr(strings.Trim(name, "[]")); err == nil && !publicAddr(ip) {
 		return false
 	}
-	if port != "" {
+	if port != "" || l.Refuses(host) {
 		return false
 	}
 	if l.learn {

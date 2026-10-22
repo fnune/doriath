@@ -82,6 +82,9 @@ type Env struct {
 
 type Egress struct {
 	Allow []HostPattern
+	// Deny lists hosts refused at once, without asking you, unless an
+	// allow entry names them too.
+	Deny []HostPattern
 	// Programs lists hosts that only some programs may reach, such as the
 	// third-party hosts a browser under test loads.
 	Programs []ProgramEgress
@@ -381,6 +384,11 @@ func (p *Profile) Intercepted(host string) (HTTPHost, bool) {
 
 // AllowsHostFor reports whether the program exe may reach host: any program
 // may reach the hosts AllowsHost names, and the named programs their own.
+// Refuses reports whether the profile refuses host without asking you.
+func (p *Profile) Refuses(host string) bool {
+	return matchAny(p.Egress.Deny, host) && !p.AllowsHost(host)
+}
+
 func (p *Profile) AllowsHostFor(host, exe string) bool {
 	if p.AllowsHost(host) {
 		return true

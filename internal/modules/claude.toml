@@ -8,8 +8,11 @@
 [env]
 set = { DISABLE_AUTOUPDATER = "1", DISABLE_TELEMETRY = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
+# downloads.claude.ai serves Claude Code's releases. Claude asks for it
+# even with the updater off, and a jailed Claude has nothing to update.
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com"]
+deny = ["downloads.claude.ai"]
 
 # The profile's own ~/.claude: its login and state, which the claude adapter
 # points Claude at with CLAUDE_CONFIG_DIR. Your login and MCP servers stay

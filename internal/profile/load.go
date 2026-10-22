@@ -216,6 +216,7 @@ func (l *Loader) readModule(name string) ([]byte, error) {
 
 type builder struct {
 	home     string
+	deny     []string
 	mounts   []mountLayer
 	caches   []string
 	devices  []string
@@ -281,6 +282,9 @@ func (b *builder) apply(l layer) {
 	}
 	for _, h := range l.Egress.Allow {
 		b.allow = appendNew(b.allow, h)
+	}
+	for _, h := range l.Egress.Deny {
+		b.deny = appendNew(b.deny, h)
 	}
 	b.programs = append(b.programs, l.Egress.Programs...)
 	for _, p := range l.Egress.Ports {
@@ -571,6 +575,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Egress.Allow = append(p.Egress.Allow, pattern)
+	}
+	for _, h := range b.deny {
+		pattern, err := ParseHostPattern(h)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("egress deny: %w", err))
+			continue
+		}
+		p.Egress.Deny = append(p.Egress.Deny, pattern)
 	}
 	for _, prog := range b.programs {
 		built, err := b.buildPrograms(prog)

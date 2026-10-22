@@ -55,6 +55,7 @@ type envLayer struct {
 
 type egressLayer struct {
 	Allow    []string        `toml:"allow"`
+	Deny     []string        `toml:"deny"`
 	Ports    []int           `toml:"ports"`
 	TCPPorts []int           `toml:"tcp_ports"`
 	Programs []programsLayer `toml:"programs"`

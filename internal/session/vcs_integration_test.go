@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/vcs"
@@ -285,6 +286,7 @@ echo done
 
 func TestRequestEditChangesSafeSettingsAndAsksForTheRest(t *testing.T) {
 	e := newEnv(t)
+	e.hostWait = 30 * time.Second
 	repo := filepath.Join(e.home, "repo")
 	if err := os.MkdirAll(repo, 0o700); err != nil {
 		t.Fatal(err)
