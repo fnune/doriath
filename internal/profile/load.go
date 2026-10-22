@@ -636,6 +636,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		backend := secret.Backend{File: s.File, Command: s.Command}
+		if s.Refresh != "" {
+			d, err := time.ParseDuration(s.Refresh)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("secret %q: refresh %q: want a duration like 45m", name, s.Refresh))
+				continue
+			}
+			backend.Refresh = d
+		}
 		if o := s.OAuth; o != nil {
 			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, ClientID: o.ClientID, Scopes: o.Scopes}
 		}

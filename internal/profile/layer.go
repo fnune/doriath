@@ -211,6 +211,7 @@ type secretLayer struct {
 	File    string      `toml:"file"`
 	Command []string    `toml:"command"`
 	OAuth   *oauthLayer `toml:"oauth"`
+	Refresh string      `toml:"refresh"`
 }
 
 type oauthLayer struct {

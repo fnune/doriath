@@ -5,20 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 type fakeRunner struct {
-	calls  int
-	stdout string
-	stderr string
-	err    error
+	calls    int
+	stdout   string
+	stderr   string
+	err      error
+	terminal []bool
 }
 
-func (f *fakeRunner) Output(_ context.Context, _ []string) ([]byte, []byte, error) {
+func (f *fakeRunner) Output(_ context.Context, _ []string, terminal bool) ([]byte, []byte, error) {
 	f.calls++
+	f.terminal = append(f.terminal, terminal)
 	return []byte(f.stdout), []byte(f.stderr), f.err
 }
 
@@ -169,5 +173,78 @@ func TestErrorsSayWhatToDo(t *testing.T) {
 		if _, err := s.Get(context.Background(), name); err == nil || err.Error() != want {
 			t.Errorf("%s: err = %v, want %s", name, err, want)
 		}
+	}
+}
+
+type clock struct{ t time.Time }
+
+func (c *clock) now() time.Time { return c.t }
+
+func TestASecretThatExpiresIsReadAgainBeforeIt(t *testing.T) {
+	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	c := &clock{t: start}
+	run := &fakeRunner{stdout: `{"Version":1,"AccessKeyId":"A","Expiration":"2026-10-22T13:00:00Z"}`}
+	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run, mapFiles{}).WithClock(c.now)
+	get := func() {
+		t.Helper()
+		if _, err := s.Get(context.Background(), "aws"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	get()
+	c.t = start.Add(54 * time.Minute)
+	get()
+	if run.calls != 1 {
+		t.Fatalf("read again %d times before it was due", run.calls-1)
+	}
+	c.t = start.Add(56 * time.Minute)
+	get()
+	if run.calls != 2 {
+		t.Fatalf("calls = %d: not read again 5 minutes before the expiry", run.calls)
+	}
+	if want := []bool{true, false}; !slices.Equal(run.terminal, want) {
+		t.Errorf("terminal = %v: a refresh during the session must not take the terminal", run.terminal)
+	}
+}
+
+func TestAFailedRefreshKeepsTheValueUntilItExpires(t *testing.T) {
+	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	c := &clock{t: start}
+	run := &fakeRunner{stdout: `{"Expiration":"2026-10-22T13:00:00Z"}`}
+	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run, mapFiles{}).WithClock(c.now)
+	if _, err := s.Get(context.Background(), "aws"); err != nil {
+		t.Fatal(err)
+	}
+	run.err, run.stderr = errors.New("exit status 1"), "session expired"
+	c.t = start.Add(56 * time.Minute)
+	if _, err := s.Get(context.Background(), "aws"); err != nil {
+		t.Fatalf("the old value still works until 13:00: %v", err)
+	}
+	c.t = start.Add(56*time.Minute + 10*time.Second)
+	if _, err := s.Get(context.Background(), "aws"); err != nil || run.calls != 2 {
+		t.Fatalf("a failed refresh is retried after %s, not on every request: calls %d, %v", retryFailedRefreshAfter, run.calls, err)
+	}
+	c.t = start.Add(61 * time.Minute)
+	if _, err := s.Get(context.Background(), "aws"); err == nil || !strings.Contains(err.Error(), "session expired") {
+		t.Fatalf("an expired value must not be served: %v", err)
+	}
+}
+
+func TestRefreshReadsATokenAgainOnItsSchedule(t *testing.T) {
+	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	c := &clock{t: start}
+	run := &fakeRunner{stdout: "ya29.token\n"}
+	s := NewConfigured(map[string]Backend{"gcp": {Command: []string{"gcloud"}, Refresh: 45 * time.Minute}}, run, mapFiles{}).WithClock(c.now)
+	for _, at := range []time.Duration{0, 44 * time.Minute, 46 * time.Minute} {
+		c.t = start.Add(at)
+		if _, err := s.Get(context.Background(), "gcp"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if run.calls != 2 {
+		t.Errorf("calls = %d, want one read and one refresh", run.calls)
+	}
+	if err := (Backend{Command: []string{"x"}, Refresh: time.Second}).Validate(); err == nil {
+		t.Error("a refresh under a minute must be refused")
 	}
 }

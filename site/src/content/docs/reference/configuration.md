@@ -254,6 +254,19 @@ doriath reads each file and command secret when the session starts, before the a
 command = ["sh", "-c", "bw get password github-my-app --session \"$(bw unlock --raw)\""]
 ```
 
+A short-lived credential needs a new value during the session. doriath runs the command again in two cases:
+
+- The output is JSON with an `Expiration`, in the `credential_process` format that AWS tools print. doriath runs the command again 5 minutes before that time.
+- The secret has `refresh`, for a command that prints only a token. For example, Google Cloud access tokens last one hour:
+
+```toml
+[secrets.gcp]
+command = ["gcloud", "auth", "print-access-token"]
+refresh = "45m"
+```
+
+A command that runs again during the session does not get your terminal, because the agent uses it. If it fails, doriath keeps the old value until it expires, and tries again every 30 seconds.
+
 doriath checks that the agent cannot write the program that a command starts. Here that program is `sh`, so keep `bw` at a path that the agent cannot write, such as the Nix store.
 
 A module can name a secret without its source, and the profile gives the source. For example, a profile with the `github` module needs `[secrets.github]`. If a credential or signing key names a secret without a source, doriath refuses the profile and gives the table to add.

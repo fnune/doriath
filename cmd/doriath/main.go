@@ -279,11 +279,11 @@ func (realClock) After(d time.Duration) <-chan time.Time { return time.After(d) 
 
 type execRunner struct{}
 
-func (execRunner) Output(ctx context.Context, argv []string) ([]byte, []byte, error) {
+func (execRunner) Output(ctx context.Context, argv []string, terminal bool) ([]byte, []byte, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	var stderr limitedBuffer
 	cmd.Stderr = &stderr
-	if isTerminal(os.Stdin) {
+	if terminal && isTerminal(os.Stdin) {
 		cmd.Stdin = os.Stdin
 		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	}

@@ -4,6 +4,7 @@ package secret
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,6 +40,9 @@ type Backend struct {
 	File    string
 	Command []string
 	OAuth   *OAuth
+	// Refresh reads a file or command secret again after this long, for a
+	// short-lived token whose source prints no expiry.
+	Refresh time.Duration
 }
 
 // OAuth is a login you complete once with doriath profiles login. The server either is
@@ -60,6 +64,12 @@ func (b Backend) Validate() error {
 	}
 	if set != 1 {
 		return errors.New("set exactly one of file, command or oauth")
+	}
+	switch {
+	case b.Refresh != 0 && b.OAuth != nil:
+		return errors.New("refresh: an OAuth login refreshes on its own")
+	case b.Refresh != 0 && b.Refresh < MinRefresh:
+		return fmt.Errorf("refresh: want %s or more", MinRefresh)
 	}
 	if o := b.OAuth; o != nil {
 		switch {
@@ -85,8 +95,11 @@ type OAuthTokens interface {
 	Token(ctx context.Context, name string, o OAuth) (Value, error)
 }
 
+// Runner runs a secret's command. With terminal, the command may ask you
+// for a password there. A refresh during the session never gets the
+// terminal, which the agent uses.
 type Runner interface {
-	Output(ctx context.Context, argv []string) (stdout, stderr []byte, err error)
+	Output(ctx context.Context, argv []string, terminal bool) (stdout, stderr []byte, err error)
 }
 
 type FileReader interface {
@@ -96,17 +109,31 @@ type FileReader interface {
 
 const commandTimeout = 2 * time.Minute
 
-// Configured fetches each secret from its backend at most once and keeps it
-// in memory, so a session asks for a secret once and not on every request.
+const (
+	MinRefresh              = time.Minute
+	refreshEarly            = 5 * time.Minute
+	retryFailedRefreshAfter = 30 * time.Second
+)
+
+// Configured fetches each secret from its backend and keeps it in memory,
+// so a session asks for a secret once and not on every request. A secret
+// that expires, or that the profile refreshes, is read again when it is
+// due.
 type Configured struct {
 	backends map[string]Backend
 	run      Runner
 	files    FileReader
+	now      func() time.Time
 
 	oauth OAuthTokens
 
 	mu    sync.Mutex
-	cache map[string]Value
+	cache map[string]cached
+}
+
+type cached struct {
+	value        Value
+	due, expires time.Time
 }
 
 // WithOAuth lets the store serve OAuth secrets.
@@ -116,14 +143,22 @@ func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 }
 
 func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
-	return &Configured{backends: backends, run: run, files: files, cache: map[string]Value{}}
+	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}}
+}
+
+// WithClock replaces the clock that decides when a secret is due.
+func (c *Configured) WithClock(now func() time.Time) *Configured {
+	c.now = now
+	return c
 }
 
 func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if v, ok := c.cache[name]; ok {
-		return v, nil
+	now := c.now()
+	old, seen := c.cache[name]
+	if seen && (old.due.IsZero() || now.Before(old.due)) {
+		return old.value, nil
 	}
 	b, ok := c.backends[name]
 	if !ok {
@@ -135,15 +170,48 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 		}
 		return c.oauth.Token(ctx, name, *b.OAuth)
 	}
-	v, err := c.fetch(ctx, name, b)
+	v, err := c.fetch(ctx, name, b, !seen)
 	if err != nil {
+		if seen && (old.expires.IsZero() || now.Before(old.expires)) {
+			old.due = now.Add(retryFailedRefreshAfter)
+			c.cache[name] = old
+			return old.value, nil
+		}
 		return Value{}, err
 	}
-	c.cache[name] = v
+	c.cache[name] = lifetime(v, b, now)
 	return v, nil
 }
 
-func (c *Configured) fetch(ctx context.Context, name string, b Backend) (Value, error) {
+func lifetime(v Value, b Backend, now time.Time) cached {
+	e := cached{value: v}
+	if b.Refresh > 0 {
+		e.due = now.Add(b.Refresh)
+	}
+	if expires, ok := credentialProcessExpiry(v.b); ok {
+		e.expires = expires
+		early := min(refreshEarly, expires.Sub(now)/2)
+		if due := expires.Add(-early); e.due.IsZero() || due.Before(e.due) {
+			e.due = due
+		}
+	}
+	return e
+}
+
+func credentialProcessExpiry(data []byte) (time.Time, bool) {
+	if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
+		return time.Time{}, false
+	}
+	var doc struct {
+		Expiration time.Time `json:"Expiration"`
+	}
+	if json.Unmarshal(data, &doc) != nil || doc.Expiration.IsZero() {
+		return time.Time{}, false
+	}
+	return doc.Expiration, true
+}
+
+func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal bool) (Value, error) {
 	if b.File != "" {
 		info, err := c.files.Stat(b.File)
 		if err != nil {
@@ -160,7 +228,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend) (Value, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
-	stdout, stderr, err := c.run.Output(ctx, b.Command)
+	stdout, stderr, err := c.run.Output(ctx, b.Command, terminal)
 	if err != nil {
 		msg := strings.TrimSpace(string(stderr))
 		if msg != "" {
