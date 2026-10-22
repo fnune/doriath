@@ -307,7 +307,11 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 	switch action {
 	case profile.ActionDeny:
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Action: string(action), Reason: summary})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s %s%s is not allowed by profile %q", r.Method, host, reqPath, s.cfg.Profile))
+		msg := fmt.Sprintf("doriath: %s %s%s is not allowed by profile %q", r.Method, host, reqPath, s.cfg.Profile)
+		if summary != "" {
+			msg += ": " + summary
+		}
+		deny(w, http.StatusForbidden, msg)
 		return
 	case profile.ActionApprove:
 		if summary == "" {

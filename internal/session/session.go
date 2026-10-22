@@ -167,7 +167,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	}
 	listings := newListingCache()
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
-	req.Profile = withLinkedStores(resolved, listings)
+	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Paths.State)
 	stopNote()
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err

@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,12 +31,15 @@ import (
 // State is what a login leaves on the host: the client doriath signed in as,
 // the server's endpoints and the token, with its refresh token.
 type State struct {
-	ClientID     string        `json:"client_id"`
-	ClientSecret string        `json:"client_secret,omitempty"`
-	AuthURL      string        `json:"auth_url"`
-	TokenURL     string        `json:"token_url"`
-	Scopes       []string      `json:"scopes,omitempty"`
-	Token        *oauth2.Token `json:"token"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret,omitempty"`
+	AuthURL      string `json:"auth_url"`
+	TokenURL     string `json:"token_url"`
+	// RegistrationURL is where clients register themselves, so that a
+	// session can refuse the agent's own sign-in there.
+	RegistrationURL string        `json:"registration_url,omitempty"`
+	Scopes          []string      `json:"scopes,omitempty"`
+	Token           *oauth2.Token `json:"token"`
 }
 
 func (s State) config() *oauth2.Config {
@@ -215,7 +219,22 @@ func loginMCP(ctx context.Context, server, redirect string, fetch auth.Authoriza
 	if s.Token == nil {
 		return State{}, errors.New("the login finished without a token")
 	}
+	if u, err := url.Parse(s.TokenURL); err == nil {
+		if meta, err := auth.GetAuthServerMetadata(ctx, u.Scheme+"://"+u.Host, http.DefaultClient); err == nil && meta != nil {
+			s.RegistrationURL = meta.RegistrationEndpoint
+		}
+	}
 	return s, nil
+}
+
+// Endpoints are the token and registration URLs of a login, when there is
+// one.
+func Endpoints(stateDir, profile, name string) (token, registration string, ok bool) {
+	s, err := load(StatePath(stateDir, profile, name))
+	if err != nil {
+		return "", "", false
+	}
+	return s.TokenURL, s.RegistrationURL, true
 }
 
 func loginIssuer(ctx context.Context, o secret.OAuth, redirect string, fetch auth.AuthorizationCodeFetcher) (State, error) {
@@ -244,7 +263,7 @@ func loginIssuer(ctx context.Context, o secret.OAuth, redirect string, fetch aut
 	if err != nil {
 		return State{}, err
 	}
-	return State{ClientID: o.ClientID, AuthURL: cfg.Endpoint.AuthURL, TokenURL: cfg.Endpoint.TokenURL, Scopes: o.Scopes, Token: tok}, nil
+	return State{ClientID: o.ClientID, AuthURL: cfg.Endpoint.AuthURL, TokenURL: cfg.Endpoint.TokenURL, RegistrationURL: meta.RegistrationEndpoint, Scopes: o.Scopes, Token: tok}, nil
 }
 
 func randomState() string {

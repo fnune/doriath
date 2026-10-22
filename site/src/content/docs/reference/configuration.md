@@ -338,6 +338,8 @@ The command signs in to each OAuth secret of the profile that has no login yet, 
 - With `mcp`, doriath finds the sign-in server from the MCP server, and registers itself as a client.
 - With `issuer`, doriath signs in as `client_id` with `scopes`.
 
+In a session, doriath refuses the agent's own sign-in to a server that it holds a login for. A token that the agent got would stay in the jail, where the agent can read it. The server's metadata stays readable.
+
 Each request that uses the secret gets a fresh access token, which the proxy adds. Thus the agent never holds a token. If the refresh token stops working, doriath tells you to run `doriath profiles login` again. Tokens are in `~/.local/state/doriath/oauth/<profile>/<name>.json`, with mode 600, outside the jail.
 
 ## Containers
