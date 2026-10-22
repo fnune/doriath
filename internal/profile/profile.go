@@ -240,17 +240,23 @@ type Rule struct {
 // NeedsBody reports whether any rule for this host looks at request bodies.
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone || len(r.Form) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
 	return false
 }
 
-// NeedsFormBody reports whether the host names its operation in a form
-// field and the request sends a form, so that its body must be read.
-func (h HTTPHost) NeedsFormBody(header http.Header) bool {
-	return h.Operation.Form != "" && isForm(header)
+// NeedsFormBody reports whether a request sends a form whose fields a rule
+// or the host's operation reads, so that its body must be read. Other
+// bodies, such as an S3 upload, pass unread.
+func (h HTTPHost) NeedsFormBody(method, path string, header http.Header) bool {
+	if !isForm(header) {
+		return false
+	}
+	return h.Operation.Form != "" || slices.ContainsFunc(h.Rules, func(r Rule) bool {
+		return len(r.Form) > 0 && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
+	})
 }
 
 func isForm(header http.Header) bool {

@@ -287,7 +287,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		return
 	}
 	var body []byte
-	needsBody := rules.NeedsBody(r.Method, reqPath) || rules.NeedsFormBody(r.Header)
+	needsBody := rules.NeedsBody(r.Method, reqPath) || rules.NeedsFormBody(r.Method, reqPath, r.Header)
 	if needsBody && !identityEncoding(r.Header.Get("Content-Encoding")) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: "compressed body on an inspected request"})
 		deny(w, http.StatusUnsupportedMediaType, "doriath: send this request uncompressed, so its body can be checked")

@@ -23,6 +23,20 @@ test:
 test-integration:
     go test -race -tags integration -count=1 ./internal/session/
 
+floci_image := "docker.io/floci/floci:2.3.0"
+
+# Runs the AWS CLI through doriath against floci, an AWS emulator that checks
+# each signature with its own code. Needs podman. floci uses the host's
+# network, because rootless podman cannot always make one of its own.
+test-floci:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    name="doriath-floci-$$"
+    podman run -d --rm --name "$name" --network host -e FLOCI_AUTH_VALIDATE_SIGNATURES=true {{floci_image}} >/dev/null
+    trap 'podman stop -t 2 "$name" >/dev/null' EXIT
+    for _ in $(seq 50); do curl -fs -o /dev/null http://127.0.0.1:4566/_floci/health && break; sleep 0.2; done
+    FLOCI_URL=http://127.0.0.1:4566 go test -race -tags integration -count=1 -run 'TestAWS' ./internal/session/
+
 # Searches for new inputs to each fuzz target. Their seeds already run with `just test`.
 fuzz time="30s":
     #!/usr/bin/env bash

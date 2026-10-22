@@ -61,15 +61,22 @@ func TestMain(m *testing.M) {
 }
 
 type recorder struct {
-	mu   sync.Mutex
-	reqs []*http.Request
+	mu         sync.Mutex
+	reqs       []*http.Request
+	answerWith http.Handler
 }
 
 func (r *recorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	_, _ = io.Copy(io.Discard, req.Body)
+	body, _ := io.ReadAll(req.Body)
 	r.mu.Lock()
 	r.reqs = append(r.reqs, req)
+	next := r.answerWith
 	r.mu.Unlock()
+	if next != nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(w, req)
+		return
+	}
 	fmt.Fprintf(w, "upstream %s %s\n", req.Host, req.URL.Path)
 }
 
@@ -146,7 +153,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 
-	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example", "programs.example", "sts.us-east-1.amazonaws.com"}, time.Now)
+	upCA, err := ca.New([]string{"example.com", "api.github.com", "github.com", "drafted.example", "programs.example", "*.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

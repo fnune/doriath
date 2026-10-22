@@ -3,11 +3,14 @@
 package session_test
 
 import (
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/secret"
 )
 
@@ -47,5 +50,54 @@ echo done
 	}
 	if r.Header.Get("X-Amz-Security-Token") != "real-session" {
 		t.Errorf("session token = %q", r.Header.Get("X-Amz-Security-Token"))
+	}
+}
+
+func TestAWSAcceptsWhatTheProxySignsAgain(t *testing.T) {
+	floci := os.Getenv("FLOCI_URL")
+	if floci == "" {
+		t.Skip("FLOCI_URL is not set: run just test-floci")
+	}
+	aws, err := filepath.EvalSymlinks(filepath.Join(os.Getenv("HOME"), ".nix-profile", "bin", "aws"))
+	if err != nil {
+		t.Skip("no AWS CLI from nix")
+	}
+	target, err := url.Parse(floci)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t)
+	e.upstream.answerWith = &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
+		pr.SetURL(target)
+		pr.Out.Host = pr.In.Host
+	}}
+	creds := filepath.Join(t.TempDir(), "aws.json")
+	if err := os.WriteFile(creds, []byte(`{"Version":1,"AccessKeyId":"test","SecretAccessKey":"test"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.secrets["aws"] = secret.Backend{File: creds}
+	e.modules = []string{"aws"}
+	p := e.profile("\n[env]\nset = { AWS_REGION = \"us-east-1\", AWS_PAGER = \"\" }\n")
+	bucket := "doriath-test"
+	code, out := e.run(p, `
+set -u
+aws=`+aws+`
+run() { echo "== $*"; "$aws" "$@" || echo "FAIL $*"; }
+run sts get-caller-identity
+run s3api create-bucket --bucket `+bucket+`
+head -c 300000 /dev/urandom > big.bin
+run s3 cp big.bin s3://`+bucket+`/big.bin
+run s3 ls s3://`+bucket+`/
+run dynamodb list-tables
+run cloudformation describe-stacks
+"$aws" sts assume-role --role-arn arn:aws:iam::000000000000:role/x --role-session-name s >/dev/null 2>&1 && echo "FAIL assume-role went through"
+echo done
+`, func() {
+		for range 2 {
+			e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"})
+		}
+	})
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "done") || strings.Contains(out, "SignatureDoesNotMatch") {
+		t.Fatalf("code %d:\n%s", code, out)
 	}
 }

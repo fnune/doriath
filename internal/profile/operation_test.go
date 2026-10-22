@@ -60,7 +60,7 @@ func TestRulesMatchTheOperationInAFormOrAHeader(t *testing.T) {
 			t.Errorf("%s: %s, want %s", name, r.Action, c.want)
 		}
 	}
-	if !h.NeedsFormBody(form) || h.NeedsFormBody(http.Header{"Content-Type": {"application/octet-stream"}}) {
+	if !h.NeedsFormBody("POST", "/", form) || h.NeedsFormBody("PUT", "/bucket/key", http.Header{"Content-Type": {"application/octet-stream"}}) || h.NeedsBody("PUT", "/bucket/key") {
 		t.Error("only a form body needs reading for the operation")
 	}
 }
