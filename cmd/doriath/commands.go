@@ -268,6 +268,8 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdin io.Reader, 
 		return decide(ctx, p, id, d)
 	case "watch":
 		return watch(ctx, p, c, stdin, stdout)
+	case "web":
+		return cmdApprovalsWeb(ctx, p, args, c, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }

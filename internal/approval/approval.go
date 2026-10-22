@@ -25,6 +25,10 @@ const (
 	KindPath Kind = "path"
 )
 
+// AllowsOnce says whether an allow can cover one request only. A host or a
+// write stays reachable once allowed, so those last for the session.
+func (k Kind) AllowsOnce() bool { return k != KindHost && k != KindPath }
+
 type Request struct {
 	ID      string `json:"id"`
 	Session string `json:"session"`

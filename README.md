@@ -83,7 +83,7 @@ flowchart LR
 | Kernel      | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes.                                                                                                            |
 | Network     | The jail has only loopback. The proxy allows the hosts the profile names, holds others for your approval, and refuses private and metadata addresses. Every decision goes to an audit log.                                 |
 | Credentials | For an `[[http]]` host, the proxy terminates TLS, adds the credential for the programs the profile names, and applies request rules.                                                                                       |
-| Approvals   | Held requests wait for you in a desktop notification or `doriath approvals`. An allow lasts at most for the session.                                                                                                       |
+| Approvals   | Held requests wait for you in a desktop notification, a page in your browser, or `doriath approvals`. An allow lasts at most for the session.                                                                              |
 | Extras      | An SSH agent that only signs commits, a podman service behind a broker that checks each API call, systemd limits, and `doriath exec` and `doriath forward` to look inside.                                                 |
 
 ## Docs

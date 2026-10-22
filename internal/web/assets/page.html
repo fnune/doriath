@@ -1,0 +1,136 @@
+{{define "page"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"selfRequestsOnly":true}'>
+<title>Doriath</title>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/vendor/htmx.min.js" defer></script>
+<script src="/assets/vendor/idiomorph-ext.min.js" defer></script>
+<noscript><meta http-equiv="refresh" content="3"></noscript>
+</head>
+<body hx-ext="morph">
+{{template "main" .}}
+</body>
+</html>
+{{end}}
+
+{{define "main"}}<div id="main" hx-get="/main" hx-trigger="every 1s" hx-include="#selected" hx-swap="morph:outerHTML" hx-disinherit="*">
+<input type="hidden" id="selected" name="request" value="{{with .Selected}}{{.Key}}{{end}}">
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true">
+        <circle cx="19" cy="19" r="17" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="19" cy="19" r="12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 2.5"/>
+        <circle cx="19" cy="19" r="3" fill="currentColor"/>
+      </svg>
+      <div><h1>Doriath</h1><small>{{.Count}}</small></div>
+    </div>
+    <div class="sessions">
+      {{range .Sessions}}<span class="who" title="{{.Cwd}}">{{template "profile" .}}<span class="sid">{{.ID}}</span></span>{{end}}
+    </div>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <section aria-label="Requests">
+      {{with .Problem}}<div class="banner" role="alert">{{.}}</div>{{end}}
+      <h2 class="section-title">At the gate</h2>
+      <nav class="list" aria-label="Waiting requests">
+        {{range .Pending}}
+        <a class="item" id="item-{{.Key}}" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
+          <span class="sum">{{.Summary}}</span>
+          <span class="timer {{.Pace}}">{{.Timer}}</span>
+          <span class="who">{{template "profile" .Session}}</span>
+          <span class="kind">{{.Kind}}</span>
+        </a>
+        {{else}}
+        <div class="empty">{{if .HasSessions}}Nothing is waiting. New requests appear here and as desktop notifications.{{else}}Requests appear here while a session runs. Start one with doriath run.{{end}}</div>
+        {{end}}
+      </nav>
+      <h2 class="section-title">Answered</h2>
+      <div class="list done">
+        {{range .Answered}}
+        <div class="item">
+          <span class="sum">{{.Summary}}</span>
+          <span class="verdict {{.Verdict}}"{{with .By}} title="Answered {{.}}"{{end}}>{{.Label}}</span>
+          <span class="who">{{template "profile" .Profile}}<span class="dot">·</span><span>{{.Ago}}</span></span>
+          <span class="kind">{{.Kind}}</span>
+        </div>
+        {{else}}
+        <div class="empty">Nothing answered in the last day.</div>
+        {{end}}
+      </div>
+    </section>
+    <section aria-label="Selected request">
+      <h2 class="section-title">Request <span class="sid">{{with .Selected}}{{.ID}}{{end}}</span></h2>
+      <div class="detail" aria-live="polite">
+        {{with .Selected}}{{template "detail" .}}{{else}}<div class="empty">Nothing to answer.</div>{{end}}
+      </div>
+    </section>
+  </div>
+</main>
+</div>{{end}}
+
+{{define "profile"}}<span class="profile {{.Hue}}">{{.Profile}}</span>{{end}}
+
+{{define "detail"}}
+<div class="detail-head">
+  <div>
+    <span class="who">{{template "profile" .Session}}<span class="kind">{{.Kind}}</span></span>
+    <h3>{{.Summary}}</h3>
+    <p class="status">{{.Status}}</p>
+  </div>
+  <span class="timer {{.Pace}}">{{.Timer}}</span>
+</div>
+<div class="bar {{.Pace}}">
+  {{template "curl-h" "start"}}
+  <svg class="track" height="14" aria-hidden="true"><line class="bg" x1="0" x2="100%" y1="12" y2="12"/><line class="fg" x1="0" x2="{{.Fill}}" y1="12" y2="12"/></svg>
+  {{template "curl-h" "end"}}
+</div>
+{{if .Note}}
+<div class="agent-text">
+  <div class="rule">
+    {{template "curl-v" "start"}}
+    <svg class="stem" width="14" aria-hidden="true"><line x1="12" x2="12" y1="0" y2="100%"/></svg>
+    {{template "curl-v" "end"}}
+  </div>
+  <div class="body">
+    <span class="kind">{{.NoteLabel}}, written by {{.Agent}}</span>
+    <div class="quote">{{.Note}}</div>
+  </div>
+</div>
+{{end}}
+{{if .Details}}
+<div>
+  {{if .ByAgent}}<p class="caption">Written by {{.Agent}}, not by doriath.</p>{{end}}
+  <pre>{{.Details}}</pre>
+</div>
+{{end}}
+<dl class="facts">
+  <dt>Session</dt>
+  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span><span class="sid">{{.Session.Cwd}}</span></dd>
+  {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}
+</dl>
+{{with .Keep}}
+<div class="keep">
+  <p class="caption">To keep it after this session, add to profile {{$.Session.Profile}}:</p>
+  <pre>{{.}}</pre>
+</div>
+{{end}}
+<form class="actions" method="post" action="/decide" hx-post="/decide" hx-target="#main" hx-swap="morph:outerHTML">
+  <input type="hidden" name="session" value="{{.Session.ID}}">
+  <input type="hidden" name="id" value="{{.ID}}">
+  {{if .AllowsOnce}}<button class="btn primary" name="answer" value="once">Allow once</button>
+  <button class="btn secondary" name="answer" value="session">Allow for this session</button>
+  {{else}}<button class="btn primary" name="answer" value="session">Allow for this session</button>{{end}}
+  <button class="btn deny" name="answer" value="deny">Deny</button>
+</form>
+{{end}}
+
+{{define "curl-h"}}<svg class="curl {{.}}" width="28" height="14" viewBox="0 0 28 14" aria-hidden="true"><path d="M28 12 H12 C6 12 2 10 2 6.5 C2 3.5 4.5 1.8 7 1.8 C9.5 1.8 11 3.6 11 5.6 C11 7.4 9.6 8.6 8 8.5"/><path class="bud" d="M11.96 12 Q9.43 11.97 7.34 13.85"/><circle class="leaf" cx="7.34" cy="13.85" r="1"/><path class="bud" d="M4.64 10.5 Q2.47 9.2 -0.28 9.76"/><circle class="leaf" cx="-0.28" cy="9.76" r="1"/></svg>{{end}}
+
+{{define "curl-v"}}<svg class="curl {{.}}" width="14" height="28" viewBox="0 0 14 28" aria-hidden="true"><path d="M12 28 V12 C12 6 10 2 6.5 2 C3.5 2 1.8 4.5 1.8 7 C1.8 9.5 3.6 11 5.6 11 C7.4 11 8.6 9.6 8.5 8"/><path class="bud" d="M12 11.96 Q11.97 9.43 13.85 7.34"/><circle class="leaf" cx="13.85" cy="7.34" r="1"/><path class="bud" d="M10.5 4.64 Q9.2 2.47 9.76 -0.28"/><circle class="leaf" cx="9.76" cy="-0.28" r="1"/></svg>{{end}}

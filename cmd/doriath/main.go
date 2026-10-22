@@ -43,6 +43,7 @@ Usage:
   doriath approvals allow ID [--for once|session|DURATION]
   doriath approvals deny ID [--reason TEXT]
   doriath approvals watch
+  doriath approvals web [--listen HOST:PORT] [--open]
   doriath sessions
   doriath clean [--caches PROFILE]
   doriath restore SESSION

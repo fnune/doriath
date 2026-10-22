@@ -36,7 +36,7 @@ _doriath() {
       _arguments '--profile[profile to use]:profile:($(doriath __complete profiles))' '*::command:_normal' ;;
     approvals)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list allow deny watch
+        _values 'subcommand' list allow deny watch web
       elif [[ "${words[3]}" == (allow|deny) ]] && (( CURRENT == 4 )); then
         _values 'request' $(doriath __complete approvals)
       elif [[ "${words[3]}" == allow ]]; then

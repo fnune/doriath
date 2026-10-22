@@ -148,6 +148,15 @@ in
       description = "Show approval requests as desktop notifications with buttons.";
     };
 
+    approvals.web = {
+      enable = lib.mkEnableOption "the approvals page as a systemd user service; `doriath approvals web --open` opens it";
+      listen = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1:7341";
+        description = "The loopback HOST:PORT the page serves on.";
+      };
+    };
+
     modules = lib.mkOption {
       type = lib.types.attrsOf layerType;
       default = { };
@@ -173,6 +182,15 @@ in
     );
 
     home.packages = [ cfg.package ];
+
+    systemd.user.services.doriath-web = lib.mkIf cfg.approvals.web.enable {
+      Unit.Description = "Doriath approvals page";
+      Service = {
+        ExecStart = "${lib.getExe cfg.package} approvals web --listen ${cfg.approvals.web.listen}";
+        Restart = "on-failure";
+      };
+      Install.WantedBy = [ "default.target" ];
+    };
 
     programs.zsh.initContent = lib.mkIf cfg.zsh.completion ''
       source <(${lib.getExe cfg.package} completion zsh)
