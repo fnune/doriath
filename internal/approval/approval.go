@@ -43,6 +43,9 @@ type Request struct {
 	Scope   string    `json:"scope"`
 	Created time.Time `json:"created"`
 	Expires time.Time `json:"expires"`
+	// AgentWaits is when the agent stops waiting for the answer. The request
+	// stays answerable after that, until Expires.
+	AgentWaits time.Time `json:"agent_waits,omitzero"`
 }
 
 type Verdict string
@@ -207,6 +210,9 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 	}
 	req.Created = now
 	req.Expires = now.Add(ttl)
+	if req.AgentWaits.IsZero() || req.AgentWaits.After(req.Expires) {
+		req.AgentWaits = req.Expires
+	}
 	p := newPending(req)
 	m.pending[req.ID] = p
 	m.mu.Unlock()
@@ -317,12 +323,17 @@ func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)
 // until it is decided or ttl passes, and decided runs when it is decided.
 // Hold returns the request's id, for Wait, unless a grant answered at once.
 func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decision)) (Decision, string) {
+	waitsUntil := m.clock.Now().Add(wait)
+	req.AgentWaits = waitsUntil
 	var p *pending
 	if req.Scope != "" {
 		m.mu.Lock()
 		for _, q := range m.pending {
 			if grantKey(q.req) == grantKey(req) {
 				p = q
+				if waitsUntil.After(p.req.AgentWaits) && !waitsUntil.After(p.req.Expires) {
+					p.req.AgentWaits = waitsUntil
+				}
 				break
 			}
 		}

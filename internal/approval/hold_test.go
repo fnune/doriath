@@ -158,3 +158,33 @@ func TestHistoryKeepsDecidedAndExpiredRequestsInOrder(t *testing.T) {
 		t.Fatal("History must return a copy")
 	}
 }
+
+func TestHoldSaysWhenTheAgentStopsWaiting(t *testing.T) {
+	m := holdSetup()
+	req := Request{Kind: KindHost, Scope: "host c.example"}
+	before := time.Now()
+	m.Hold(req, time.Hour, time.Millisecond, nil)
+	first := m.Pending()[0]
+	if first.AgentWaits.Before(before) || !first.AgentWaits.Before(first.Expires) {
+		t.Fatalf("agent waits until %v, request expires %v", first.AgentWaits, first.Expires)
+	}
+	m.Hold(req, time.Hour, 5*time.Millisecond, nil)
+	if joined := m.Pending()[0]; !joined.AgentWaits.After(first.AgentWaits) {
+		t.Fatalf("joining did not extend the wait: %v, then %v", first.AgentWaits, joined.AgentWaits)
+	}
+}
+
+func TestSubmitWaitsUntilTheRequestExpires(t *testing.T) {
+	m := holdSetup()
+	go func() { _, _ = m.Submit(context.Background(), Request{Kind: KindHTTP, Scope: "s"}, time.Hour) }()
+	deadline := time.Now().Add(time.Second)
+	for len(m.Pending()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the request never became pending")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if r := m.Pending()[0]; !r.AgentWaits.Equal(r.Expires) {
+		t.Fatalf("agent waits until %v, request expires %v", r.AgentWaits, r.Expires)
+	}
+}
