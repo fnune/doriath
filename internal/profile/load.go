@@ -7,11 +7,11 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -30,29 +30,103 @@ type Loader struct {
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
+const maxProfileDepth = 8
+
+// Names lists the profiles in the profiles folder and the folders inside
+// it, such as a linked clone of a private repository. A profile is named
+// after its file, so two files with one name are an error.
 func (l *Loader) Names() ([]string, error) {
-	entries, err := fs.ReadDir(l.Profiles, ".")
+	files, err := l.files()
+	if err != nil {
+		return nil, err
+	}
+	return slices.Sorted(maps.Keys(files)), nil
+}
+
+// File returns where the profile is, relative to the profiles folder, and
+// false when no file defines it.
+func (l *Loader) File(name string) (string, bool, error) {
+	files, err := l.files()
+	if err != nil {
+		return "", false, err
+	}
+	file, ok := files[name]
+	return file, ok, nil
+}
+
+func (l *Loader) files() (map[string]string, error) {
+	files := map[string]string{}
+	root, err := fs.Stat(l.Profiles, ".")
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return files, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list profiles: %w", err)
 	}
-	var names []string
-	for _, e := range entries {
-		if name, ok := strings.CutSuffix(e.Name(), ".toml"); ok && !e.IsDir() {
-			names = append(names, name)
-		}
+	if err := l.walk(".", []fs.FileInfo{root}, files); err != nil {
+		return nil, fmt.Errorf("list profiles: %w", err)
 	}
-	sort.Strings(names)
-	return names, nil
+	return files, nil
+}
+
+func (l *Loader) walk(dir string, parents []fs.FileInfo, files map[string]string) error {
+	entries, err := fs.ReadDir(l.Profiles, dir)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", dir, pathCause(err))
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		file := path.Join(dir, e.Name())
+		info, err := fs.Stat(l.Profiles, file)
+		if err != nil {
+			return fmt.Errorf("%s: %w", file, pathCause(err))
+		}
+		if info.IsDir() {
+			if slices.ContainsFunc(parents, func(p fs.FileInfo) bool { return os.SameFile(p, info) }) {
+				return fmt.Errorf("%s links back to a folder above it", file)
+			}
+			if len(parents) >= maxProfileDepth {
+				return fmt.Errorf("%s: profiles nest more than %d folders deep", file, maxProfileDepth)
+			}
+			if err := l.walk(file, append(parents, info), files); err != nil {
+				return err
+			}
+			continue
+		}
+		name, ok := strings.CutSuffix(e.Name(), ".toml")
+		if !ok {
+			continue
+		}
+		if other, taken := files[name]; taken {
+			return fmt.Errorf("two files define profile %q: %s and %s; rename one", name, other, file)
+		}
+		files[name] = file
+	}
+	return nil
+}
+
+func pathCause(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err
+	}
+	return err
 }
 
 func (l *Loader) Load(name string) (*Profile, error) {
 	if !namePattern.MatchString(name) {
 		return nil, fmt.Errorf("profile name %q: use lowercase letters, digits and dashes", name)
 	}
-	data, err := fs.ReadFile(l.Profiles, name+".toml")
+	file, ok, err := l.File(name)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		file = name + ".toml"
+	}
+	data, err := fs.ReadFile(l.Profiles, file)
 	if err != nil {
 		return nil, fmt.Errorf("read profile %q: %w", name, err)
 	}

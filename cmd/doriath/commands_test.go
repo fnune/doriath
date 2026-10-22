@@ -96,6 +96,29 @@ func TestProfilesEdit(t *testing.T) {
 	}
 }
 
+func TestProfilesEditOpensAProfileInAFolder(t *testing.T) {
+	p := testPaths(t)
+	nested := filepath.Join(p.Profiles(), "private", "nested.toml")
+	if err := os.MkdirAll(filepath.Dir(nested), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(nested, []byte(`modules = ["base"]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", `sed -i 's/base/vcs/'`)
+	var out bytes.Buffer
+	if err := cmdProfiles([]string{"edit", "nested"}, strings.NewReader(""), &out); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	if data, err := os.ReadFile(nested); err != nil || !strings.Contains(string(data), "vcs") {
+		t.Fatalf("the nested file was not edited: %q, %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(p.Profiles(), "nested.toml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("edit created a second file: %v", err)
+	}
+}
+
 func approvals(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer

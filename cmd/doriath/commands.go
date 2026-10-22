@@ -698,7 +698,14 @@ mode = "read"
 `
 
 func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer) error {
-	path := filepath.Join(dir, name+".toml")
+	file, ok, err := l.File(name)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		file = name + ".toml"
+	}
+	path := filepath.Join(dir, file)
 	info, err := os.Lstat(path)
 	switch {
 	case err == nil && info.Mode()&os.ModeSymlink != 0:
