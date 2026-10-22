@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/ca"
+	"github.com/fnune/doriath/internal/ca"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
@@ -22,7 +22,7 @@ func TestGitConfigWithRealGit(t *testing.T) {
 	if err != nil {
 		t.Skip("git not installed")
 	}
-	data := GitConfig(GitOptions{SigningKey: "/run/girdle/signing.pub", RewriteSSH: []string{"github.com"}, Desktop: []byte(desktopGit)})
+	data := GitConfig(GitOptions{SigningKey: "/run/doriath/signing.pub", RewriteSSH: []string{"github.com"}, Desktop: []byte(desktopGit)})
 	path := filepath.Join(t.TempDir(), "gitconfig")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestGitConfigWithRealGit(t *testing.T) {
 	}
 	for key, want := range map[string]string{
 		"user.name":            "Test User",
-		"user.signingkey":      "/run/girdle/signing.pub",
+		"user.signingkey":      "/run/doriath/signing.pub",
 		"gpg.format":           "ssh",
 		"commit.gpgsign":       "true",
 		"push.autosetupremote": "true",
@@ -66,7 +66,7 @@ func TestGitConfigWithoutSigning(t *testing.T) {
 }
 
 func TestJJ(t *testing.T) {
-	if got := string(JJConfig("/run/girdle/signing.pub")); !strings.Contains(got, `key = "/run/girdle/signing.pub"`) || !strings.Contains(got, `behavior = "own"`) {
+	if got := string(JJConfig("/run/doriath/signing.pub")); !strings.Contains(got, `key = "/run/doriath/signing.pub"`) || !strings.Contains(got, `behavior = "own"`) {
 		t.Errorf("jj = %s", got)
 	}
 	kind := func(p string) string {
@@ -75,7 +75,7 @@ func TestJJ(t *testing.T) {
 		}
 		return ""
 	}
-	if got := JJConfigPath("/home/u", kind, "/run/girdle/jj.toml"); got != "/home/u/.config/jj/config.toml:/run/girdle/jj.toml" {
+	if got := JJConfigPath("/home/u", kind, "/run/doriath/jj.toml"); got != "/home/u/.config/jj/config.toml:/run/doriath/jj.toml" {
 		t.Errorf("path = %s", got)
 	}
 }

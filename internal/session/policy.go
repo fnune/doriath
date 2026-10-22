@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type livePolicy struct {
@@ -119,7 +119,7 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 	return false, id
 }
 
-// keepHint says how to keep hosts for later sessions. girdle does not edit
+// keepHint says how to keep hosts for later sessions. doriath does not edit
 // profiles: they may come from nix, and you decide their shape.
 func keepHint(profile string, hosts []string) string {
 	quoted := make([]string, len(hosts))

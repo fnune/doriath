@@ -4,6 +4,6 @@
 
 for d in /var /opt /mnt; do
   [ -d "$d" ] || continue
-  touch "$d/girdle-escape" 2>/dev/null && { echo "ESCAPED: wrote into $d despite Landlock"; exit 1; }
+  touch "$d/doriath-escape" 2>/dev/null && { echo "ESCAPED: wrote into $d despite Landlock"; exit 1; }
 done
 exit 0

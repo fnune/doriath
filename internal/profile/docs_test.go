@@ -9,9 +9,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/modules"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/modules"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type snippet struct {
@@ -62,7 +62,7 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 }
 
 // TestDocExamplesLoad keeps the examples in the docs loadable: a reader who
-// copies one gets a file girdle accepts.
+// copies one gets a file doriath accepts.
 func TestDocExamplesLoad(t *testing.T) {
 	var snippets []snippet
 	for _, doc := range []string{"docs/configuration.md", "docs/install.md", "README.md"} {

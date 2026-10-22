@@ -1,4 +1,4 @@
-// Package config locates girdle's directories and reads the user config,
+// Package config locates doriath's directories and reads the user config,
 // which holds what is personal to one person: where their secrets live and
 // how they want to be asked for approvals.
 package config
@@ -16,7 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const appName = "girdle"
+const appName = "doriath"
 
 type Paths struct {
 	Home    string
@@ -47,11 +47,11 @@ func (p Paths) AgentCache(profile string) string {
 func (p Paths) Bundle() string { return filepath.Join(p.Cache, "bundle") }
 
 // Backups holds, per session, the record of the branches it started with and
-// the objects that keep them alive. It is state: girdle restore reads it
+// the objects that keep them alive. It is state: doriath restore reads it
 // after the session ends.
 func (p Paths) Backups() string { return filepath.Join(p.State, "backups") }
 
-// DefaultPaths follows the XDG base directory specification. GIRDLE_CONFIG_DIR
+// DefaultPaths follows the XDG base directory specification. DORIATH_CONFIG_DIR
 // overrides the config directory, for example to point at a generated one.
 func DefaultPaths(getenv func(string) string) (Paths, error) {
 	home := getenv("HOME")
@@ -70,21 +70,21 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 		State:  xdg("XDG_STATE_HOME", ".local/state"),
 		Cache:  xdg("XDG_CACHE_HOME", ".cache"),
 	}
-	if dir := getenv("GIRDLE_CONFIG_DIR"); dir != "" {
+	if dir := getenv("DORIATH_CONFIG_DIR"); dir != "" {
 		if !filepath.IsAbs(dir) {
-			return Paths{}, fmt.Errorf("GIRDLE_CONFIG_DIR %q must be absolute", dir)
+			return Paths{}, fmt.Errorf("DORIATH_CONFIG_DIR %q must be absolute", dir)
 		}
 		p.Config = dir
 	}
 	runtime := getenv("XDG_RUNTIME_DIR")
 	if !filepath.IsAbs(runtime) {
-		return Paths{}, errors.New("XDG_RUNTIME_DIR must be set: girdle keeps its sockets there")
+		return Paths{}, errors.New("XDG_RUNTIME_DIR must be set: doriath keeps its sockets there")
 	}
 	p.Runtime = filepath.Join(runtime, appName)
 	return p, nil
 }
 
-// User is girdle's own configuration, which holds for every profile.
+// User is doriath's own configuration, which holds for every profile.
 // Secrets belong to the profiles that use them.
 type User struct {
 	Approvals Approvals
@@ -92,7 +92,7 @@ type User struct {
 
 type Approvals struct {
 	Desktop bool
-	// HostWait is how long a request girdle refused waits for your
+	// HostWait is how long a request doriath refused waits for your
 	// decision before the agent gets an error. Nil means the default.
 	HostWait *time.Duration
 }

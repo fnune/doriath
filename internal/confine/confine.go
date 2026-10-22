@@ -21,7 +21,7 @@ import (
 // capabilities there, which bubblewrap never gives the jail's processes.
 //
 // A process that keeps your UID in the jail already lost its capabilities
-// when it executed girdle, and may not change its bounding set any more.
+// when it executed doriath, and may not change its bounding set any more.
 // Nothing can raise them again once no_new_privs is set, so then there is
 // nothing left to drop.
 func DropCapabilities() error {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/fnune/girdle/internal/modules"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/modules"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func TestClaudeRefusesAPIKeysInEitherHeader(t *testing.T) {

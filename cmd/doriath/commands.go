@@ -22,21 +22,21 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/fnune/girdle/internal/notify"
-	"github.com/fnune/girdle/internal/oauth"
-	"github.com/fnune/girdle/internal/seccomp"
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/seccomp"
+	"github.com/fnune/doriath/internal/secret"
 
-	"github.com/fnune/girdle/internal/agents/claude"
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/bundle"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/confine"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/jailinit"
-	"github.com/fnune/girdle/internal/landlock"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/agents/claude"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/confine"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/landlock"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/session"
 
 	"golang.org/x/sys/unix"
 )
@@ -85,7 +85,7 @@ const maxHookInput = 1 << 20
 
 func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) < 2 || args[0] != "claude" {
-		return errors.New("hook: usage: girdle hook claude permission-request|notification")
+		return errors.New("hook: usage: doriath hook claude permission-request|notification")
 	}
 	flags := flag.NewFlagSet("hook", flag.ContinueOnError)
 	timeout := flags.Duration("timeout", time.Minute, "how long to wait for a decision")
@@ -96,9 +96,9 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	broker := os.Getenv("GIRDLE_BROKER")
+	broker := os.Getenv("DORIATH_BROKER")
 	if broker == "" {
-		return errors.New("hook: GIRDLE_BROKER is not set; is this running inside girdle?")
+		return errors.New("hook: DORIATH_BROKER is not set; is this running inside doriath?")
 	}
 	ctx := context.Background()
 	switch args[1] {
@@ -136,7 +136,7 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 			TimeoutSeconds: int(timeout.Seconds()),
 		}, &d)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "girdle: no decision, falling back to Claude's prompt:", err)
+			fmt.Fprintln(os.Stderr, "doriath: no decision, falling back to Claude's prompt:", err)
 			return nil
 		}
 		if d.Verdict == approval.VerdictNone {
@@ -144,7 +144,7 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		message := ""
 		if d.Verdict == approval.VerdictDeny {
-			message = "Denied by the user through girdle."
+			message = "Denied by the user through doriath."
 			if d.Reason != "" {
 				message += " Reason: " + d.Reason
 			}
@@ -219,7 +219,7 @@ func pending(ctx context.Context, p config.Paths) ([]pendingRequest, error) {
 	for _, s := range sessions {
 		var reqs []approval.Request
 		if err := control.Call(ctx, s.control, session.MethodList, struct{}{}, &reqs); err != nil {
-			fmt.Fprintf(os.Stderr, "girdle: session %s does not answer: %v\n", s.info.ID, err)
+			fmt.Fprintf(os.Stderr, "doriath: session %s does not answer: %v\n", s.info.ID, err)
 			continue
 		}
 		for _, r := range reqs {
@@ -301,7 +301,7 @@ func decide(ctx context.Context, p config.Paths, id string, d approval.Decision)
 	}
 	switch len(match) {
 	case 0:
-		return fmt.Errorf("no pending request %s; run girdle approvals to list them", id)
+		return fmt.Errorf("no pending request %s; run doriath approvals to list them", id)
 	case 1:
 		return control.Call(ctx, match[0].control, session.MethodDecide, session.DecideParams{ID: id, Decision: d}, nil)
 	}
@@ -431,7 +431,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(prof)
 	}
-	return errors.New("profiles: usage: girdle profiles [list | show NAME | edit NAME]")
+	return errors.New("profiles: usage: doriath profiles [list | show NAME | edit NAME]")
 }
 
 func cmdDoctor(args []string, w io.Writer) int {
@@ -512,7 +512,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 			case b.OAuth != nil:
 				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
 				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run girdle login --profile %s %s", prof.Name, name)
+					err = fmt.Errorf("not signed in: run doriath login --profile %s %s", prof.Name, name)
 				}
 				check(label+" (oauth)", err)
 			case b.File != "":
@@ -528,7 +528,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 		}
 	}
 	if !*fetch && secrets > 0 {
-		note("secrets", "run girdle doctor --secrets to fetch each one once")
+		note("secrets", "run doriath doctor --secrets to fetch each one once")
 	}
 
 	if podman {
@@ -549,7 +549,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	}
 
 	if desktop, err := notify.NewDesktop(time.Now); err != nil {
-		note("desktop notifications", "unavailable; approvals work through girdle approvals only")
+		note("desktop notifications", "unavailable; approvals work through doriath approvals only")
 	} else {
 		caps, err := desktop.Capabilities()
 		_ = desktop.Close()
@@ -557,7 +557,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 		case err != nil:
 			note("desktop notifications", err.Error())
 		case !slices.Contains(caps, "actions"):
-			note("desktop notifications", "the notification server shows no buttons; decide with girdle approvals")
+			note("desktop notifications", "the notification server shows no buttons; decide with doriath approvals")
 		default:
 			check("desktop notifications with buttons", nil)
 		}

@@ -9,10 +9,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/promote"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/promote"
 )
 
 // requestWrite asks you whether the agent may write path, and makes it
@@ -23,7 +23,7 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 		return RequestWriteResult{}, err
 	}
 	if !s.visible(path) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run girdle grant write on the host", path)
+		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run doriath grant write on the host", path)
 	}
 	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.\n" + s.profileHint(path)
 	if reason != "" {
@@ -109,13 +109,13 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	return nil
 }
 
-// profileHint says how to keep a grant for later sessions. girdle does not
+// profileHint says how to keep a grant for later sessions. doriath does not
 // edit the profile itself: it may come from nix, and you decide its shape.
 func (s *Session) profileHint(path string) string {
 	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n[[mounts]]\npath = %q\nmode = \"write\"", s.req.Profile.Name, s.profilePath(path))
 }
 
-// checkPromotion returns the clean path, or why girdle does not make it
+// checkPromotion returns the clean path, or why doriath does not make it
 // writable during a session.
 func (s *Session) checkPromotion(path string) (string, error) {
 	if !filepath.IsAbs(path) {
@@ -132,7 +132,7 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, private := range s.privatePaths() {
 		if within(path, private) {
-			return "", fmt.Errorf("%s: girdle does not make %s writable: it holds keys, logins, config that names programs the host runs, or girdle's own state", path, private)
+			return "", fmt.Errorf("%s: doriath does not make %s writable: it holds keys, logins, config that names programs the host runs, or doriath's own state", path, private)
 		}
 	}
 	if profile.UnderTrustedRoot(path + "/") {
@@ -140,12 +140,12 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, system := range []string{"/dev", "/proc", "/sys", "/run", "/var/tmp"} {
 		if within(path, system) {
-			return "", fmt.Errorf("%s: girdle does not make system paths writable", path)
+			return "", fmt.Errorf("%s: doriath does not make system paths writable", path)
 		}
 	}
 	for _, part := range strings.Split(path, "/") {
 		if part == ".git" || part == ".jj" {
-			return "", fmt.Errorf("%s: girdle does not make paths inside .git or .jj writable; the vcs module makes the store writable", path)
+			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable; the vcs module makes the store writable", path)
 		}
 	}
 	s.mu.Lock()
@@ -177,7 +177,7 @@ func deepestExisting(path string) string {
 }
 
 // privatePaths hold keys, logins, config that names programs the host runs,
-// or girdle's own configuration and state, and also the read-only files the claude module layers over a writable
+// or doriath's own configuration and state, and also the read-only files the claude module layers over a writable
 // cache, which a grant would make writable on the host.
 func (s *Session) privatePaths() []string {
 	home := s.deps.Paths.Home

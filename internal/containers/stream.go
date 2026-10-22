@@ -13,21 +13,21 @@ func (b *Broker) stream(w http.ResponseWriter, r *http.Request) {
 	up, err := b.dial(r.Context(), "unix", b.upstream)
 	if err != nil {
 		b.record(Event{Kind: "error", Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-		deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: cannot reach the podman service: %v", err))
+		deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot reach the podman service: %v", err))
 		return
 	}
 	out := r.Clone(r.Context())
 	out.URL.Scheme, out.URL.Host, out.Host, out.RequestURI = "http", "podman", "podman", ""
 	if err := out.Write(up); err != nil {
 		_ = up.Close()
-		deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: cannot write to the podman service: %v", err))
+		deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot write to the podman service: %v", err))
 		return
 	}
 	upr := bufio.NewReader(up)
 	resp, err := http.ReadResponse(upr, out)
 	if err != nil {
 		_ = up.Close()
-		deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: the podman service failed: %v", err))
+		deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: the podman service failed: %v", err))
 		return
 	}
 	if !switched(resp) {
@@ -44,7 +44,7 @@ func (b *Broker) stream(w http.ResponseWriter, r *http.Request) {
 	conn, brw, err := http.NewResponseController(w).Hijack()
 	if err != nil {
 		_ = up.Close()
-		deny(w, http.StatusInternalServerError, "girdle: the connection cannot be hijacked")
+		deny(w, http.StatusInternalServerError, "doriath: the connection cannot be hijacked")
 		return
 	}
 	if err := writeHead(conn, resp); err != nil {

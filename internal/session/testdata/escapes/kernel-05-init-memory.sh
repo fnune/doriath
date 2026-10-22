@@ -1,5 +1,5 @@
 #!/bin/sh
-# threat: forge identities by reading or writing the memory of girdle's init
+# threat: forge identities by reading or writing the memory of doriath's init
 # expect: held
 
 for f in /proc/2/mem /proc/2/environ /proc/2/maps; do

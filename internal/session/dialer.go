@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/proxy"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 // Resolver looks up the addresses of a host name.

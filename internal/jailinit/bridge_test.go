@@ -173,7 +173,7 @@ func TestRunExitCodesForCommandsThatCannotRun(t *testing.T) {
 		code int
 	}{
 		{nil, 2},
-		{[]string{"definitely-not-a-command-girdle"}, 127},
+		{[]string{"definitely-not-a-command-doriath"}, 127},
 		{[]string{garbage}, 126},
 	} {
 		code, err := Run(nil, c.argv)

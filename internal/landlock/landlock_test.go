@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const helperEnv = "GIRDLE_LANDLOCK_HELPER"
+const helperEnv = "DORIATH_LANDLOCK_HELPER"
 
 func TestABI(t *testing.T) {
 	abi, err := ABI()

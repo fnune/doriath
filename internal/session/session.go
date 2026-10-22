@@ -26,19 +26,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fnune/girdle/internal/agents"
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/audit"
-	"github.com/fnune/girdle/internal/ca"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/containers"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/jailinit"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/proxy"
-	"github.com/fnune/girdle/internal/seccomp"
-	"github.com/fnune/girdle/internal/secret"
-	"github.com/fnune/girdle/internal/sshagent"
+	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/audit"
+	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/containers"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/proxy"
+	"github.com/fnune/doriath/internal/seccomp"
+	"github.com/fnune/doriath/internal/secret"
+	"github.com/fnune/doriath/internal/sshagent"
 )
 
 // Socket and file names in the jail directory.
@@ -76,7 +76,7 @@ type Deps struct {
 	Stderr      io.Writer
 	// Bwrap is the bubblewrap binary.
 	Bwrap string
-	// Exe is girdle's own binary, which runs as init inside the jail.
+	// Exe is doriath's own binary, which runs as init inside the jail.
 	Exe string
 	// GitDesktop is the desktop's global git config as git config --list -z
 	// prints it.
@@ -114,7 +114,7 @@ type Request struct {
 	Learn bool
 }
 
-// Info describes a running session for girdle approvals and girdle status.
+// Info describes a running session for doriath approvals and doriath status.
 type Info struct {
 	ID      string    `json:"id"`
 	Profile string    `json:"profile"`
@@ -194,7 +194,7 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 		notes = append(notes, "systemd-run is not available, so this session runs without the profile's task and memory limits")
 	}
 	for _, note := range notes {
-		fmt.Fprintln(s.deps.Stderr, "girdle: "+note)
+		fmt.Fprintln(s.deps.Stderr, "doriath: "+note)
 	}
 	return s.exec(ctx, spec)
 }
@@ -219,7 +219,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.egress = newEgressLog(s.log)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
-		fmt.Fprintln(s.deps.Stderr, "girdle: learning mode: any public host is reachable this session, and girdle lists the ones the profile does not allow when it ends")
+		fmt.Fprintln(s.deps.Stderr, "doriath: learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends")
 	}
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
 
@@ -412,7 +412,7 @@ func (s *Session) httpForward(target string, port int) http.Handler {
 		FlushInterval: -1,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-			http.Error(w, fmt.Sprintf("girdle: nothing answers on port %d: %v", port, err), http.StatusBadGateway)
+			http.Error(w, fmt.Sprintf("doriath: nothing answers on port %d: %v", port, err), http.StatusBadGateway)
 		},
 	}
 	var seen sync.Once
@@ -431,7 +431,7 @@ func (s *Session) startSigning(context.Context) error {
 	if err != nil {
 		return fmt.Errorf("signing key: %w", err)
 	}
-	a, err := sshagent.New(key.Reveal(), "girdle "+p.Name, []string{"git"})
+	a, err := sshagent.New(key.Reveal(), "doriath "+p.Name, []string{"git"})
 	if err != nil {
 		return err
 	}
@@ -505,8 +505,8 @@ func (s *Session) plan() (jail.Spec, error) {
 		"JAVA_TOOL_OPTIONS":   javaToolOptions(p.Env.Set["JAVA_TOOL_OPTIONS"]),
 		"GIT_CONFIG_GLOBAL":   jail.InJail("gitconfig"),
 		"JJ_CONFIG":           JJConfigPath(home, osHost{}.Kind, jail.InJail("jj.toml")),
-		"GIRDLE_SESSION":      s.id,
-		"GIRDLE_BROKER":       jail.InJail(BrokerSocket),
+		"DORIATH_SESSION":     s.id,
+		"DORIATH_BROKER":      jail.InJail(BrokerSocket),
 	}
 	if p.SigningKey != "" {
 		env["SSH_AUTH_SOCK"] = jail.InJail(AgentSocket)
@@ -627,13 +627,13 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	s.finishRepositories()
 	if s.agent != nil {
 		if err := s.agent.End(s.agentSession()); err != nil {
-			fmt.Fprintf(s.deps.Stderr, "girdle: %v\n", err)
+			fmt.Fprintf(s.deps.Stderr, "doriath: %v\n", err)
 		}
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
 		by := s.policy.LearnedBy()
 		s.log.Write("learned", map[string]any{"hosts": learned, "by_program": by})
-		fmt.Fprintf(s.deps.Stderr, "girdle: the session reached %d hosts the profile does not allow:\n", len(learned))
+		fmt.Fprintf(s.deps.Stderr, "doriath: the session reached %d hosts the profile does not allow:\n", len(learned))
 		for _, prog := range slices.Sorted(maps.Keys(by)) {
 			fmt.Fprintf(s.deps.Stderr, "  %s: %s\n", prog, strings.Join(by[prog], " "))
 		}
@@ -791,7 +791,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	}
 	args := []string{
 		"--user", "--scope", "--quiet", "--collect",
-		"--unit", fmt.Sprintf("girdle-%s-%s-%s", s.req.Profile.Name, role, s.id),
+		"--unit", fmt.Sprintf("doriath-%s-%s-%s", s.req.Profile.Name, role, s.id),
 	}
 	if lim.Tasks > 0 {
 		args = append(args, "-p", fmt.Sprintf("TasksMax=%d", lim.Tasks))
@@ -870,7 +870,7 @@ func within(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// EntryFile, in the session directory, tells girdle exec how to join the
+// EntryFile, in the session directory, tells doriath exec how to join the
 // running jail.
 const EntryFile = "entry.json"
 
@@ -892,7 +892,7 @@ type Entry struct {
 }
 
 func (s *Session) writeEntry(pid int, spec jail.Spec) {
-	// girdle exec joins these namespaces, so they must be complete first.
+	// doriath exec joins these namespaces, so they must be complete first.
 	for deadline := time.Now().Add(entryWait); !s.peers.initRunning(pid); {
 		if time.Now().After(deadline) {
 			s.log.Write("entry-error", map[string]string{"error": "the jail's init did not start"})

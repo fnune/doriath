@@ -61,8 +61,8 @@ func TestBrokerWithoutPodmanSaysSo(t *testing.T) {
 	b := New(Policy{}, gone, &fakeApprover{}, ev, Config{Profile: "dev", ApprovalTTL: time.Second})
 	client := unixClient(serveBroker(t, b))
 	for _, tc := range []struct{ method, path, want string }{
-		{http.MethodGet, "/v1.41/containers/json", "girdle: the podman service failed: "},
-		{http.MethodPost, "/v1.41/containers/abc/attach", "girdle: cannot reach the podman service: "},
+		{http.MethodGet, "/v1.41/containers/json", "doriath: the podman service failed: "},
+		{http.MethodPost, "/v1.41/containers/abc/attach", "doriath: cannot reach the podman service: "},
 	} {
 		status, body := do(t, client, tc.method, tc.path, "")
 		if status != http.StatusBadGateway || !strings.HasPrefix(message(t, body), tc.want) {

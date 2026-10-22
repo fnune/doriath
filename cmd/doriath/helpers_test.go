@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/notify"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/session"
 )
 
-// testPaths points every directory girdle reads at a fresh temporary one.
+// testPaths points every directory doriath reads at a fresh temporary one.
 // The runtime directory is short because unix socket paths are limited to
 // 108 bytes.
 func testPaths(t *testing.T) config.Paths {
@@ -36,8 +36,8 @@ func testPaths(t *testing.T) config.Paths {
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "cache"))
 	t.Setenv("XDG_RUNTIME_DIR", runtime)
-	t.Setenv("GIRDLE_CONFIG_DIR", filepath.Join(home, "config"))
-	t.Setenv("GIRDLE_BROKER", "")
+	t.Setenv("DORIATH_CONFIG_DIR", filepath.Join(home, "config"))
+	t.Setenv("DORIATH_BROKER", "")
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+filepath.Join(runtime, "no-bus"))
 	p, err := paths()
 	if err != nil {
@@ -258,7 +258,7 @@ func startBroker(t *testing.T) *fakeBroker {
 		},
 	})
 	go func() { _ = srv.Serve(context.Background(), l) }()
-	t.Setenv("GIRDLE_BROKER", sock)
+	t.Setenv("DORIATH_BROKER", sock)
 	return b
 }
 

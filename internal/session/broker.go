@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type tlsCertificate = tls.Certificate
@@ -150,7 +150,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 				if firstDropped {
 					s.log.Write("inform-dropped", p)
 				}
-				return nil, fmt.Errorf("too many notifications: girdle shows %d at once and one more each %s", informBurst, informEvery)
+				return nil, fmt.Errorf("too many notifications: doriath shows %d at once and one more each %s", informBurst, informEvery)
 			}
 			s.log.Write("inform", p)
 			if s.deps.Informer != nil {

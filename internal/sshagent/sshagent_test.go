@@ -66,12 +66,12 @@ func TestSignOnlySSHSIGInAllowedNamespaces(t *testing.T) {
 }
 
 func TestAuthorizedKey(t *testing.T) {
-	a, err := New(newKey(t), "girdle agent", []string{"git"})
+	a, err := New(newKey(t), "doriath agent", []string{"git"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	line := string(a.AuthorizedKey())
-	if !strings.HasPrefix(line, "ssh-ed25519 ") || !strings.HasSuffix(line, " girdle agent\n") {
+	if !strings.HasPrefix(line, "ssh-ed25519 ") || !strings.HasSuffix(line, " doriath agent\n") {
 		t.Fatalf("line = %q", line)
 	}
 }

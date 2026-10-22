@@ -20,10 +20,10 @@ func TestDirenvLibraryWritesAShim(t *testing.T) {
 		}
 	}
 	fake := "#!/bin/sh\nprintf '%s\\n' \"$@\"\nprintf 'PATH=%s\\n' \"$PATH\"\n"
-	if err := os.WriteFile(filepath.Join(bin, "girdle"), []byte(fake), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "doriath"), []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	lib := filepath.Join(root, "girdle.sh")
+	lib := filepath.Join(root, "doriath.sh")
 	if err := os.WriteFile(lib, []byte(direnvLibrary), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestDirenvLibraryWritesAShim(t *testing.T) {
 log_error() { echo "error: $*" >&2; }
 PATH_add() { PATH="$1:$PATH"; }
 . "$1"
-cd "$2" && use_girdle work --command agent && cd / && agent --flag "two words"
+cd "$2" && use_doriath work --command agent && cd / && agent --flag "two words"
 `
 	cmd := exec.Command("bash", "-c", script, "bash", lib, project)
 	cmd.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "XDG_CACHE_HOME=" + cache, "HOME=" + root}
@@ -42,9 +42,9 @@ cd "$2" && use_girdle work --command agent && cd / && agent --flag "two words"
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	want := []string{"run", "--profile", "work", "--current", project, "--", "agent", "--flag", "two words"}
 	if len(lines) != len(want)+1 || strings.Join(lines[:len(want)], "|") != strings.Join(want, "|") {
-		t.Fatalf("girdle got:\n%s", out)
+		t.Fatalf("doriath got:\n%s", out)
 	}
-	if strings.Contains(lines[len(want)], filepath.Join(cache, "girdle", "shims")) {
+	if strings.Contains(lines[len(want)], filepath.Join(cache, "doriath", "shims")) {
 		t.Errorf("the shim must take itself off PATH, or the command could find it again: %s", lines[len(want)])
 	}
 }

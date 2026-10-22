@@ -1,21 +1,21 @@
-# Girdle of Melian
+# Doriath
 
-girdle runs a coding agent, such as Claude Code, in a jail on a Linux workstation or server. The jail has its own files, network and processes. A proxy outside it decides which hosts the agent reaches and adds credentials to requests.
+doriath runs a coding agent, such as Claude Code, in a jail on a Linux workstation or server. The jail has its own files, network and processes. A proxy outside it decides which hosts the agent reaches and adds credentials to requests.
 
 Pre-alpha. Linux only.
 
 ## Install
 
 ```sh
-nix profile install github:fnune/girdle
-girdle doctor
+nix profile install github:fnune/doriath
+doriath doctor
 ```
 
-girdle is one static binary that bundles bubblewrap. It needs unprivileged user namespaces, and podman for containers. The [install guide](docs/install.md) also covers home-manager, credentials and Claude Code.
+doriath is one static binary that bundles bubblewrap. It needs unprivileged user namespaces, and podman for containers. The [install guide](docs/install.md) also covers home-manager, credentials and Claude Code.
 
 ## Quick start
 
-A profile says what one kind of work can reach. Save this as `~/.config/girdle/profiles/my-app.toml`:
+A profile says what one kind of work can reach. Save this as `~/.config/doriath/profiles/my-app.toml`:
 
 ```toml
 description = "My app: Go API and React frontend"
@@ -34,18 +34,18 @@ Then run the agent from the repository:
 
 ```sh
 cd ~/Development/my-app
-girdle run --profile my-app -- claude
+doriath run --profile my-app -- claude
 ```
 
 The agent sees the repository read-only and commits in worktrees of its own. Modules hold the hosts, caches and rules of a toolchain: `go` allows the Go module proxy, and `github` holds merges, releases and pushes for your approval. [Configuration](docs/configuration.md) lists every key.
 
-## What girdle is for
+## What doriath is for
 
-girdle lets coding agents work on your own host, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes such as [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell), which run the agent in a container or virtual machine with an image of its own: girdle shares your toolchain, checkouts and kernel, so the agent works as you do.
+doriath lets coding agents work on your own host, with its tools, repositories and logins, without you approving each step. It isolates less than sandboxes such as [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell), which run the agent in a container or virtual machine with an image of its own: doriath shares your toolchain, checkouts and kernel, so the agent works as you do.
 
 It protects you from an agent that does what you did not ask for, for example after a prompt injection. The agent cannot:
 
-- read your home directory, other projects, SSH keys or tokens, or the credentials girdle adds to its requests.
+- read your home directory, other projects, SSH keys or tokens, or the credentials doriath adds to its requests.
 - reach a host the profile does not name, your local network or a cloud metadata service.
 - change your checkout or anything git runs, unless the profile makes it writable.
 - make a request that a rule holds, such as a merge, until you approve it, and it cannot approve its own requests.
@@ -63,7 +63,7 @@ flowchart LR
         agent --> repo
     end
 
-    proxy["girdle's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
+    proxy["doriath's proxy, outside the jail<br/>allowlist, request rules,<br/>TLS with a per-session CA"]
 
     secrets[("Your secrets")]
     you(["You"])
@@ -83,14 +83,14 @@ flowchart LR
 | Kernel      | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes.                                                                                                            |
 | Network     | The jail has only loopback. The proxy allows the hosts the profile names, holds others for your approval, and refuses private and metadata addresses. Every decision goes to an audit log.                                 |
 | Credentials | For an `[[http]]` host, the proxy terminates TLS, adds the credential for the programs the profile names, and applies request rules.                                                                                       |
-| Approvals   | Held requests wait for you in a desktop notification or `girdle approvals`. An allow lasts at most for the session.                                                                                                        |
-| Extras      | An SSH agent that only signs commits, a podman service behind a broker that checks each API call, systemd limits, and `girdle exec` and `girdle forward` to look inside.                                                   |
+| Approvals   | Held requests wait for you in a desktop notification or `doriath approvals`. An allow lasts at most for the session.                                                                                                       |
+| Extras      | An SSH agent that only signs commits, a podman service behind a broker that checks each API call, systemd limits, and `doriath exec` and `doriath forward` to look inside.                                                 |
 
 ## Docs
 
 - [Install](docs/install.md): setup, credentials, running agents, Claude Code
 - [Configuration](docs/configuration.md): every key, mounts, repositories, approvals
-- [Security limits](docs/security-limits.md): what girdle leaves open, and why
+- [Security limits](docs/security-limits.md): what doriath leaves open, and why
 
 ## Development
 

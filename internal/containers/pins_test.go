@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 var (
@@ -104,7 +104,7 @@ func TestChangedDigestAsks(t *testing.T) {
 					return
 				}
 				msg, _ := m["error"].(string)
-				if !strings.HasPrefix(msg, "girdle: "+want+" was denied") || h.pins.pins[postgres16] != oldDigest {
+				if !strings.HasPrefix(msg, "doriath: "+want+" was denied") || h.pins.pins[postgres16] != oldDigest {
 					t.Fatalf("pin %q after denial: %s", h.pins.pins[postgres16], body)
 				}
 				if _, detail := m["errorDetail"]; detail != (p.name == "docker") {

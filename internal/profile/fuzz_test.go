@@ -18,7 +18,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/parser"
 
-	"github.com/fnune/girdle/internal/modules"
+	"github.com/fnune/doriath/internal/modules"
 )
 
 func FuzzHostPattern(f *testing.F) {

@@ -1,4 +1,4 @@
-module github.com/fnune/girdle
+module github.com/fnune/doriath
 
 go 1.26.0
 

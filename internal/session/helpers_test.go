@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 func TestHelpersInsideWritableMountsAreRefused(t *testing.T) {

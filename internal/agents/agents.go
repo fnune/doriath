@@ -1,5 +1,5 @@
-// Package agents adapts coding agents to girdle where profile data cannot:
-// an agent's permission prompts reach girdle's approvals, and its
+// Package agents adapts coding agents to doriath where profile data cannot:
+// an agent's permission prompts reach doriath's approvals, and its
 // transcripts come back to your own configuration. Everything else about
 // an agent, such as its state, config, hosts and credentials, is an
 // ordinary module.
@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type Session struct {

@@ -6,18 +6,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 // TestRemoteMCPServerGetsItsTokenAtTheProxy lists a remote MCP server whose
-// token girdle adds on the way out: the jail sees the server, never the token.
+// token doriath adds on the way out: the jail sees the server, never the token.
 func TestRemoteMCPServerGetsItsTokenAtTheProxy(t *testing.T) {
 	e := newEnv(t)
 	p := e.profile("\n[[mcp]]\nname = \"remote\"\nurl = \"https://example.com/mcp\"\nsecret = \"github\"\n\n[[mcp]]\nname = \"local\"\ncommand = [\"true\"]\n")
 	code, out := e.run(p, `
-grep -q '"url": "https://example.com/mcp"' /run/girdle/mcp.json || echo "FAIL no remote server in the config"
-grep -q '"command": "true"' /run/girdle/mcp.json || echo "FAIL no local server in the config"
-grep -rq real-token /run/girdle/ 2>/dev/null && echo "FAIL the token is in the jail"
+grep -q '"url": "https://example.com/mcp"' /run/doriath/mcp.json || echo "FAIL no remote server in the config"
+grep -q '"command": "true"' /run/doriath/mcp.json || echo "FAIL no local server in the config"
+grep -rq real-token /run/doriath/ 2>/dev/null && echo "FAIL the token is in the jail"
 curl -sS -o /dev/null -w "mcp %{http_code}\n" -X POST -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' https://example.com/mcp
 `, nil)
 	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "mcp 200") {

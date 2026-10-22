@@ -10,18 +10,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/session"
 )
 
-// cmdRequest runs in the jail. girdle request write PATH asks you to make
-// a path writable; girdle request wait ID waits for your answer to a
+// cmdRequest runs in the jail. doriath request write PATH asks you to make
+// a path writable; doriath request wait ID waits for your answer to a
 // request that is still pending.
 func cmdRequest(args []string, w io.Writer) error {
-	broker := os.Getenv("GIRDLE_BROKER")
+	broker := os.Getenv("DORIATH_BROKER")
 	if broker == "" {
-		return errors.New("request: GIRDLE_BROKER is not set; girdle request runs inside a girdle session")
+		return errors.New("request: DORIATH_BROKER is not set; doriath request runs inside a doriath session")
 	}
 	ctx := context.Background()
 	switch {
@@ -37,7 +37,7 @@ func cmdRequest(args []string, w io.Writer) error {
 		return reportDecision(w, d, args[1]+" is allowed.")
 	case len(args) >= 2 && args[0] == "write":
 	default:
-		return errors.New("request: usage: girdle request write PATH [--reason TEXT] | girdle request wait ID|HOST|PATH")
+		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request wait ID|HOST|PATH")
 	}
 	flags := flag.NewFlagSet("request write", flag.ContinueOnError)
 	reason := flags.String("reason", "", "why the agent needs to write there, shown to you")
@@ -53,7 +53,7 @@ func cmdRequest(args []string, w io.Writer) error {
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: girdle request wait %s", res.Pending, res.Pending)
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: doriath request wait %s", res.Pending, res.Pending)
 	}
 	return reportDecision(w, res.Decision, path+" is writable now.")
 }
@@ -85,11 +85,11 @@ func reportDecision(w io.Writer, d approval.Decision, allowed string) error {
 	return errors.New("request: nobody decided before the request expired")
 }
 
-// cmdGrant runs on the host: girdle grant write PATH makes a path writable
+// cmdGrant runs on the host: doriath grant write PATH makes a path writable
 // in a running session, until it ends.
 func cmdGrant(args []string, w io.Writer) error {
 	if len(args) < 2 || args[0] != "write" {
-		return errors.New("grant: usage: girdle grant write PATH [--session ID]")
+		return errors.New("grant: usage: doriath grant write PATH [--session ID]")
 	}
 	flags := flag.NewFlagSet("grant write", flag.ContinueOnError)
 	id := flags.String("session", "", "the session, when several run")

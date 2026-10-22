@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 type Policy interface {
@@ -148,13 +148,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case r.URL.Host == "":
-		deny(w, http.StatusBadRequest, "girdle: this is a forward proxy; send absolute URLs or CONNECT")
+		deny(w, http.StatusBadRequest, "doriath: this is a forward proxy; send absolute URLs or CONNECT")
 	case r.URL.Scheme == "http":
 		s.plain(w, r)
 	case r.URL.Scheme == "https":
 		s.absoluteHTTPS(w, r)
 	default:
-		deny(w, http.StatusBadRequest, fmt.Sprintf("girdle: unsupported scheme %q", r.URL.Scheme))
+		deny(w, http.StatusBadRequest, fmt.Sprintf("doriath: unsupported scheme %q", r.URL.Scheme))
 	}
 }
 
@@ -162,7 +162,7 @@ func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
 	if port := r.URL.Port(); port != "" && port != "443" {
 		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 443 is proxied for HTTPS"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed", port))
 		return
 	}
 	if !s.admit(w, r, host, "") {
@@ -182,13 +182,13 @@ func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.Host)
 	if err != nil {
-		deny(w, http.StatusBadRequest, "girdle: CONNECT needs host:port")
+		deny(w, http.StatusBadRequest, "doriath: CONNECT needs host:port")
 		return
 	}
 	host = strings.ToLower(host)
 	if port != "443" {
 		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 443 is tunneled"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed; only HTTPS on 443 goes through the proxy", port))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed; only HTTPS on 443 goes through the proxy", port))
 		return
 	}
 	if !s.admit(w, r, host, port) {
@@ -196,7 +196,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	}
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		deny(w, http.StatusInternalServerError, "girdle: connection cannot be hijacked")
+		deny(w, http.StatusInternalServerError, "doriath: connection cannot be hijacked")
 		return
 	}
 	if intercept, ok := s.policy.Intercepted(host); ok {
@@ -216,7 +216,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 	upstream, err := s.dialer.DialContext(r.Context(), "tcp", net.JoinHostPort(host, port))
 	if err != nil {
 		s.record(Event{Kind: "error", Host: host, Port: port, Reason: err.Error()})
-		deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: cannot reach %s: %v", host, err))
+		deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot reach %s: %v", host, err))
 		return
 	}
 	conn, buf, err := hj.Hijack()
@@ -276,23 +276,23 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 	}
 	if reqHost != host {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "Host header " + r.Host + " differs from the tunnel"})
-		deny(w, http.StatusMisdirectedRequest, "girdle: the Host header must match the tunneled host")
+		deny(w, http.StatusMisdirectedRequest, "doriath: the Host header must match the tunneled host")
 		return
 	}
 	if r.Method != strings.ToUpper(r.Method) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "method is not upper case"})
-		deny(w, http.StatusBadRequest, "girdle: HTTP methods must be upper case")
+		deny(w, http.StatusBadRequest, "doriath: HTTP methods must be upper case")
 		return
 	}
 	if !canonicalPath(r.URL) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "path is not in canonical form"})
-		deny(w, http.StatusBadRequest, "girdle: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
+		deny(w, http.StatusBadRequest, "doriath: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
 		return
 	}
 	var body []byte
 	if rules.NeedsBody(r.Method, r.URL.Path) && !identityEncoding(r.Header.Get("Content-Encoding")) {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "compressed body on an inspected request"})
-		deny(w, http.StatusUnsupportedMediaType, "girdle: send this request uncompressed, so its body can be checked")
+		deny(w, http.StatusUnsupportedMediaType, "doriath: send this request uncompressed, so its body can be checked")
 		return
 	}
 	if rules.NeedsBody(r.Method, r.URL.Path) {
@@ -300,12 +300,12 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		var err error
 		body, tooLarge, err = readBody(r, maxInspectedBody)
 		if err != nil {
-			deny(w, http.StatusBadRequest, "girdle: cannot read the request body")
+			deny(w, http.StatusBadRequest, "doriath: cannot read the request body")
 			return
 		}
 		if tooLarge {
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "request body too large to inspect"})
-			deny(w, http.StatusRequestEntityTooLarge, "girdle: request body too large to inspect")
+			deny(w, http.StatusRequestEntityTooLarge, "doriath: request body too large to inspect")
 			return
 		}
 	}
@@ -314,7 +314,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 	switch action {
 	case profile.ActionDeny:
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: summary})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s %s%s is not allowed by profile %q", r.Method, host, r.URL.Path, s.cfg.Profile))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s %s%s is not allowed by profile %q", r.Method, host, r.URL.Path, s.cfg.Profile))
 		return
 	case profile.ActionApprove:
 		if summary == "" {
@@ -332,10 +332,10 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
-			reason, message := "denied", fmt.Sprintf("girdle: %s was denied", summary)
+			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
 			if d.Verdict == approval.VerdictNone {
 				reason = "nobody approved it in time"
-				message = fmt.Sprintf("girdle: %s: %s", summary, reason)
+				message = fmt.Sprintf("doriath: %s: %s", summary, reason)
 			}
 			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: reason})
 			if d.Reason != "" && d.Verdict == approval.VerdictDeny {
@@ -353,7 +353,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 		header, err := s.authorization(r.Context(), *c)
 		if err != nil {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: cannot load the credential for %s: %v", host, err))
+			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot load the credential for %s: %v", host, err))
 			return
 		}
 		r.Header.Set("Authorization", header)
@@ -365,12 +365,12 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
 	if _, ok := s.policy.Intercepted(host); ok {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "plain HTTP to an intercepted host"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: use https for %s", host))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: use https for %s", host))
 		return
 	}
 	if port := r.URL.Port(); port != "" && port != "80" {
 		s.record(Event{Kind: "denied", Host: host, Port: port, Reason: "only port 80 is proxied for plain HTTP"})
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: port %s is not allowed", port))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: port %s is not allowed", port))
 		return
 	}
 	if !s.admit(w, r, host, "") {
@@ -407,7 +407,7 @@ func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, hos
 		ModifyResponse: onResponse,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: upstream %s failed: %v", host, err))
+			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: upstream %s failed: %v", host, err))
 		},
 	}
 	rp.ServeHTTP(noCloseNotify{w}, r.WithContext(context.WithoutCancel(r.Context())))
@@ -549,7 +549,7 @@ func (s *Server) record(e Event) {
 
 func deny(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-Girdle-Denied", "1")
+	w.Header().Set("X-Doriath-Denied", "1")
 	body, _ := json.Marshal(map[string]string{"message": message})
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)+1))
 	w.WriteHeader(status)
@@ -611,7 +611,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 		}
 		if id != "" {
 			s.record(Event{Kind: "denied", Host: host, Port: port, Exe: exe, Reason: reason})
-			deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q, and approval %s is pending. To wait for the answer, run: girdle request wait %s", host, s.cfg.Profile, id, host))
+			deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s is not in profile %q, and approval %s is pending. To wait for the answer, run: doriath request wait %s", host, s.cfg.Profile, id, host))
 			return false
 		}
 	}
@@ -629,10 +629,10 @@ func (s *Server) hostReason(host string) string {
 
 func (s *Server) denyHost(w http.ResponseWriter, host string) {
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
-		deny(w, http.StatusForbidden, fmt.Sprintf("girdle: profile %q lets only %s reach %s", s.cfg.Profile, strings.Join(progs, ", "), host))
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: profile %q lets only %s reach %s", s.cfg.Profile, strings.Join(progs, ", "), host))
 		return
 	}
-	deny(w, http.StatusForbidden, fmt.Sprintf("girdle: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
+	deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
 }
 
 // tunnelMismatch says why a tunnel's first bytes do not fit its host: they

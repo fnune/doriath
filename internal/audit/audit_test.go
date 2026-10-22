@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/containers"
-	"github.com/fnune/girdle/internal/proxy"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/containers"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 func TestRecords(t *testing.T) {

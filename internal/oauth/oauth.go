@@ -1,5 +1,5 @@
 // Package oauth signs in to OAuth servers on the host and keeps their tokens
-// there. girdle login runs the browser flow once; sessions then get fresh
+// there. doriath login runs the browser flow once; sessions then get fresh
 // access tokens from here, which the proxy adds to requests, so no token
 // ever reaches the jail.
 package oauth
@@ -24,10 +24,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/oauth2"
 
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/secret"
 )
 
-// State is what a login leaves on the host: the client girdle signed in as,
+// State is what a login leaves on the host: the client doriath signed in as,
 // the server's endpoints and the token, with its refresh token.
 type State struct {
 	ClientID     string        `json:"client_id"`
@@ -104,7 +104,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		s, err := load(path)
 		if errors.Is(err, os.ErrNotExist) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run girdle login --profile %s %s", name, t.profile, name)
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath login --profile %s %s", name, t.profile, name)
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -116,7 +116,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run girdle login --profile %s %s again", name, err, t.profile, name)
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath login --profile %s %s again", name, err, t.profile, name)
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }
@@ -177,7 +177,7 @@ func loginMCP(ctx context.Context, server, redirect string, fetch auth.Authoriza
 	var s State
 	handler, err := auth.NewAuthorizationCodeHandler(&auth.AuthorizationCodeHandlerConfig{
 		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{Metadata: &oauthex.ClientRegistrationMetadata{
-			ClientName:              "girdle",
+			ClientName:              "doriath",
 			RedirectURIs:            []string{redirect},
 			GrantTypes:              []string{"authorization_code", "refresh_token"},
 			ResponseTypes:           []string{"code"},
@@ -194,7 +194,7 @@ func loginMCP(ctx context.Context, server, redirect string, fetch auth.Authoriza
 	if err != nil {
 		return State{}, err
 	}
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"girdle","version":"0"}}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"doriath","version":"0"}}}`)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server, bytes.NewReader(body))
 	if err != nil {
 		return State{}, err

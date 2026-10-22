@@ -1,4 +1,4 @@
-// Package control is the request protocol on girdle's unix sockets: one JSON
+// Package control is the request protocol on doriath's unix sockets: one JSON
 // request per connection, one JSON response back.
 package control
 

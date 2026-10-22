@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 // Policy is what the profile lets containers use.
@@ -133,7 +133,7 @@ func New(policy Policy, upstream string, approver Approver, recorder Recorder, c
 				return
 			}
 			b.record(Event{Kind: "error", Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-			deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: the podman service failed: %v", err))
+			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: the podman service failed: %v", err))
 		},
 	}
 	return b
@@ -235,7 +235,7 @@ func (b *Broker) approved(r *http.Request, a ask) (bool, string) {
 
 func (b *Broker) refuse(w http.ResponseWriter, r *http.Request, status int, reason string) {
 	b.record(Event{Kind: "denied", Method: r.Method, Path: r.URL.Path, Reason: reason})
-	deny(w, status, "girdle: "+reason)
+	deny(w, status, "doriath: "+reason)
 }
 
 func (b *Broker) record(e Event) {
@@ -245,10 +245,10 @@ func (b *Broker) record(e Event) {
 }
 
 func deny(w http.ResponseWriter, status int, message string) {
-	body, _ := json.Marshal(map[string]any{"message": message, "cause": "refused by girdle", "response": status})
+	body, _ := json.Marshal(map[string]any{"message": message, "cause": "refused by doriath", "response": status})
 	body = append(body, '\n')
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-Girdle-Denied", "1")
+	w.Header().Set("X-Doriath-Denied", "1")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(status)
 	_, _ = w.Write(body)

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 // mode reports how binds expose dest: "read", "write", or "none" when no

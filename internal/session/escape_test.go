@@ -18,7 +18,7 @@ import (
 )
 
 // TestEscapes runs every script in testdata/escapes inside a real jail. Each
-// script tries one way out of the jail and exits 0 when girdle's guard held.
+// script tries one way out of the jail and exits 0 when doriath's guard held.
 // The header says what it tries and what to expect:
 //
 //	# threat: one line on what the agent would gain

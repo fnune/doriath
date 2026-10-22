@@ -5,10 +5,10 @@
 }:
 let
   inherit (pkgs) lib;
-  girdle = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  doriath = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
   homeWith =
-    girdleConfig:
+    doriathConfig:
     home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
       modules = [
@@ -20,7 +20,7 @@ let
             stateVersion = "25.05";
           };
           programs.zsh.enable = true;
-          programs.girdle = girdleConfig;
+          programs.doriath = doriathConfig;
         }
       ];
     };
@@ -83,10 +83,10 @@ let
 in
 assert lib.assertMsg conflictingSecretFails
   "a secret with both file and command must fail the module's assertion";
-pkgs.runCommand "girdle-home-manager-module"
+pkgs.runCommand "doriath-home-manager-module"
   {
     nativeBuildInputs = [
-      girdle
+      doriath
       pkgs.jq
       pkgs.gnugrep
     ];
@@ -94,11 +94,11 @@ pkgs.runCommand "girdle-home-manager-module"
     hello = "${lib.getBin pkgs.hello}/bin";
   }
   ''
-    config=$homeFiles/.config/girdle
-    export HOME=$TMPDIR/home XDG_RUNTIME_DIR=$TMPDIR/run GIRDLE_CONFIG_DIR=$config
+    config=$homeFiles/.config/doriath
+    export HOME=$TMPDIR/home XDG_RUNTIME_DIR=$TMPDIR/run DORIATH_CONFIG_DIR=$config
     mkdir -p $HOME $XDG_RUNTIME_DIR
 
-    girdle profiles show work > profile.json
+    doriath profiles show work > profile.json
     expect() {
       jq -e "$@" profile.json > /dev/null || { echo "profile work: expected $*"; cat profile.json; exit 1; }
     }
@@ -113,7 +113,7 @@ pkgs.runCommand "girdle-home-manager-module"
     ! grep -q '^packages' $config/profiles/work.toml || { echo "packages is not a profile key"; exit 1; }
 
     ! grep -q '^match' $config/profiles/work.toml || { echo "match is not a profile key"; exit 1; }
-    grep -q 'use_girdle()' $config/../direnv/lib/girdle.sh || { echo "no direnv library"; exit 1; }
+    grep -q 'use_doriath()' $config/../direnv/lib/doriath.sh || { echo "no direnv library"; exit 1; }
     grep -q 'completion zsh' $homeFiles/.zshrc || { echo "no completion in .zshrc"; exit 1; }
 
     touch $out

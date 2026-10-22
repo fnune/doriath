@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 // TestUnknownHostIsHeldUntilYouDecide holds the connection while you answer,
@@ -34,7 +34,7 @@ func TestPendingRequestCanBeAwaited(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
 curl -sS -o /dev/null https://drafted.example/first 2>/dev/null && echo "FAIL allowed before the decision"
-/run/girdle-bin/girdle request wait drafted.example || echo "FAIL wait"
+/run/doriath-bin/doriath request wait drafted.example || echo "FAIL wait"
 curl -sS -o /dev/null -w "after %{http_code}\n" https://drafted.example/after
 `, func() {
 		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})

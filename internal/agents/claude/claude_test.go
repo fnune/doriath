@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/agents"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type mapFiles map[string]string
@@ -25,8 +25,8 @@ func (m mapFiles) ReadFile(p string) ([]byte, error) {
 }
 
 func TestArgs(t *testing.T) {
-	got := Args([]string{"/nix/store/x/bin/claude", "-r"}, "/run/girdle/claude-settings.json")
-	want := []string{"/nix/store/x/bin/claude", "--settings", "/run/girdle/claude-settings.json", "--setting-sources", "user", "-r"}
+	got := Args([]string{"/nix/store/x/bin/claude", "-r"}, "/run/doriath/claude-settings.json")
+	want := []string{"/nix/store/x/bin/claude", "--settings", "/run/doriath/claude-settings.json", "--setting-sources", "user", "-r"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v", got)
 	}
@@ -131,10 +131,10 @@ func TestDescribeNamesWhatTheToolTouches(t *testing.T) {
 
 func TestPermissionDecision(t *testing.T) {
 	for allow, want := range map[bool]string{
-		false: `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"answered in girdle"}}}`,
-		true:  `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","message":"answered in girdle"}}}`,
+		false: `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"answered in doriath"}}}`,
+		true:  `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","message":"answered in doriath"}}}`,
 	} {
-		out, err := PermissionDecision(allow, "answered in girdle")
+		out, err := PermissionDecision(allow, "answered in doriath")
 		if err != nil || string(out) != want {
 			t.Errorf("allow=%v: got %s, %v", allow, out, err)
 		}
@@ -169,14 +169,14 @@ func TestStartAndEnd(t *testing.T) {
 			return ""
 		},
 		WriteFile: func(name string, data []byte) (string, error) {
-			return "/run/girdle/" + name, os.WriteFile(filepath.Join(jailDir, name), data, 0o644)
+			return "/run/doriath/" + name, os.WriteFile(filepath.Join(jailDir, name), data, 0o644)
 		},
 	}
 	argv, env, err := Adapter{}.Start(s, []string{"claude", "-p", "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if argv[1] != "--settings" || argv[2] != "/run/girdle/claude-settings.json" || env["CLAUDE_CONFIG_DIR"] != filepath.Join(home, ".claude") {
+	if argv[1] != "--settings" || argv[2] != "/run/doriath/claude-settings.json" || env["CLAUDE_CONFIG_DIR"] != filepath.Join(home, ".claude") {
 		t.Fatalf("argv %v, env %v", argv, env)
 	}
 	if _, err := os.Stat(filepath.Join(private, "projects", project, "earlier.jsonl")); err != nil {
@@ -185,9 +185,9 @@ func TestStartAndEnd(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(jailDir, "claude-settings.json")); err != nil {
 		t.Fatal(err)
 	}
-	s.MCPConfig = "/run/girdle/mcp.json"
+	s.MCPConfig = "/run/doriath/mcp.json"
 	withMCP, _, err := Adapter{}.Start(s, []string{"claude"})
-	if err != nil || withMCP[1] != "--mcp-config" || withMCP[2] != "/run/girdle/mcp.json" {
+	if err != nil || withMCP[1] != "--mcp-config" || withMCP[2] != "/run/doriath/mcp.json" {
 		t.Fatalf("argv %v, %v", withMCP, err)
 	}
 	s.MCPConfig = ""

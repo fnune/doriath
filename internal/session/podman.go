@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fnune/girdle/internal/containers"
-	"github.com/fnune/girdle/internal/imagepins"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/containers"
+	"github.com/fnune/doriath/internal/imagepins"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 // IDRange is one entry of /etc/subuid or /etc/subgid.
@@ -47,7 +47,7 @@ func SubIDs(data []byte, name string, uid int) (IDRange, error) {
 }
 
 func ContainersConf(tmpDir, proxyURL string) []byte {
-	return []byte(fmt.Sprintf(`# Written by girdle for one session.
+	return []byte(fmt.Sprintf(`# Written by doriath for one session.
 [containers]
 # Containers share the session's network namespace: they reach the internet
 # only through the proxy, and the agent reaches their ports on localhost.
@@ -72,7 +72,7 @@ short-name-mode = "permissive"
 `
 
 func StorageConf(graphRoot string) []byte {
-	return []byte(fmt.Sprintf(`# Written by girdle for one session.
+	return []byte(fmt.Sprintf(`# Written by doriath for one session.
 [storage]
 driver = "overlay"
 graphroot = %s

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 type fakePodman struct {
@@ -292,7 +292,7 @@ func TestCreateAllowedAndRefused(t *testing.T) {
 		message string
 	}{
 		{"allowed", `{"Image":"alpine","HostConfig":{"Binds":["/work:/w"],"NetworkMode":"host"}}`, http.StatusCreated, ""},
-		{"privileged", `{"Image":"alpine","HostConfig":{"Privileged":true}}`, http.StatusForbidden, "girdle: privileged containers are not allowed"},
+		{"privileged", `{"Image":"alpine","HostConfig":{"Privileged":true}}`, http.StatusForbidden, "doriath: privileged containers are not allowed"},
 		{"bind outside", `{"Image":"alpine","HostConfig":{"Binds":["/home/u/.ssh:/s:ro"]}}`, http.StatusForbidden, "outside the mounts and caches of profile \"dev\""},
 		{"read-only bind writable", `{"Image":"alpine","HostConfig":{"Binds":["/ro/x:/x"]}}`, http.StatusForbidden, "read-only in profile \"dev\""},
 		{"read-only bind ro", `{"Image":"alpine","HostConfig":{"Binds":["/ro/x:/x:ro"]}}`, http.StatusCreated, ""},
@@ -345,7 +345,7 @@ func TestUnknownEndpointRefused(t *testing.T) {
 		t.Fatalf("status %d: %s", status, body)
 	}
 	status, body = h.do(t, http.MethodGet, "/grpc", "")
-	if status != http.StatusForbidden || !strings.HasPrefix(message(t, body), "girdle: ") {
+	if status != http.StatusForbidden || !strings.HasPrefix(message(t, body), "doriath: ") {
 		t.Fatalf("status %d: %s", status, body)
 	}
 	if got := h.podman.seen(); len(got) != 0 {
@@ -365,8 +365,8 @@ func TestPushApproval(t *testing.T) {
 	const summary = "Push container image localhost/app:1 to ghcr.io/acme/app:1"
 	for verdict, want := range map[approval.Verdict]string{
 		approval.VerdictAllow: "",
-		approval.VerdictDeny:  "girdle: " + summary + " was denied",
-		approval.VerdictNone:  "girdle: " + summary + " was not approved in time",
+		approval.VerdictDeny:  "doriath: " + summary + " was denied",
+		approval.VerdictNone:  "doriath: " + summary + " was not approved in time",
 	} {
 		t.Run(string(verdict), func(t *testing.T) {
 			h := newHarness(t)

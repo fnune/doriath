@@ -8,12 +8,12 @@ Principles and conventions for this repository. Adapted from the [openmusa engin
 
 ### Calm tool
 
-Girdle sits between a person and their agents. It must feel calm: simple, clear, predictable, respectful of the person's attention. Engineers carry this through to the code, the CLI output, the defaults, and the failure paths.
+Doriath sits between a person and their agents. It must feel calm: simple, clear, predictable, respectful of the person's attention. Engineers carry this through to the code, the CLI output, the defaults, and the failure paths.
 
 - Simplicity is the default. A feature earns its place or it does not ship.
 - Clarity over cleverness. Plain output, ordinary words, predictable defaults.
 - Quiet by default. A successful command prints nothing it does not need to. Detail lives in the audit log.
-- Respect the person's agency. They decide what an agent can reach. Girdle never widens access on its own and never hides what it granted.
+- Respect the person's agency. They decide what an agent can reach. Doriath never widens access on its own and never hides what it granted.
 - Failures are shown calmly. Error messages are accurate and plain, say what was blocked and how to allow it, and never blame the person.
 - An approval request earns the interruption or it does not happen. Routine grants last for a session. Only rare, sensitive actions ask each time.
 
@@ -21,7 +21,7 @@ Girdle sits between a person and their agents. It must feel calm: simple, clear,
 
 - Deny by default. A host, socket, credential, environment variable or path under the home is in the jail only if a profile names it. The system directories (`/etc`, `/usr`, `/var`, `/opt`, `/nix/store`) stay readable so that tools work, and nothing outside the writable paths can be changed.
 - Hide rather than deny. What the agent must not reach is not mounted, not forwarded, and not in its environment.
-- Widen only by the person's decision. An agent can ask for a host or a writable path, and the person allows it for the session. Only the person edits a profile; girdle prints the lines and never writes them.
+- Widen only by the person's decision. An agent can ask for a host or a writable path, and the person allows it for the session. Only the person edits a profile; doriath prints the lines and never writes them.
 - Secrets never enter logs, errors, test fixtures, or the agent's environment unless a profile grants them. Redact at the boundary that writes output.
 - Every grant and every denial goes to the audit log.
 
@@ -32,12 +32,12 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - Constructor injection is the default: `NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Manager`. Functional options only when a constructor has many optional settings.
 - Inject volatile dependencies: anything with side effects (process execution, file system, sockets, network, D-Bus), nondeterminism (time, randomness), or runtime configuration.
 - Do not inject stable dependencies: the standard library's pure functions, value types, and deterministic helpers.
-- The composition root is `cmd/girdle/main.go`. It is the only place that knows the concrete implementations of volatile dependencies.
+- The composition root is `cmd/doriath/main.go`. It is the only place that knows the concrete implementations of volatile dependencies.
 - Pure DI: hand-wired object graphs. No DI container, no `init()` registration, no package-level mutable state.
 - No service locator and no ambient context. Do not reach for `time.Now()`, `os.Getenv` or `os.Exec` from domain code. Receive a `Clock`, the config, or a `Runner` instead.
 - A growing constructor argument list is a sign that a type does too much.
 - Tests follow the seams DI creates. Hand-written in-memory fakes for volatile dependencies, no mocking frameworks. Integration tests run the real jail (bubblewrap, sockets, proxy) where the machine supports it.
-- Every way out of the jail that girdle closes has a script in `internal/session/testdata/escapes`, run in a real jail by `TestEscapes`. A script names its threat and exits 0 when the guard held. A new finding becomes a new script. Scripts marked `expect: gap` document a limit from [security limits](security-limits.md) and fail once the gap closes, so the docs change with the code.
+- Every way out of the jail that doriath closes has a script in `internal/session/testdata/escapes`, run in a real jail by `TestEscapes`. A script names its threat and exits 0 when the guard held. A new finding becomes a new script. Scripts marked `expect: gap` document a limit from [security limits](security-limits.md) and fail once the gap closes, so the docs change with the code.
 
 ### Layered architecture and abstraction ownership
 
@@ -48,10 +48,10 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 
 ### Supporting agents
 
-- An agent is a module first: its config, state, provider hosts and credentials are mounts, caches, `[egress]` and `[[http]]` entries, as for any tool. Agent-wide features, such as the profile's `[[mcp]]` servers, are agent-neutral: girdle renders them once, in a common format, and secrets stay at the proxy.
-- girdle teaches every agent the same way: the `girdle status` text, built from the live session, and errors that say what was blocked and what to run. The text goes where the agent reads instructions, never into the repository's AGENTS.md.
-- A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach girdle's approval queue, its own permission rules cannot be loosened mid-session, the session text and the MCP servers reach it through its own channel, a new profile starts with your onboarding choices (an allowlist of keys, never accounts or servers), and its transcripts come back to your own config when the session ends.
-- An agent without an adapter still works in a jail with a one-line instruction: "When something is blocked, run `girdle status`."
+- An agent is a module first: its config, state, provider hosts and credentials are mounts, caches, `[egress]` and `[[http]]` entries, as for any tool. Agent-wide features, such as the profile's `[[mcp]]` servers, are agent-neutral: doriath renders them once, in a common format, and secrets stay at the proxy.
+- doriath teaches every agent the same way: the `doriath status` text, built from the live session, and errors that say what was blocked and what to run. The text goes where the agent reads instructions, never into the repository's AGENTS.md.
+- A Go adapter under `internal/agents/` exists only for what data cannot express, so that a supported agent behaves well: its permission prompts reach doriath's approval queue, its own permission rules cannot be loosened mid-session, the session text and the MCP servers reach it through its own channel, a new profile starts with your onboarding choices (an allowlist of keys, never accounts or servers), and its transcripts come back to your own config when the session ends.
+- An agent without an adapter still works in a jail with a one-line instruction: "When something is blocked, run `doriath status`."
 
 ### Strict typing and validated boundaries
 
@@ -82,7 +82,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - Error handling. No ignored errors. Wrap with context using `fmt.Errorf("start proxy for profile %q: %w", name, err)`. Distinguish errors the person can fix (a missing profile entry) from bugs. The CLI boundary decides what to show. Deeper layers return errors and trust the boundary.
 - Observability. Structured logs with `log/slog`. The audit log is JSON Lines, one record per grant, denial and approval, with the session and profile on every record.
 - Security baseline. Least privilege on every credential. Secrets never in code, never in committed files, never in logs.
-- Privacy. Girdle has no telemetry and makes no network calls of its own. Transcripts, tokens and audit logs stay on the machine.
+- Privacy. Doriath has no telemetry and makes no network calls of its own. Transcripts, tokens and audit logs stay on the machine.
 
 ### Local checks before pushing
 

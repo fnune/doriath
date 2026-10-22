@@ -134,7 +134,7 @@ func JJConfig(signingKey string) []byte {
 	return []byte(fmt.Sprintf("[signing]\nbehavior = \"own\"\nbackend = \"ssh\"\nkey = %s\n", quote(signingKey)))
 }
 
-// JJConfigPath lists the desktop's jj config files first and girdle's
+// JJConfigPath lists the desktop's jj config files first and doriath's
 // override last, because jj merges them in that order.
 func JJConfigPath(home string, kind func(string) string, override string) string {
 	var parts []string
@@ -209,7 +209,7 @@ func JavaTrustStore(bundle []byte) ([]byte, error) {
 // drops JAVA_TOOL_OPTIONS before it starts its server.
 func BazelRC(trustStore string) []byte {
 	var b strings.Builder
-	b.WriteString("# Written by girdle for this session.\n")
+	b.WriteString("# Written by doriath for this session.\n")
 	for _, opt := range []string{
 		"-Djavax.net.ssl.trustStore=" + trustStore,
 		"-Djavax.net.ssl.trustStoreType=PKCS12",

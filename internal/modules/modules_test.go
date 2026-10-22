@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func TestEveryModuleLoads(t *testing.T) {

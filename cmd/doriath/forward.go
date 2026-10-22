@@ -21,7 +21,7 @@ func cmdForward(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: girdle forward [--session ID] PORT[:JAIL_PORT]")
+		return errors.New("usage: doriath forward [--session ID] PORT[:JAIL_PORT]")
 	}
 	hostPort, jailPort, err := parseForward(flags.Arg(0))
 	if err != nil {
@@ -33,7 +33,7 @@ func cmdForward(args []string) error {
 	}
 	nsenter, err := exec.LookPath("nsenter")
 	if err != nil {
-		return fmt.Errorf("girdle forward needs nsenter from util-linux: %w", err)
+		return fmt.Errorf("doriath forward needs nsenter from util-linux: %w", err)
 	}
 	if err := entry.CheckHelper(nsenter); err != nil {
 		return err
@@ -70,7 +70,7 @@ func relayInto(conn *net.TCPConn, nsenter, self string, pid, port int) {
 	defer func() { _ = conn.Close() }()
 	f, err := conn.File()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "girdle: forward: %v\n", err)
+		fmt.Fprintf(os.Stderr, "doriath: forward: %v\n", err)
 		return
 	}
 	defer f.Close()
@@ -79,13 +79,13 @@ func relayInto(conn *net.TCPConn, nsenter, self string, pid, port int) {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = f, f, os.Stderr
 	cmd.Env = []string{}
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "girdle: forward: %v\n", err)
+		fmt.Fprintf(os.Stderr, "doriath: forward: %v\n", err)
 	}
 }
 
 func cmdRelay(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: girdle __relay ADDR")
+		return errors.New("usage: doriath __relay ADDR")
 	}
 	client, err := net.FileConn(os.Stdin)
 	if err != nil {

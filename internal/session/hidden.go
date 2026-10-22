@@ -9,8 +9,8 @@ import (
 	"slices"
 	"syscall"
 
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func (s *Session) holdControlPaths() error { return holdControlPaths(s.req.Profile) }

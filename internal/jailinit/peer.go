@@ -24,7 +24,7 @@ type Peer struct {
 // process, which it identifies through the kernel.
 func PeerHeader(p Peer) []byte {
 	data, _ := json.Marshal(p)
-	return append(append([]byte("GIRDLE-PEER "), data...), '\n')
+	return append(append([]byte("DORIATH-PEER "), data...), '\n')
 }
 
 // FindPeer finds the process that owns the client end of a loopback TCP

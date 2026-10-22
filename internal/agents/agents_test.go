@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func TestMCPConfig(t *testing.T) {

@@ -1,6 +1,6 @@
-// Package claude adapts Claude Code to girdle. The claude module gives it a
+// Package claude adapts Claude Code to doriath. The claude module gives it a
 // private ~/.claude with your configuration read-only; this adapter does
-// what the module cannot: Claude's permission prompts go to girdle's
+// what the module cannot: Claude's permission prompts go to doriath's
 // approvals, with the project's rules frozen as they were at the start, and
 // transcripts come back to your ~/.claude/projects when the session ends.
 package claude
@@ -16,9 +16,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/fnune/girdle/internal/agents"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type Adapter struct{}
@@ -87,7 +87,7 @@ type osFiles struct{}
 
 func (osFiles) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
-// Args adds girdle's settings file and drops the project and local settings
+// Args adds doriath's settings file and drops the project and local settings
 // sources, which the agent could otherwise edit to widen its own rules. The
 // project's checked-in settings are merged into the settings file instead,
 // as they were when the session started.

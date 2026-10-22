@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/session"
 )
 
 const bashRequest = `{
@@ -76,7 +76,7 @@ func TestHookPermissionRequestDeny(t *testing.T) {
 		t.Errorf("submitted %+v", got)
 	}
 	h := decodeHook(t, out)
-	if h.HookSpecificOutput.Decision.Behavior != "deny" || h.HookSpecificOutput.Decision.Message != "Denied by the user through girdle. Reason: use make clean" {
+	if h.HookSpecificOutput.Decision.Behavior != "deny" || h.HookSpecificOutput.Decision.Message != "Denied by the user through doriath. Reason: use make clean" {
 		t.Errorf("deny = %s", out)
 	}
 
@@ -85,7 +85,7 @@ func TestHookPermissionRequestDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h := decodeHook(t, out); h.HookSpecificOutput.Decision.Message != "Denied by the user through girdle." {
+	if h := decodeHook(t, out); h.HookSpecificOutput.Decision.Message != "Denied by the user through doriath." {
 		t.Errorf("deny without a reason = %s", out)
 	}
 }
@@ -102,7 +102,7 @@ func TestHookPermissionRequestFallsBackToClaude(t *testing.T) {
 		t.Errorf("broker error = %q, %v", out, err)
 	}
 
-	t.Setenv("GIRDLE_BROKER", filepath.Join(t.TempDir(), "gone.sock"))
+	t.Setenv("DORIATH_BROKER", filepath.Join(t.TempDir(), "gone.sock"))
 	if out, err := hook(t, "permission-request", bashRequest); err != nil || out != "" {
 		t.Errorf("unreachable broker = %q, %v", out, err)
 	}
@@ -122,8 +122,8 @@ func TestHookRejectsBadInput(t *testing.T) {
 	if err := cmdHook([]string{"codex", "notification"}, strings.NewReader(""), &strings.Builder{}); err == nil {
 		t.Error("only claude has hooks")
 	}
-	t.Setenv("GIRDLE_BROKER", "")
-	if _, err := hook(t, "notification", `{}`); err == nil || !strings.Contains(err.Error(), "GIRDLE_BROKER") {
+	t.Setenv("DORIATH_BROKER", "")
+	if _, err := hook(t, "notification", `{}`); err == nil || !strings.Contains(err.Error(), "DORIATH_BROKER") {
 		t.Errorf("outside a jail = %v", err)
 	}
 }
@@ -156,7 +156,7 @@ func TestHookSessionStart(t *testing.T) {
 	}
 	h := decodeHook(t, out)
 	ctx := h.HookSpecificOutput.AdditionalContext
-	if h.HookSpecificOutput.HookEventName != "SessionStart" || !strings.Contains(ctx, `girdle profile "kitchen" (session s1)`) || !strings.Contains(ctx, "  - proxy.golang.org\n") {
+	if h.HookSpecificOutput.HookEventName != "SessionStart" || !strings.Contains(ctx, `doriath profile "kitchen" (session s1)`) || !strings.Contains(ctx, "  - proxy.golang.org\n") {
 		t.Errorf("session-start = %s", out)
 	}
 }

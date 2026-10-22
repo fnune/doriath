@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/vcs"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 func git(t *testing.T, dir string, args ...string) string {
@@ -29,7 +29,7 @@ func git(t *testing.T, dir string, args ...string) string {
 // TestStoreOfAReadOnlyRepository runs an agent against a read-only
 // repository whose store the vcs module makes writable: it can add a
 // worktree, commit, and move or delete branches, but not touch the checkout
-// or anything git runs, and girdle keeps the moved branches recoverable.
+// or anything git runs, and doriath keeps the moved branches recoverable.
 func TestStoreOfAReadOnlyRepository(t *testing.T) {
 	e := newEnv(t)
 	repo := filepath.Join(e.home, "repo")
@@ -68,7 +68,7 @@ echo done
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	if !strings.Contains(out, "moved or deleted gone, spare") || !strings.Contains(out, "girdle restore "+e.lastID) {
+	if !strings.Contains(out, "moved or deleted gone, spare") || !strings.Contains(out, "doriath restore "+e.lastID) {
 		t.Errorf("the session must report the moved branches:\n%s", out)
 	}
 	if got := git(t, repo, "rev-parse", "agent"); got == "" {

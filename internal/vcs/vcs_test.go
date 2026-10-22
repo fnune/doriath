@@ -233,7 +233,7 @@ func TestFinishRepairsAgentWorktrees(t *testing.T) {
 			t.Errorf("%s still points elsewhere:\n%s", name, out)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(trees, "replaced", ".git.girdle-s1", "hooks")); err != nil {
+	if _, err := os.Stat(filepath.Join(trees, "replaced", ".git.doriath-s1", "hooks")); err != nil {
 		t.Error("the agent's .git directory must be kept aside, not deleted")
 	}
 	if _, err := os.Stat(filepath.Join(r, ".git", "worktrees", "redirected", "config.worktree")); !os.IsNotExist(err) {
@@ -293,7 +293,7 @@ func TestFinishDoesNotRepairThroughLinks(t *testing.T) {
 		t.Error("the linked admin directory must go")
 	}
 	if _, err := os.Lstat(filepath.Join(outside, "x", ".git")); !os.IsNotExist(err) {
-		t.Errorf("girdle wrote a .git through a link in the checkout path:\n%s", out.String())
+		t.Errorf("doriath wrote a .git through a link in the checkout path:\n%s", out.String())
 	}
 }
 

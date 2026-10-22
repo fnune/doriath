@@ -3,12 +3,12 @@ package session
 import (
 	"path/filepath"
 
-	"github.com/fnune/girdle/internal/agents"
-	"github.com/fnune/girdle/internal/agents/claude"
-	"github.com/fnune/girdle/internal/jail"
+	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/agents/claude"
+	"github.com/fnune/doriath/internal/jail"
 )
 
-// adapters are the agents girdle supports beyond what their modules give
+// adapters are the agents doriath supports beyond what their modules give
 // them. Any other command runs as is.
 var adapters = []agents.Adapter{claude.Adapter{}}
 

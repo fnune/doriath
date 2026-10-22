@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 const defaultApprovalTimeout = 60 * time.Second
@@ -724,7 +724,7 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 			return MCPServer{}, fmt.Errorf("mcp %s: secret is for remote servers; a local one reads its own config", m.Name)
 		}
 		if holds {
-			return MCPServer{}, fmt.Errorf("mcp %s: allow, approve, deny and default need a remote server: a local one talks to the agent where girdle cannot see", m.Name)
+			return MCPServer{}, fmt.Errorf("mcp %s: allow, approve, deny and default need a remote server: a local one talks to the agent where doriath cannot see", m.Name)
 		}
 		return server, nil
 	case m.URL == "":
@@ -769,7 +769,7 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 // tool, all on any path, since a server may answer on more than one. Then
 // the endpoint's own traffic that calls no tool: opening and closing its
 // stream, and JSON-RPC such as listing tools. Anything else on the host,
-// including a body girdle cannot read as JSON-RPC, falls to the host's
+// including a body doriath cannot read as JSON-RPC, falls to the host's
 // default, which is approve.
 func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 	if endpoint == "" {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/vcs"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 func git(t *testing.T, dir string, args ...string) string {
@@ -90,10 +90,10 @@ func TestRestorePutsTheMovedBranchBack(t *testing.T) {
 func TestRestoreErrors(t *testing.T) {
 	testPaths(t)
 	var out bytes.Buffer
-	if err := cmdRestore(nil, &out); err == nil || !strings.Contains(err.Error(), "usage: girdle restore SESSION") {
+	if err := cmdRestore(nil, &out); err == nil || !strings.Contains(err.Error(), "usage: doriath restore SESSION") {
 		t.Errorf("without a session = %v", err)
 	}
-	if err := cmdRestore([]string{"gone"}, &out); err == nil || err.Error() != "restore: no record of session gone, or girdle clean removed it" {
+	if err := cmdRestore([]string{"gone"}, &out); err == nil || err.Error() != "restore: no record of session gone, or doriath clean removed it" {
 		t.Errorf("an unknown session = %v", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestCleanFinishesAnInterruptedSessionAndDropsItsBackups(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"girdle: session s1 ended without checking its repositories; checking them now\n",
+		"doriath: session s1 ended without checking its repositories; checking them now\n",
 		"start values of session s1 (Oct 13 09:30): refs/heads/main\n",
 		"Remove these? [y/N] ",
 	} {

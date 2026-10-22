@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	var st session.Status
-	if broker := os.Getenv("GIRDLE_BROKER"); broker != "" {
+	if broker := os.Getenv("DORIATH_BROKER"); broker != "" {
 		return st, control.Call(ctx, broker, session.MethodStatus, struct{}{}, &st)
 	}
 	p, err := paths()
@@ -30,7 +30,7 @@ func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	for i, s := range sessions {
 		if id == "" || s.info.ID == id {
 			if target != nil && id == "" {
-				return st, errors.New("several sessions are running; name one: girdle status ID (see girdle sessions)")
+				return st, errors.New("several sessions are running; name one: doriath status ID (see doriath sessions)")
 			}
 			target = &sessions[i]
 		}
@@ -58,7 +58,7 @@ func cmdStatus(args []string, w io.Writer) error {
 
 func describeStatus(st session.Status) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "This session runs in girdle profile %q (session %s).\n", st.Profile, st.Session)
+	fmt.Fprintf(&b, "This session runs in doriath profile %q (session %s).\n", st.Profile, st.Session)
 	list := func(title string, items []string) {
 		if len(items) == 0 {
 			return
@@ -108,10 +108,10 @@ func describeStatus(st session.Status) string {
 		}
 	}
 	b.WriteString("There is no other network access. A request to another host fails, often only as \"CONNECT tunnel failed, response 403\", " +
-		"and asks the user whether to allow the host. To wait for the answer, run girdle request wait HOST, in the background if you can, then try again. " +
-		"To write a path that is read-only here, run girdle request write PATH --reason TEXT, which asks the user and waits. " +
-		"Errors that start with \"girdle:\" come from this sandbox. Do not look for another way around a block. " +
-		"If the user denies a request, tell them what was blocked and why the task needs it. Run girdle status to see this again.\n")
+		"and asks the user whether to allow the host. To wait for the answer, run doriath request wait HOST, in the background if you can, then try again. " +
+		"To write a path that is read-only here, run doriath request write PATH --reason TEXT, which asks the user and waits. " +
+		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +
+		"If the user denies a request, tell them what was blocked and why the task needs it. Run doriath status to see this again.\n")
 	return b.String()
 }
 
@@ -120,10 +120,10 @@ func cmdStatusline(w io.Writer) error {
 	defer cancel()
 	st, err := sessionStatus(ctx, "")
 	if err != nil {
-		fmt.Fprintln(w, "girdle: no session")
+		fmt.Fprintln(w, "doriath: no session")
 		return nil
 	}
-	parts := []string{"girdle " + st.Profile, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
+	parts := []string{"doriath " + st.Profile, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
 	if st.Pending > 0 {
 		parts = append(parts, fmt.Sprintf("%d waiting for you", st.Pending))
 	}

@@ -25,7 +25,7 @@ func TestPlanRejectsRelativeDirectories(t *testing.T) {
 }
 
 func TestArgsPassFileDescriptorsOnlyWhenSet(t *testing.T) {
-	s := Spec{Hostname: "girdle-x", Cwd: "/", Command: []string{"true"}}
+	s := Spec{Hostname: "doriath-x", Cwd: "/", Command: []string{"true"}}
 	for _, flag := range []string{"--seccomp", "--info-fd"} {
 		if slices.Contains(s.Args(), flag) {
 			t.Errorf("%s without a file descriptor", flag)

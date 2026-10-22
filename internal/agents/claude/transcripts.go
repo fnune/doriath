@@ -71,7 +71,7 @@ func copyIfNewer(src, dest string) error {
 		return err
 	}
 	defer in.Close()
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".girdle-*")
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".doriath-*")
 	if err != nil {
 		return err
 	}

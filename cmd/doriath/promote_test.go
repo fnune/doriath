@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func request(t *testing.T, args ...string) (string, error) {
@@ -21,8 +21,8 @@ func request(t *testing.T, args ...string) (string, error) {
 }
 
 func TestRequestNeedsASession(t *testing.T) {
-	t.Setenv("GIRDLE_BROKER", "")
-	if _, err := request(t, "write", "/tmp"); err == nil || !strings.Contains(err.Error(), "runs inside a girdle session") {
+	t.Setenv("DORIATH_BROKER", "")
+	if _, err := request(t, "write", "/tmp"); err == nil || !strings.Contains(err.Error(), "runs inside a doriath session") {
 		t.Errorf("outside a session = %v", err)
 	}
 }
@@ -64,7 +64,7 @@ func TestRequestWriteReportsTheDecision(t *testing.T) {
 		"denied":            {decision: approval.Decision{Verdict: approval.VerdictDeny}, want: "request: denied"},
 		"denied for reason": {decision: approval.Decision{Verdict: approval.VerdictDeny, Reason: "not there"}, want: "request: denied: not there"},
 		"expired":           {decision: approval.Decision{Verdict: approval.VerdictNone}, want: "nobody decided before the request expired"},
-		"pending":           {pending: "s1-r4", want: "approval s1-r4 is pending. To wait for the answer, run: girdle request wait s1-r4"},
+		"pending":           {pending: "s1-r4", want: "approval s1-r4 is pending. To wait for the answer, run: doriath request wait s1-r4"},
 		"broker error":      {fail: errors.New("path is hidden"), want: "path is hidden"},
 	} {
 		t.Run(name, func(t *testing.T) {

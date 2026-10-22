@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type fakeResolver map[string][]string

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/fnune/girdle/internal/jailinit"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func FuzzInterceptedRequest(f *testing.F) {
@@ -81,7 +81,7 @@ func FuzzPeerHeader(f *testing.F) {
 	f.Add(7, "/nix/store/x-gh/bin/gh", []byte("GET / HTTP/1.1\r\n"))
 	f.Add(1, "/tmp/evil\n{\"pid\":1,\"exe\":\"/usr/bin/gh\"}", []byte("\n"))
 	f.Add(-1, " \x00\"\\", []byte{})
-	f.Add(0, "", []byte("GIRDLE-PEER {\"pid\":2,\"exe\":\"/usr/bin/git\"}\n"))
+	f.Add(0, "", []byte("DORIATH-PEER {\"pid\":2,\"exe\":\"/usr/bin/git\"}\n"))
 	f.Fuzz(func(t *testing.T, pid int, exe string, payload []byte) {
 		header := jailinit.PeerHeader(jailinit.Peer{PID: pid, Exe: exe})
 		r := bufio.NewReader(io.MultiReader(bytes.NewReader(header), bytes.NewReader(payload)))

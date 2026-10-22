@@ -11,7 +11,7 @@ import (
 // The placeholders a mount path may start with. They resolve when a session
 // starts, so one profile serves many projects.
 const (
-	// Current is the directory girdle run starts in.
+	// Current is the directory doriath run starts in.
 	Current = "{current}"
 	// Repository is the root of the git or jj repository that holds
 	// {current}. Entries that use it are skipped outside a repository.
@@ -81,14 +81,14 @@ func FindRepository(dir string, exists func(string) bool) string {
 	}
 }
 
-// Start is where a session starts: the directory girdle run starts in, and
+// Start is where a session starts: the directory doriath run starts in, and
 // the repository that holds it, if any.
 type Start struct {
 	Current    string
 	Repository string
 }
 
-// Defaults are the entries girdle adds on its own. Each yields to any entry
+// Defaults are the entries doriath adds on its own. Each yields to any entry
 // of the profile or its modules for the same path or a directory above it:
 // there, you already said what the agent sees.
 func (p *Profile) Defaults() []Mount {
@@ -100,7 +100,7 @@ func (p *Profile) Defaults() []Mount {
 }
 
 // Resolve returns the profile with its placeholders filled in for a session
-// that starts at start, girdle's default entries added, and every mount
+// that starts at start, doriath's default entries added, and every mount
 // checked again now that its path is known.
 func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 	out := *p

@@ -3,8 +3,8 @@
 # objects, refs, logs and worktrees, and jj's operation log, index and
 # working-copy state. The checkout stays read-only, and so does everything
 # that decides what git or jj runs: config, hooks, info, commondir and jj's
-# store pointers. girdle records your branches and bookmarks when a session
-# starts, and `girdle restore` puts back what the agent moved.
+# store pointers. doriath records your branches and bookmarks when a session
+# starts, and `doriath restore` puts back what the agent moved.
 
 [vcs]
 store = true

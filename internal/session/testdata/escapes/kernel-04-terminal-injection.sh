@@ -1,5 +1,5 @@
 #!/bin/sh
-# threat: type commands into the terminal that started girdle
+# threat: type commands into the terminal that started doriath
 # expect: held
 
 python3 - <<'PY'

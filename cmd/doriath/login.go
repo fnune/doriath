@@ -10,7 +10,7 @@ import (
 	"os"
 	"slices"
 
-	"github.com/fnune/girdle/internal/oauth"
+	"github.com/fnune/doriath/internal/oauth"
 )
 
 // cmdLogin signs in once, on the host, for a profile's OAuth secrets.
@@ -22,7 +22,7 @@ func cmdLogin(args []string, w io.Writer) error {
 		return err
 	}
 	if *name == "" || flags.NArg() > 1 {
-		return errors.New("login: usage: girdle login --profile NAME [SECRET]")
+		return errors.New("login: usage: doriath login --profile NAME [SECRET]")
 	}
 	p, err := paths()
 	if err != nil {

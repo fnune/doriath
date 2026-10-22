@@ -18,7 +18,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 // fakeServer is an MCP server and the OAuth server it trusts, on one host.
@@ -179,12 +179,12 @@ func TestLoginWithAnIssuer(t *testing.T) {
 
 func TestTokenWithoutLoginNamesTheCommand(t *testing.T) {
 	_, err := NewTokens(t.TempDir(), "work").Token(context.Background(), "notion", secret.OAuth{})
-	if err == nil || !strings.Contains(err.Error(), "girdle login --profile work notion") {
+	if err == nil || !strings.Contains(err.Error(), "doriath login --profile work notion") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-// callbackBrowser skips the server's sign-in page and calls girdle's
+// callbackBrowser skips the server's sign-in page and calls doriath's
 // callback itself, so that a test chooses what the callback receives.
 type callbackBrowser struct {
 	t       *testing.T
@@ -223,7 +223,7 @@ func TestRefusedSignInSaysWhatTheServerSaid(t *testing.T) {
 	}
 }
 
-func TestSignInMustAnswerTheRequestGirdleMade(t *testing.T) {
+func TestSignInMustAnswerTheRequestDoriathMade(t *testing.T) {
 	f := newFakeServer(t)
 	forge := callbackBrowser{t: t, answer: func(url.Values) url.Values {
 		return url.Values{"code": {"the-code"}, "state": {"another"}}
@@ -274,7 +274,7 @@ func TestRevokedLoginAsksYouToSignInAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
-	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run girdle login --profile work notion again") {
+	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run doriath login --profile work notion again") {
 		t.Fatalf("err = %v", err)
 	}
 }

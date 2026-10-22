@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/session"
 )
 
 type auditRecord struct {

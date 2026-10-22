@@ -11,8 +11,8 @@ import (
 )
 
 func TestParseForward(t *testing.T) {
-	f, err := ParseForward("3128=/run/girdle/proxy.sock")
-	if err != nil || f.Port != 3128 || f.Socket != "/run/girdle/proxy.sock" {
+	f, err := ParseForward("3128=/run/doriath/proxy.sock")
+	if err != nil || f.Port != 3128 || f.Socket != "/run/doriath/proxy.sock" {
 		t.Fatalf("got %+v, %v", f, err)
 	}
 	for _, bad := range []string{"3128", "x=/a", "0=/a", "70000=/a", "80=rel"} {
@@ -20,7 +20,7 @@ func TestParseForward(t *testing.T) {
 			t.Errorf("%q: want error", bad)
 		}
 	}
-	if f.String() != "3128=/run/girdle/proxy.sock" {
+	if f.String() != "3128=/run/doriath/proxy.sock" {
 		t.Errorf("String = %q", f.String())
 	}
 }
@@ -102,7 +102,7 @@ func TestFindPeerIdentifiesTheClientProcess(t *testing.T) {
 
 func TestPeerHeader(t *testing.T) {
 	got := string(PeerHeader(Peer{PID: 7, Exe: "/nix/store/x-gh/bin/gh"}))
-	if got != "GIRDLE-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n" {
+	if got != "DORIATH-PEER {\"pid\":7,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n" {
 		t.Fatalf("got %q", got)
 	}
 }

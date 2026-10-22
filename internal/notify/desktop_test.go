@@ -14,7 +14,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
@@ -76,7 +76,7 @@ type shown struct {
 }
 
 // fakeServer implements the parts of org.freedesktop.Notifications that
-// girdle calls.
+// doriath calls.
 type fakeServer struct {
 	conn *dbus.Conn
 
@@ -219,7 +219,7 @@ func TestDesktopShowsAndDecides(t *testing.T) {
 	if got.summary != request.Summary {
 		t.Errorf("summary = %q", got.summary)
 	}
-	for _, want := range []string{"Written by claude, not by girdle.", "<tt>git push origin &lt;main&gt;</tt>", "Profile kitchen, session s1.", "Expires in 1m0s."} {
+	for _, want := range []string{"Written by claude, not by doriath.", "<tt>git push origin &lt;main&gt;</tt>", "Profile kitchen, session s1.", "Expires in 1m0s."} {
 		if !strings.Contains(got.body, want) {
 			t.Errorf("body lacks %q: %q", want, got.body)
 		}

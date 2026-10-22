@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 const toolSource = `package main
@@ -276,12 +276,12 @@ func TestPodmanThroughBroker(t *testing.T) {
 	if out := p.mustRemote("", "info", "--format", "{{.Store.GraphRoot}}"); strings.TrimSpace(out) != p.root {
 		t.Fatalf("info reports graph root %q, want %q", out, p.root)
 	}
-	const img = "localhost/girdle-test"
+	const img = "localhost/doriath-test"
 	p.testImage(img)
 
 	t.Run("privileged refused", func(t *testing.T) {
 		p := p.on(t)
-		p.refused("girdle: privileged containers are not allowed", "run", "--rm", "--privileged", img, "/tool", "echo", "x")
+		p.refused("doriath: privileged containers are not allowed", "run", "--rm", "--privileged", img, "/tool", "echo", "x")
 	})
 	t.Run("bind outside refused", func(t *testing.T) {
 		p := p.on(t)
@@ -328,18 +328,18 @@ func TestPodmanThroughBroker(t *testing.T) {
 		if out := p.mustRemote("piped\n", "exec", "-i", "sleeper", "/tool", "stdin"); out != "piped\n" {
 			t.Fatalf("exec stdin output %q", out)
 		}
-		p.refused("girdle: privileged exec sessions are not allowed", "exec", "--privileged", "sleeper", "/tool", "echo", "x")
+		p.refused("doriath: privileged exec sessions are not allowed", "exec", "--privileged", "sleeper", "/tool", "echo", "x")
 		p.mustRemote("", "rm", "-f", "-t", "0", "sleeper")
 	})
 	t.Run("build", func(t *testing.T) {
 		p := p.on(t)
 		ctxDir := t.TempDir()
 		writeFiles(t, map[string]string{filepath.Join(ctxDir, "Containerfile"): "FROM " + img + "\nRUN [\"/tool\", \"echo\", \"built in a step\"]\n"})
-		out := p.mustRemote("", "build", "-t", "localhost/girdle-built", ctxDir)
+		out := p.mustRemote("", "build", "-t", "localhost/doriath-built", ctxDir)
 		if !strings.Contains(out, "built in a step") {
 			t.Fatalf("build output %q", out)
 		}
-		p.refused("girdle: builds with addcaps", "build", "--cap-add", "SYS_ADMIN", ctxDir)
+		p.refused("doriath: builds with addcaps", "build", "--cap-add", "SYS_ADMIN", ctxDir)
 	})
 	t.Run("push asks and is denied", func(t *testing.T) {
 		p := p.on(t)
@@ -349,8 +349,8 @@ func TestPodmanThroughBroker(t *testing.T) {
 	if !slices.Contains(rec.kinds(), "denied") {
 		t.Error("no refusal was recorded")
 	}
-	if os.Getenv("GIRDLE_TEST_NETWORK") != "1" {
-		t.Log("set GIRDLE_TEST_NETWORK=1 to pull alpine")
+	if os.Getenv("DORIATH_TEST_NETWORK") != "1" {
+		t.Log("set DORIATH_TEST_NETWORK=1 to pull alpine")
 		return
 	}
 	t.Run("alpine", func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestPodmanThroughBroker(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(body), `"errorDetail":{"message":"girdle: docker.io/library/alpine:latest changed from sha256:000000000000`) {
+		if !strings.Contains(string(body), `"errorDetail":{"message":"doriath: docker.io/library/alpine:latest changed from sha256:000000000000`) {
 			t.Fatalf("Docker pull stream %s", body)
 		}
 	})

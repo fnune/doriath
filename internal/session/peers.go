@@ -41,7 +41,7 @@ func (h *hostPeers) reaper() int {
 
 // TrustsHeader accepts identity headers only from the agent jail's init.
 // bubblewrap reports the pid of its pid-namespace reaper, whose only child is
-// girdle's init: init is a subreaper, so orphans never reparent to the
+// doriath's init: init is a subreaper, so orphans never reparent to the
 // reaper. The executable check rules out anything else that could appear
 // there.
 func (h *hostPeers) TrustsHeader(pid int) bool {
@@ -86,7 +86,7 @@ func parentPID(pid int) int {
 	return ppid
 }
 
-// initRunning reports whether the reaper's child already runs girdle's
+// initRunning reports whether the reaper's child already runs doriath's
 // binary. bubblewrap starts the jail's command only after it has built the
 // jail, so from then on the namespaces are complete.
 func (h *hostPeers) initRunning(reaper int) bool {

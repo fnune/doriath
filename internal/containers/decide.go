@@ -48,7 +48,7 @@ type checker struct {
 func (c checker) decide(r request) verdict {
 	rt, ok := lookup(r.Method, r.Path)
 	if !ok {
-		return refuse("%s %s is not an endpoint that girdle forwards to podman", r.Method, r.Path)
+		return refuse("%s %s is not an endpoint that doriath forwards to podman", r.Method, r.Path)
 	}
 	if rt.treat.refused != "" {
 		return refuse("%s %s is not allowed: %s", r.Method, r.Path, rt.treat.refused)

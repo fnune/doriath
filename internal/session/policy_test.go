@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func TestLearningModeAllowsAndRecords(t *testing.T) {

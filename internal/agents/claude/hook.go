@@ -7,7 +7,7 @@ import (
 )
 
 // PermissionRequest is the part of Claude Code's PermissionRequest hook input
-// that girdle uses.
+// that doriath uses.
 type PermissionRequest struct {
 	SessionID string          `json:"session_id"`
 	Cwd       string          `json:"cwd"`

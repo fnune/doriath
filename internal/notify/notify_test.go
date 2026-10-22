@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 func TestDecisionFor(t *testing.T) {
@@ -68,15 +68,15 @@ func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
 // TestDesktop shows a real notification and withdraws it. It only runs when
 // asked, because it appears on the desktop.
 func TestDesktop(t *testing.T) {
-	if os.Getenv("GIRDLE_TEST_DESKTOP") == "" {
-		t.Skip("set GIRDLE_TEST_DESKTOP=1 to show a real notification")
+	if os.Getenv("DORIATH_TEST_DESKTOP") == "" {
+		t.Skip("set DORIATH_TEST_DESKTOP=1 to show a real notification")
 	}
 	d, err := NewDesktop(time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = d.Close() }()
-	withdraw, err := d.Notify(context.Background(), approval.Request{Summary: "girdle test", Profile: "test", Session: "t"}, func(approval.Decision) {})
+	withdraw, err := d.Notify(context.Background(), approval.Request{Summary: "doriath test", Profile: "test", Session: "t"}, func(approval.Decision) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestUrgency(t *testing.T) {
 
 func TestToolRequestsAreLabeled(t *testing.T) {
 	body := Body(approval.Request{Kind: approval.KindTool, Agent: "claude"}, time.Now())
-	if !strings.Contains(body, "Written by claude, not by girdle") {
+	if !strings.Contains(body, "Written by claude, not by doriath") {
 		t.Errorf("body = %q", body)
 	}
 }

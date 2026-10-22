@@ -59,7 +59,7 @@ func New(hosts []string, now func() time.Time) (*Authority, error) {
 	start := now().Add(-time.Hour)
 	tmpl := &x509.Certificate{
 		SerialNumber:                serial(),
-		Subject:                     pkix.Name{CommonName: "girdle session CA", Organization: []string{"girdle"}},
+		Subject:                     pkix.Name{CommonName: "doriath session CA", Organization: []string{"doriath"}},
 		NotBefore:                   start,
 		NotAfter:                    start.Add(rootLifetime),
 		KeyUsage:                    x509.KeyUsageCertSign | x509.KeyUsageCRLSign,

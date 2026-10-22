@@ -65,7 +65,7 @@ func (b *Broker) pull(w http.ResponseWriter, r *http.Request, ref imageRef, libp
 	resp, err := b.transport.RoundTrip(out)
 	if err != nil {
 		b.record(Event{Kind: "error", Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
-		deny(w, http.StatusBadGateway, fmt.Sprintf("girdle: the podman service failed: %v", err))
+		deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: the podman service failed: %v", err))
 		return
 	}
 	defer resp.Body.Close()
@@ -88,7 +88,7 @@ func (b *Broker) pull(w http.ResponseWriter, r *http.Request, ref imageRef, libp
 		return
 	}
 	b.record(Event{Kind: "denied", Method: r.Method, Path: r.URL.Path, Reason: reason, Image: ref.full})
-	_, _ = w.Write(pullError("girdle: "+reason, libpodAPI))
+	_, _ = w.Write(pullError("doriath: "+reason, libpodAPI))
 }
 
 type pullMessage struct {

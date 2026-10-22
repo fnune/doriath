@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-const zshCompletion = `#compdef girdle
-# Load with: source <(girdle completion zsh), or save as _girdle in $fpath.
+const zshCompletion = `#compdef doriath
+# Load with: source <(doriath completion zsh), or save as _doriath in $fpath.
 
-_girdle() {
+_doriath() {
   local -a commands
   commands=(
     'run:run a command in a jail'
@@ -28,17 +28,17 @@ _girdle() {
     'version:print the version'
   )
   if (( CURRENT == 2 )); then
-    _describe 'girdle command' commands
+    _describe 'doriath command' commands
     return
   fi
   case "${words[2]}" in
     run)
-      _arguments '--profile[profile to use]:profile:($(girdle __complete profiles))' '*::command:_normal' ;;
+      _arguments '--profile[profile to use]:profile:($(doriath __complete profiles))' '*::command:_normal' ;;
     approvals)
       if (( CURRENT == 3 )); then
         _values 'subcommand' list allow deny watch
       elif [[ "${words[3]}" == (allow|deny) ]] && (( CURRENT == 4 )); then
-        _values 'request' $(girdle __complete approvals)
+        _values 'request' $(doriath __complete approvals)
       elif [[ "${words[3]}" == allow ]]; then
         _arguments '--for[how long the allow lasts]:lasting:(once session 15m 1h)'
       fi ;;
@@ -46,27 +46,27 @@ _girdle() {
       if (( CURRENT == 3 )); then
         _values 'subcommand' list show edit
       else
-        _values 'profile' $(girdle __complete profiles)
+        _values 'profile' $(doriath __complete profiles)
       fi ;;
     clean)
-      _arguments '--caches[remove the caches of a profile]:profile:($(girdle __complete profiles))' ;;
+      _arguments '--caches[remove the caches of a profile]:profile:($(doriath __complete profiles))' ;;
     status)
-      _values 'session' $(girdle __complete sessions) ;;
+      _values 'session' $(doriath __complete sessions) ;;
     log)
-      _arguments '--session[only this session]:session:($(girdle __complete sessions))' \
-        '--profile[only this profile]:profile:($(girdle __complete profiles))' \
+      _arguments '--session[only this session]:session:($(doriath __complete sessions))' \
+        '--profile[only this profile]:profile:($(doriath __complete profiles))' \
         '--denied[only denials]' '--since[only the last duration]:duration:' '--json[JSON lines]' '--follow[keep printing]' ;;
     completion)
       _values 'shell' zsh ;;
   esac
 }
 
-compdef _girdle girdle
+compdef _doriath doriath
 `
 
 func cmdCompletion(args []string, w io.Writer) error {
 	if len(args) != 1 || args[0] != "zsh" {
-		return errors.New("completion: usage: girdle completion zsh")
+		return errors.New("completion: usage: doriath completion zsh")
 	}
 	_, err := io.WriteString(w, zshCompletion)
 	return err

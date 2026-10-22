@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/session"
 )
 
 // TestRequestAndGrantWrite makes paths writable in a running jail: one the
@@ -37,7 +37,7 @@ func TestRequestAndGrantWrite(t *testing.T) {
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n", repo))
 	code, out := e.run(p, fmt.Sprintf(`
 set -u
-G=/run/girdle-bin/girdle
+G=/run/doriath-bin/doriath
 R=%[1]s
 touch $R/assets/x 2>/dev/null && echo "FAIL writable before the request"
 $G request write $R/assets --reason "store generated images" || echo "FAIL request"
@@ -71,7 +71,7 @@ echo done
 		}
 		var entry session.Entry
 		if data, err := os.ReadFile(filepath.Join(filepath.Dir(socks[0]), session.EntryFile)); err != nil || json.Unmarshal(data, &entry) != nil || !slices.Contains(entry.AgentWritable, outside) {
-			t.Errorf("the session entry must list the grant for girdle exec: %+v, %v", entry, err)
+			t.Errorf("the session entry must list the grant for doriath exec: %+v, %v", entry, err)
 		}
 	})
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
@@ -105,7 +105,7 @@ func TestGrantKeepsRepositoryGuards(t *testing.T) {
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n", seen))
 	code, out := e.run(p, fmt.Sprintf(`
 set -u
-G=/run/girdle-bin/girdle
+G=/run/doriath-bin/doriath
 probe() {
   touch $1/file || echo "FAIL $1 is not writable"
   echo x >> $1/.git/config 2>/dev/null && echo "FAIL $1/.git/config is writable"

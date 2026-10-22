@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const helperEnv = "GIRDLE_SECCOMP_HELPER"
+const helperEnv = "DORIATH_SECCOMP_HELPER"
 
 // TestHelperProcess is the program the jail runs when a test needs a Go
 // process with many OS threads. It does nothing in a normal test run.

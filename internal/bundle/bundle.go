@@ -1,4 +1,4 @@
-// Package bundle carries the static helpers girdle needs, so that it does not
+// Package bundle carries the static helpers doriath needs, so that it does not
 // depend on what the system has installed. A release build embeds them. A
 // development build without the "bundled" tag falls back to the system.
 package bundle
@@ -19,12 +19,12 @@ func Bwrap(dir string, getenv func(string) string) (string, error) {
 	if len(bwrap) > 0 {
 		return extract(dir, "bwrap", bwrap)
 	}
-	if p := getenv("GIRDLE_BWRAP"); p != "" {
+	if p := getenv("DORIATH_BWRAP"); p != "" {
 		return p, nil
 	}
 	p, err := exec.LookPath("bwrap")
 	if err != nil {
-		return "", errors.New("this girdle build has no bundled bubblewrap and none is on PATH: build with -tags bundled or set GIRDLE_BWRAP")
+		return "", errors.New("this doriath build has no bundled bubblewrap and none is on PATH: build with -tags bundled or set DORIATH_BWRAP")
 	}
 	return p, nil
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type fakeHost map[string]string
@@ -65,7 +65,7 @@ func host() fakeHost {
 }
 
 func layout() Layout {
-	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/project", Tmp: "/home/u/.cache/g/agents/project/tmp", Exe: "/nix/store/x/bin/girdle"}
+	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/project", Tmp: "/home/u/.cache/g/agents/project/tmp", Exe: "/nix/store/x/bin/doriath"}
 }
 
 func opts() Options {
@@ -93,10 +93,10 @@ func TestPlan(t *testing.T) {
 	}
 	want := []string{
 		"/tmp",
-		"/run/girdle",
+		"/run/doriath",
 		"/dev/tpmrm0",
 		"/home/u/.nix-profile",
-		"/run/girdle-bin/girdle",
+		"/run/doriath-bin/doriath",
 		"/home/u/Development/project",
 		"/home/u/Development/project/site",
 		"/home/u/.cache/go-build",
@@ -116,8 +116,8 @@ func TestPlan(t *testing.T) {
 	if cache.Source != "/home/u/.cache/g/agents/project/home/.cache/go-build" || cache.ReadOnly {
 		t.Errorf("cache bind = %+v", cache)
 	}
-	if b := s.Binds[idx("/run/girdle")]; !b.ReadOnly {
-		t.Error("the girdle dir must be read-only in the jail")
+	if b := s.Binds[idx("/run/doriath")]; !b.ReadOnly {
+		t.Error("the doriath dir must be read-only in the jail")
 	}
 	if s.Env["GH_TOKEN"] != "" || s.Env["SSH_AUTH_SOCK"] != "" {
 		t.Error("variables the profile does not pass must not reach the jail")

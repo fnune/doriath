@@ -24,11 +24,11 @@ import (
 type Request struct {
 	// Reaper is the pid, on the host, of the jail's first process.
 	Reaper int
-	// JailExe is girdle's binary as the jail sees it. The helper runs it in
+	// JailExe is doriath's binary as the jail sees it. The helper runs it in
 	// the jail's mount namespace, so it must be a path the agent cannot
 	// replace.
 	JailExe string
-	// HostExe is girdle's binary on the host, for the helper that opens a
+	// HostExe is doriath's binary on the host, for the helper that opens a
 	// host directory the jail cannot see.
 	HostExe string
 	Nsenter string
@@ -101,7 +101,7 @@ func openHostTree(ctx context.Context, r Request) (*os.File, error) {
 	return os.NewFile(uintptr(fd), "tree"), nil
 }
 
-// Inner runs girdle __promote, inside the namespaces enter or openHostTree
+// Inner runs doriath __promote, inside the namespaces enter or openHostTree
 // set up.
 func Inner(args []string) error {
 	if len(args) < 2 {

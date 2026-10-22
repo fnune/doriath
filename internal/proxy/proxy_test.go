@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/ca"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 type upstream struct {
@@ -320,7 +320,7 @@ func TestRuleDeny(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := body(t, resp)
-	if resp.StatusCode != http.StatusForbidden || resp.Header.Get("X-Girdle-Denied") != "1" {
+	if resp.StatusCode != http.StatusForbidden || resp.Header.Get("X-Doriath-Denied") != "1" {
 		t.Fatalf("status %d: %s", resp.StatusCode, b)
 	}
 	var msg struct{ Message string }
@@ -681,8 +681,8 @@ func TestIdentifyingListener(t *testing.T) {
 		wantExe string
 		closed  bool
 	}{
-		"header from init":     {trust: true, send: "GIRDLE-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\nGET / HTTP/1.1\r\n", wantExe: "/nix/store/x-gh/bin/gh"},
-		"header from stranger": {trust: false, send: "GIRDLE-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n", wantExe: "/usr/bin/self"},
+		"header from init":     {trust: true, send: "DORIATH-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\nGET / HTTP/1.1\r\n", wantExe: "/nix/store/x-gh/bin/gh"},
+		"header from stranger": {trust: false, send: "DORIATH-PEER {\"pid\":5,\"exe\":\"/nix/store/x-gh/bin/gh\"}\n", wantExe: "/usr/bin/self"},
 		"init without header":  {trust: true, send: "GET / HTTP/1.1\r\n", closed: true},
 	} {
 		t.Run(name, func(t *testing.T) {

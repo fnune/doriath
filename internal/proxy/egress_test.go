@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 type fakeHolder struct {
@@ -59,7 +59,7 @@ func serveAs(srv *Server, exe string, req *http.Request) *httptest.ResponseRecor
 
 func deniedMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()
-	if rec.Header().Get("X-Girdle-Denied") != "1" {
+	if rec.Header().Get("X-Doriath-Denied") != "1" {
 		t.Fatalf("status %d without the denial header: %s", rec.Code, rec.Body)
 	}
 	var msg struct{ Message string }
@@ -79,7 +79,7 @@ func TestUnlistedHostWaitsForYourAnswer(t *testing.T) {
 		"still pending": {
 			holder:      &fakeHolder{pending: "r7"},
 			wantStatus:  http.StatusForbidden,
-			wantMessage: []string{"approval r7 is pending", "run: girdle request wait evil.example"},
+			wantMessage: []string{"approval r7 is pending", "run: doriath request wait evil.example"},
 		},
 		"refused": {
 			holder:      &fakeHolder{},
@@ -141,7 +141,7 @@ allow = ["uploads.example"]
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("curl: status %d", rec.Code)
 	}
-	if msg := deniedMessage(t, rec); msg != `girdle: profile "t" lets only gh reach uploads.example` {
+	if msg := deniedMessage(t, rec); msg != `doriath: profile "t" lets only gh reach uploads.example` {
 		t.Errorf("message = %q", msg)
 	}
 	if len(holder.asked) != 0 {
@@ -230,9 +230,9 @@ func TestRefusedApprovalSaysWhy(t *testing.T) {
 		err     error
 		want    string
 	}{
-		"denied with a reason": {verdict: approval.VerdictDeny, want: "girdle: Create a GitHub release was denied: not today"},
-		"expired":              {verdict: approval.VerdictNone, want: "girdle: Create a GitHub release: nobody approved it in time"},
-		"queue unreachable":    {err: errors.New("no queue"), want: "girdle: Create a GitHub release was denied"},
+		"denied with a reason": {verdict: approval.VerdictDeny, want: "doriath: Create a GitHub release was denied: not today"},
+		"expired":              {verdict: approval.VerdictNone, want: "doriath: Create a GitHub release: nobody approved it in time"},
+		"queue unreachable":    {err: errors.New("no queue"), want: "doriath: Create a GitHub release was denied"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)

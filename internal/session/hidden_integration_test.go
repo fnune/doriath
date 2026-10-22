@@ -12,7 +12,7 @@ import (
 
 // TestMissingHiddenPathIsHeldForTheSession hides a path that does not
 // exist inside a writable mount: the agent cannot create it, and nothing of
-// girdle's stays behind.
+// doriath's stays behind.
 func TestMissingHiddenPathIsHeldForTheSession(t *testing.T) {
 	e := newEnv(t)
 	hidden := filepath.Join(e.work, "config", ".envrc")

@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/ca"
-	"github.com/fnune/girdle/internal/profile"
+	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/profile"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
@@ -34,7 +34,7 @@ func FuzzGitConfig(f *testing.F) {
 	f.Fuzz(func(t *testing.T, desktop []byte, signing bool) {
 		key := ""
 		if signing {
-			key = "/run/girdle/signing.pub"
+			key = "/run/doriath/signing.pub"
 		}
 		path := filepath.Join(dir, "gitconfig")
 		if err := os.WriteFile(path, GitConfig(GitOptions{SigningKey: key, RewriteSSH: []string{"github.com"}, Desktop: desktop}), 0o600); err != nil {

@@ -4,10 +4,10 @@ default:
 # Copy the static bubblewrap from the dev shell, for bundled builds.
 bundle:
     mkdir -p internal/bundle/assets
-    install -m 0644 "${GIRDLE_STATIC_BWRAP:?enter the dev shell first: nix develop}" internal/bundle/assets/bwrap
+    install -m 0644 "${DORIATH_STATIC_BWRAP:?enter the dev shell first: nix develop}" internal/bundle/assets/bwrap
 
 build: bundle
-    CGO_ENABLED=0 go build -tags bundled -o girdle ./cmd/girdle
+    CGO_ENABLED=0 go build -tags bundled -o doriath ./cmd/doriath
 
 fmt:
     gofumpt -w .
@@ -19,7 +19,7 @@ lint:
 test:
     go test -race ./...
 
-# Starts real jails. Set GIRDLE_TEST_NETWORK=1 to also pull a container image.
+# Starts real jails. Set DORIATH_TEST_NETWORK=1 to also pull a container image.
 test-integration:
     go test -race -tags integration -count=1 ./internal/session/
 
@@ -36,7 +36,7 @@ fuzz time="30s":
 # Fixed in Go 1.26.9: empty this once the flake has it.
 vuln_known := "GO-2026-6603 GO-2026-6605 GO-2026-6607 GO-2026-6608 GO-2026-6610 GO-2026-6611 GO-2026-6612 GO-2026-6613 GO-2026-6617"
 
-# Fails on any vulnerability girdle calls that vuln_known does not list.
+# Fails on any vulnerability doriath calls that vuln_known does not list.
 vuln:
     #!/usr/bin/env bash
     set -uo pipefail

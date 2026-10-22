@@ -1,11 +1,11 @@
 {
   "$schema": "https://lnav.org/schemas/format-v1.schema.json",
-  "girdle_audit": {
-    "title": "girdle audit log",
+  "doriath_audit": {
+    "title": "doriath audit log",
     "description": "One line per session start and end, egress decision and approval.",
-    "url": "https://github.com/fnune/girdle/blob/main/docs/configuration.md",
+    "url": "https://github.com/fnune/doriath/blob/main/docs/configuration.md",
     "json": true,
-    "file-pattern": "girdle/audit\\.jsonl$",
+    "file-pattern": "doriath/audit\\.jsonl$",
     "timestamp-field": "time",
     "line-format": [
       { "field": "__timestamp__" },

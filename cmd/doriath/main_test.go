@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/notify"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/notify"
 )
 
 func TestRunExitStatus(t *testing.T) {
@@ -35,7 +35,7 @@ func TestRunExitStatus(t *testing.T) {
 		{[]string{"doctor", "--no-such-flag"}, 2},
 	} {
 		if code := run(tc.args); code != tc.want {
-			t.Errorf("girdle %q exits %d, want %d", tc.args, code, tc.want)
+			t.Errorf("doriath %q exits %d, want %d", tc.args, code, tc.want)
 		}
 	}
 }

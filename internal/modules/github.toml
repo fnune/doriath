@@ -11,7 +11,7 @@ allow = ["*.githubusercontent.com"]
 # gh refuses to run without a token. This one only satisfies that check: the
 # proxy replaces the whole Authorization header with the real token.
 [env]
-set = { GH_TOKEN = "girdle-placeholder-token" }
+set = { GH_TOKEN = "doriath-placeholder-token" }
 
 # git over HTTPS. Fetches pass, and each push waits for approval, which you
 # can grant for the session per repository.

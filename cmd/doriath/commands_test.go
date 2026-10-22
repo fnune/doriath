@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/oauth"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func profiles(t *testing.T, args ...string) (string, error) {
@@ -270,7 +270,7 @@ func TestLiveSessionsDropsEndedSessions(t *testing.T) {
 
 func TestDoctorFlagsReadableSecretFile(t *testing.T) {
 	p := testPaths(t)
-	t.Setenv("GIRDLE_BWRAP", filepath.Join(p.Home, "no-bwrap"))
+	t.Setenv("DORIATH_BWRAP", filepath.Join(p.Home, "no-bwrap"))
 	keys := filepath.Join(p.Home, "keys")
 	if err := os.MkdirAll(keys, 0o700); err != nil {
 		t.Fatal(err)
@@ -305,7 +305,7 @@ file = "`+private+`"
 		"ok       secret app/private (file)\n",
 		"ok       profile app\n",
 		"problem  profile broken: ",
-		"note     secrets: run girdle doctor --secrets",
+		"note     secrets: run doriath doctor --secrets",
 		"note     desktop notifications: unavailable",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -316,7 +316,7 @@ file = "`+private+`"
 
 func TestDoctorSaysHowToFixOAuthAndCommandSecrets(t *testing.T) {
 	p := testPaths(t)
-	t.Setenv("GIRDLE_BWRAP", filepath.Join(p.Home, "no-bwrap"))
+	t.Setenv("DORIATH_BWRAP", filepath.Join(p.Home, "no-bwrap"))
 	writeProfile(t, p, "app", `modules = ["base"]
 
 [secrets.linear.oauth]
@@ -328,7 +328,7 @@ command = ["no-such-password-manager", "get", "token"]
 	var out bytes.Buffer
 	cmdDoctor(nil, &out)
 	for _, want := range []string{
-		"problem  secret app/linear (oauth): not signed in: run girdle login --profile app linear\n",
+		"problem  secret app/linear (oauth): not signed in: run doriath login --profile app linear\n",
 		"problem  secret app/token (command no-such-password-manager): ",
 	} {
 		if !strings.Contains(out.String(), want) {

@@ -13,14 +13,14 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 const (
 	busName       = "org.freedesktop.Notifications"
 	objPath       = "/org/freedesktop/Notifications"
 	iface         = "org.freedesktop.Notifications"
-	appName       = "Girdle of Melian"
+	appName       = "Doriath"
 	urgencyHi     = byte(2)
 	urgencyNormal = byte(1)
 )
@@ -68,7 +68,7 @@ func Body(req approval.Request, now time.Time) string {
 		if agent == "" {
 			agent = "the agent"
 		}
-		fmt.Fprintf(&b, "<i>Written by %s, not by girdle.</i>\n", html.EscapeString(agent))
+		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", html.EscapeString(agent))
 	}
 	if req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
@@ -83,7 +83,7 @@ func Body(req approval.Request, now time.Time) string {
 	if !req.Expires.IsZero() {
 		fmt.Fprintf(&b, " Expires in %s.", req.Expires.Sub(now).Round(time.Second))
 	}
-	fmt.Fprintf(&b, " Or run: girdle approvals")
+	fmt.Fprintf(&b, " Or run: doriath approvals")
 	return b.String()
 }
 
@@ -169,7 +169,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	hints := map[string]dbus.Variant{
 		"urgency":       dbus.MakeVariant(Urgency(req)),
 		"resident":      dbus.MakeVariant(true),
-		"desktop-entry": dbus.MakeVariant("girdle"),
+		"desktop-entry": dbus.MakeVariant("doriath"),
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
@@ -206,7 +206,7 @@ func Urgency(req approval.Request) byte {
 // but no decision.
 func (d *Desktop) Inform(title, body string) error {
 	title = "Agent: " + title
-	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("girdle")}
+	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("doriath")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
 		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err
 }
@@ -214,7 +214,7 @@ func (d *Desktop) Inform(title, body string) error {
 func (None) Inform(string, string) error { return nil }
 
 // None is used when desktop notifications are off. Requests still wait in
-// the queue for girdle approvals.
+// the queue for doriath approvals.
 type None struct{}
 
 func (None) Notify(context.Context, approval.Request, func(approval.Decision)) (func(), error) {

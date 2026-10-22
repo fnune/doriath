@@ -34,16 +34,16 @@ type Store interface {
 var ErrUnknown = errors.New("unknown secret")
 
 // Backend is the configuration for one secret: a file, a command, or an
-// OAuth login that girdle refreshes.
+// OAuth login that doriath refreshes.
 type Backend struct {
 	File    string
 	Command []string
 	OAuth   *OAuth
 }
 
-// OAuth is a login you complete once with girdle login. The server either is
-// an MCP server, which tells girdle where to sign in and lets it register,
-// or names an issuer and the client girdle signs in as.
+// OAuth is a login you complete once with doriath login. The server either is
+// an MCP server, which tells doriath where to sign in and lets it register,
+// or names an issuer and the client doriath signs in as.
 type OAuth struct {
 	MCP      string
 	Issuer   string
@@ -66,9 +66,9 @@ func (b Backend) Validate() error {
 		case (o.MCP == "") == (o.Issuer == ""):
 			return errors.New("oauth: set mcp or issuer")
 		case o.Issuer != "" && o.ClientID == "":
-			return errors.New("oauth: an issuer needs the client_id girdle signs in as")
+			return errors.New("oauth: an issuer needs the client_id doriath signs in as")
 		case o.MCP != "" && o.ClientID != "":
-			return errors.New("oauth: an MCP server registers girdle itself; leave out client_id")
+			return errors.New("oauth: an MCP server registers doriath itself; leave out client_id")
 		}
 		for _, u := range []string{o.MCP, o.Issuer} {
 			if u != "" && !strings.HasPrefix(u, "https://") {

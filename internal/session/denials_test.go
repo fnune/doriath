@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/fnune/girdle/internal/proxy"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 type eventList []proxy.Event

@@ -6,7 +6,7 @@ self:
   ...
 }:
 let
-  cfg = config.programs.girdle;
+  cfg = config.programs.doriath;
   toml = pkgs.formats.toml { };
 
   layerType = lib.types.submodule {
@@ -44,7 +44,7 @@ let
       description = lib.mkOption {
         type = lib.types.str;
         default = "";
-        description = "One line that girdle profiles list shows.";
+        description = "One line that doriath profiles list shows.";
       };
       modules = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -104,7 +104,7 @@ let
 
   withoutNull = lib.filterAttrs (_: v: v != null);
 
-  configFile = toml.generate "girdle-config.toml" (
+  configFile = toml.generate "doriath-config.toml" (
     withoutNull {
       approvals = withoutNull { desktop = cfg.approvals.desktop; };
     }
@@ -113,14 +113,14 @@ let
   emptyLists = lib.filterAttrs (_: v: v != [ ] && v != "");
 in
 {
-  options.programs.girdle = {
-    enable = lib.mkEnableOption "Girdle of Melian, a jail for coding agents";
+  options.programs.doriath = {
+    enable = lib.mkEnableOption "Doriath, a jail for coding agents";
 
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      defaultText = lib.literalExpression "girdle.packages.\${system}.default";
-      description = "Which build of girdle to install.";
+      defaultText = lib.literalExpression "doriath.packages.\${system}.default";
+      description = "Which build of doriath to install.";
     };
 
     direnv = lib.mkOption {
@@ -128,8 +128,8 @@ in
       default = config.programs.direnv.enable;
       defaultText = lib.literalExpression "config.programs.direnv.enable";
       description = ''
-        Install girdle's direnv library, so that `use girdle PROFILE` in a
-        project's .envrc starts its agent command in a girdle session.
+        Install doriath's direnv library, so that `use doriath PROFILE` in a
+        project's .envrc starts its agent command in a doriath session.
       '';
     };
 
@@ -138,7 +138,7 @@ in
         type = lib.types.bool;
         default = config.programs.zsh.enable;
         defaultText = lib.literalExpression "config.programs.zsh.enable";
-        description = "Load girdle's zsh completion.";
+        description = "Load doriath's zsh completion.";
       };
     };
 
@@ -167,7 +167,7 @@ in
         profile: p:
         lib.mapAttrsToList (name: s: {
           assertion = (s.file == null) != (s.command == null);
-          message = "programs.girdle.profiles.${profile}.secrets.${name}: set exactly one of file or command.";
+          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file or command.";
         }) p.secrets
       ) cfg.profiles
     );
@@ -180,21 +180,21 @@ in
 
     xdg.configFile =
       lib.optionalAttrs cfg.direnv {
-        "direnv/lib/girdle.sh".source = pkgs.runCommand "girdle-direnv.sh" { } "${lib.getExe cfg.package} direnv > $out";
+        "direnv/lib/doriath.sh".source = pkgs.runCommand "doriath-direnv.sh" { } "${lib.getExe cfg.package} direnv > $out";
       }
       // {
-        "girdle/config.toml".source = configFile;
+        "doriath/config.toml".source = configFile;
       }
       // lib.mapAttrs' (
         name: profile:
-        lib.nameValuePair "girdle/profiles/${name}.toml" {
-          source = toml.generate "girdle-profile-${name}.toml" (emptyLists (profileToml profile));
+        lib.nameValuePair "doriath/profiles/${name}.toml" {
+          source = toml.generate "doriath-profile-${name}.toml" (emptyLists (profileToml profile));
         }
       ) cfg.profiles
       // lib.mapAttrs' (
         name: module:
-        lib.nameValuePair "girdle/modules/${name}.toml" {
-          source = toml.generate "girdle-module-${name}.toml" (emptyLists module);
+        lib.nameValuePair "doriath/modules/${name}.toml" {
+          source = toml.generate "doriath-module-${name}.toml" (emptyLists module);
         }
       ) cfg.modules;
   };

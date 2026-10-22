@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fnune/girdle/internal/audit"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/vcs"
+	"github.com/fnune/doriath/internal/audit"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 // storeRepositories are the main repositories whose store the jail can
@@ -91,7 +91,7 @@ func (s *Session) startRepositories(ctx context.Context) error {
 			return fmt.Errorf("prepare %s: %w", repo, err)
 		}
 		for _, n := range notes {
-			fmt.Fprintf(s.deps.Stderr, "girdle: %s\n", n)
+			fmt.Fprintf(s.deps.Stderr, "doriath: %s\n", n)
 		}
 	}
 	rec := &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
@@ -121,7 +121,7 @@ func (s *Session) watchWorktrees(rec *vcs.Record) {
 	go func() {
 		defer close(done)
 		if err := vcs.Watch(ctx, rec, repairs); err != nil {
-			fmt.Fprintf(s.deps.Stderr, "girdle: agent worktrees are repaired only when the session ends: %v\n", err)
+			fmt.Fprintf(s.deps.Stderr, "doriath: agent worktrees are repaired only when the session ends: %v\n", err)
 		}
 	}()
 	s.unwatch = func() {
@@ -151,12 +151,12 @@ func (s *Session) finishRepositories() {
 		return
 	}
 	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, s.deps.Stderr); err != nil {
-		fmt.Fprintf(s.deps.Stderr, "girdle: %v\n", err)
+		fmt.Fprintf(s.deps.Stderr, "doriath: %v\n", err)
 	}
 }
 
 // FinishRecord runs the end step of a session's repositories and saves the
-// result. girdle run calls it for sessions that ended without one.
+// result. doriath run calls it for sessions that ended without one.
 func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, w io.Writer) error {
 	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, w)
 	if saveErr := rec.Save(recordPath(paths, rec.Session)); err == nil {

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fnune/girdle/internal/secret"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 type Mode string
@@ -30,7 +30,7 @@ type Mount struct {
 	Path     string
 	Mode     Mode
 	Optional bool
-	// Create makes girdle create the directory before the session when it
+	// Create makes doriath create the directory before the session when it
 	// is missing, for writable entries inside the repository, such as an
 	// agent's worktrees.
 	Create bool

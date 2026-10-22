@@ -28,27 +28,27 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/bundle"
-	"github.com/fnune/girdle/internal/ca"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/control"
-	"github.com/fnune/girdle/internal/modules"
-	"github.com/fnune/girdle/internal/notify"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/secret"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/modules"
+	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
+	"github.com/fnune/doriath/internal/session"
 )
 
-var girdleBin string
+var doriathBin string
 
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "girdle-it-")
+	dir, err := os.MkdirTemp("", "doriath-it-")
 	if err != nil {
 		panic(err)
 	}
-	girdleBin = filepath.Join(dir, "girdle")
-	out, err := exec.Command("go", "build", "-o", girdleBin, "github.com/fnune/girdle/cmd/girdle").CombinedOutput()
+	doriathBin = filepath.Join(dir, "doriath")
+	out, err := exec.Command("go", "build", "-o", doriathBin, "github.com/fnune/doriath/cmd/doriath").CombinedOutput()
 	if err != nil {
 		panic(string(out))
 	}
@@ -171,7 +171,7 @@ func newEnv(t *testing.T) *env {
 			Config:  filepath.Join(root, "cfg"),
 			State:   filepath.Join(root, "state"),
 			Cache:   filepath.Join(root, "cache"),
-			Runtime: filepath.Join(root, "run", "girdle"),
+			Runtime: filepath.Join(root, "run", "doriath"),
 		},
 		upstream: up,
 		dialer:   redirect{addr: srv.Listener.Addr().String()},
@@ -263,7 +263,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		Stdout:        &out,
 		Stderr:        &out,
 		Bwrap:         bwrap,
-		Exe:           girdleBin,
+		Exe:           doriathBin,
 		Unshare:       lookPath("unshare"),
 		Nsenter:       lookPath("nsenter"),
 		Podman:        lookPath("podman"),
@@ -345,13 +345,13 @@ test -e "$HOME/.ssh" && echo "FAIL ssh visible"
 test -z "$(ls -A /run/user/$(id -u))" || echo "FAIL runtime dir not empty"
 test -n "$GH_TOKEN" && test "$GH_TOKEN" = leak && echo "FAIL GH_TOKEN leaked"
 grep -q "BEGIN CERTIFICATE" "$NODE_EXTRA_CA_CERTS" || echo "FAIL NODE_EXTRA_CA_CERTS holds no certificate"
-grep -q "trustStore=/run/girdle/truststore.p12" "$HOME/.bazelrc" || echo "FAIL no bazelrc with the trust store"
-test -s /run/girdle/truststore.p12 || echo "FAIL no Java trust store"
+grep -q "trustStore=/run/doriath/truststore.p12" "$HOME/.bazelrc" || echo "FAIL no bazelrc with the trust store"
+test -s /run/doriath/truststore.p12 || echo "FAIL no Java trust store"
 test -n "$SSH_AUTH_SOCK" && echo "FAIL ssh agent leaked"
 test -n "$DBUS_SESSION_BUS_ADDRESS" && echo "FAIL session bus"
-ls /run/girdle/token* 2>/dev/null && echo "FAIL token file"
-grep -r real-token /run/girdle 2>/dev/null && echo "FAIL token in girdle dir"
-echo x > /run/girdle/probe 2>/dev/null && echo "FAIL girdle dir writable"
+ls /run/doriath/token* 2>/dev/null && echo "FAIL token file"
+grep -r real-token /run/doriath 2>/dev/null && echo "FAIL token in doriath dir"
+echo x > /run/doriath/probe 2>/dev/null && echo "FAIL doriath dir writable"
 echo ok > "$PWD/written" || echo "FAIL worktree not writable"
 echo done
 exit 4
@@ -420,7 +420,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 	}
 	var lines []string
 	for _, l := range strings.Split(out, "\n") {
-		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "girdle: ") {
+		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "doriath: ") {
 			lines = append(lines, l)
 		}
 	}
@@ -434,7 +434,7 @@ curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
 
 func TestClaudeHookThroughBroker(t *testing.T) {
 	e := newEnv(t)
-	script := `printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh release create v1","description":"Create release"}}' | /run/girdle-bin/girdle hook claude permission-request --timeout 30s`
+	script := `printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh release create v1","description":"Create release"}}' | /run/doriath-bin/doriath hook claude permission-request --timeout 30s`
 	var req approval.Request
 	code, out := e.run(e.profile(""), script, func() {
 		req = e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"})
@@ -477,8 +477,8 @@ git -c user.name=Agent -c user.email=a@example.org commit -q --allow-empty -m si
 git cat-file commit HEAD | grep -q gpgsig || echo "FAIL unsigned"
 echo "[core]" >> .git/config 2>/dev/null && echo "FAIL git config writable"
 touch .git/hooks/pre-commit 2>/dev/null && echo "FAIL hooks writable"
-printf x > msg; ssh-keygen -Y sign -n file -f /run/girdle/signing.pub msg >/dev/null 2>&1 && echo "FAIL signed outside git namespace"
-ssh-add -L | grep -q girdle || echo "FAIL agent key missing"
+printf x > msg; ssh-keygen -Y sign -n file -f /run/doriath/signing.pub msg >/dev/null 2>&1 && echo "FAIL signed outside git namespace"
+ssh-add -L | grep -q doriath || echo "FAIL agent key missing"
 echo done
 `, nil)
 	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "done") {
@@ -530,8 +530,8 @@ echo done
 
 // TestPodmanThroughProxy pulls a real image, so it needs the network.
 func TestPodmanThroughProxy(t *testing.T) {
-	if os.Getenv("GIRDLE_TEST_NETWORK") == "" {
-		t.Skip("set GIRDLE_TEST_NETWORK=1 to pull a real image through the proxy")
+	if os.Getenv("DORIATH_TEST_NETWORK") == "" {
+		t.Skip("set DORIATH_TEST_NETWORK=1 to pull a real image through the proxy")
 	}
 	if lookPath("podman") == "" || lookPath("unshare") == "" || lookPath("nsenter") == "" {
 		t.Skip("podman, unshare or nsenter missing")
@@ -561,8 +561,8 @@ podman --remote run --rm -v "$PWD:/w" docker.io/library/alpine:latest cat /w/sha
 podman --remote run --rm docker.io/library/alpine:latest wget -qO- https://example.com | grep -q "Example Domain" || echo "FAIL container egress"
 podman --remote run --rm docker.io/library/alpine:latest wget -qO- https://example.org >/dev/null 2>&1 && echo "FAIL container reached a denied host"
 podman --remote run --rm -v "$HOME/.ssh:/s" docker.io/library/alpine:latest ls /s >/dev/null 2>&1 && echo "FAIL ssh mounted"
-podman --remote run --rm --privileged docker.io/library/alpine:latest true 2>&1 | grep -q "girdle:" || echo "FAIL privileged not refused by girdle"
-ls "$XDG_RUNTIME_DIR"/../../../run/girdle 2>/dev/null && echo "FAIL session dir visible"
+podman --remote run --rm --privileged docker.io/library/alpine:latest true 2>&1 | grep -q "doriath:" || echo "FAIL privileged not refused by doriath"
+ls "$XDG_RUNTIME_DIR"/../../../run/doriath 2>/dev/null && echo "FAIL session dir visible"
 echo done
 `, nil)
 	t.Log(out)
@@ -580,14 +580,14 @@ func TestStatusInsideJail(t *testing.T) {
 	code, out := e.run(e.profile(""), `
 curl -s https://example.org/ >/dev/null 2>&1
 curl -s https://example.org/ >/dev/null 2>&1
-/run/girdle-bin/girdle status
-/run/girdle-bin/girdle statusline
-/run/girdle-bin/girdle hook claude session-start </dev/null
+/run/doriath-bin/doriath status
+/run/doriath-bin/doriath statusline
+/run/doriath-bin/doriath hook claude session-start </dev/null
 `, nil)
 	if code != 0 {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "girdle it · 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
+	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "doriath it · 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
@@ -624,7 +624,7 @@ func TestHardening(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
 unshare -U true 2>/dev/null && echo "FAIL user namespace"
-grep -q "girdle.* init" /proc/2/cmdline 2>/dev/null || tr '\0' ' ' < /proc/2/cmdline | grep -q init || echo "FAIL pid 2 is not girdle init"
+grep -q "doriath.* init" /proc/2/cmdline 2>/dev/null || tr '\0' ' ' < /proc/2/cmdline | grep -q init || echo "FAIL pid 2 is not doriath init"
 cat /proc/2/environ >/dev/null 2>&1 && echo "FAIL init's memory and environment are readable"
 bwrap --unshare-all --ro-bind / / true 2>/dev/null && echo "FAIL nested bwrap"
 touch /mnt/x 2>/dev/null && echo "FAIL write outside the writable paths"
@@ -685,7 +685,7 @@ done
 		t.Errorf("the proposal must show how to keep the host: %s", req.Details)
 	}
 	if entries, _ := os.ReadDir(e.paths.Profiles()); len(entries) != 1 || entries[0].Name() != "it.toml" {
-		t.Errorf("girdle must not write profiles: %v", entries)
+		t.Errorf("doriath must not write profiles: %v", entries)
 	}
 }
 
@@ -700,8 +700,8 @@ if os.fork(): os._exit(0)
 os.setsid()
 if os.fork(): os._exit(0)
 s = socket.socket(socket.AF_UNIX)
-s.connect("/run/girdle/proxy.sock")
-s.sendall(b'GIRDLE-PEER {"pid":1,"exe":"/usr/bin/curl"}\nGET https://api.github.com/forged HTTP/1.1\r\nHost: api.github.com\r\nConnection: close\r\n\r\n')
+s.connect("/run/doriath/proxy.sock")
+s.sendall(b'DORIATH-PEER {"pid":1,"exe":"/usr/bin/curl"}\nGET https://api.github.com/forged HTTP/1.1\r\nHost: api.github.com\r\nConnection: close\r\n\r\n')
 print(s.recv(200).decode(errors="replace").splitlines()[0], flush=True)
 `
 	if err := os.WriteFile(filepath.Join(e.work, "forge.py"), []byte(forge), 0o600); err != nil {
@@ -728,7 +728,7 @@ func TestLimitsRunTheSessionInAScope(t *testing.T) {
 	var tasksMax string
 	code, out := e.run(p, `while [ ! -e "$PWD/release" ]; do sleep 0.05; done`, func() {
 		defer func() { _ = os.WriteFile(release, nil, 0o600) }()
-		unit := fmt.Sprintf("girdle-%s-agent-%s.scope", p.Name, e.lastID)
+		unit := fmt.Sprintf("doriath-%s-agent-%s.scope", p.Name, e.lastID)
 		for range 100 {
 			got, _ := exec.Command("systemctl", "--user", "show", "-p", "TasksMax", "--value", unit).Output()
 			if tasksMax = strings.TrimSpace(string(got)); tasksMax == "64" {
@@ -760,7 +760,7 @@ echo done
 			}
 			time.Sleep(25 * time.Millisecond)
 		}
-		cmd := exec.Command(girdleBin, "exec", "--session", e.lastID, "--", "sh", "-c", `
+		cmd := exec.Command(doriathBin, "exec", "--session", e.lastID, "--", "sh", "-c", `
 for i in $(seq 100); do [ -e /tmp/marker ] && break; sleep 0.05; done
 cat /tmp/marker
 grep -q '^CapEff:[[:space:]]*0*$' /proc/self/status || echo "FAIL capabilities kept"
@@ -831,7 +831,7 @@ echo done
 			}
 			time.Sleep(25 * time.Millisecond)
 		}
-		fwd := exec.Command(girdleBin, "forward", "--session", e.lastID, fmt.Sprintf("%d:8765", hostPort))
+		fwd := exec.Command(doriathBin, "forward", "--session", e.lastID, fmt.Sprintf("%d:8765", hostPort))
 		fwd.Env = []string{"HOME=" + e.home, "XDG_RUNTIME_DIR=" + filepath.Dir(e.paths.Runtime), "PATH=" + os.Getenv("PATH")}
 		if err := fwd.Start(); err != nil {
 			t.Error(err)

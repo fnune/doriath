@@ -31,7 +31,7 @@ func TestFallback(t *testing.T) {
 		t.Skip("bundled build")
 	}
 	p, err := Bwrap(t.TempDir(), func(k string) string {
-		if k == "GIRDLE_BWRAP" {
+		if k == "DORIATH_BWRAP" {
 			return "/opt/bwrap"
 		}
 		return ""
@@ -68,7 +68,7 @@ func TestWithoutBwrapSaysHowToGetOne(t *testing.T) {
 	}
 	t.Setenv("PATH", t.TempDir())
 	_, err := Bwrap(t.TempDir(), func(string) string { return "" })
-	if err == nil || !strings.Contains(err.Error(), "build with -tags bundled or set GIRDLE_BWRAP") {
+	if err == nil || !strings.Contains(err.Error(), "build with -tags bundled or set DORIATH_BWRAP") {
 		t.Fatalf("err = %v", err)
 	}
 }

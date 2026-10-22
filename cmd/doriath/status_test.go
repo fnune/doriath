@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func TestDescribeStatus(t *testing.T) {
@@ -27,7 +27,7 @@ func TestDescribeStatus(t *testing.T) {
 		Denied:  []session.Denial{{Host: "pypi.org", Reason: "host not in the profile", Count: 3}},
 	})
 	for _, want := range []string{
-		"This session runs in girdle profile \"kitchen\" (session s1).\n",
+		"This session runs in doriath profile \"kitchen\" (session s1).\n",
 		"Writable paths:\n  - /home/u/app\n",
 		"Read-only paths:\n  - /home/u/notes\n",
 		"Reachable hosts (HTTPS through the proxy):\n  - proxy.golang.org\n",
@@ -54,7 +54,7 @@ func TestDescribeStatus(t *testing.T) {
 func TestStatusline(t *testing.T) {
 	testPaths(t)
 	var out bytes.Buffer
-	if err := cmdStatusline(&out); err != nil || out.String() != "girdle: no session\n" {
+	if err := cmdStatusline(&out); err != nil || out.String() != "doriath: no session\n" {
 		t.Errorf("without a session = %q, %v", out.String(), err)
 	}
 
@@ -62,14 +62,14 @@ func TestStatusline(t *testing.T) {
 	st := session.Status{Profile: "kitchen", Hosts: []string{"a.example", "b.example"}, Intercepted: []session.StatusHost{{Host: "github.com"}}}
 	b.setStatus(st)
 	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "girdle kitchen · 3 hosts\n" {
+	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · 3 hosts\n" {
 		t.Errorf("quiet session = %q, %v", out.String(), err)
 	}
 	st.Pending = 1
 	st.Denied = []session.Denial{{Host: "x"}, {Host: "y"}}
 	b.setStatus(st)
 	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "girdle kitchen · 3 hosts · 1 waiting for you · 2 blocked\n" {
+	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · 3 hosts · 1 waiting for you · 2 blocked\n" {
 		t.Errorf("busy session = %q, %v", out.String(), err)
 	}
 }
@@ -81,7 +81,7 @@ func TestStatusFromHost(t *testing.T) {
 		t.Errorf("without sessions = %v", err)
 	}
 	startSession(t, p, "s1", "kitchen", time.Now().Add(-time.Minute))
-	if err := cmdStatus(nil, &out); err != nil || !strings.Contains(out.String(), `girdle profile "kitchen" (session s1)`) {
+	if err := cmdStatus(nil, &out); err != nil || !strings.Contains(out.String(), `doriath profile "kitchen" (session s1)`) {
 		t.Errorf("one session = %q, %v", out.String(), err)
 	}
 	startSession(t, p, "s2", "garden", time.Now())
@@ -89,7 +89,7 @@ func TestStatusFromHost(t *testing.T) {
 		t.Errorf("two sessions without an id = %v", err)
 	}
 	out.Reset()
-	if err := cmdStatus([]string{"s2"}, &out); err != nil || !strings.Contains(out.String(), `girdle profile "garden" (session s2)`) {
+	if err := cmdStatus([]string{"s2"}, &out); err != nil || !strings.Contains(out.String(), `doriath profile "garden" (session s2)`) {
 		t.Errorf("named session = %q, %v", out.String(), err)
 	}
 }

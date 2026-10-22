@@ -26,7 +26,7 @@ func TestRestorePutsMovedBranchesBackAndKeepsNewOnes(t *testing.T) {
 	if got := rec.Repos[0].Moved; !slices.Equal(got, []string{"refs/heads/main", "refs/heads/topic"}) {
 		t.Fatalf("moved = %v", got)
 	}
-	if !strings.Contains(out, "moved or deleted main, topic in "+r) || !strings.Contains(out, "girdle restore s1") {
+	if !strings.Contains(out, "moved or deleted main, topic in "+r) || !strings.Contains(out, "doriath restore s1") {
 		t.Errorf("the report must name the moved branches and the command: %q", out)
 	}
 
@@ -42,7 +42,7 @@ func TestRestorePutsMovedBranchesBackAndKeepsNewOnes(t *testing.T) {
 			t.Errorf("Restore output does not mention %s: %q", branch, restored.String())
 		}
 	}
-	if git(t, r, "for-each-ref", "refs/girdle") != "" {
+	if git(t, r, "for-each-ref", "refs/doriath") != "" {
 		t.Error("restore must drop the backup refs it used")
 	}
 	if git(t, r, "rev-parse", "agent") == before {
@@ -57,14 +57,14 @@ func TestDropBackupsLeavesTheBranchesAlone(t *testing.T) {
 	git(t, r, "commit", "-q", "--allow-empty", "-m", "the agent's work")
 	moved := git(t, r, "rev-parse", "HEAD")
 	f.finish()
-	if git(t, r, "for-each-ref", "refs/girdle") == "" {
+	if git(t, r, "for-each-ref", "refs/doriath") == "" {
 		t.Fatal("the test needs a backup ref to drop")
 	}
 
 	if err := DropBackups(f.ctx, f.tools, rec); err != nil {
 		t.Fatal(err)
 	}
-	if got := git(t, r, "for-each-ref", "refs/girdle"); got != "" {
+	if got := git(t, r, "for-each-ref", "refs/doriath"); got != "" {
 		t.Errorf("backup refs stay: %s", got)
 	}
 	if got := git(t, r, "rev-parse", "main"); got != moved {

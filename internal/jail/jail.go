@@ -13,14 +13,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/vcs"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
-// Paths inside the jail where girdle puts its own files and sockets.
+// Paths inside the jail where doriath puts its own files and sockets.
 const (
-	Dir       = "/run/girdle"
-	ExePath   = "/run/girdle-bin/girdle"
+	Dir       = "/run/doriath"
+	ExePath   = "/run/doriath-bin/doriath"
 	ProxyPort = 3128
 )
 
@@ -102,10 +102,10 @@ type Options struct {
 	Home    string
 	Cwd     string
 	Command []string
-	// HostEnv is the environment girdle runs in. Only variables the profile
+	// HostEnv is the environment doriath runs in. Only variables the profile
 	// passes reach the jail.
 	HostEnv map[string]string
-	// ExtraEnv is set by girdle itself: proxy, sockets, CA bundle and so on.
+	// ExtraEnv is set by doriath itself: proxy, sockets, CA bundle and so on.
 	ExtraEnv map[string]string
 	// ExtraBinds come from adapters, for example the agent's own state.
 	ExtraBinds []Bind
@@ -116,7 +116,7 @@ type Options struct {
 	SetIDs     bool
 	GID        int
 	// JailDirWritable lets a helper such as the podman service create its
-	// socket in the girdle directory.
+	// socket in the doriath directory.
 	JailDirWritable bool
 }
 
@@ -140,7 +140,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		SeccompFD:  opts.SeccompFD,
 		SetIDs:     opts.SetIDs,
 		GID:        opts.GID,
-		Hostname:   "girdle-" + p.Name,
+		Hostname:   "doriath-" + p.Name,
 		UID:        opts.UID,
 		Home:       opts.Home,
 		Env:        map[string]string{},
@@ -172,7 +172,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 
 	binds, missing, errs := mountBinds(p, layout, host)
 	for _, m := range missing {
-		errs = append(errs, fmt.Errorf("%s is missing: girdle creates it before the session so that the agent cannot", m.Path))
+		errs = append(errs, fmt.Errorf("%s is missing: doriath creates it before the session so that the agent cannot", m.Path))
 	}
 	for _, c := range p.Caches {
 		binds = append(binds, Bind{Source: CacheSource(layout.CacheRoot, c.Path, opts.Home), Dest: c.Path})
@@ -223,7 +223,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	}
 	s.Env["HOME"] = opts.Home
 	s.Env["XDG_RUNTIME_DIR"] = runtime
-	s.Env["GIRDLE_PROFILE"] = p.Name
+	s.Env["DORIATH_PROFILE"] = p.Name
 	for k, v := range opts.ExtraEnv {
 		s.Env[k] = v
 	}
@@ -231,7 +231,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 }
 
 // Placeholder is a control path of git or jj that is missing in a store the
-// jail can write. girdle creates it before the session and the jail binds it
+// jail can write. doriath creates it before the session and the jail binds it
 // read-only, because the agent could otherwise create it, and git or jj on
 // the host would run what it names.
 type Placeholder struct {
@@ -242,7 +242,7 @@ type Placeholder struct {
 	Content string
 }
 
-// Placeholders lists the control paths that girdle creates before the
+// Placeholders lists the control paths that doriath creates before the
 // session.
 func Placeholders(p *profile.Profile, host Host) []Placeholder {
 	_, missing, _ := mountBinds(p, Layout{}, host)
@@ -430,7 +430,7 @@ var (
 	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs"}
 	jjRepoData   = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
 	// JJLockFiles are locks jj takes in .jj/repo itself. jj keeps the files
-	// and only locks them, so girdle creates them before the session.
+	// and only locks them, so doriath creates them before the session.
 	JJLockFiles = []string{"git_import_export.lock"}
 	// worktreeControlFiles, in a worktree's admin directory, decide which
 	// repository and config git uses in that worktree.
@@ -516,7 +516,7 @@ func (g *guards) packs(gitDir string) {
 	}
 }
 
-// CheckLinks refuses paths that girdle creates or binds before the session
+// CheckLinks refuses paths that doriath creates or binds before the session
 // when they lead through a symlink in a directory the jail can write.
 func CheckLinks(p *profile.Profile, host Host, paths ...string) error {
 	binds, _, _ := mountBinds(p, Layout{}, host)

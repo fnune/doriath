@@ -11,9 +11,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/session"
-	"github.com/fnune/girdle/internal/vcs"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 func vcsTools() vcs.Tools { return vcs.Tools{Git: lookPath("git"), JJ: lookPath("jj")} }
@@ -43,27 +43,27 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 }
 
 // finishInterrupted runs the end step of sessions that ended without one,
-// for example because girdle was killed.
+// for example because doriath was killed.
 func finishInterrupted(p config.Paths, w io.Writer) {
 	recs, err := records(p)
 	if err != nil {
-		fmt.Fprintf(w, "girdle: %v\n", err)
+		fmt.Fprintf(w, "doriath: %v\n", err)
 		return
 	}
 	for _, rec := range recs {
 		if rec.Finished {
 			continue
 		}
-		fmt.Fprintf(w, "girdle: session %s ended without checking its repositories; checking them now\n", rec.Session)
+		fmt.Fprintf(w, "doriath: session %s ended without checking its repositories; checking them now\n", rec.Session)
 		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, w); err != nil {
-			fmt.Fprintf(w, "girdle: %v\n", err)
+			fmt.Fprintf(w, "doriath: %v\n", err)
 		}
 	}
 }
 
 func cmdRestore(args []string, w io.Writer) error {
 	if len(args) != 1 {
-		return errors.New("restore: usage: girdle restore SESSION")
+		return errors.New("restore: usage: doriath restore SESSION")
 	}
 	p, err := paths()
 	if err != nil {
@@ -73,7 +73,7 @@ func cmdRestore(args []string, w io.Writer) error {
 	path := filepath.Join(p.Backups(), args[0]+".json")
 	rec, err := vcs.Load(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("restore: no record of session %s, or girdle clean removed it", args[0])
+		return fmt.Errorf("restore: no record of session %s, or doriath clean removed it", args[0])
 	}
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func cmdClean(args []string, in io.Reader, w io.Writer) error {
 		return cleanCaches(args[1], w)
 	}
 	if len(args) != 0 {
-		return errors.New("clean: usage: girdle clean [--caches PROFILE]")
+		return errors.New("clean: usage: doriath clean [--caches PROFILE]")
 	}
 	p, err := paths()
 	if err != nil {

@@ -1,5 +1,5 @@
 {
-  description = "Girdle of Melian: run coding agents in a jail that shows them only what their task needs";
+  description = "Doriath: run coding agents in a jail that shows them only what their task needs";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -25,14 +25,14 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       version = "0.1.0";
 
-      girdleFor =
+      doriathFor =
         pkgs:
         pkgs.buildGoModule {
-          pname = "girdle";
+          pname = "doriath";
           inherit version;
           src = nixpkgs.lib.cleanSource ./.;
           vendorHash = nixpkgs.lib.fileContents ./nix/vendor-hash;
-          subPackages = [ "cmd/girdle" ];
+          subPackages = [ "cmd/doriath" ];
           env.CGO_ENABLED = 0;
           tags = [ "bundled" ];
           ldflags = [
@@ -51,17 +51,17 @@
           checkFlags = [ "-short" ];
           meta = {
             description = "Run coding agents in a jail that shows them only what their task needs";
-            homepage = "https://github.com/fnune/girdle";
+            homepage = "https://github.com/fnune/doriath";
             license = nixpkgs.lib.licenses.mit;
-            mainProgram = "girdle";
+            mainProgram = "doriath";
             platforms = nixpkgs.lib.platforms.linux;
           };
         };
     in
     {
       packages = forAllSystems (pkgs: rec {
-        girdle = girdleFor pkgs;
-        default = girdle;
+        doriath = doriathFor pkgs;
+        default = doriath;
       });
 
       devShells = forAllSystems (pkgs: {
@@ -75,7 +75,7 @@
             pkgs.just
             pkgs.prettier
           ];
-          GIRDLE_STATIC_BWRAP = "${pkgs.pkgsStatic.bubblewrap}/bin/bwrap";
+          DORIATH_STATIC_BWRAP = "${pkgs.pkgsStatic.bubblewrap}/bin/bwrap";
         };
       });
 

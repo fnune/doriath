@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func TestRunningEntry(t *testing.T) {
@@ -67,11 +67,11 @@ func TestForwardChecksItsArgumentsBeforeLookingForASession(t *testing.T) {
 		args []string
 		want string
 	}{
-		{nil, "usage: girdle forward"},
-		{[]string{"3000", "4000"}, "usage: girdle forward"},
+		{nil, "usage: doriath forward"},
+		{[]string{"3000", "4000"}, "usage: doriath forward"},
 		{[]string{"http"}, `port "http": want a number from 1 to 65535`},
 		{[]string{"3000"}, "no running sessions"},
-		{[]string{"--session", "s9", "3000"}, "no running session s9: see girdle sessions"},
+		{[]string{"--session", "s9", "3000"}, "no running session s9: see doriath sessions"},
 	} {
 		if err := cmdForward(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("forward %q = %v, want %q", tc.args, err, tc.want)

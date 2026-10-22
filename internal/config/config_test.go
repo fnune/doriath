@@ -19,10 +19,10 @@ func TestDefaultPaths(t *testing.T) {
 	}
 	want := Paths{
 		Home:    "/home/u",
-		Config:  "/home/u/.config/girdle",
-		State:   "/home/u/.local/state/girdle",
-		Cache:   "/c/girdle",
-		Runtime: "/run/user/1000/girdle",
+		Config:  "/home/u/.config/doriath",
+		State:   "/home/u/.local/state/doriath",
+		Cache:   "/c/doriath",
+		Runtime: "/run/user/1000/doriath",
 	}
 	if p != want {
 		t.Fatalf("got %+v", p)
@@ -30,7 +30,7 @@ func TestDefaultPaths(t *testing.T) {
 	if _, err := DefaultPaths(env(map[string]string{"HOME": "/home/u"})); err == nil {
 		t.Fatal("a missing XDG_RUNTIME_DIR must be an error")
 	}
-	p, err = DefaultPaths(env(map[string]string{"HOME": "/home/u", "XDG_RUNTIME_DIR": "/r", "GIRDLE_CONFIG_DIR": "/nix/store/x"}))
+	p, err = DefaultPaths(env(map[string]string{"HOME": "/home/u", "XDG_RUNTIME_DIR": "/r", "DORIATH_CONFIG_DIR": "/nix/store/x"}))
 	if err != nil || p.Config != "/nix/store/x" {
 		t.Fatalf("override: %+v, %v", p, err)
 	}
@@ -67,7 +67,7 @@ func TestDefaultPathsRejectsRelativeDirectories(t *testing.T) {
 	for name, vars := range map[string]map[string]string{
 		"no home":              {"XDG_RUNTIME_DIR": "/r"},
 		"relative home":        {"HOME": "home/u", "XDG_RUNTIME_DIR": "/r"},
-		"relative config dir":  {"HOME": "/home/u", "XDG_RUNTIME_DIR": "/r", "GIRDLE_CONFIG_DIR": "conf"},
+		"relative config dir":  {"HOME": "/home/u", "XDG_RUNTIME_DIR": "/r", "DORIATH_CONFIG_DIR": "conf"},
 		"relative runtime dir": {"HOME": "/home/u", "XDG_RUNTIME_DIR": "r"},
 	} {
 		if _, err := DefaultPaths(env(vars)); err == nil {
@@ -75,7 +75,7 @@ func TestDefaultPathsRejectsRelativeDirectories(t *testing.T) {
 		}
 	}
 	p, err := DefaultPaths(env(map[string]string{"HOME": "/home/u", "XDG_RUNTIME_DIR": "/r", "XDG_CONFIG_HOME": "rel"}))
-	if err != nil || p.Config != "/home/u/.config/girdle" {
+	if err != nil || p.Config != "/home/u/.config/doriath" {
 		t.Fatalf("a relative XDG_CONFIG_HOME falls back to the default: %+v, %v", p, err)
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Identity is the program that opened a proxy connection, as far as girdle
+// Identity is the program that opened a proxy connection, as far as doriath
 // can tell. Exe is empty when it is unknown.
 type Identity struct {
 	PID int
@@ -32,7 +32,7 @@ func IdentityFrom(ctx context.Context) Identity {
 
 // PeerResolver answers questions about processes on the host.
 type PeerResolver interface {
-	// TrustsHeader reports whether pid is girdle's own init inside the jail,
+	// TrustsHeader reports whether pid is doriath's own init inside the jail,
 	// which forwards connections for other programs and names them in a
 	// header.
 	TrustsHeader(pid int) bool
@@ -41,14 +41,14 @@ type PeerResolver interface {
 
 // IdentifyingListener learns who is on the other end of each unix
 // connection. The kernel names the connecting process. When that process is
-// girdle's init, which bridges connections from inside the jail, a header
+// doriath's init, which bridges connections from inside the jail, a header
 // it sends names the real caller; a header from anyone else is not read.
 type IdentifyingListener struct {
 	net.Listener
 	Peers PeerResolver
 }
 
-const headerPrefix = "GIRDLE-PEER "
+const headerPrefix = "DORIATH-PEER "
 
 func (l *IdentifyingListener) Accept() (net.Conn, error) {
 	conn, err := l.Listener.Accept()

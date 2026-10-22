@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fnune/girdle/internal/approval"
+	"github.com/fnune/doriath/internal/approval"
 )
 
 func TestSummary(t *testing.T) {
@@ -18,7 +18,7 @@ func TestSummary(t *testing.T) {
 		{Decision: approval.Decision{Verdict: approval.VerdictDeny}},
 	}
 	got := Summary("k", "s1", denied, history)
-	for _, want := range []string{"blocked a (5), b (2), c (1), 1 more", "requests 1 allowed, 2 denied", "girdle log --session s1"} {
+	for _, want := range []string{"blocked a (5), b (2), c (1), 1 more", "requests 1 allowed, 2 denied", "doriath log --session s1"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}

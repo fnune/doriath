@@ -4,7 +4,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/fnune/girdle/internal/proxy"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 type egressLog struct {

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/fnune/girdle/internal/jail"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/jail"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func cmdExec(args []string) (int, error) {
@@ -37,7 +37,7 @@ func cmdExec(args []string) (int, error) {
 	defer filter.Close()
 	nsenter, err := exec.LookPath("nsenter")
 	if err != nil {
-		return 1, fmt.Errorf("girdle exec needs nsenter from util-linux: %w", err)
+		return 1, fmt.Errorf("doriath exec needs nsenter from util-linux: %w", err)
 	}
 	if err := entry.CheckHelper(nsenter); err != nil {
 		return 1, err
@@ -87,7 +87,7 @@ func runningEntry(id string) (string, session.Entry, error) {
 	}
 	data, err := os.ReadFile(filepath.Join(dir, session.EntryFile))
 	if err != nil {
-		return "", session.Entry{}, fmt.Errorf("the session is still starting, or was started by an older girdle: %w", err)
+		return "", session.Entry{}, fmt.Errorf("the session is still starting, or was started by an older doriath: %w", err)
 	}
 	var entry session.Entry
 	if err := json.Unmarshal(data, &entry); err != nil {
@@ -106,7 +106,7 @@ func pickSession(sessions []liveSession, id, root string) (string, error) {
 				return filepath.Join(root, id), nil
 			}
 		}
-		return "", fmt.Errorf("no running session %s: see girdle sessions", id)
+		return "", fmt.Errorf("no running session %s: see doriath sessions", id)
 	}
 	switch len(sessions) {
 	case 0:

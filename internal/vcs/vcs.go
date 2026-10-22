@@ -32,7 +32,7 @@ type Tools struct {
 }
 
 // Record is what a session keeps about the repositories it touched, in
-// <dir>/<session>.json, until girdle clean removes it.
+// <dir>/<session>.json, until doriath clean removes it.
 type Record struct {
 	Session  string    `json:"session"`
 	Profile  string    `json:"profile"`
@@ -61,7 +61,7 @@ type Repo struct {
 
 // BackupRef is where a branch's start value is kept when the agent moved it.
 func BackupRef(session, branch string) string {
-	return "refs/girdle/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
+	return "refs/doriath/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
 }
 
 // Store finds the git store of a repository: its .git directory, the main
@@ -195,7 +195,7 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 					return nil, err
 				}
 			}
-			notes = append(notes, fmt.Sprintf("girdle turned on git's relativeWorktrees extension in %s, as jj does on its first workspace, because the jail cannot write .git/config", repo))
+			notes = append(notes, fmt.Sprintf("doriath turned on git's relativeWorktrees extension in %s, as jj does on its first workspace, because the jail cannot write .git/config", repo))
 		}
 	}
 	for _, name := range jjLocks {
@@ -332,9 +332,9 @@ func submoduleCheckout(store string) string {
 	return store
 }
 
-// Finish runs when the session ends, or on the next start if girdle exited
+// Finish runs when the session ends, or on the next start if doriath exited
 // first. It brings back objects the session deleted, keeps the start value
-// of each branch the agent moved under refs/girdle/<session>/, resets the
+// of each branch the agent moved under refs/doriath/<session>/, resets the
 // repository pointer of the worktrees the agent added, and reports.
 func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Writer) error {
 	var errs []error
@@ -349,7 +349,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			continue
 		}
 		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects")) {
-			fmt.Fprintf(w, "girdle: removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
+			fmt.Fprintf(w, "doriath: removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
 		}
 		now, err := refs(ctx, t, r.GitDir)
 		if err != nil {
@@ -378,7 +378,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			}
 		}
 		for _, bad := range dropForgedLFS(filepath.Join(r.GitDir, "lfs", "objects"), rec.Started) {
-			fmt.Fprintf(w, "girdle: removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
+			fmt.Fprintf(w, "doriath: removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
 		}
 		r.AgentWorktrees = nil
 		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
@@ -406,10 +406,10 @@ func report(w io.Writer, session string, r *Repo) {
 	}
 	moved = append(moved, r.MovedBookmarks...)
 	if len(moved) > 0 {
-		fmt.Fprintf(w, "girdle: the session moved or deleted %s in %s. `girdle restore %s` puts them back.\n", strings.Join(moved, ", "), r.Path, session)
+		fmt.Fprintf(w, "doriath: the session moved or deleted %s in %s. `doriath restore %s` puts them back.\n", strings.Join(moved, ", "), r.Path, session)
 	}
 	if len(r.AgentWorktrees) > 0 {
-		fmt.Fprintf(w, "girdle: the session added worktrees %s in %s. `girdle clean` removes them once merged.\n", strings.Join(r.AgentWorktrees, ", "), r.Path)
+		fmt.Fprintf(w, "doriath: the session added worktrees %s in %s. `doriath clean` removes them once merged.\n", strings.Join(r.AgentWorktrees, ", "), r.Path)
 	}
 }
 
@@ -605,7 +605,7 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		if err := os.Remove(linkToElsewhere); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "girdle: removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
+		fmt.Fprintf(w, "doriath: removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
 		return nil
 	}
 	if live && removing(admin) {
@@ -614,10 +614,10 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 	if fixed, err := resetCommondir(admin); err != nil {
 		return err
 	} else if fixed {
-		fmt.Fprintf(w, "girdle: the agent pointed worktree %s of %s at another repository; girdle pointed it back\n", name, repo)
+		fmt.Fprintf(w, "doriath: the agent pointed worktree %s of %s at another repository; doriath pointed it back\n", name, repo)
 	}
 	if err := os.Remove(filepath.Join(admin, "config.worktree")); err == nil {
-		fmt.Fprintf(w, "girdle: removed the config the agent wrote for worktree %s of %s\n", name, repo)
+		fmt.Fprintf(w, "doriath: removed the config the agent wrote for worktree %s of %s\n", name, repo)
 	}
 	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
 	if err != nil {
@@ -628,7 +628,7 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return slices.ContainsFunc(rec.Writable, func(root string) bool { return within(p, root) })
 	}
 	if real, err := filepath.EvalSymlinks(checkout); err == nil && !writable(real) || !writable(checkout) {
-		fmt.Fprintf(w, "girdle: worktree %s of %s says it is at %s, where the session could not write; girdle left it alone, so check it before you use it\n", name, repo, checkout)
+		fmt.Fprintf(w, "doriath: worktree %s of %s says it is at %s, where the session could not write; doriath left it alone, so check it before you use it\n", name, repo, checkout)
 		return nil
 	}
 	if pointsTo(checkout, admin) {
@@ -639,18 +639,18 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return nil
 	}
 	if info, err := os.Lstat(dotgit); err == nil && !info.Mode().IsRegular() {
-		aside := dotgit + ".girdle-" + rec.Session
+		aside := dotgit + ".doriath-" + rec.Session
 		if err := os.Rename(dotgit, aside); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "girdle: moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
+		fmt.Fprintf(w, "doriath: moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
 	} else if !errors.Is(err, fs.ErrNotExist) && err != nil {
 		return err
 	}
 	if err := os.WriteFile(dotgit, []byte("gitdir: "+admin+"\n"), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "girdle: pointed worktree %s back at %s\n", checkout, repo)
+	fmt.Fprintf(w, "doriath: pointed worktree %s back at %s\n", checkout, repo)
 	return nil
 }
 
@@ -688,7 +688,7 @@ func resetCommondir(admin string) (bool, error) {
 
 // gitEnv keeps the host's git away from what a session could have planted:
 // hooks and the fsmonitor are user config, which the jail cannot write, but
-// girdle's own commands need neither.
+// doriath's own commands need neither.
 var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false'"}
 
 func run(ctx context.Context, name string, args ...string) (string, error) {

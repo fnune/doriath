@@ -1,4 +1,4 @@
-// Command girdle runs coding agents in a jail that shows them only what
+// Command doriath runs coding agents in a jail that shows them only what
 // their profile names. main.go is the composition root: it is the only place
 // that picks concrete implementations.
 package main
@@ -19,50 +19,50 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fnune/girdle/internal/approval"
-	"github.com/fnune/girdle/internal/bundle"
-	"github.com/fnune/girdle/internal/config"
-	"github.com/fnune/girdle/internal/modules"
-	"github.com/fnune/girdle/internal/notify"
-	"github.com/fnune/girdle/internal/oauth"
-	"github.com/fnune/girdle/internal/profile"
-	"github.com/fnune/girdle/internal/promote"
-	"github.com/fnune/girdle/internal/secret"
-	"github.com/fnune/girdle/internal/session"
+	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/modules"
+	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/promote"
+	"github.com/fnune/doriath/internal/secret"
+	"github.com/fnune/doriath/internal/session"
 )
 
 var version = "dev"
 
-const usage = `girdle runs a coding agent in a jail that shows it only what its profile names.
+const usage = `doriath runs a coding agent in a jail that shows it only what its profile names.
 
 Usage:
-  girdle run --profile NAME [--current DIR] [--learn] [--] COMMAND [ARGS...]
-  girdle exec [--session ID] [--] [COMMAND [ARGS...]]
-  girdle forward [--session ID] PORT[:JAIL_PORT]
-  girdle approvals [list]
-  girdle approvals allow ID [--for once|session|DURATION]
-  girdle approvals deny ID [--reason TEXT]
-  girdle approvals watch
-  girdle sessions
-  girdle clean [--caches PROFILE]
-  girdle restore SESSION
-  girdle grant write PATH [--session ID]
-  girdle login --profile NAME [SECRET]
-  girdle direnv
-  girdle status [SESSION]
-  girdle log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  girdle profiles [list | show NAME | edit NAME]
-  girdle doctor [--secrets]
-  girdle completion zsh
-  girdle version
+  doriath run --profile NAME [--current DIR] [--learn] [--] COMMAND [ARGS...]
+  doriath exec [--session ID] [--] [COMMAND [ARGS...]]
+  doriath forward [--session ID] PORT[:JAIL_PORT]
+  doriath approvals [list]
+  doriath approvals allow ID [--for once|session|DURATION]
+  doriath approvals deny ID [--reason TEXT]
+  doriath approvals watch
+  doriath sessions
+  doriath clean [--caches PROFILE]
+  doriath restore SESSION
+  doriath grant write PATH [--session ID]
+  doriath login --profile NAME [SECRET]
+  doriath direnv
+  doriath status [SESSION]
+  doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
+  doriath profiles [list | show NAME | edit NAME]
+  doriath doctor [--secrets]
+  doriath completion zsh
+  doriath version
 
 Inside a jail:
-  girdle request write PATH [--reason TEXT]
-  girdle request wait ID|HOST|PATH
-  girdle init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
-  girdle sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
-  girdle hook claude session-start|permission-request|notification
-  girdle statusline
+  doriath request write PATH [--reason TEXT]
+  doriath request wait ID|HOST|PATH
+  doriath init [--forward PORT=SOCKET]... [--identify PORT]... -- COMMAND [ARGS...]
+  doriath sandbox-exec [--writable PATH]... -- COMMAND [ARGS...]
+  doriath hook claude session-start|permission-request|notification
+  doriath statusline
 `
 
 func main() {
@@ -125,15 +125,15 @@ func run(args []string) int {
 	case "doctor":
 		code = cmdDoctor(args[1:], os.Stdout)
 	case "version", "--version":
-		fmt.Println("girdle", version)
+		fmt.Println("doriath", version)
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:
-		fmt.Fprintf(os.Stderr, "girdle: unknown command %q\n\n%s", args[0], usage)
+		fmt.Fprintf(os.Stderr, "doriath: unknown command %q\n\n%s", args[0], usage)
 		return 2
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "girdle:", err)
+		fmt.Fprintln(os.Stderr, "doriath:", err)
 		if code == 0 {
 			code = 1
 		}
@@ -161,7 +161,7 @@ func cmdRun(args []string) (int, error) {
 	}
 	command := flags.Args()
 	if len(command) == 0 {
-		return 2, errors.New("run: name the command to run, for example: girdle run -- claude")
+		return 2, errors.New("run: name the command to run, for example: doriath run -- claude")
 	}
 	if err := refuseRoot(os.Geteuid()); err != nil {
 		return 1, err
@@ -179,7 +179,7 @@ func cmdRun(args []string) (int, error) {
 		return 2, err
 	}
 	if *name == "" {
-		return 2, errors.New("run: name the profile, for example: girdle run --profile my-app -- claude")
+		return 2, errors.New("run: name the profile, for example: doriath run --profile my-app -- claude")
 	}
 	prof, err := loader(p).Load(*name)
 	if err != nil {
@@ -195,7 +195,7 @@ func cmdRun(args []string) (int, error) {
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		return 1, fmt.Errorf("find girdle's own binary: %w", err)
+		return 1, fmt.Errorf("find doriath's own binary: %w", err)
 	}
 
 	clock := realClock{}
@@ -204,7 +204,7 @@ func cmdRun(args []string) (int, error) {
 	if user.Approvals.Desktop {
 		desktop, err := notify.NewDesktop(time.Now)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "girdle: desktop notifications are off (%v); use girdle approvals\n", err)
+			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use doriath approvals\n", err)
 		} else {
 			defer func() { _ = desktop.Close() }()
 			notifier, informer = desktop, desktop
@@ -297,7 +297,7 @@ func (opener) Open(url string) error {
 
 func refuseRoot(euid int) error {
 	if euid == 0 {
-		return errors.New("run: girdle does not run as root: the files the agent writes and the podman service would belong to root. Run it as your own user")
+		return errors.New("run: doriath does not run as root: the files the agent writes and the podman service would belong to root. Run it as your own user")
 	}
 	return nil
 }

@@ -29,6 +29,6 @@ func TestPlantedLinkIsRefusedInTheNextSession(t *testing.T) {
 		t.Fatalf("the session must refuse the planted link: %v\n%s", err, out)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "worktrees")); !os.IsNotExist(err) {
-		t.Errorf("girdle created a directory through the link: %v", err)
+		t.Errorf("doriath created a directory through the link: %v", err)
 	}
 }
