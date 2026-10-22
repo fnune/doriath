@@ -54,12 +54,14 @@ On a machine with a desktop session, each request shows as a notification with t
 ## The approvals page
 
 ```sh
-doriath approvals web --open
+doriath web open
 ```
 
-The page shows the requests of all running sessions and the answers of the last day. It listens on `127.0.0.1:7341` and loads nothing from the network. The command prints a link with a token, and the browser keeps the token in a cookie for 30 days. Other users and other sites have no token, so they cannot read or answer requests.
+The page shows the requests of all running sessions and the answers of the last day. When nothing waits, it shows the checks of `doriath doctor`, and what the sessions of the last day blocked, with the profile lines to allow it. The page listens on `127.0.0.1:7341` and loads nothing from the network.
 
-To print the link again, run the command again. To run the page as a systemd user service, set `programs.doriath.approvals.web.enable = true` in [home-manager](/guides/home-manager/#the-module).
+`doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests.
+
+The page runs as a systemd user service when you set `programs.doriath.approvals.web.enable = true` in [home-manager](/guides/home-manager/#the-module). Without the service, start the page with `doriath web`.
 
 ## The terminal
 
@@ -85,10 +87,10 @@ Then run the approvals page on the server, and open it through an SSH tunnel fro
 
 ```sh
 ssh -L 7341:127.0.0.1:7341 server
-doriath approvals web
+doriath web open --print
 ```
 
-Open the printed link in your local browser. If you use another local port, such as `-L 8000:127.0.0.1:7341`, put `8000` in the link. Without a tunnel, run `doriath approvals watch` on the server.
+Open the printed link in your local browser within a minute. If you use another local port, such as `-L 8000:127.0.0.1:7341`, put `8000` in the link. Without a tunnel, run `doriath approvals watch` on the server.
 
 <Aside type="note">
   The page answers only to loopback names in the Host header. If a site resolves

@@ -8,13 +8,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
-	osuser "os/user"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,17 +19,12 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/fnune/doriath/internal/notify"
-	"github.com/fnune/doriath/internal/oauth"
-	"github.com/fnune/doriath/internal/seccomp"
-	"github.com/fnune/doriath/internal/secret"
-
 	"github.com/fnune/doriath/internal/agents/claude"
 	"github.com/fnune/doriath/internal/approval"
-	"github.com/fnune/doriath/internal/bundle"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/confine"
 	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/doctor"
 	"github.com/fnune/doriath/internal/jailinit"
 	"github.com/fnune/doriath/internal/landlock"
 	"github.com/fnune/doriath/internal/profile"
@@ -271,8 +263,6 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdin io.Reader, 
 		return decide(ctx, p, id, d)
 	case "watch":
 		return watch(ctx, p, c, stdin, stdout)
-	case "web":
-		return cmdApprovalsWeb(ctx, p, args, c, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }
@@ -479,129 +469,21 @@ func cmdDoctor(args []string, w io.Writer) int {
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	failed := false
-	check := func(name string, err error) {
-		if err != nil {
-			failed = true
-			fmt.Fprintf(w, "problem  %s: %v\n", name, err)
-			return
-		}
-		fmt.Fprintf(w, "ok       %s\n", name)
-	}
-	note := func(name, msg string) { fmt.Fprintf(w, "note     %s: %s\n", name, msg) }
-
 	p, err := paths()
-	check("directories", err)
 	if err != nil {
+		fmt.Fprintf(w, "problem  directories: %v\n", err)
 		return 1
 	}
-	_, err = config.LoadUser(p.UserConfig())
-	check("config "+p.UserConfig(), err)
-	bwrap, err := bundle.Bwrap(p.Bundle(), os.Getenv)
-	if bundle.Bundled() {
-		check("bundled bubblewrap", err)
-	} else {
-		check("bubblewrap from the system (development build)", err)
-	}
-	if err == nil {
-		out, runErr := exec.Command(bwrap, "--unshare-all", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "true").CombinedOutput()
-		if runErr != nil {
-			runErr = fmt.Errorf("%w: %s (are unprivileged user namespaces enabled?)", runErr, strings.TrimSpace(string(out)))
+	fmt.Fprintln(w, "ok       directories")
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}})
+	for _, r := range results {
+		if r.Level == doctor.OK {
+			fmt.Fprintf(w, "ok       %s\n", r.Name)
+			continue
 		}
-		check("unprivileged user namespaces", runErr)
+		fmt.Fprintf(w, "%-8s %s: %s\n", r.Level, r.Name, r.Detail)
 	}
-	_, err = seccomp.HostArch()
-	check("seccomp filter for this architecture", err)
-	if abi, err := landlock.ABI(); err != nil {
-		note("landlock", "not available; writes are limited by the mounts only")
-	} else {
-		check(fmt.Sprintf("landlock (ABI %d)", abi), nil)
-	}
-
-	l := loader(p)
-	names, err := l.Names()
-	check("profiles in "+p.Profiles(), err)
-	podman := false
-	var profiles []*profile.Profile
-	for _, n := range names {
-		prof, err := l.Load(n)
-		check("profile "+n, err)
-		if err == nil {
-			profiles = append(profiles, prof)
-			podman = podman || prof.Podman
-		}
-	}
-	if len(names) == 0 {
-		note("profiles", "none yet; see https://doriath.fnune.com/install/")
-	}
-
-	secrets := 0
-	for _, prof := range profiles {
-		store := secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokens(p.State, prof.Name))
-		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
-			secrets++
-			label := "secret " + prof.Name + "/" + name
-			b := prof.Secrets[name]
-			switch {
-			case *fetch:
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				_, err := store.Get(ctx, name)
-				cancel()
-				check(label, err)
-			case b.OAuth != nil:
-				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
-				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run doriath login --profile %s %s", prof.Name, name)
-				}
-				check(label+" (oauth)", err)
-			case b.File != "":
-				info, err := os.Stat(b.File)
-				if err == nil && info.Mode().Perm()&0o077 != 0 {
-					err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
-				}
-				check(label+" (file)", err)
-			default:
-				_, err := exec.LookPath(b.Command[0])
-				check(label+" (command "+b.Command[0]+")", err)
-			}
-		}
-	}
-	if !*fetch && secrets > 0 {
-		note("secrets", "run doriath doctor --secrets to fetch each one once")
-	}
-
-	if podman {
-		for _, tool := range []string{"unshare", "nsenter", "podman", "newuidmap"} {
-			if lookPath(tool) == "" {
-				check(tool, fmt.Errorf("not found; the podman module needs it"))
-			}
-		}
-		if u, err := osuser.Current(); err == nil {
-			for _, f := range []string{"/etc/subuid", "/etc/subgid"} {
-				data, err := os.ReadFile(f)
-				if err == nil {
-					_, err = session.SubIDs(data, u.Username, os.Getuid())
-				}
-				check("subordinate ids in "+f, err)
-			}
-		}
-	}
-
-	if desktop, err := notify.NewDesktop(time.Now); err != nil {
-		note("desktop notifications", "unavailable; approvals work through doriath approvals only")
-	} else {
-		caps, err := desktop.Capabilities()
-		_ = desktop.Close()
-		switch {
-		case err != nil:
-			note("desktop notifications", err.Error())
-		case !slices.Contains(caps, "actions"):
-			note("desktop notifications", "the notification server shows no buttons; decide with doriath approvals")
-		default:
-			check("desktop notifications with buttons", nil)
-		}
-	}
-	if failed {
+	if doctor.Failed(results) {
 		return 1
 	}
 	return 0

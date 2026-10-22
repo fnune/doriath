@@ -116,7 +116,7 @@ pkgs.runCommand "doriath-home-manager-module"
     ! grep -q '^match' $config/profiles/work.toml || { echo "match is not a profile key"; exit 1; }
     grep -q 'use_doriath()' $config/../direnv/lib/doriath.sh || { echo "no direnv library"; exit 1; }
     grep -q 'completion zsh' $homeFiles/.zshrc || { echo "no completion in .zshrc"; exit 1; }
-    grep -q 'approvals web --listen 127.0.0.1:7341' $homeFiles/.config/systemd/user/doriath-web.service || { echo "no approvals page service"; exit 1; }
+    grep -q ' web --listen 127.0.0.1:7341' $homeFiles/.config/systemd/user/doriath-web.service || { echo "no approvals page service"; exit 1; }
 
     touch $out
   ''

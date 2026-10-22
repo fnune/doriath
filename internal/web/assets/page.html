@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"selfRequestsOnly":true}'>
 <title>Doriath</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/ui/tokens.css">
 <link rel="stylesheet" href="/ui/components.css">
 <link rel="stylesheet" href="/assets/page.css">
@@ -62,15 +63,52 @@
         {{end}}
       </div>
     </section>
-    <section aria-label="Selected request">
-      <h2 class="section-title">Request <span class="sid">{{with .Selected}}{{.ID}}{{end}}</span></h2>
+    <section aria-label="{{if .Selected}}Selected request{{else}}Status{{end}}">
+      {{with .Selected}}<h2 class="section-title">Request <span class="sid">{{.ID}}</span></h2>{{else}}<h2 class="section-title">Status</h2>{{end}}
       <div class="detail" aria-live="polite">
-        {{with .Selected}}{{template "detail" .}}{{else}}<div class="empty">Nothing to answer.</div>{{end}}
+        {{with .Selected}}{{template "detail" .}}{{else}}{{template "status" .Status}}{{end}}
       </div>
     </section>
   </div>
 </main>
 </div>{{end}}
+
+{{define "status"}}
+{{if .FirstRun}}
+<div class="part">
+  <span class="kind">Getting started</span>
+  <ol class="steps">
+    <li>Write a profile with <code>doriath profiles edit NAME</code>. <a href="https://doriath.fnune.com/install/">Install</a> walks through one.</li>
+    <li>Start a session with <code>doriath run --profile NAME -- claude</code>, or with <code>use doriath NAME</code> in an <code>.envrc</code>.</li>
+    <li>Answer the agent's requests here, on the desktop, or with <code>doriath approvals</code>.</li>
+  </ol>
+</div>
+{{end}}
+<div class="part">
+  <div class="part-head">
+    <div>
+      <span class="kind">Checks</span>
+      <p class="status">{{if .Failing}}Some checks fail. Sessions may not start until you fix them.{{else}}{{.Passing}} checks pass.{{end}}{{with .Checked}} Checked {{.}}.{{end}}</p>
+    </div>
+    <form method="post" action="/checks" hx-post="/checks" hx-target="#main" hx-swap="morph:outerHTML"><button class="btn secondary">Check again</button></form>
+  </div>
+  {{with .Checks}}<dl class="facts">{{range .}}<dt class="level {{.Level}}">{{.Level}}</dt><dd><span>{{.Name}}</span>{{with .Detail}}<span class="sid">{{.}}</span>{{end}}</dd>{{end}}</dl>{{end}}
+</div>
+{{with .Ended}}
+<div class="part">
+  <span class="kind">Sessions in the last day</span>
+  {{range .}}
+  <div class="ended">
+    <span class="who">{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span><span class="dot">·</span><span>ended {{.Ago}}</span>{{if .Exit}}<span class="dot">·</span><span>exit {{.Exit}}</span>{{end}}</span>
+    {{range .Blocked}}
+    <p class="blocked">Blocked <code>{{.Host}}</code>{{if gt .Count 1}} {{.Count}} times{{end}}: {{.Reason}}</p>
+    {{with .Keep}}<pre>{{.}}</pre>{{end}}
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}
 
 {{define "profile"}}<span class="profile {{.Hue}}">{{.Profile}}</span>{{end}}
 

@@ -16,6 +16,7 @@ _doriath() {
   commands=(
     'run:run a command in a jail'
     'approvals:list and decide pending requests'
+    'web:serve the approvals page, or open it'
     'sessions:list running sessions'
     'status:show what a session allows'
     'log:show the audit log'
@@ -37,11 +38,15 @@ _doriath() {
       _arguments '--profile[profile to use]:profile:($(doriath __complete profiles))' '*::command:_normal' ;;
     approvals)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list allow deny watch web
+        _values 'subcommand' list allow deny watch
       elif [[ "${words[3]}" == (allow|deny) ]] && (( CURRENT == 4 )); then
         _values 'request' $(doriath __complete approvals)
       elif [[ "${words[3]}" == allow ]]; then
         _arguments '--for[how long the allow lasts]:lasting:(once session 15m 1h)'
+      fi ;;
+    web)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' open
       fi ;;
     profiles)
       if (( CURRENT == 3 )); then

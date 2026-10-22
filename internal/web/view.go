@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/proxy"
 	"github.com/fnune/doriath/internal/session"
 )
 
 const (
 	answeredSince = 24 * time.Hour
 	answeredShown = 20
+	endedShown    = 8
 	soon          = 30 * time.Second
 	profileHues   = 6
 )
@@ -27,6 +29,30 @@ type page struct {
 	Selected    *requestView
 	Answered    []answeredView
 	Problem     string
+	Status      statusView
+}
+
+type statusView struct {
+	FirstRun bool
+	Checks   []Check
+	Passing  int
+	Failing  bool
+	Checked  string
+	Ended    []endedView
+}
+
+type endedView struct {
+	Session sessionView
+	Ago     string
+	Exit    int
+	Blocked []blockedView
+}
+
+type blockedView struct {
+	Host   string
+	Reason string
+	Count  int
+	Keep   string
 }
 
 type sessionView struct {
@@ -99,7 +125,53 @@ func (s *Server) view(ctx context.Context, selected string) (page, error) {
 	for _, a := range answered {
 		p.Answered = append(p.Answered, answeredOf(a, now))
 	}
+	if p.Selected == nil {
+		if p.Status, err = s.status(ctx, now, p.HasSessions); err != nil {
+			return p, err
+		}
+	}
 	return p, nil
+}
+
+func (s *Server) status(ctx context.Context, now time.Time, running bool) (statusView, error) {
+	var v statusView
+	results, at := s.checks.Checks()
+	for _, c := range results {
+		switch c.Level {
+		case "ok":
+			v.Passing++
+		case "problem":
+			v.Failing = true
+			v.Checks = append(v.Checks, c)
+		default:
+			v.Checks = append(v.Checks, c)
+		}
+	}
+	sort.SliceStable(v.Checks, func(i, j int) bool { return v.Checks[i].Level == "problem" && v.Checks[j].Level != "problem" })
+	if !at.IsZero() {
+		v.Checked = ago(now.Sub(at))
+	}
+	ended, err := s.history.Ended(ctx, now.Add(-answeredSince))
+	if err != nil {
+		return v, fmt.Errorf("read the audit log: %w", err)
+	}
+	sort.SliceStable(ended, func(i, j int) bool { return ended[i].Time.After(ended[j].Time) })
+	if len(ended) > endedShown {
+		ended = ended[:endedShown]
+	}
+	for _, e := range ended {
+		ev := endedView{Session: sessionView{ID: e.Session, Profile: e.Profile, Hue: hue(e.Profile)}, Ago: ago(now.Sub(e.Time)), Exit: e.Exit}
+		for _, b := range e.Blocked {
+			bv := blockedView{Host: session.Printable(b.Host), Reason: session.Printable(b.Reason), Count: b.Count}
+			if b.Reason == proxy.ReasonNotInProfile {
+				bv.Keep = fmt.Sprintf("[egress]\nallow = [%q]", b.Host)
+			}
+			ev.Blocked = append(ev.Blocked, bv)
+		}
+		v.Ended = append(v.Ended, ev)
+	}
+	v.FirstRun = !running && len(v.Ended) == 0
+	return v, nil
 }
 
 func pick(pending []requestView, key string) *requestView {

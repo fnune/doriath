@@ -47,6 +47,23 @@ type fakeHistory []Answered
 
 func (f fakeHistory) Answered(context.Context, time.Time) ([]Answered, error) { return f, nil }
 
+func (f fakeHistory) Ended(context.Context, time.Time) ([]Ended, error) { return nil, nil }
+
+type endedHistory []Ended
+
+func (endedHistory) Answered(context.Context, time.Time) ([]Answered, error) { return nil, nil }
+
+func (e endedHistory) Ended(context.Context, time.Time) ([]Ended, error) { return e, nil }
+
+type fakeChecks struct {
+	results   []Check
+	refreshed int
+}
+
+func (f *fakeChecks) Checks() ([]Check, time.Time) { return f.results, testNow.Add(-2 * time.Minute) }
+
+func (f *fakeChecks) Refresh(context.Context) { f.refreshed++ }
+
 func request(id string, kind approval.Kind, summary string) approval.Request {
 	return approval.Request{
 		ID:         id,
@@ -64,7 +81,7 @@ func request(id string, kind approval.Kind, summary string) approval.Request {
 func setup(t *testing.T, reqs ...approval.Request) (*fakeSessions, http.Handler) {
 	t.Helper()
 	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app", Cwd: "/home/me/my-app", Requests: reqs}}}
-	srv, err := New(sessions, fakeHistory{}, fixedClock{}, testToken, testAddr)
+	srv, err := New(sessions, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,14 +117,14 @@ func post(h http.Handler, form url.Values, origin string, htmx bool) *httptest.R
 
 func TestNewServesOnlyOnLoopback(t *testing.T) {
 	for _, addr := range []string{"0.0.0.0:7341", "192.168.1.2:7341", "example.com:7341", "7341"} {
-		if _, err := New(&fakeSessions{}, fakeHistory{}, fixedClock{}, testToken, addr); err == nil {
+		if _, err := New(&fakeSessions{}, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, addr); err == nil {
 			t.Errorf("%s: want an error", addr)
 		}
 	}
-	if _, err := New(&fakeSessions{}, fakeHistory{}, fixedClock{}, "short", testAddr); err == nil {
+	if _, err := New(&fakeSessions{}, fakeHistory{}, &fakeChecks{}, fixedClock{}, "short", testAddr); err == nil {
 		t.Error("a short token must be refused")
 	}
-	if _, err := New(&fakeSessions{}, fakeHistory{}, fixedClock{}, testToken, "[::1]:7341"); err != nil {
+	if _, err := New(&fakeSessions{}, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, "[::1]:7341"); err != nil {
 		t.Errorf("IPv6 loopback: %v", err)
 	}
 }
@@ -281,7 +298,7 @@ func TestAnsweredShowsTheVerdictAndWhoGaveIt(t *testing.T) {
 		{Time: testNow.Add(-6 * time.Minute), Request: request("b1", approval.KindHTTP, "Push to fnune/my-app"), Decision: approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}},
 		{Time: testNow.Add(-time.Hour), Request: request("b2", approval.KindHost, "Allow t.example?"), Decision: approval.Decision{Verdict: approval.VerdictNone}},
 	}
-	srv, err := New(sessions, history, fixedClock{}, testToken, testAddr)
+	srv, err := New(sessions, history, &fakeChecks{}, fixedClock{}, testToken, testAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +317,7 @@ func (failingSessions) Sessions(context.Context) ([]Session, error) {
 }
 
 func TestAFailureShowsOnThePage(t *testing.T) {
-	srv, err := New(&failingSessions{}, fakeHistory{}, fixedClock{}, testToken, testAddr)
+	srv, err := New(&failingSessions{}, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,5 +338,87 @@ func TestVendoredScriptsMatchTheirPins(t *testing.T) {
 		if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != want {
 			t.Errorf("%s changed; update its pin in assets/vendor/README.md and here", path)
 		}
+	}
+}
+
+func TestTheStatusShowsFailingChecksAndWhatSessionsBlocked(t *testing.T) {
+	checks := &fakeChecks{results: []Check{
+		{Name: "bundled bubblewrap", Level: "ok"},
+		{Name: "secret my-app/github (file)", Level: "problem", Detail: "run chmod 600 on it"},
+		{Name: "desktop notifications", Level: "note", Detail: "unavailable"},
+	}}
+	history := endedHistory{{Time: testNow.Add(-10 * time.Minute), Session: "s9", Profile: "my-app", Blocked: []Blocked{{Host: "downloads.example", Reason: "host not in the profile", Count: 3}}}}
+	srv, err := New(&fakeSessions{}, history, checks, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := get(srv.Handler(), "/", true).Body.String()
+	for _, want := range []string{"Some checks fail", "run chmod 600 on it", "Checked 2 min ago", "ended 10 min ago", "downloads.example</code> 3 times", `allow = [&#34;downloads.example&#34;]`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if strings.Contains(body, "bundled bubblewrap") {
+		t.Error("the page lists checks that pass")
+	}
+	if strings.Contains(body, "Getting started") {
+		t.Error("the page shows the first steps after a session ran")
+	}
+}
+
+func TestTheStatusShowsTheFirstStepsBeforeAnySession(t *testing.T) {
+	srv, err := New(&fakeSessions{}, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := get(srv.Handler(), "/", true).Body.String(); !strings.Contains(body, "Getting started") {
+		t.Error("the page lacks the first steps")
+	}
+}
+
+func TestCheckAgainRunsTheChecksOnlyFromThePage(t *testing.T) {
+	checks := &fakeChecks{}
+	srv, err := New(&fakeSessions{}, fakeHistory{}, checks, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+	for origin, want := range map[string]int{"http://evil.example": 0, "http://" + testAddr: 1} {
+		checks.refreshed = 0
+		r := httptest.NewRequest(http.MethodPost, "/checks", nil)
+		r.Host = testAddr
+		r.Header.Set("Origin", origin)
+		r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+		h.ServeHTTP(httptest.NewRecorder(), r)
+		if checks.refreshed != want {
+			t.Errorf("origin %s: refreshed %d times", origin, checks.refreshed)
+		}
+	}
+}
+
+func TestACodeSignsInOnceAndOnlyForTheTokenHolder(t *testing.T) {
+	_, h := setup(t)
+	askCode := func(token string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/code", nil)
+		r.Host = testAddr
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	if w := askCode("wrong"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong token gets a code: status %d", w.Code)
+	}
+	w := askCode(testToken)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	code := w.Body.String()
+	first := get(h, "/?code="+code, false)
+	if first.Code != http.StatusSeeOther || !strings.Contains(first.Header().Get("Set-Cookie"), cookieName+"="+testToken) {
+		t.Fatalf("the code does not sign in: %d %v", first.Code, first.Header())
+	}
+	if again := get(h, "/?code="+code, false); again.Code != http.StatusUnauthorized {
+		t.Fatalf("the code works twice: status %d", again.Code)
 	}
 }

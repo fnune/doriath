@@ -20,3 +20,15 @@ main .wrap { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1f
 .section-title { font-family: var(--font-caps); font-size: 16px; line-height: 24px; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; display: flex; gap: 10px; align-items: baseline; }
 .section-title .sid { letter-spacing: 0; }
 [hidden] { display: none !important; }
+.part { display: flex; flex-direction: column; gap: 10px; }
+.part + .part { border-top: 1px solid var(--line); padding-top: 18px; }
+.part-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.part code { font-family: var(--font-mono); font-size: 12.5px; }
+.part a { color: var(--ring); }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.level { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.level.problem { color: var(--deny); }
+.level.note { color: var(--muted); }
+.ended { display: flex; flex-direction: column; gap: 6px; }
+.ended + .ended { margin-top: 6px; }
+.blocked { margin: 0; font-size: 13.5px; }

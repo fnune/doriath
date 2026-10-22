@@ -44,7 +44,8 @@ Usage:
   doriath approvals allow ID [--for once|session|DURATION]
   doriath approvals deny ID [--reason TEXT]
   doriath approvals watch
-  doriath approvals web [--listen HOST:PORT] [--open]
+  doriath web [--listen HOST:PORT] [--open]
+  doriath web open [--listen HOST:PORT] [--print]
   doriath sessions
   doriath clean [--caches PROFILE]
   doriath restore SESSION
@@ -97,6 +98,8 @@ func run(args []string) int {
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":
 		err = cmdApprovals(ctx, args[1:], realClock{}, os.Stdin, os.Stdout)
+	case "web":
+		err = cmdWeb(ctx, args[1:], realClock{}, os.Stdout)
 	case "sessions":
 		err = cmdSessions(os.Stdout)
 	case "clean":

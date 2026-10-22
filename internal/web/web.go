@@ -1,11 +1,13 @@
-// Package web serves the approvals page on a loopback address. A browser
-// reaches it only with the token from the link the command prints, so other
-// local users and other web pages cannot read or answer requests.
+// Package web serves doriath's page on a loopback address. A browser
+// reaches it only with the token from the link the command prints, or with a
+// one-time code that doriath web open gets with the token, so other local
+// users and other web pages cannot read or answer requests.
 package web
 
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
@@ -14,8 +16,11 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"maps"
 	"net"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -40,8 +45,36 @@ type Sessions interface {
 	Decide(ctx context.Context, session, id string, d approval.Decision) error
 }
 
+type Ended struct {
+	Time    time.Time
+	Session string
+	Profile string
+	Exit    int
+	Blocked []Blocked
+}
+
+type Blocked struct {
+	Host   string
+	Reason string
+	Count  int
+}
+
 type History interface {
 	Answered(ctx context.Context, since time.Time) ([]Answered, error)
+	Ended(ctx context.Context, since time.Time) ([]Ended, error)
+}
+
+type Check struct {
+	Name   string
+	Level  string
+	Detail string
+}
+
+// Checks keeps the results of doriath doctor, which start programs and
+// reach the session bus, so the page does not run them on every refresh.
+type Checks interface {
+	Checks() (results []Check, at time.Time)
+	Refresh(ctx context.Context)
 }
 
 type Clock interface {
@@ -53,6 +86,9 @@ const (
 	cookieMaxAge  = 30 * 24 * time.Hour
 	maxFormBody   = 4 << 10
 	minTokenBytes = 32
+	codeBytes     = 16
+	codeLifetime  = time.Minute
+	maxCodes      = 16
 )
 
 //go:embed assets
@@ -63,12 +99,16 @@ var pages = template.Must(template.ParseFS(assets, "assets/*.html"))
 type Server struct {
 	sessions Sessions
 	history  History
+	checks   Checks
 	clock    Clock
 	token    string
+
+	mu    sync.Mutex
+	codes map[string]time.Time
 }
 
 // New serves the page for addr, the host:port it listens on.
-func New(sessions Sessions, history History, clock Clock, token, addr string) (*Server, error) {
+func New(sessions Sessions, history History, checks Checks, clock Clock, token, addr string) (*Server, error) {
 	if err := Loopback(addr); err != nil {
 		return nil, err
 	}
@@ -78,8 +118,10 @@ func New(sessions Sessions, history History, clock Clock, token, addr string) (*
 	return &Server{
 		sessions: sessions,
 		history:  history,
+		checks:   checks,
 		clock:    clock,
 		token:    token,
+		codes:    map[string]time.Time{},
 	}, nil
 }
 
@@ -113,6 +155,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(static)))
 	mux.Handle("GET /ui/", http.StripPrefix("/ui/", http.FileServerFS(ui.Assets)))
 	mux.HandleFunc("GET /proof", s.proof)
+	mux.HandleFunc("POST /code", s.code)
+	mux.HandleFunc("POST /checks", s.authorized(s.recheck))
 	mux.HandleFunc("GET /main", s.authorized(s.main))
 	mux.HandleFunc("POST /decide", s.authorized(s.decide))
 	return s.guard(mux)
@@ -158,17 +202,20 @@ func (s *Server) signedIn(r *http.Request) bool {
 func (s *Server) authorized(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !s.signedIn(r) {
-			http.Error(w, "doriath: open the link doriath approvals web printed", http.StatusUnauthorized)
+			http.Error(w, notSignedIn, http.StatusUnauthorized)
 			return
 		}
 		next(w, r)
 	}
 }
 
+const notSignedIn = "doriath: run doriath web open to open this page"
+
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
-	if t := r.URL.Query().Get("token"); t != "" {
-		if !s.validToken(t) {
-			http.Error(w, "doriath: this link is not valid; open the one doriath approvals web printed", http.StatusUnauthorized)
+	q := r.URL.Query()
+	if t, c := q.Get("token"), q.Get("code"); t != "" || c != "" {
+		if !s.validToken(t) && !s.useCode(c) {
+			http.Error(w, "doriath: this link is not valid or has expired; run doriath web open for a new one", http.StatusUnauthorized)
 			return
 		}
 		http.SetCookie(w, &http.Cookie{
@@ -183,10 +230,70 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.signedIn(r) {
-		http.Error(w, "doriath: open the link doriath approvals web printed", http.StatusUnauthorized)
+		http.Error(w, notSignedIn, http.StatusUnauthorized)
 		return
 	}
 	s.render(w, r, "page", http.StatusOK, r.URL.Query().Get("request"), "")
+}
+
+func (s *Server) code(w http.ResponseWriter, r *http.Request) {
+	bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || !s.validToken(bearer) {
+		http.Error(w, "doriath: send the page token", http.StatusUnauthorized)
+		return
+	}
+	c, err := s.NewCode()
+	if errors.Is(err, errTooManyCodes) {
+		http.Error(w, "doriath: "+err.Error(), http.StatusTooManyRequests)
+		return
+	}
+	if err != nil {
+		http.Error(w, "doriath: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(c))
+}
+
+var errTooManyCodes = errors.New("too many open links; wait a minute")
+
+// NewCode returns a code for a link that signs a browser in once, within a
+// minute.
+func (s *Server) NewCode() (string, error) {
+	raw := make([]byte, codeBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	c := hex.EncodeToString(raw)
+	now := s.clock.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	maps.DeleteFunc(s.codes, func(_ string, expires time.Time) bool { return !now.Before(expires) })
+	if len(s.codes) >= maxCodes {
+		return "", errTooManyCodes
+	}
+	s.codes[c] = now.Add(codeLifetime)
+	return c, nil
+}
+
+func (s *Server) useCode(c string) bool {
+	if c == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	expires, ok := s.codes[c]
+	delete(s.codes, c)
+	return ok && s.clock.Now().Before(expires)
+}
+
+func (s *Server) recheck(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(r) {
+		http.Error(w, "doriath: checks run only from this page", http.StatusForbidden)
+		return
+	}
+	s.checks.Refresh(r.Context())
+	s.renderAfter(w, r, http.StatusOK, "", "")
 }
 
 func (s *Server) proof(w http.ResponseWriter, r *http.Request) {

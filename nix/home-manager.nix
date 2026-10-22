@@ -149,7 +149,7 @@ in
     };
 
     approvals.web = {
-      enable = lib.mkEnableOption "the approvals page as a systemd user service; `doriath approvals web --open` opens it";
+      enable = lib.mkEnableOption "the approvals page as a systemd user service; `doriath web open` opens it";
       listen = lib.mkOption {
         type = lib.types.str;
         default = "127.0.0.1:7341";
@@ -186,7 +186,7 @@ in
     systemd.user.services.doriath-web = lib.mkIf cfg.approvals.web.enable {
       Unit.Description = "Doriath approvals page";
       Service = {
-        ExecStart = "${lib.getExe cfg.package} approvals web --listen ${cfg.approvals.web.listen}";
+        ExecStart = "${lib.getExe cfg.package} web --listen ${cfg.approvals.web.listen}";
         Restart = "on-failure";
       };
       Install.WantedBy = [ "default.target" ];

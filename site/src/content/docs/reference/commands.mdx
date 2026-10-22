@@ -91,13 +91,21 @@ doriath approvals watch
 
 Asks about each new request in the terminal.
 
-### `doriath approvals web`
+### `doriath web`
 
 ```txt frame="none"
-doriath approvals web [--listen HOST:PORT] [--open]
+doriath web [--listen HOST:PORT] [--open]
 ```
 
 Serves the [approvals page](/guides/approvals/#the-approvals-page).
+
+### `doriath web open`
+
+```txt frame="none"
+doriath web open [--listen HOST:PORT] [--print]
+```
+
+Opens the approvals page with a link that works one time. `--print` prints the link, for a browser on another machine.
 
 ### `doriath grant write`
 

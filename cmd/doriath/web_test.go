@@ -80,9 +80,9 @@ func TestAuditHistoryWithoutALog(t *testing.T) {
 	}
 }
 
-func TestApprovalsWebRefusesAnAddressOthersReach(t *testing.T) {
+func TestWebRefusesAnAddressOthersReach(t *testing.T) {
 	p := testPaths(t)
-	if err := cmdApprovalsWeb(context.Background(), p, []string{"--listen", "0.0.0.0:7341"}, realClock{}, os.Stdout); err == nil || !strings.Contains(err.Error(), "loopback") {
+	if err := serveWeb(context.Background(), p, []string{"--listen", "0.0.0.0:7341"}, realClock{}, os.Stdout); err == nil || !strings.Contains(err.Error(), "loopback") {
 		t.Fatalf("got %v", err)
 	}
 }

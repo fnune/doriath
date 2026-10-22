@@ -25,6 +25,7 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/doctor"
 	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/web"
 )
@@ -35,37 +36,57 @@ const (
 	webShutdownWait = 5 * time.Second
 )
 
-func cmdApprovalsWeb(ctx context.Context, p config.Paths, args []string, c clock, out io.Writer) error {
-	flags := flag.NewFlagSet("approvals web", flag.ContinueOnError)
+func cmdWeb(ctx context.Context, args []string, c clock, out io.Writer) error {
+	p, err := paths()
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 && args[0] == "open" {
+		return cmdWebOpen(ctx, p, args[1:], out)
+	}
+	return serveWeb(ctx, p, args, c, out)
+}
+
+func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out io.Writer) error {
+	flags := flag.NewFlagSet("web", flag.ContinueOnError)
 	listen := flags.String("listen", defaultWebAddr, "the loopback HOST:PORT to serve on")
 	open := flags.Bool("open", false, "open the page in your browser")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if err := web.Loopback(*listen); err != nil {
-		return fmt.Errorf("approvals web: %w", err)
+		return fmt.Errorf("web: %w", err)
 	}
 	token, err := webToken(p.WebToken())
 	if err != nil {
-		return fmt.Errorf("approvals web: %w", err)
+		return fmt.Errorf("web: %w", err)
 	}
 	l, err := net.Listen("tcp", *listen)
 	if errors.Is(err, syscall.EADDRINUSE) {
-		return showProvenPage(ctx, *listen, token, *open, out)
+		fmt.Fprint(out, "The approvals page is already running.\n"+openHint(*listen))
+		if !*open {
+			return nil
+		}
+		return openPage(ctx, *listen, token, false, out)
 	}
 	if err != nil {
-		return fmt.Errorf("approvals web: %w", err)
+		return fmt.Errorf("web: %w", err)
 	}
 	addr := l.Addr().String()
-	srv, err := web.New(liveApprovals{paths: p}, &auditHistory{path: p.AuditLog()}, c, token, addr)
+	checks := &doctorChecks{paths: p}
+	go checks.Refresh(ctx)
+	srv, err := web.New(liveApprovals{paths: p}, &auditHistory{path: p.AuditLog()}, checks, c, token, addr)
 	if err != nil {
 		_ = l.Close()
-		return fmt.Errorf("approvals web: %w", err)
+		return fmt.Errorf("web: %w", err)
 	}
-	link := pageLink(addr, token)
-	fmt.Fprintf(out, "Doriath is at %s\nPress Ctrl+C to stop.\n", link)
+	fmt.Fprint(out, "The approvals page is running.\n"+openHint(addr)+"Press Ctrl+C to stop.\n")
 	if *open {
-		if err := (opener{}).Open(link); err != nil {
+		code, err := srv.NewCode()
+		if err == nil {
+			err = (opener{}).Open(codeLink(addr, code))
+		}
+		if err != nil {
 			fmt.Fprintln(out, "Could not open a browser:", err)
 		}
 	}
@@ -79,41 +100,119 @@ func cmdApprovalsWeb(ctx context.Context, p config.Paths, args []string, c clock
 		_ = hs.Shutdown(shutdown)
 	}()
 	if err := hs.Serve(l); !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("approvals web: %w", err)
+		return fmt.Errorf("web: %w", err)
 	}
 	return nil
 }
 
-func pageLink(addr, token string) string { return "http://" + addr + "/?token=" + token }
-
-func showProvenPage(ctx context.Context, addr, token string, open bool, out io.Writer) error {
-	challenge := make([]byte, 16)
-	if _, err := rand.Read(challenge); err != nil {
+func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Writer) error {
+	flags := flag.NewFlagSet("web open", flag.ContinueOnError)
+	listen := flags.String("listen", defaultWebAddr, "the HOST:PORT the page serves on")
+	print := flags.Bool("print", false, "print a link that works once, in place of opening a browser")
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	token, err := webToken(p.WebToken())
+	if err != nil {
+		return fmt.Errorf("web open: %w", err)
+	}
+	return openPage(ctx, *listen, token, *print || overSSH() || !hasDisplay(), out)
+}
+
+func hasDisplay() bool { return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("DISPLAY") != "" }
+
+func overSSH() bool { return os.Getenv("SSH_CONNECTION") != "" }
+
+func openHint(addr string) string {
+	if !overSSH() {
+		return "Open it with: doriath web open\n"
+	}
+	_, port, _ := net.SplitHostPort(addr)
+	return fmt.Sprintf("You are on this machine over SSH. On your own machine, run:\n  ssh -L %s:127.0.0.1:%s %s\nThen run doriath web open here, and open its link in your own browser.\n", port, port, sshHost())
+}
+
+func sshHost() string {
+	if h, err := os.Hostname(); err == nil {
+		return h
+	}
+	return "HOST"
+}
+
+func codeLink(addr, code string) string { return "http://" + addr + "/?code=" + code }
+
+func openPage(ctx context.Context, addr, token string, print bool, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
+	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with doriath web, or enable approvals.web in home-manager", addr)
+	if !servesPage(ctx, addr, token) {
+		return notRunning
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+addr+"/code", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return notRunning
+	}
+	defer res.Body.Close()
+	code, err := io.ReadAll(io.LimitReader(res.Body, 256))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("web open: %s", strings.TrimSpace(string(code)))
+	}
+	link := codeLink(addr, string(code))
+	if print {
+		fmt.Fprintf(out, "%s\nThe link works once, for a minute.\n", link)
+		return nil
+	}
+	return (opener{}).Open(link)
+}
+
+func servesPage(ctx context.Context, addr, token string) bool {
+	challenge := make([]byte, 16)
+	if _, err := rand.Read(challenge); err != nil {
+		return false
+	}
 	nonce := hex.EncodeToString(challenge)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/proof?challenge="+nonce, nil)
 	if err != nil {
-		return err
+		return false
 	}
-	inUse := fmt.Errorf("approvals web: another program uses %s; choose another address with --listen", addr)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return inUse
+		return false
 	}
 	defer res.Body.Close()
 	proof, err := io.ReadAll(io.LimitReader(res.Body, 256))
-	if err != nil || res.StatusCode != http.StatusOK || subtle.ConstantTimeCompare(proof, []byte(web.Proof(token, nonce))) != 1 {
-		return inUse
+	return err == nil && res.StatusCode == http.StatusOK && subtle.ConstantTimeCompare(proof, []byte(web.Proof(token, nonce))) == 1
+}
+
+type doctorChecks struct {
+	paths   config.Paths
+	mu      sync.Mutex
+	results []web.Check
+	at      time.Time
+}
+
+func (d *doctorChecks) Checks() ([]web.Check, time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return slices.Clone(d.results), d.at
+}
+
+func (d *doctorChecks) Refresh(ctx context.Context) {
+	results := doctor.Run(ctx, doctor.Options{Paths: d.paths, Loader: loader(d.paths)})
+	checks := make([]web.Check, len(results))
+	for i, r := range results {
+		checks[i] = web.Check{Name: r.Name, Level: string(r.Level), Detail: r.Detail}
 	}
-	link := pageLink(addr, token)
-	fmt.Fprintf(out, "Doriath is already running at %s\n", link)
-	if open {
-		return (opener{}).Open(link)
-	}
-	return nil
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.results, d.at = checks, time.Now()
 }
 
 func webToken(path string) (string, error) {
@@ -133,7 +232,7 @@ func webToken(path string) (string, error) {
 	}
 	token := strings.TrimSpace(string(data))
 	if len(token) < 2*webTokenBytes {
-		return "", fmt.Errorf("%s holds a token that is too short; delete the file and run doriath approvals web again", path)
+		return "", fmt.Errorf("%s holds a token that is too short; delete the file and run doriath web again", path)
 	}
 	return token, nil
 }
@@ -196,28 +295,45 @@ type auditHistory struct {
 	mu       sync.Mutex
 	offset   int64
 	answered []web.Answered
+	ended    []web.Ended
 }
 
 func (h *auditHistory) Answered(_ context.Context, since time.Time) ([]web.Answered, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if err := h.read(since); err != nil {
+		return nil, err
+	}
+	return slices.Clone(h.answered), nil
+}
+
+func (h *auditHistory) Ended(_ context.Context, since time.Time) ([]web.Ended, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if err := h.read(since); err != nil {
+		return nil, err
+	}
+	return slices.Clone(h.ended), nil
+}
+
+func (h *auditHistory) read(since time.Time) error {
 	f, err := os.Open(h.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if info.Size() < h.offset {
-		h.offset, h.answered = 0, nil
+		h.offset, h.answered, h.ended = 0, nil, nil
 	}
 	if _, err := f.Seek(h.offset, io.SeekStart); err != nil {
-		return nil, err
+		return err
 	}
 	r := bufio.NewReader(f)
 	for {
@@ -226,20 +342,27 @@ func (h *auditHistory) Answered(_ context.Context, since time.Time) ([]web.Answe
 			break
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		h.offset += int64(len(line))
-		if a, ok := answeredRecord(line); ok {
+		var rec auditRecord
+		if json.Unmarshal(line, &rec) != nil {
+			continue
+		}
+		if a, ok := answeredRecord(rec); ok {
 			h.answered = append(h.answered, a)
+		}
+		if e, ok := endedRecord(rec); ok {
+			h.ended = append(h.ended, e)
 		}
 	}
 	h.answered = slices.DeleteFunc(h.answered, func(a web.Answered) bool { return a.Time.Before(since) })
-	return slices.Clone(h.answered), nil
+	h.ended = slices.DeleteFunc(h.ended, func(e web.Ended) bool { return e.Time.Before(since) })
+	return nil
 }
 
-func answeredRecord(line []byte) (web.Answered, bool) {
-	var rec auditRecord
-	if json.Unmarshal(line, &rec) != nil || rec.Event != "approval-decided" {
+func answeredRecord(rec auditRecord) (web.Answered, bool) {
+	if rec.Event != "approval-decided" {
 		return web.Answered{}, false
 	}
 	var data struct {
@@ -250,4 +373,26 @@ func answeredRecord(line []byte) (web.Answered, bool) {
 		return web.Answered{}, false
 	}
 	return web.Answered{Time: rec.Time, Request: data.Request, Decision: data.Decision}, true
+}
+
+func endedRecord(rec auditRecord) (web.Ended, bool) {
+	if rec.Event != "session-end" {
+		return web.Ended{}, false
+	}
+	var data struct {
+		Exit   int `json:"exit"`
+		Denied []struct {
+			Host   string `json:"host"`
+			Reason string `json:"reason"`
+			Count  int    `json:"count"`
+		} `json:"denied"`
+	}
+	if json.Unmarshal(rec.Data, &data) != nil {
+		return web.Ended{}, false
+	}
+	e := web.Ended{Time: rec.Time, Session: rec.Session, Profile: rec.Profile, Exit: data.Exit}
+	for _, d := range data.Denied {
+		e.Blocked = append(e.Blocked, web.Blocked{Host: d.Host, Reason: d.Reason, Count: d.Count})
+	}
+	return e, true
 }

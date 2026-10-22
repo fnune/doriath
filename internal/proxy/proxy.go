@@ -607,7 +607,7 @@ func identityEncoding(enc string) bool {
 	return enc == "" || enc == "identity"
 }
 
-const reasonNotInProfile = "host not in the profile"
+const ReasonNotInProfile = "host not in the profile"
 
 // admit reports whether the request's program may reach host. For a host
 // the profile does not name, it asks you and waits a while, when it can,
@@ -618,7 +618,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 		return true
 	}
 	reason := s.hostReason(host)
-	if reason == reasonNotInProfile && s.cfg.Holder != nil {
+	if reason == ReasonNotInProfile && s.cfg.Holder != nil {
 		allowed, id := s.cfg.Holder.HoldHost(r.Context(), host, exe)
 		if allowed {
 			return true
@@ -638,7 +638,7 @@ func (s *Server) hostReason(host string) string {
 	if progs := s.policy.ProgramsFor(host); len(progs) > 0 {
 		return "host allowed only for " + strings.Join(progs, ", ")
 	}
-	return reasonNotInProfile
+	return ReasonNotInProfile
 }
 
 func (s *Server) denyHost(w http.ResponseWriter, host string) {
