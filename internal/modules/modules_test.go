@@ -109,28 +109,54 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
-		host, method, path, want, secretScheme string
+		host, method, path, want, secretScheme, body string
 	}{
-		{"gitlab.com", "GET", "/api/v4/projects/group%2Fsub%2Fproj/merge_requests", "allow", "header"},
-		{"gitlab.com", "PUT", "/api/v4/projects/42/merge_requests/7/merge", "approve", "header"},
-		{"gitlab.com", "POST", "/api/v4/projects/42/hooks", "deny", ""},
-		{"gitlab.com", "PUT", "/api/v4/groups/acme/sub/variables/TOKEN", "deny", ""},
-		{"gitlab.com", "POST", "/api/graphql", "approve", "header"},
-		{"gitlab.com", "POST", "/group/sub/proj.git/git-receive-pack", "approve", "basic"},
-		{"gitlab.com", "POST", "/group/sub/proj.git/git-upload-pack", "allow", "basic"},
-		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/merge", "approve", "token"},
-		{"codeberg.org", "PUT", "/api/v1/repos/a/b/actions/secrets/X", "deny", ""},
-		{"codeberg.org", "POST", "/api/v1/repos/a/b/issues/1/comments", "allow", "token"},
-		{"codeberg.org", "POST", "/a/b.git/git-receive-pack", "approve", "basic"},
-		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/merge", "approve", "bearer"},
-		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/hooks", "deny", ""},
-		{"bitbucket.org", "POST", "/ws/repo.git/git-receive-pack", "approve", "basic"},
+		{"gitlab.com", "GET", "/api/v4/projects/group%2Fsub%2Fproj/merge_requests", "allow", "header", ""},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/merge_requests/7/merge", "approve", "header", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/hooks", "deny", "", ""},
+		{"gitlab.com", "PUT", "/api/v4/groups/acme/sub/variables/TOKEN", "deny", "", ""},
+		{"gitlab.com", "POST", "/api/graphql", "approve", "header", ""},
+		{"gitlab.com", "POST", "/group/sub/proj.git/git-receive-pack", "approve", "basic", ""},
+		{"gitlab.com", "POST", "/group/sub/proj.git/git-upload-pack", "allow", "basic", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/merge", "approve", "token", ""},
+		{"codeberg.org", "PUT", "/api/v1/repos/a/b/actions/secrets/X", "deny", "", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/issues/1/comments", "allow", "token", ""},
+		{"codeberg.org", "POST", "/a/b.git/git-receive-pack", "approve", "basic", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/merge", "approve", "bearer", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/hooks", "deny", "", ""},
+		{"bitbucket.org", "POST", "/ws/repo.git/git-receive-pack", "approve", "basic", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/remote_mirrors", "deny", "", ""},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/transfer", "deny", "", ""},
+		{"gitlab.com", "POST", "/api/v4/personal_access_tokens/self/rotate", "deny", "", ""},
+		{"gitlab.com", "POST", "/api/v4/user/keys", "deny", "", ""},
+		{"gitlab.com", "DELETE", "/api/v4/projects/42", "deny", "", ""},
+		{"gitlab.com", "PUT", "/api/v4/projects/42", "approve", "header", ""},
+		{"gitlab.com", "GET", "/api/v4/projects/42/repository/files/README.md", "allow", "header", ""},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/repository/files/README.md", "approve", "header", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/approve", "allow", "header", ""},
+		{"gitlab.com", "POST", "/group/proj.git/info/lfs/objects/batch", "allow", "basic", ""},
+		{"gitlab.com", "PUT", "/group/proj.git/gitlab-lfs/objects/abc/12", "allow", "basic", ""},
+		{"codeberg.org", "GET", "/api/v1/repos/a/b/contents/README.md", "allow", "token", ""},
+		{"codeberg.org", "PUT", "/api/v1/repos/a/b/contents/README.md", "approve", "token", ""},
+		{"codeberg.org", "GET", "/api/v1/repos/a/b/actions/runners/registration-token", "deny", "", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/branch_protections", "deny", "", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/push_mirrors-sync", "deny", "", ""},
+		{"codeberg.org", "PATCH", "/api/v1/repos/a/b/issues/comments/9", "allow", "token", ""},
+		{"codeberg.org", "PUT", "/a/b.git/info/lfs/objects/abc", "allow", "basic", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/branch-restrictions", "deny", "", ""},
+		{"api.bitbucket.org", "PUT", "/2.0/repositories/ws/repo/permissions-config/users/x", "deny", "", ""},
+		{"api.bitbucket.org", "DELETE", "/2.0/repositories/ws/repo", "deny", "", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/decline", "allow", "bearer", ""},
+		{"api.bitbucket.org", "DELETE", "/2.0/repositories/ws/repo/pullrequests/1/approve", "allow", "bearer", ""},
+		{"bitbucket.org", "POST", "/ws/repo.git/info/lfs/objects/batch", "allow", "basic", `{"operation":"download","objects":[]}`},
+		{"bitbucket.org", "POST", "/ws/repo.git/info/lfs/objects/batch", "approve", "basic", `{"operation":"upload","objects":[]}`},
+		{"codeberg.org", "POST", "/a/b.git/info/lfs/objects/batch", "approve", "basic", `{"operation": "upload"}`},
 	} {
 		h, ok := p.Intercepted(c.host)
 		if !ok {
 			t.Fatalf("%s is not inspected", c.host)
 		}
-		rule, matched := h.Decide(c.method, c.path, nil)
+		rule, matched := h.Decide(c.method, c.path, []byte(c.body))
 		if string(rule.Action) != c.want {
 			t.Errorf("%s %s%s: %s, want %s", c.method, c.host, c.path, rule.Action, c.want)
 			continue
@@ -145,6 +171,14 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 		if cred == nil || string(cred.Scheme) != c.secretScheme {
 			t.Errorf("%s %s%s: credential %+v, want the %s scheme", c.method, c.host, c.path, cred, c.secretScheme)
 		}
+	}
+	for _, host := range []string{"gitlab.com", "codeberg.org", "bitbucket.org"} {
+		if h, _ := p.Intercepted(host); !slices.Contains(h.Credential.Binaries, "git-lfs") {
+			t.Errorf("%s: git-lfs gets no token: %v", host, h.Credential.Binaries)
+		}
+	}
+	if bb, _ := p.Intercepted("bitbucket.org"); !slices.Contains(bb.SSH.Hosts, "ssh.bitbucket.org") {
+		t.Errorf("bitbucket.org: the SSH remotes of ssh.bitbucket.org stay on SSH")
 	}
 	gitlab, _ := p.Intercepted("gitlab.com")
 	if !gitlab.EncodedSlashes || gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge") != "/api/v4/projects/42" {

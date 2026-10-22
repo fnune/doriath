@@ -24,9 +24,11 @@ type Jail struct {
 }
 
 type SSHRewrite struct {
-	Host string
-	User string
-	Port int
+	// Host is the HTTPS host, which serves the remotes of SSHHosts too.
+	Host     string
+	SSHHosts []string
+	User     string
+	Port     int
 }
 
 // Config is what a tool reads in the jail: files that the session writes

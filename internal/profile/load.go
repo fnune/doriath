@@ -737,6 +737,12 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		if !namePattern.MatchString(remote.User) || remote.Port < 1 || remote.Port > 65535 {
 			return HTTPHost{}, fmt.Errorf("http %s ssh: want a user such as git and a port from 1 to 65535", h.Host)
 		}
+		for _, name := range ssh.Hosts {
+			if pattern, err := ParseHostPattern(name); err != nil || strings.HasPrefix(string(pattern), "*.") || strings.Contains(name, ":") {
+				return HTTPHost{}, fmt.Errorf("http %s ssh hosts: %q is not a host name", h.Host, name)
+			}
+			remote.Hosts = append(remote.Hosts, name)
+		}
 		out.SSH = &remote
 	}
 	for _, r := range h.Repositories {

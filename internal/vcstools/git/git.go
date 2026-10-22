@@ -146,10 +146,12 @@ func config(desktop []byte, j vcstools.Jail, files map[string]string) []byte {
 	set("credential.helper", "")
 	for _, r := range j.RewriteSSH {
 		https := fmt.Sprintf("url.https://%s/.insteadof", r.Host)
-		set(https, fmt.Sprintf("%s@%s:", r.User, r.Host))
-		set(https, fmt.Sprintf("ssh://%s@%s/", r.User, r.Host))
-		if r.Port != 22 {
-			set(https, fmt.Sprintf("ssh://%s@%s:%d/", r.User, r.Host, r.Port))
+		for _, host := range append([]string{r.Host}, r.SSHHosts...) {
+			set(https, fmt.Sprintf("%s@%s:", r.User, host))
+			set(https, fmt.Sprintf("ssh://%s@%s/", r.User, host))
+			if r.Port != 22 {
+				set(https, fmt.Sprintf("ssh://%s@%s:%d/", r.User, host, r.Port))
+			}
 		}
 	}
 	return renderGit(entries)

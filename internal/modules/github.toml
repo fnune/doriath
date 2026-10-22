@@ -14,12 +14,13 @@ allow = ["*.githubusercontent.com"]
 set = { GH_TOKEN = "doriath-placeholder-token" }
 
 # git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository.
+# can grant for the session per repository. A Git LFS upload waits at the
+# batch request, which names the objects.
 # Some builds, nix's among them, link git-remote-https to git-remote-http, and
 # the kernel names the program by the file it runs.
 [[http]]
 host = "github.com"
-credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git-remote-http", "git"] }
+credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git-remote-http", "git", "git-lfs"] }
 default = "approve"
 ssh = { user = "git" }
 
@@ -36,6 +37,23 @@ action = "allow"
 [[http.rules]]
 method = "POST"
 path = "/**/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/objects/batch"
+body_contains = ['"operation":"upload"', '"operation": "upload"']
+action = "approve"
+summary = "Upload Git LFS objects"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/objects/batch"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/locks/**"
 action = "allow"
 
 [[http.rules]]

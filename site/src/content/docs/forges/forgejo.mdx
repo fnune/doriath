@@ -3,21 +3,25 @@ title: Forgejo, Gitea and Codeberg
 description: Use the forgejo module for Codeberg, or for your own Forgejo or Gitea instance.
 ---
 
-The [`forgejo` module](/reference/modules/#forgejo) gives your token to `git` and to the clients `tea`, `fj` and `berg` on `codeberg.org`. Forgejo and Gitea serve git and the API on one host. For a different instance, copy the module and change the host, as [self-hosted forges](/forges/#self-hosted-forges) describes.
+The [`forgejo` module](/reference/modules/#forgejo) gives your token to `git`, `git-lfs` and the clients `tea`, `fj` and `berg` on `codeberg.org`. Forgejo and Gitea serve git and the API on one host. For a different instance, copy the module and change the host, as [self-hosted forges](/forges/#self-hosted-forges) describes.
 
 ## Token
 
-Create an access token in the settings of your account, with read and write access to repositories and issues. Then add it to the profile:
+Create an access token in the settings of your account. Limit it to the repositories of the profile, and give it the scopes `write:repository` and `write:issue`. `write:repository` covers pull requests, files and releases, and `write:issue` covers issues and comments. Then add it to the profile:
 
 ```toml
 [secrets.forgejo]
 command = ["rbw", "get", "codeberg-my-app"]
 ```
 
+A token for some repositories only cannot have `read:user`. Commands of `fj` that read your account, such as `fj whoami`, then fail.
+
+`tea` and `berg` need a login to start. The module gives them a placeholder in `GITEA_TOKEN` and `BERG_TOKEN`, and the proxy replaces the `Authorization` header with your token on each request.
+
 ## Requests
 
-- Go through: reads, pull requests, reviews, issues and comments.
-- Wait for your answer: merges of pull requests, releases, tags, changes to files through the API, pushes, and the API requests that the module does not name.
-- Refused: changes to webhooks, Actions secrets and variables, collaborators and deploy keys.
+- Go through: reads, pull requests, reviews, issues, and comments with their edits.
+- Wait for your answer: merges of pull requests, releases, tags, changes to files through the API, pushes, Git LFS uploads, and the API requests that the module does not name.
+- Refused: changes to webhooks, Actions secrets, variables and runners, collaborators, teams, deploy keys, branch protections, push mirrors and transfers. The webhooks and Actions settings of organizations and of the user, and the keys and tokens of the user, are refused too.
 
 Branch rules, such as no force push to `main`, belong in the branch protection of the repository.

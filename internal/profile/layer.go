@@ -78,8 +78,9 @@ type httpLayer struct {
 }
 
 type sshLayer struct {
-	User string `toml:"user"`
-	Port int    `toml:"port"`
+	User  string   `toml:"user"`
+	Port  int      `toml:"port"`
+	Hosts []string `toml:"hosts"`
 }
 
 type credentialLayer struct {

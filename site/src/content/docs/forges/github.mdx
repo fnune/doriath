@@ -3,7 +3,7 @@ title: GitHub
 description: Use the github module with a fine-grained token and a signing key for each profile.
 ---
 
-The [`github` module](/reference/modules/#github) gives your token to `git` and `gh` on `github.com`, `api.github.com` and `uploads.github.com`.
+The [`github` module](/reference/modules/#github) gives your token to `git`, `git-lfs` and `gh` on `github.com`, `api.github.com` and `uploads.github.com`.
 
 ## Token
 
@@ -23,7 +23,7 @@ Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub
 ## Requests
 
 - Go through: reads, pull requests, issues, comments and reruns of CI.
-- Wait for your answer: merges, releases, pushes, and the API requests that the module does not name.
+- Wait for your answer: merges, releases, pushes, Git LFS uploads, and the API requests that the module does not name.
 - Refused: changes to webhooks, Actions secrets, collaborators and deploy keys.
 
 Branch rules, such as no force push to `main`, belong in the branch protection rules or rulesets of the repository.

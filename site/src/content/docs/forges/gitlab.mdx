@@ -3,16 +3,20 @@ title: GitLab
 description: Use the gitlab module with a project access token for each profile.
 ---
 
-The [`gitlab` module](/reference/modules/#gitlab) gives your token to `git` and `glab` on `gitlab.com`. `git` sends it with basic auth, and `glab` in the `PRIVATE-TOKEN` header.
+The [`gitlab` module](/reference/modules/#gitlab) gives your token to `git`, `git-lfs` and `glab` on `gitlab.com`. `git` sends it with basic auth, and `glab` in the `PRIVATE-TOKEN` header.
 
 ## Token
 
-Create a project access token or a group access token for the projects of the profile. Give it the Developer role, an expiry, and the scopes `api`, `read_repository` and `write_repository`. Then add it to the profile:
+Create a project access token or a group access token for the projects of the profile. Give it the Developer role, an expiry, and the scopes `api` and `write_repository`. The `api` scope does not cover git over HTTPS, and `write_repository` covers fetches as well as pushes. Then add it to the profile:
 
 ```toml
 [secrets.gitlab]
 command = ["rbw", "get", "gitlab-my-app"]
 ```
+
+On gitlab.com, project and group access tokens need the Premium or Ultimate tier. On the Free tier, a personal access token works, but it reaches all your projects. The module refuses requests that rotate or create tokens and keys, so the agent cannot get a token of its own.
+
+The default branch of a project is fully protected. A token with the Developer role cannot push to it, and cannot merge into it. To let the agent merge after your approval, allow Developers to merge in the protected branch settings, or give the token the Maintainer role.
 
 `glab` needs a token to start. The module gives it a placeholder in `GITLAB_TOKEN`, and the proxy replaces the `PRIVATE-TOKEN` header with your token on each request.
 
@@ -22,9 +26,9 @@ GitLab verifies commits that are signed with an SSH key of the usage type Signin
 
 ## Requests
 
-- Go through: reads, merge requests, issues, notes, and retries or cancels of pipelines and jobs.
-- Wait for your answer: merges of merge requests, releases, tags, commits through the API, pushes, and the API requests that the module does not name, GraphQL included.
-- Refused: changes to webhooks, CI variables, members, deploy keys, deploy tokens, access tokens and protected branches.
+- Go through: reads, merge requests and their approvals, issues, notes, and retries or cancels of pipelines and jobs. Job artifacts download from `cdn.artifacts.gitlab-static.net`.
+- Wait for your answer: merges of merge requests, releases, tags, commits and file changes through the API, changes to project settings, pushes, Git LFS uploads, and the API requests that the module does not name, GraphQL included.
+- Refused: changes to webhooks, integrations, CI variables, triggers and runners, members, invitations and shares, deploy keys, deploy tokens, access tokens, protected branches and tags, push rules, remote mirrors, transfers and the deletion of the project. Personal access tokens, SSH keys and GPG keys of the user are refused too.
 
 Branch rules, such as no force push to `main`, belong in the protected branches of the project.
 

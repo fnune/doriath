@@ -21,7 +21,11 @@ doriath holds each push for your approval. Set branch rules, such as no force pu
 
 ## git over SSH
 
-The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes. Thus git goes through the proxy. Your git configuration outside the jail does not change.
+The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes. Thus git goes through the proxy. Your git configuration outside the jail does not change. If the forge serves SSH on another host, such as `ssh.bitbucket.org`, the module names it under `ssh.hosts`.
+
+## Git LFS
+
+Each forge module gives the token to `git-lfs` too. Downloads go through. An upload waits for your answer at the batch request, where `git-lfs` names the objects that it sends. The push of the commits that name these objects waits as well.
 
 ## Self-hosted forges
 

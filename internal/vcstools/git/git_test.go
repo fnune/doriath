@@ -128,3 +128,27 @@ func TestTheJailGetsTheFilesYourGlobalConfigNames(t *testing.T) {
 		t.Errorf("core.excludesfile = %q, %v", out, err)
 	}
 }
+
+func TestGitSendsTheForgesOtherSSHHostToItsHTTPSHost(t *testing.T) {
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not installed")
+	}
+	path := filepath.Join(t.TempDir(), "gitconfig")
+	data := config(nil, vcstools.Jail{RewriteSSH: []vcstools.SSHRewrite{{Host: "bitbucket.org", SSHHosts: []string{"ssh.bitbucket.org"}, User: "git", Port: 22}}}, nil)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for remote, want := range map[string]string{
+		"git@ssh.bitbucket.org:ws/repo.git":       "https://bitbucket.org/ws/repo.git",
+		"ssh://git@ssh.bitbucket.org/ws/repo.git": "https://bitbucket.org/ws/repo.git",
+		"git@bitbucket.org:ws/repo.git":           "https://bitbucket.org/ws/repo.git",
+	} {
+		cmd := exec.Command(gitBin, "ls-remote", "--get-url", remote)
+		cmd.Env = []string{"GIT_CONFIG_GLOBAL=" + path, "GIT_CONFIG_NOSYSTEM=1", "HOME=" + t.TempDir()}
+		out, err := cmd.Output()
+		if err != nil || strings.TrimSpace(string(out)) != want {
+			t.Errorf("%s goes to %q, %v", remote, out, err)
+		}
+	}
+}

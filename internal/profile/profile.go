@@ -256,6 +256,9 @@ type HTTPHost struct {
 type SSHRemote struct {
 	User string
 	Port int
+	// Hosts are the SSH host names of the forge, such as
+	// ssh.bitbucket.org, when they differ from its HTTPS host.
+	Hosts []string
 }
 
 // Repository returns the part of path that names a repository: the prefix

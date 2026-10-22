@@ -154,11 +154,12 @@ header = "x-api-key"
 action = "deny"
 
 # A git host. With ssh, git in the jail sends the SSH remotes of the host,
-# such as git@github.com:owner/repo, over HTTPS through the proxy.
+# such as git@github.com:owner/repo, over HTTPS through the proxy. hosts
+# names other SSH hosts of the forge, such as ssh.bitbucket.org.
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git"] }
-ssh = { user = "git", port = 22 }
+ssh = { user = "git", port = 22, hosts = ["ssh.github.com"] }
 
 # MCP servers that the agent can use. See "MCP servers".
 [[mcp]]

@@ -3,21 +3,23 @@ title: Bitbucket
 description: Use the bitbucket module with a repository access token for each profile.
 ---
 
-The [`bitbucket` module](/reference/modules/#bitbucket) gives your token to `git` on `bitbucket.org`, and to `curl` on `api.bitbucket.org`.
+The [`bitbucket` module](/reference/modules/#bitbucket) gives your token to `git` and `git-lfs` on `bitbucket.org`, and to `curl` on `api.bitbucket.org`. In the jail, git sends remotes on `ssh.bitbucket.org`, the host of the clone links of Bitbucket, over HTTPS to `bitbucket.org`.
 
 ## Token
 
-Create a repository access token or a workspace access token, with write access to repositories and pull requests. Then add it to the profile:
+Create a repository access token or a workspace access token, with the permissions Repositories: Write (`repository:write`) and Pull requests: Write (`pullrequest:write`). A push needs `repository:write`. The pull request permission covers creating, commenting, approving, declining and merging. Workspace access tokens need the Premium plan. Then add it to the profile:
 
 ```toml
 [secrets.bitbucket]
 command = ["rbw", "get", "bitbucket-my-app"]
 ```
 
+Bitbucket removed app passwords. A personal API token also works, but it reaches all the repositories that you can reach.
+
 ## Requests
 
-- Go through: reads, pull requests, and comments on and approvals of pull requests.
-- Wait for your answer: merges of pull requests, pushes, and the API requests that the module does not name.
-- Refused: changes to webhooks, Pipelines variables and deploy keys.
+- Go through: reads, pull requests, comments and their edits, approvals, requests for changes, and declines.
+- Wait for your answer: merges of pull requests, changes to repository settings, pushes, Git LFS uploads, and the API requests that the module does not name.
+- Refused: changes to webhooks, Pipelines and deployment variables, deploy keys, branch restrictions and permissions, also on the workspace and its projects, and the deletion of the repository.
 
 Branch rules, such as no force push to `main`, belong in the branch restrictions of the repository.

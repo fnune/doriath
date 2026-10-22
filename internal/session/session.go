@@ -505,7 +505,7 @@ func (s *Session) writeVCSFiles() error {
 	}
 	for _, h := range p.HTTP {
 		if h.SSH != nil {
-			j.RewriteSSH = append(j.RewriteSSH, vcstools.SSHRewrite{Host: string(h.Host), User: h.SSH.User, Port: h.SSH.Port})
+			j.RewriteSSH = append(j.RewriteSSH, vcstools.SSHRewrite{Host: string(h.Host), SSHHosts: h.SSH.Hosts, User: h.SSH.User, Port: h.SSH.Port})
 		}
 	}
 	s.vcsEnv = map[string]string{}

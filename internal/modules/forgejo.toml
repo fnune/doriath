@@ -3,13 +3,19 @@
 # git share one host. Reads and routine work on pull requests and issues go
 # through. Merges, releases, tags, pushes and other writes wait for
 # approval, and changes to webhooks, Actions secrets and variables,
-# collaborators and deploy keys are refused. Say where the token comes from
+# collaborators, deploy keys, branch protections, mirrors and runners are refused. Say where the token comes from
 # under [secrets.forgejo] in the profile. For another instance, copy this
 # module under another name and change the host.
 
+# tea and berg refuse to run without a login. These only satisfy that
+# check: the proxy replaces the Authorization header with the real token.
+# fj needs none.
+[env]
+set = { GITEA_INSTANCE_URL = "https://codeberg.org", GITEA_TOKEN = "doriath-placeholder-token", BERG_TOKEN = "doriath-placeholder-token" }
+
 [[http]]
 host = "codeberg.org"
-credential = { secret = "forgejo", scheme = "basic", username = "token", binaries = ["git-remote-https", "git-remote-http", "git"] }
+credential = { secret = "forgejo", scheme = "basic", username = "token", binaries = ["git-remote-https", "git-remote-http", "git", "git-lfs"] }
 default = "approve"
 repositories = ["/api/v1/repos/*/*"]
 ssh = { user = "git" }
@@ -44,6 +50,71 @@ method = "*"
 path = "/api/v1/repos/*/*/keys/**"
 action = "deny"
 
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/actions/runners/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/branch_protections/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/push_mirrors/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/push_mirrors-sync"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/transfer/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/teams/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/orgs/*/actions/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/orgs/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/user/actions/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/user/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/user/keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/user/gpg_keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/users/*/tokens/**"
+action = "deny"
+
 # Held with a summary that says what the request does.
 
 [[http.rules]]
@@ -68,7 +139,21 @@ summary = "Create a tag"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
-method = "*"
+method = "POST"
+path = "/api/v1/repos/*/*/contents/**"
+action = "approve"
+summary = "Change files through the API"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "PUT"
+path = "/api/v1/repos/*/*/contents/**"
+action = "approve"
+summary = "Change files through the API"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "DELETE"
 path = "/api/v1/repos/*/*/contents/**"
 action = "approve"
 summary = "Change files through the API"
@@ -124,6 +209,12 @@ path = "/api/v1/repos/*/*/issues/*/comments"
 action = "allow"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
+[[http.rules]]
+method = "PATCH"
+path = "/api/v1/repos/*/*/issues/comments/*"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
 # Any other API request waits for approval.
 
 [[http.rules]]
@@ -133,7 +224,14 @@ action = "approve"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 # git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository.
+# can grant for the session per repository. A Git LFS upload waits at the
+# batch request, which names the objects. An object that no pushed commit
+# names publishes nothing, so the upload itself then passes.
+
+[[http.rules]]
+method = "PUT"
+path = "/**/info/lfs/objects/**"
+action = "allow"
 
 [[http.rules]]
 method = "GET"
@@ -148,6 +246,23 @@ action = "allow"
 [[http.rules]]
 method = "POST"
 path = "/**/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/objects/batch"
+body_contains = ['"operation":"upload"', '"operation": "upload"']
+action = "approve"
+summary = "Upload Git LFS objects"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/objects/batch"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/info/lfs/locks/**"
 action = "allow"
 
 [[http.rules]]

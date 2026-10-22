@@ -3,6 +3,7 @@ package profile
 import (
 	iofs "io/fs"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -398,11 +399,13 @@ func TestSSHRemoteDefaultsAndLimits(t *testing.T) {
 		return loader(fstest.MapFS{"p.toml": file(body)}, fstest.MapFS{}).Load("p")
 	}
 	p, err := load("[[http]]\nhost = \"codeberg.org\"\nssh = {}\n")
-	if err != nil || p.HTTP[0].SSH == nil || *p.HTTP[0].SSH != (SSHRemote{User: "git", Port: 22}) {
+	if err != nil || p.HTTP[0].SSH == nil || !reflect.DeepEqual(*p.HTTP[0].SSH, SSHRemote{User: "git", Port: 22}) {
 		t.Fatalf("defaults: %+v, %v", p, err)
 	}
 	for _, body := range []string{
 		"[[http]]\nhost = \"*.example.org\"\nssh = {}\n",
+		"[[http]]\nhost = \"bitbucket.org\"\nssh = { hosts = [\"*.bitbucket.org\"] }\n",
+		"[[http]]\nhost = \"bitbucket.org\"\nssh = { hosts = [\"ssh.bitbucket.org:22\"] }\n",
 		"[[http]]\nhost = \"example.org\"\nssh = { port = 70000 }\n",
 		"[[http]]\nhost = \"example.org\"\nssh = { user = \"git; rm\" }\n",
 	} {
