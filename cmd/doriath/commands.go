@@ -443,16 +443,19 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 	if args[0] == "edit" && len(args) == 2 {
 		return profilesEdit(l, p.Profiles(), args[1], stdin, stdout)
 	}
-	if args[0] == "show" && len(args) == 2 {
+	if args[0] == "show" && (len(args) == 2 || len(args) == 3 && args[2] == "--json") {
 		prof, err := l.Load(args[1])
 		if err != nil {
 			return err
 		}
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(prof)
+		if len(args) == 3 {
+			enc := json.NewEncoder(stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(prof)
+		}
+		return printProfile(stdout, prof)
 	}
-	return errors.New("profiles: usage: doriath profiles [list | show NAME | edit NAME]")
+	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME]")
 }
 
 func cmdDoctor(args []string, w io.Writer) int {
@@ -690,7 +693,9 @@ func cmdSandboxExec(args []string) error {
 }
 
 const profileTemplate = `description = ""
-modules = ["base", "claude"]
+# Add your agent's module, such as claude, and the modules of your tools.
+# doriath modules list shows them all.
+modules = ["base"]
 
 [[mounts]]
 path = "~/Development/my-project"
@@ -722,6 +727,13 @@ func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer
 	case err != nil:
 		return err
 	}
+	return editUntilValid(path, "Profile "+name, func() error {
+		_, err := l.Load(name)
+		return err
+	}, in, w)
+}
+
+func editUntilValid(path, what string, check func() error, in io.Reader, w io.Writer) error {
 	editor := os.Getenv("VISUAL")
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
@@ -736,14 +748,14 @@ func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("editor: %w", err)
 		}
-		_, err := l.Load(name)
+		err := check()
 		if err == nil {
-			fmt.Fprintf(w, "Profile %s is valid.\n", name)
+			fmt.Fprintf(w, "%s is valid.\n", what)
 			return nil
 		}
-		fmt.Fprintf(w, "Profile %s has a problem:\n  %v\nEdit again? [Y/n] ", name, err)
+		fmt.Fprintf(w, "%s has a problem:\n  %v\nEdit again? [Y/n] ", what, err)
 		if !answers.Scan() || strings.HasPrefix(strings.ToLower(strings.TrimSpace(answers.Text())), "n") {
-			return fmt.Errorf("profile %s is not valid", name)
+			return fmt.Errorf("%s is not valid", strings.ToLower(what[:1])+what[1:])
 		}
 	}
 }

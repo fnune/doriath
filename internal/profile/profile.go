@@ -277,6 +277,12 @@ type Profile struct {
 	// in the profile, not in a shared table, so a profile reaches only the
 	// secrets written into it, and reusing one elsewhere is a deliberate copy.
 	Secrets map[string]secret.Backend
+	// Modules lists the modules the profile resolved to, in the order
+	// doriath applied them.
+	Modules []string
+	// Sources names, for each mount, cache, host, HTTP entry, variable,
+	// MCP server, image and secret, the modules or "profile" that set it.
+	Sources map[string][]string
 }
 
 // Intercepted returns the HTTP host entry that covers host, if any.

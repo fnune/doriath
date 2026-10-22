@@ -28,6 +28,7 @@ type layer struct {
 	Limits      *limitsLayer           `toml:"limits"`
 	Claude      *claudeLayer           `toml:"claude"`
 	Secrets     map[string]secretLayer `toml:"secrets"`
+	source      string
 }
 
 type mountLayer struct {

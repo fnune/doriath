@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,16 +57,28 @@ modules = ["base"]
 [egress]
 allow = ["example.com"]
 `)
-	out, err := profiles(t, "show", "kitchen")
+	out, err := profiles(t, "show", "kitchen", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var shown profile.Profile
 	if err := json.Unmarshal([]byte(out), &shown); err != nil {
-		t.Fatalf("show prints JSON: %v\n%s", err, out)
+		t.Fatalf("show --json prints JSON: %v\n%s", err, out)
 	}
 	if shown.Name != "kitchen" || shown.Description != "Kitchen" || len(shown.Egress.Allow) != 1 || shown.Egress.Allow[0] != "example.com" {
 		t.Errorf("show = %+v", shown)
+	}
+	if !slices.Equal(shown.Modules, []string{"base"}) || !slices.Equal(shown.Sources["host example.com"], []string{"profile"}) || !slices.Equal(shown.Sources["mount read ~/.config/jj"], []string{"base"}) {
+		t.Errorf("modules %q, sources %q", shown.Modules, shown.Sources)
+	}
+	text, err := profiles(t, "show", "kitchen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"kitchen: Kitchen", "Modules: base", "Hosts", "example.com", "profile", "~/.config/jj", "base"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("show lacks %q:\n%s", want, text)
+		}
 	}
 	if _, err := profiles(t, "show", "missing"); err == nil {
 		t.Error("show of a missing profile must fail")

@@ -20,6 +20,7 @@ _doriath() {
     'status:show what a session allows'
     'log:show the audit log'
     'profiles:list, show or edit profiles'
+    'modules:list, show or edit modules'
     'clean:remove merged agent worktrees and old branch backups'
     'restore:put back the branches a session moved'
     'grant:make a path writable in a running session'
@@ -47,6 +48,12 @@ _doriath() {
         _values 'subcommand' list show edit
       else
         _values 'profile' $(doriath __complete profiles)
+      fi ;;
+    modules)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' list show edit
+      else
+        _values 'module' $(doriath __complete modules)
       fi ;;
     clean)
       _arguments '--caches[remove the caches of a profile]:profile:($(doriath __complete profiles))' ;;
@@ -83,6 +90,11 @@ func cmdComplete(args []string, w io.Writer) {
 	switch args[0] {
 	case "profiles":
 		names, _ := loader(p).Names()
+		for _, n := range names {
+			fmt.Fprintln(w, n)
+		}
+	case "modules":
+		names, _ := moduleNames(p)
 		for _, n := range names {
 			fmt.Fprintln(w, n)
 		}

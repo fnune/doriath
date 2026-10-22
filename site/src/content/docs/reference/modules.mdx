@@ -7,6 +7,8 @@ import ModuleSource from "../../../components/ModuleSource.astro";
 
 Modules hold the mounts, caches, hosts, environment and request rules of one toolchain or service. A profile lists them in `modules`, and doriath applies them in order before the profile itself. Put a module of your own in `~/.config/doriath/modules/` under a built-in's name to replace it. Under each section is the file doriath ships.
 
+On your machine, `doriath modules list` shows every module and where it comes from, and `doriath modules show NAME` prints one. `doriath modules show NAME --path` prints a path that an editor can open. To change a built-in, `doriath modules edit NAME` copies it to `~/.config/doriath/modules/` and opens your copy, which then replaces the built-in in every profile. `doriath profiles show NAME` names the module behind each mount, host and rule of a profile.
+
 ## base
 
 Almost every profile starts here. `base` mounts your nix profile and jj's config, and passes `PATH` with the terminal and locale variables. Nothing in it grants network access.

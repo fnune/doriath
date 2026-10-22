@@ -52,7 +52,8 @@ Usage:
   doriath direnv
   doriath status [SESSION]
   doriath log [--session ID] [--profile NAME] [--denied] [--since 1h] [--json] [--follow]
-  doriath profiles [list | show NAME | edit NAME]
+  doriath profiles [list | show NAME [--json] | edit NAME]
+  doriath modules [list | show NAME [--path] | edit NAME]
   doriath doctor [--secrets]
   doriath completion zsh
   doriath version
@@ -121,6 +122,8 @@ func run(args []string) int {
 		err = cmdCompletion(args[1:], os.Stdout)
 	case "__complete":
 		cmdComplete(args[1:], os.Stdout)
+	case "modules":
+		err = cmdModulesFromArgs(args[1:], os.Stdin, os.Stdout)
 	case "profiles":
 		err = cmdProfiles(args[1:], os.Stdin, os.Stdout)
 	case "doctor":

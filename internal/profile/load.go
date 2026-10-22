@@ -138,6 +138,7 @@ func (l *Loader) Load(name string) (*Profile, error) {
 		return nil, fmt.Errorf("profile %q: name field says %q", name, top.Name)
 	}
 	top.Name = name
+	top.source = "profile"
 
 	var layers []layer
 	if err := l.collect(top.Modules, &layers, nil, map[string]bool{}); err != nil {
@@ -184,9 +185,17 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 			return err
 		}
 		done[name] = true
+		ly.source = name
 		*out = append(*out, ly)
 	}
 	return nil
+}
+
+// CheckModule reads a module and the modules it builds on, and reports the
+// first one that does not decode.
+func (l *Loader) CheckModule(name string) error {
+	var layers []layer
+	return l.collect([]string{name}, &layers, nil, map[string]bool{})
 }
 
 func (l *Loader) readModule(name string) ([]byte, error) {
@@ -230,13 +239,23 @@ type builder struct {
 	disable  bool
 	status   bool
 	secrets  map[string]secretLayer
+	modules  []string
+	sources  map[string][]string
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
+	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
+}
+
+func (b *builder) from(source, key string) {
+	b.sources[key] = appendNew(b.sources[key], source)
 }
 
 func (b *builder) apply(l layer) {
+	if l.source != "profile" {
+		b.modules = append(b.modules, l.source)
+	}
+	b.record(l)
 	b.mounts = append(b.mounts, l.Mounts...)
 	for _, m := range l.MCP {
 		if i := slices.IndexFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }); i >= 0 {
@@ -341,6 +360,50 @@ func (b *builder) apply(l layer) {
 	}
 }
 
+func (b *builder) record(l layer) {
+	for _, m := range l.Mounts {
+		mode := m.Mode
+		if mode == "" {
+			mode = string(ModeRead)
+		}
+		b.from(l.source, "mount "+mode+" "+m.Path)
+	}
+	for _, c := range l.Caches {
+		b.from(l.source, "cache "+c.Path)
+	}
+	for _, d := range l.Devices {
+		b.from(l.source, "device "+d)
+	}
+	for _, h := range l.Egress.Allow {
+		b.from(l.source, "host "+h)
+	}
+	for _, p := range l.Egress.Programs {
+		for _, h := range p.Allow {
+			b.from(l.source, "host "+h+" for "+strings.Join(p.Binaries, ", "))
+		}
+	}
+	for _, h := range l.HTTP {
+		b.from(l.source, "http "+h.Host)
+	}
+	for _, k := range l.Env.Pass {
+		b.from(l.source, "env pass "+k)
+	}
+	for k := range l.Env.Set {
+		b.from(l.source, "env set "+k)
+	}
+	for _, m := range l.MCP {
+		b.from(l.source, "mcp "+m.Name)
+	}
+	if l.Podman != nil {
+		for _, img := range l.Podman.Images {
+			b.from(l.source, "image "+img)
+		}
+	}
+	for k := range l.Secrets {
+		b.from(l.source, "secret "+k)
+	}
+}
+
 func (b *builder) mergeHTTP(h httpLayer) {
 	i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, h.Host) })
 	if i < 0 {
@@ -399,6 +462,8 @@ func (b *builder) build(top layer) (*Profile, error) {
 		Hardening:       b.harden,
 		Limits:          b.limits,
 		Secrets:         map[string]secret.Backend{},
+		Modules:         b.modules,
+		Sources:         b.sources,
 	}
 	for _, m := range b.mounts {
 		path, placeholder := placeholderPath(m.Path)

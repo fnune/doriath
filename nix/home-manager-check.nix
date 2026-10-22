@@ -99,7 +99,7 @@ pkgs.runCommand "doriath-home-manager-module"
     export HOME=$TMPDIR/home XDG_RUNTIME_DIR=$TMPDIR/run DORIATH_CONFIG_DIR=$config
     mkdir -p $HOME $XDG_RUNTIME_DIR
 
-    doriath profiles show work > profile.json
+    doriath profiles show work --json > profile.json
     expect() {
       jq -e "$@" profile.json > /dev/null || { echo "profile work: expected $*"; cat profile.json; exit 1; }
     }
