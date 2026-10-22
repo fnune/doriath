@@ -129,6 +129,8 @@ J="%[2]s --config user.name=You --config user.email=you@example.org"
 $J -R $R file list | grep -q .idea && echo "FAIL jj tracks what your global ignore covers"
 [ -z "$(git -C $R status --porcelain --ignored=no -- .idea)" ] || echo "FAIL git shows what your global ignore covers"
 echo /tmp/elsewhere > $R/.git/commondir
+for i in $(seq 100); do [ -e $R/.git/commondir ] || break; sleep 0.01; done
+[ -e $R/.git/commondir ] && echo "FAIL the commondir stayed while the session ran"
 $J -R $R describe -m "the agent describes your work" || echo "FAIL describe"
 $J -R $R new -m "the agent's work" || echo "FAIL new"
 $J -R $R bookmark create agent -r @- || echo "FAIL bookmark create"
