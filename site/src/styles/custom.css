@@ -86,16 +86,22 @@ body {
 }
 
 .comparison table {
-  min-width: 110rem;
+  display: table;
+  overflow: visible;
   font-size: var(--sl-text-sm);
+}
+
+.comparison :is(th, td) {
+  white-space: nowrap;
 }
 
 .comparison th:first-child,
 .comparison td:first-child {
   position: sticky;
   left: 0;
+  z-index: 1;
   background: var(--bg);
-  min-width: 12rem;
+  box-shadow: inset -1px 0 var(--line);
 }
 
 .flourish {

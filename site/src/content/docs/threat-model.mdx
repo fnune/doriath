@@ -1,6 +1,6 @@
 ---
 title: Threat model
-description: The agent doriath assumes, the actions it guards, the limits that stay open, and how other sandboxes handle the same threats.
+description: The agent doriath assumes, how it compares with other sandboxes, the actions it guards and the limits that stay open.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
@@ -9,6 +9,47 @@ import Cover from "../../components/Cover.astro";
 ## Assumptions
 
 doriath assumes an agent that acts against your intent, because of a prompt injection or a mistake. The agent runs any program that the jail sees, writes any file that it can write, and tries all that the kernel allows. [Architecture](/architecture/) describes the parts behind each guard.
+
+## Other sandboxes
+
+doriath is not the strictest of these tools. It shares your kernel, and its code is young and not audited. It makes it easy to choose how much each project can reach, with requests that wait for your answer. Each cell gives the default or documented setup of the tool, read in October 2026.
+
+<Cover level="yes" /> Covered, <Cover level="part" /> partly covered or
+optional, <Cover level="no" /> not covered, <Cover level="unknown" /> not
+documented.
+
+<div class="comparison">
+
+| Threat         | doriath                                                          | Claude Code sandbox                               | OpenShell                                                 | Docker Sandboxes                                    | Hosted microVM (E2B, Claude cloud)                             | Plain container                                        | Separate Unix user                                 | nono                                                    |
+| -------------- | ---------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------- |
+| Outside files  | <Cover level="part" /> Home not mounted, system paths open       | <Cover level="part" /> Readable unless denied     | <Cover level="yes" /> Landlock allowlist                  | <Cover level="yes" /> Only the workspace enters     | <Cover level="yes" /> Only the cloned repository               | <Cover level="yes" /> Only bind mounts visible         | <Cover level="part" /> World-readable files open   | <Cover level="yes" /> Allowlist of granted paths        |
+| Credentials    | <Cover level="yes" /> Proxy adds tokens outside                  | <Cover level="part" /> Mask mode, off by default  | <Cover level="yes" /> Proxy resolves placeholders         | <Cover level="yes" /> Host proxy swaps a sentinel   | <Cover level="yes" /> Proxy adds secrets outside               | <Cover level="no" /> Held in the container             | <Cover level="no" /> In the agent's home           | <Cover level="yes" /> Proxy injects, phantom token      |
+| Unknown hosts  | <Cover level="yes" /> Unknown hosts held for approval            | <Cover level="yes" /> Proxy checks host names     | <Cover level="yes" /> Rule names host and binary          | <Cover level="yes" /> Deny by default               | <Cover level="part" /> E2B open, Claude cloud allowlist        | <Cover level="no" /> Reference firewall: IP list       | <Cover level="no" /> nftables owner match possible | <Cover level="part" /> Open until a domain rule         |
+| Local network  | <Cover level="yes" /> Private and metadata refused               | <Cover level="part" /> Private ranges allowed     | <Cover level="yes" /> Private refused unless named        | <Cover level="unknown" /> Not documented            | <Cover level="part" /> Off your network, metadata undocumented | <Cover level="no" /> Firewall allows host /24          | <Cover level="no" /> No control                    | <Cover level="part" /> Private ranges allowed           |
+| Exfiltration   | <Cover level="no" /> Rules filter requests, not content          | <Cover level="no" /> No content filter            | <Cover level="part" /> HTTP rules, by default only logged | <Cover level="no" /> No control                     | <Cover level="no" /> No control                                | <Cover level="no" /> No control                        | <Cover level="no" /> No control                    | <Cover level="part" /> HTTP rules on intercepted hosts  |
+| Pushes, merges | <Cover level="yes" /> Held for your approval                     | <Cover level="part" /> Ask rules on command text  | <Cover level="part" /> Approval per rule only             | <Cover level="unknown" /> Not documented            | <Cover level="part" /> Token scope only                        | <Cover level="no" /> No control                        | <Cover level="part" /> Token scope only            | <Cover level="part" /> Optional command approval        |
+| Git hooks      | <Cover level="part" /> Read-only, store repaired at end          | <Cover level="part" /> Hooks denied, project open | <Cover level="yes" /> Files return by download            | <Cover level="part" /> Read-only in clone mode      | <Cover level="yes" /> Agent works on a clone                   | <Cover level="no" /> Writable mount, hooks too         | <Cover level="yes" /> Agent keeps its own clones   | <Cover level="part" /> Snapshots, hook guard unknown    |
+| Kernel escape  | <Cover level="part" /> Shared kernel, seccomp, Landlock          | <Cover level="part" /> Shared kernel, seccomp     | <Cover level="part" /> Shared, opt-in MicroVM             | <Cover level="yes" /> Separate guest kernel         | <Cover level="yes" /> Separate guest kernel                    | <Cover level="no" /> Shared kernel                     | <Cover level="no" /> Shared kernel, no sandbox     | <Cover level="part" /> Shared kernel, seccomp, Landlock |
+| Persistence    | <Cover level="part" /> Caches shared per profile                 | <Cover level="no" /> Host home and caches shared  | <Cover level="part" /> Workspace kept across restarts     | <Cover level="part" /> Kept until removed           | <Cover level="part" /> E2B keeps, Claude cloud reclaims        | <Cover level="no" /> Named volumes, image layers       | <Cover level="no" /> Agent home persists           | <Cover level="no" /> Host paths shared                  |
+| Track record   | <Cover level="no" /> Pre-alpha, one author, no audit             | <Cover level="part" /> Young runtime, open source | <Cover level="no" /> Version 0.1.5                        | <Cover level="part" /> Young product, closed source | <Cover level="yes" /> Firecracker, years in production         | <Cover level="yes" /> Mature runtimes, widely attacked | <Cover level="yes" /> Decades of Unix permissions  | <Cover level="part" /> Young, under active work         |
+| Trusted code   | <Cover level="no" /> Jail, proxy and TLS interception of its own | <Cover level="part" /> bubblewrap and a proxy     | <Cover level="part" /> Supervisor and proxy               | <Cover level="part" /> VM and proxy, closed source  | <Cover level="part" /> The provider and its VM                 | <Cover level="yes" /> The container runtime            | <Cover level="yes" /> The kernel only              | <Cover level="part" /> Supervisor and proxy             |
+
+</div>
+
+If a kernel exploit is the threat that matters most, run doriath in a VM, or use a microVM tool and accept its coarser rules.
+
+<details>
+<summary>Sources</summary>
+
+- Claude Code sandbox: [sandboxing](https://code.claude.com/docs/en/sandboxing), [sandbox-runtime](https://github.com/anthropics/sandbox-runtime), [sandbox environments](https://code.claude.com/docs/en/sandbox-environments)
+- NVIDIA OpenShell: [architecture](https://docs.nvidia.com/openshell/latest/about/architecture), [best practices](https://docs.nvidia.com/openshell/latest/security/best-practices), [runtimes](https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/sandboxes/runtimes.mdx), [advisor](https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/policies/advisor.mdx)
+- Docker Sandboxes: [architecture](https://docs.docker.com/ai/sandboxes/architecture/), [security](https://docs.docker.com/ai/sandboxes/security/)
+- Hosted microVM: [internet access](https://docs.e2b.dev/sandbox/internet-access), [persistence](https://docs.e2b.dev/sandbox/persistence), [Vercel AI SDK](https://docs.e2b.dev/agents/vercel-ai-sdk), [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web)
+- Plain container: [devcontainer](https://code.claude.com/docs/en/devcontainer), [init-firewall.sh](https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh)
+- Separate Unix user: [nftables metainformation](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation)
+- nono: [repository](https://github.com/nolabs-ai/nono), [networking](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/networking.mdx), [credential injection](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/credential-injection.mdx), [supervisor](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/supervisor.mdx)
+
+</details>
 
 ## Guarded actions
 
@@ -102,73 +143,3 @@ These paths let you resume sessions, read output, reuse build caches and add wri
 - Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session and answer Claude's permission prompts. The jail and the proxy rules still apply.
 - Tool requests carry text that the agent wrote, and the notification says so. A long run of requests invites a click on allow, so doriath refuses new requests while 32 wait. It shows other notifications 10 at once, then one a minute.
 - Sessions have task and memory limits but no CPU quota by default. `[limits] cpu` sets one.
-
-## Other sandboxes
-
-This table compares doriath with other ways to isolate a coding agent. Each cell gives the control that the tool has for the threat in its default or documented setup. The facts come from the documentation and source of each project, read in October 2026.
-
-doriath is not the strictest tool in this table. It shares your kernel, where a microVM puts a separate kernel between the agent and your machine, and its code is young and not audited. doriath makes it easy to choose how much each project can reach: hosts, paths, methods and tokens, with requests that wait for your answer. The last two rows show what that choice costs.
-
-<Cover level="yes" /> Covered, <Cover level="part" /> partly covered or
-optional, <Cover level="no" /> not covered, <Cover level="unknown" /> not
-documented.
-
-<div class="comparison">
-
-| Threat                               | doriath                                                          | Claude Code sandbox                               | OpenShell                                             | Docker Sandboxes                                    | Hosted microVM (E2B, Claude cloud)                             | Plain container                                        | Separate Unix user                                 | nono                                                    |
-| ------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------- |
-| Read files outside the project       | <Cover level="part" /> Home not mounted, system paths open       | <Cover level="part" /> Readable unless denied     | <Cover level="yes" /> Landlock allowlist              | <Cover level="yes" /> Only the workspace enters     | <Cover level="yes" /> Only the cloned repository               | <Cover level="yes" /> Only bind mounts visible         | <Cover level="part" /> World-readable files open   | <Cover level="yes" /> Allowlist of granted paths        |
-| Credentials the agent uses           | <Cover level="yes" /> Proxy adds tokens outside                  | <Cover level="part" /> Mask mode, off by default  | <Cover level="yes" /> Proxy resolves placeholders     | <Cover level="yes" /> Host proxy swaps a sentinel   | <Cover level="yes" /> Proxy adds secrets outside               | <Cover level="no" /> Held in the container             | <Cover level="no" /> In the agent's home           | <Cover level="yes" /> Proxy injects, phantom token      |
-| Hosts outside an allowlist           | <Cover level="yes" /> Unknown hosts held for approval            | <Cover level="yes" /> Proxy checks host names     | <Cover level="yes" /> Rule names host and binary      | <Cover level="yes" /> Deny by default               | <Cover level="part" /> E2B open, Claude cloud allowlist        | <Cover level="no" /> Reference firewall: IP list       | <Cover level="no" /> nftables owner match possible | <Cover level="part" /> Open until a domain rule         |
-| Local network and metadata service   | <Cover level="yes" /> Private and metadata refused               | <Cover level="part" /> Private ranges allowed     | <Cover level="yes" /> Private refused unless named    | <Cover level="unknown" /> Not documented            | <Cover level="part" /> Off your network, metadata undocumented | <Cover level="no" /> Firewall allows host /24          | <Cover level="no" /> No control                    | <Cover level="part" /> Private ranges allowed           |
-| Exfiltration through an allowed host | <Cover level="no" /> Rules filter requests, not content          | <Cover level="no" /> No content filter            | <Cover level="part" /> L7 rules, default audits       | <Cover level="no" /> No control                     | <Cover level="no" /> No control                                | <Cover level="no" /> No control                        | <Cover level="no" /> No control                    | <Cover level="part" /> L7 rules on intercepted routes   |
-| Merges, pushes, releases             | <Cover level="yes" /> Held for your approval                     | <Cover level="part" /> Ask rules on command text  | <Cover level="part" /> Approval per rule only         | <Cover level="unknown" /> Not documented            | <Cover level="part" /> Token scope only                        | <Cover level="no" /> No control                        | <Cover level="part" /> Token scope only            | <Cover level="part" /> Optional command approval        |
-| Checkout, git hooks and config       | <Cover level="part" /> Read-only, store repaired at end          | <Cover level="part" /> Hooks denied, project open | <Cover level="yes" /> Files return by download        | <Cover level="part" /> Read-only in clone mode      | <Cover level="yes" /> Agent works on a clone                   | <Cover level="no" /> Writable mount, hooks too         | <Cover level="yes" /> Agent keeps its own clones   | <Cover level="part" /> Snapshots, hook guard unknown    |
-| Kernel escape                        | <Cover level="part" /> Shared kernel, seccomp, Landlock          | <Cover level="part" /> Shared kernel, seccomp     | <Cover level="part" /> Shared, opt-in MicroVM         | <Cover level="yes" /> Separate guest kernel         | <Cover level="yes" /> Separate guest kernel                    | <Cover level="no" /> Shared kernel                     | <Cover level="no" /> Shared kernel, no sandbox     | <Cover level="part" /> Shared kernel, seccomp, Landlock |
-| Persistence across sessions          | <Cover level="part" /> Caches shared per profile                 | <Cover level="no" /> Host home and caches shared  | <Cover level="part" /> Workspace kept across restarts | <Cover level="part" /> Kept until removed           | <Cover level="part" /> E2B keeps, Claude cloud reclaims        | <Cover level="no" /> Named volumes, image layers       | <Cover level="no" /> Agent home persists           | <Cover level="no" /> Host paths shared                  |
-| Track record                         | <Cover level="no" /> Pre-alpha, one author, no audit             | <Cover level="part" /> Young runtime, open source | <Cover level="no" /> Version 0.1.5                    | <Cover level="part" /> Young product, closed source | <Cover level="yes" /> Firecracker, years in production         | <Cover level="yes" /> Mature runtimes, widely attacked | <Cover level="yes" /> Decades of Unix permissions  | <Cover level="part" /> Young, under active work         |
-| Code you must trust                  | <Cover level="no" /> Jail, proxy and TLS interception of its own | <Cover level="part" /> bubblewrap and a proxy     | <Cover level="part" /> Supervisor and proxy           | <Cover level="part" /> VM and proxy, closed source  | <Cover level="part" /> The provider and its VM                 | <Cover level="yes" /> The container runtime            | <Cover level="yes" /> The kernel only              | <Cover level="part" /> Supervisor and proxy             |
-
-</div>
-
-If a kernel exploit is the threat that matters most, run doriath in a VM, or use a microVM tool and accept its coarser rules.
-
-### doriath
-
-doriath runs the agent in a bubblewrap jail with user, mount, PID and network namespaces, seccomp, Landlock and only loopback. A proxy on the host enforces the profile's hosts and credentials and holds merges, releases and pushes for approval. The jail shares the host's kernel, toolchain and system paths.
-
-### Claude Code sandbox
-
-The sandbox covers Bash, PowerShell and Monitor commands. File tools, MCP servers and hooks run outside it, and the `srt` runtime can wrap the whole process. Reads cover "the entire computer, except certain denied directories". The proxy decides on the host name and does not inspect TLS by default, and the docs warn about domain fronting. Mask mode needs `tlsTerminate` and settings outside the repository. Claude can retry a command unsandboxed unless `allowUnsandboxedCommands` is false. Sources: [sandboxing](https://code.claude.com/docs/en/sandboxing), [sandbox-runtime](https://github.com/anthropics/sandbox-runtime), [sandbox environments](https://code.claude.com/docs/en/sandbox-environments).
-
-### NVIDIA OpenShell
-
-A supervisor outside the workload decides each connection, and the workload has no network of its own. Rules name the host, port and calling binary. L7 `enforcement` defaults to `audit`, which logs and forwards. Agents can propose rules, which a human approves, or automatic approval applies when the risk checks pass. The Docker, Podman and Kubernetes drivers share the host kernel. The MicroVM driver needs KVM and is not auto-detected. Bind mounts need `enable_bind_mounts` and "can bypass workspace isolation". Version 0.1.5, October 2026. Sources: [architecture](https://docs.nvidia.com/openshell/latest/about/architecture), [best practices](https://docs.nvidia.com/openshell/latest/security/best-practices), [runtimes](https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/sandboxes/runtimes.mdx), [advisor](https://github.com/NVIDIA/OpenShell/blob/main/docs/how-it-works/policies/advisor.mdx).
-
-### Docker Sandboxes
-
-This column is here because Docker Sandboxes is a widely available local microVM for agents, and Claude Code's docs name it. Each sandbox has its own Docker daemon. A host proxy carries all outbound TCP, and "raw credential values never enter the VM". The docs warn that git hooks "do not appear in git diff output". It is closed source. Sources: [architecture](https://docs.docker.com/ai/sandboxes/architecture/), [security](https://docs.docker.com/ai/sandboxes/security/).
-
-### Hosted microVM
-
-E2B runs each sandbox in a Firecracker microVM, with outbound access on by default. Its domain rules match only the HTTP Host and TLS SNI, and a proxy adds secret headers outside the sandbox. Claude Code cloud sessions run in an Anthropic VM, where a GitHub proxy holds the credential. The docs say that the Anthropic API stays reachable with network access off. Both run away from your machine, so the agent sees no local files. Sources: [internet access](https://docs.e2b.dev/sandbox/internet-access), [persistence](https://docs.e2b.dev/sandbox/persistence), [Vercel AI SDK](https://docs.e2b.dev/agents/vercel-ai-sdk), [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web).
-
-### Plain container
-
-A devcontainer shares the host kernel and bind-mounts the project read-write. Claude Code's docs say that a container does "not prevent a malicious project from exfiltrating anything accessible inside the container, including the Claude Code credentials". The reference `init-firewall.sh` resolves allowed domains to IP addresses at start and allows the host's /24 network. Sources: [devcontainer](https://code.claude.com/docs/en/devcontainer), [init-firewall.sh](https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh).
-
-### Separate Unix user
-
-A second account relies on Unix file permissions, with no namespaces, seccomp or proxy. Files of mode 700 in the user's home stay closed, and world-readable files and the shared /tmp stay open. Network limits need root, for example an nftables `meta skuid` rule to a proxy. Source: [nftables metainformation](https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation).
-
-### nono
-
-nono is an Apache-2.0 tool, version 0.80.0 from 13 October 2026, with commits in the week of writing. It uses Landlock and seccomp on Linux and Seatbelt on macOS. Network access is "unrestricted" until a domain rule applies, and plain allowed hosts go through tunnels with end-to-end TLS. A supervisor can prompt on the terminal for file access outside the grants. Sources: [repository](https://github.com/nolabs-ai/nono), [networking](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/networking.mdx), [credential injection](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/credential-injection.mdx), [supervisor](https://github.com/nolabs-ai/nono/blob/main/docs/cli/features/supervisor.mdx).
-
-### Facts not confirmed
-
-- Docker Sandboxes: refusal of private or metadata addresses, and any approval step for single requests.
-- E2B: refusal of private or metadata addresses by default.
-- OpenShell: whether middleware can hold one request for a human.
-- nono: guards against writes to `.git/hooks` or `.git/config`, and whether the agent can reach the supervisor's terminal prompt.
-- Claude Code cloud sessions: which git operations the GitHub proxy limits.
