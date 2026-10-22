@@ -4,7 +4,7 @@ Doriath runs a coding agent such as Claude Code in a jail on your Linux machine,
 
 I build doriath because I want to run coding agents on a remote server, without watching them all the time. An agent with access to my whole file system, my keys and my logins is not safe to leave alone, and it is not safe when I watch it either.
 
-Pre-alpha, Linux only. The documentation lives at [doriath.fnune.com](https://doriath.fnune.com).
+Pre-alpha, Linux only. A macOS version is possible, but out of scope while I build doriath for my own use. The documentation lives at [doriath.fnune.com](https://doriath.fnune.com).
 
 ```sh
 base=https://github.com/fnune/doriath/releases/latest/download

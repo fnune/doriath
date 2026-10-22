@@ -3,7 +3,7 @@ title: Commands
 description: Every doriath command, on the host and inside a jail.
 ---
 
-Arguments in capitals are values that you give. Arguments in brackets are optional.
+You give the values of arguments in capitals. Arguments in brackets are optional.
 
 ## Sessions
 
@@ -13,7 +13,7 @@ Arguments in capitals are values that you give. Arguments in brackets are option
 doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
 ```
 
-Runs a command in a jail for the profile. `--current DIR` sets the folder the session is for, instead of the working folder. `--learn` makes every public host reachable and prints the hosts that the session used, as [install](/install/#find-the-hosts-of-a-build) describes.
+Runs a command in a jail for the profile. `--current DIR` sets the folder of the session, in place of the working folder. `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
 
 ### `doriath exec`
 
@@ -21,7 +21,7 @@ Runs a command in a jail for the profile. `--current DIR` sets the folder the se
 doriath exec [--session ID] [-- COMMAND]
 ```
 
-Runs a command as one more process of a running jail. Without a command, it starts a shell. See [looking inside a session](/guides/inside-a-session/).
+Runs a command as a new process in a running jail. Without a command, it starts a shell. See [looking inside a session](/guides/inside-a-session/).
 
 ### `doriath forward`
 
@@ -45,7 +45,7 @@ Lists the running sessions and their IDs.
 doriath status [SESSION]
 ```
 
-Shows what a session allows and what it blocked. In a jail, the agent runs it to learn the same.
+Shows what a session allows and what it blocked. The agent can also run it in the jail.
 
 ### `doriath log`
 
@@ -115,7 +115,7 @@ Makes a path writable in a running session.
 doriath profiles [list | show NAME [--json] | edit NAME | command NAME]
 ```
 
-Lists, shows or edits profiles. `show` names the module behind each mount, host and rule. `command` prints the command of the agent of the profile, which the [direnv](/guides/direnv/) library uses.
+Lists, shows or edits profiles. `show` names the module behind each mount, host and rule. `command` prints the agent command of the profile, for the [direnv](/guides/direnv/) library.
 
 ### `doriath modules`
 
@@ -123,7 +123,7 @@ Lists, shows or edits profiles. `show` names the module behind each mount, host 
 doriath modules [list | show NAME [--path] | edit NAME]
 ```
 
-Lists modules and where each comes from, prints one or a path to it, or copies a built-in module so that you can edit your own copy. See [modules](/reference/modules/).
+Lists the modules and their sources, prints a module or its path, or copies a built-in module for you to edit. See [modules](/reference/modules/).
 
 ### `doriath login`
 
@@ -149,7 +149,7 @@ Puts back the branches and bookmarks that a session moved. See [repositories](/r
 doriath clean [--caches PROFILE]
 ```
 
-Removes agent worktrees that are already in the default branch, and old backups, after you confirm. `--caches PROFILE` removes the caches of a profile.
+After you confirm, removes old backups and the agent worktrees that are already in the default branch. `--caches PROFILE` removes the caches of a profile.
 
 ## Setup
 
@@ -159,7 +159,7 @@ Removes agent worktrees that are already in the default branch, and old backups,
 doriath doctor [--secrets]
 ```
 
-Checks the machine. `--secrets` also gets each secret once, which can ask you to unlock a password manager.
+Checks the machine. `--secrets` also gets each secret one time, and can ask you to unlock a password manager.
 
 ### `doriath direnv`
 
@@ -203,4 +203,4 @@ doriath request wait ID|HOST|PATH
 
 Waits for the answer to a request.
 
-doriath also runs `doriath init`, `doriath sandbox-exec`, `doriath hook` and `doriath statusline` itself, inside the jail. You do not type them.
+doriath runs `doriath init`, `doriath sandbox-exec`, `doriath hook` and `doriath statusline` itself, inside the jail. You do not type them.

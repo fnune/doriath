@@ -3,7 +3,7 @@ title: GitHub
 description: Use the github module with a fine-grained token and a signing key for each profile.
 ---
 
-The [`github` module](/reference/modules/#github) gives `git` and `gh` your token on `github.com`, `api.github.com` and `uploads.github.com`. Other programs reach these hosts without it.
+The [`github` module](/reference/modules/#github) gives your token to `git` and `gh` on `github.com`, `api.github.com` and `uploads.github.com`.
 
 ## Token
 
@@ -18,8 +18,12 @@ command = ["rbw", "get", "github-my-app"]
 
 ## Commit signing
 
-Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub then shows the agent's commits as verified, authored by you. [Install](/install/#create-credentials-for-the-profile) shows the commands.
+Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub then shows the commits of the agent as verified, with you as the author. [Install](/install/#create-credentials-for-the-profile) shows the commands.
 
-## What waits for you
+## Requests
 
-Merges, releases, pushes and the API requests that the module does not name wait for your answer. Reads, pull requests, issues, comments and reruns of CI go through. Changes to webhooks, Actions secrets, collaborators and deploy keys are refused.
+- Go through: reads, pull requests, issues, comments and reruns of CI.
+- Wait for your answer: merges, releases, pushes, and the API requests that the module does not name.
+- Refused: changes to webhooks, Actions secrets, collaborators and deploy keys.
+
+Branch rules, such as no force push to `main`, belong in the branch protection rules or rulesets of the repository.

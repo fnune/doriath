@@ -3,7 +3,7 @@ title: Development
 description: Build doriath, run its checks, and change this site.
 ---
 
-`nix develop` provides the toolchain, from Go and its linters to the bubblewrap the binary bundles and Node for this site.
+`nix develop` gives the toolchain: Go and its linters, the bubblewrap that the binary bundles, and Node for this site. These commands check, test and build doriath:
 
 ```sh
 just check
@@ -11,15 +11,15 @@ just test-integration
 just build
 ```
 
-`just check` covers formatting, lint and the unit tests. The integration tests start real jails, among them a script for every way out of the jail that doriath closes. How the code is written is up to the [engineering principles](https://github.com/fnune/doriath/blob/main/docs/engineering.md).
+`just check` runs formatting, lint and the unit tests. The integration tests start real jails. They include a script for each way out of the jail that doriath closes. Write code as the [engineering principles](https://github.com/fnune/doriath/blob/main/docs/engineering.md) tell.
 
 ## This site
 
-This site is a [Starlight](https://starlight.astro.build) project in `site/`. Its colors, fonts, ornaments and request cards come from `internal/ui`, which the approvals page uses too, and the modules page reads `internal/modules` at build time. `site/STYLE.md` sets how pages are written.
+This site is a [Starlight](https://starlight.astro.build) project in `site/`. Its colors, fonts, ornaments and request cards come from `internal/ui`, as on the approvals page. The modules page reads `internal/modules` when the site builds. Write pages as `site/STYLE.md` tells. These commands serve and build the site:
 
 ```sh
 just site-dev
 just site-build
 ```
 
-Examples in TOML code blocks must load as profiles, or as `config.toml` under a heading of that name: `TestDocExamplesLoad` reads every page.
+Each TOML code block must load as a profile, or as `config.toml` under a heading with that name. `TestDocExamplesLoad` reads all pages to check this.

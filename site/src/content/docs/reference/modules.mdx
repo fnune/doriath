@@ -5,37 +5,43 @@ description: The built-in modules a profile can list, and what each one allows.
 
 import ModuleSource from "../../../components/ModuleSource.astro";
 
-Modules hold the mounts, caches, hosts, environment and request rules of one toolchain or service. A profile lists them in `modules`, and doriath applies them in order before the profile itself. Put a module of your own in `~/.config/doriath/modules/` under a built-in's name to replace it. Under each section is the file doriath ships.
+A module holds the mounts, caches, hosts, environment and request rules of one toolchain or service. A profile lists modules in `modules`, as [configuration](/reference/configuration/) describes. Each section on this page shows the file that doriath ships.
 
-On your machine, `doriath modules list` shows every module and where it comes from, and `doriath modules show NAME` prints one. `doriath modules show NAME --path` prints a path that an editor can open. To change a built-in, `doriath modules edit NAME` copies it to `~/.config/doriath/modules/` and opens your copy, which then replaces the built-in in every profile. `doriath profiles show NAME` names the module behind each mount, host and rule of a profile.
+These commands show the modules on your machine:
+
+- `doriath modules list` shows each module and where it comes from.
+- `doriath modules show NAME` prints a module, and `--path` prints its path for an editor.
+- `doriath profiles show NAME` names the module behind each mount, host and rule of a profile.
+
+To change a built-in module, run `doriath modules edit NAME`. The command copies the module to `~/.config/doriath/modules/` and opens the copy. Your copy then replaces the built-in module in all profiles.
 
 ## base
 
-Almost every profile starts here. `base` mounts your nix profile and jj's config, and passes `PATH` with the terminal and locale variables. Nothing in it grants network access.
+Almost all profiles start with `base`. It mounts your nix profile and the config of jj, and passes `PATH` and the terminal and locale variables. It gives no network access.
 
 <ModuleSource name="base" />
 
 ## vcs
 
-With `vcs`, the agent commits, branches and adds git worktrees or jj workspaces in a read-only repository. Its store becomes writable, while the checkout and everything that decides what git or jj runs stay read-only; [repositories](/reference/configuration/#repositories) has the full list.
+With `vcs`, the agent can commit, branch and add git worktrees or jj workspaces in a read-only repository. The store becomes writable. The checkout, and all files that decide what git or jj runs, stay read-only. [Repositories](/reference/configuration/#repositories) has the full list.
 
 <ModuleSource name="vcs" />
 
 ## docs
 
-Agents read documentation sites through `docs` without asking you. Every host in it accepts no writes without a login, which leaves the agent nowhere on them to send what it reads.
+With `docs`, the agent can read documentation sites without an approval. No host in it accepts writes without a login, thus the agent cannot send data to these hosts.
 
 <ModuleSource name="docs" />
 
 ## github
 
-`github` adds your token to requests from `gh` and `git`, and the agent never sees it. Reads go through, as does routine work on pull requests, issues and CI runs. Merges, releases, pushes and other writes wait for approval, and doriath refuses changes to webhooks, secrets, collaborators and deploy keys. Say where the token comes from under `[secrets.github]` in the profile. See [GitHub](/forges/github/).
+`github` adds your token to requests from `gh` and `git`, and the agent never sees the token. Give its source under `[secrets.github]` in the profile. [GitHub](/forges/github/) tells which requests go through, wait or are refused.
 
 <ModuleSource name="github" />
 
 ## gitlab
 
-`gitlab` adds your token to requests from `git` and `glab` on `gitlab.com`, and reads the encoded project paths of GitLab's API. Merges, releases, tags and pushes wait for approval, and changes to webhooks, CI variables, members and access tokens are refused. See [GitLab](/forges/gitlab/).
+`gitlab` adds your token to requests from `git` and `glab` on `gitlab.com`, and reads the encoded project paths of the GitLab API. [GitLab](/forges/gitlab/) tells which requests go through, wait or are refused.
 
 <ModuleSource name="gitlab" />
 
@@ -53,48 +59,48 @@ Agents read documentation sites through `docs` without asking you. Every host in
 
 ## claude
 
-For Claude Code, `claude` gives the profile a `~/.claude` of its own, with your `CLAUDE.md`, settings, skills and plugins mounted read-only and a login that belongs to the profile. Connectors are off, and any request carrying an `x-api-key` header is refused. See [Claude Code](/agents/claude-code/).
+For Claude Code, `claude` gives the profile its own `~/.claude` and its own login. Your `CLAUDE.md`, settings, skills and plugins are mounted read-only. Connectors are off, and doriath refuses all requests with an `x-api-key` header. See [Claude Code](/agents/claude-code/).
 
 <ModuleSource name="claude" />
 
 ## go
 
-Go builds reach the module proxy and checksum database, and keep their build, module and golangci-lint caches in the profile.
+With `go`, Go builds can reach the module proxy and the checksum database. The build, module and golangci-lint caches stay in the profile.
 
 <ModuleSource name="go" />
 
 ## node
 
-`node` allows the npm and Yarn registries and Node.js downloads, with caches for npm, pnpm and node-gyp.
+`node` allows the npm and Yarn registries and the Node.js downloads. It adds caches for npm, pnpm and node-gyp.
 
 <ModuleSource name="node" />
 
 ## playwright
 
-Playwright downloads its browsers into a cache of the profile's own.
+With `playwright`, Playwright downloads its browsers into a cache of the profile.
 
 <ModuleSource name="playwright" />
 
 ## pre-commit
 
-pre-commit builds hook environments in the profile's cache, from PyPI and the hook repositories.
+With `pre-commit`, pre-commit builds hook environments in a cache of the profile, from PyPI and the hook repositories.
 
 <ModuleSource name="pre-commit" />
 
 ## nix
 
-Nix tools running in the jail get their caches and hosts from `nix`. Reaching the daemon takes the `nix-daemon` module.
+`nix` gives caches and hosts to the Nix tools in the jail. To reach the daemon, add the `nix-daemon` module.
 
 <ModuleSource name="nix" />
 
 ## nix-daemon
 
-`nix-daemon` connects the jail to your system's nix daemon, for `nix-shell -p`, `nix build` and `nix develop`. Builds then run outside the jail and reach the network without the allowlist, so entering a dev shell before `doriath run` keeps more inside the boundary.
+`nix-daemon` connects the jail to the nix daemon of your system, for `nix-shell -p`, `nix build` and `nix develop`. The builds then run outside the jail, and reach the network without the allowlist. To keep more inside the jail, enter a dev shell before `doriath run`.
 
 <ModuleSource name="nix-daemon" />
 
 ## podman
 
-`podman` starts a podman service for the session in its own user namespace, behind a broker that checks each API call. Containers share the session's network, so the internet is reachable for them only through the proxy, and the agent reaches their ports on localhost. [Containers](/reference/configuration/#containers) covers images and binds.
+`podman` starts a podman service for the session in its own user namespace, behind a broker that checks each API call. Containers share the network of the session. Thus they reach the internet only through the proxy, and the agent reaches their ports on localhost. [Containers](/reference/configuration/#containers) describes images and binds.
 
 <ModuleSource name="podman" />

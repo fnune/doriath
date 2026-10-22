@@ -3,30 +3,35 @@ title: Forges
 description: How a forge module gives the agent git and the forge's API with a token it never sees.
 ---
 
-A forge is a service that hosts git repositories, such as GitHub, GitLab, Forgejo or Bitbucket. doriath has a [module](/reference/modules/) for each of these forges. A profile lists the module of each forge that the agent works with.
+A forge hosts git repositories, such as GitHub, GitLab, Forgejo or Bitbucket. doriath has a [module](/reference/modules/) for each of these forges. In the profile, list the module of each forge that the agent uses.
 
-A forge module holds four things:
+A forge module holds the hosts of the forge, the credential that the proxy adds, and the request rules. It also tells the proxy how the forge names a repository, so that an allow for the session covers one repository.
 
-- the hosts of the forge, for git and for its API
-- the credential that the proxy adds, and the programs that get it, such as `git` and the forge's own client
-- the request rules: reads and routine work go through, merges, releases, pushes and other writes wait for [your answer](/guides/approvals/), and changes to webhooks, CI secrets and deploy keys are refused
-- how the forge names a repository, so that an allow for the session covers one repository
+## Tokens
 
-Each forge module needs a secret with the name of the module, such as `[secrets.gitlab]`. Make a token for each profile, as [install](/install/#create-credentials-for-the-profile) describes, and give it access only to the repositories of that profile.
+Each forge module needs a secret with the name of the module, such as `[secrets.gitlab]`. Make a token for each profile, as [install](/install/#create-credentials-for-the-profile) describes. Give it access only to the repositories of that profile.
+
+The proxy adds the token only for the programs of the module, such as `git` and the client of the forge.
+
+## Requests
+
+Reads and routine work go through. Merges, releases, pushes and other writes wait for [your answer](/guides/approvals/). doriath refuses changes to webhooks, CI secrets and deploy keys. Each forge page lists its rules.
+
+doriath holds each push for your approval. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
 
 ## git over SSH
 
-The jail has no route for SSH. A forge module turns the forge's SSH remotes, such as `git@gitlab.com:group/project.git`, into HTTPS remotes in the jail, so that git goes through the proxy. Your own git configuration outside the jail does not change.
+The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes. Thus git goes through the proxy. Your git configuration outside the jail does not change.
 
 ## Self-hosted forges
 
-A module names the hosts of the public service, such as `gitlab.com` or `codeberg.org`. For your own instance, copy the module to a new name and change the host:
+A module names the hosts of the public service, such as `gitlab.com` or `codeberg.org`. For your own instance, copy the module to a new name:
 
 ```sh
 doriath modules show gitlab > ~/.config/doriath/modules/gitlab-acme.toml
 ```
 
-Then change `host = "gitlab.com"` to the host of your instance, and list `gitlab-acme` in the profile. If the instance does not use port 443, add the port to the host, such as `git.acme.example:8443`.
+In the copy, change `host = "gitlab.com"` to the host of your instance. Then list `gitlab-acme` in the profile. If the instance does not use port 443, add the port to the host, such as `git.acme.example:8443`.
 
 ## Pages
 

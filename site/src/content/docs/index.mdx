@@ -1,20 +1,9 @@
 ---
 title: Doriath
 description: A jail on your Linux machine for coding agents, with a proxy that holds their network to a profile.
-template: splash
 hero:
   title: Doriath
-  tagline: Doriath runs a coding agent such as Claude Code in a jail on your Linux machine, and sends every request it makes through a proxy that follows the rules of a profile you write.
-  actions:
-    - text: Install
-      link: /install/
-      icon: right-arrow
-    - text: Architecture
-      link: /architecture/
-      variant: secondary
-    - text: View on GitHub
-      link: https://github.com/fnune/doriath
-      variant: minimal
+  tagline: Doriath runs a coding agent, such as Claude Code, in a jail on your Linux machine. Every request of the agent goes through a proxy that follows the rules of your profile.
 ---
 
 import { Aside, LinkCard, CardGrid } from "@astrojs/starlight/components";
@@ -22,8 +11,9 @@ import RequestExample from "../../components/RequestExample.astro";
 import Flourish from "../../components/Flourish.astro";
 
 <Aside type="caution">
-  Doriath runs on Linux. Read the [threat model](/threat-model/), with what
-  stays open, before you rely on it.
+  Doriath runs on Linux. A macOS version is possible, but it is out of scope:
+  for now, I build doriath for my own use. Read the [threat
+  model](/threat-model/), with what stays open, before you rely on it.
 </Aside>
 
 ## Motivation
@@ -32,15 +22,19 @@ I build doriath because I want to run coding agents on a remote server, without 
 
 ## Scope
 
-Agents in a doriath jail use your own toolchain and checkouts, on your kernel, so a session starts in under a second and builds the way your terminal does. A container or virtual machine with an image of its own isolates more, at the cost of that shared setup. Doriath guards against an agent that acts against your intent, for example after it reads a prompt injection in a web page or an issue.
+Doriath guards against an agent that acts against your intent, for example after a prompt injection in a web page or an issue. The agent uses your toolchain and checkouts on your kernel, so a session starts in under a second. A container or a virtual machine with its own image isolates more.
 
-## Boundaries
+In the jail, the agent has these limits:
 
-Inside the jail, the repository you started in is read-only, and the agent commits in worktrees of its own. Your home directory, SSH keys and other projects are absent. Loopback is the only network: doriath's proxy, outside the jail, forwards a request when the profile allows its host, and adds tokens on the way for the programs that may use them, so `gh` can push while the agent never reads the token. Merges, releases, pushes and unknown hosts wait for your answer, which nothing in the jail can give.
+- The repository that you start in is read-only. The agent commits in worktrees of its own.
+- Your home directory, SSH keys and other projects are absent.
+- Loopback is the only network. A proxy outside the jail forwards the requests that the profile allows.
+- The proxy adds tokens for the programs that can use them, such as `gh`. The agent never reads the tokens.
+- Merges, releases, pushes and unknown hosts wait for your answer. Nothing in the jail can give that answer.
 
 ## A held request
 
-When a rule holds a request, doriath waits for you. Here is a merge that the [`github` module](/reference/modules/#github) holds, as the [approvals page](/guides/approvals/) shows it:
+This is a merge that the [`github` module](/reference/modules/#github) holds, as the [approvals page](/guides/approvals/) shows it:
 
 <RequestExample
   profile="my-app"
@@ -59,28 +53,6 @@ When a rule holds a request, doriath waits for you. Here is a merge that the [`g
 />
 
 <Flourish />
-
-## A first session
-
-A profile lists the [modules](/reference/modules/) a kind of work needs, plus any hosts and [secrets](/reference/configuration/#secrets) of its own:
-
-```toml title="~/.config/doriath/profiles/my-app.toml"
-description = "My app: Go API and React frontend"
-modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
-
-[egress]
-allow = ["api.stripe.com"]
-
-[secrets.github]
-command = ["rbw", "get", "github-my-app"]
-```
-
-Start the agent from the repository:
-
-```sh
-cd ~/Development/my-app
-doriath run --profile my-app -- claude
-```
 
 <CardGrid>
   <LinkCard

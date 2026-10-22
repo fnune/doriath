@@ -3,7 +3,7 @@ title: Configuration
 description: Every key of profiles, modules and config.toml, and the files doriath writes.
 ---
 
-doriath reads `~/.config/doriath`, or `$DORIATH_CONFIG_DIR`:
+doriath reads `~/.config/doriath`, or `$DORIATH_CONFIG_DIR` if you set it:
 
 | File                   | Holds                                             |
 | ---------------------- | ------------------------------------------------- |
@@ -11,38 +11,53 @@ doriath reads `~/.config/doriath`, or `$DORIATH_CONFIG_DIR`:
 | `profiles/<name>.toml` | what one kind of work can reach, and its secrets  |
 | `modules/<name>.toml`  | reusable parts of profiles, shareable with a team |
 
-doriath finds profiles in `profiles/` and in the folders inside it, including linked ones, so one link adds a whole repository of profiles, such as private ones that stay out of a public home-manager configuration: `ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private`. A profile is named after its file, and two files with one name are an error. Folders whose names start with a dot, such as `.git`, are skipped.
+doriath also finds profiles in the folders inside `profiles/`, and follows symlinks. Thus one symlink can add a repository of profiles, such as private profiles that stay out of a public home-manager configuration:
 
-A profile lists `modules`. doriath applies them in order, each module's own `modules` first, then the profile. A user module with a built-in's name replaces it. Lists such as `mounts` and `egress.allow` are merged, maps such as `env.set` too with later values winning, and for an `[[http]]` host that appears twice later fields win and later rules go first. Only profiles set `description` and `secrets`. Unknown keys are errors. doriath never writes profiles: approvals print the lines to add, because a profile may come from nix.
+```sh
+ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private
+```
 
-Built-in modules, described in [modules](/reference/modules/): `base`, `vcs` (commits in read-only repositories), `docs` (documentation sites that accept no anonymous writes), `nix`, `nix-daemon`, `go`, `node`, `playwright`, `podman`, `pre-commit`, `github` and `claude`.
+The file name is the profile name, and two files with the same name are an error. doriath skips folders whose names start with a dot, such as `.git`.
+
+A profile lists its `modules`, which the [modules](/reference/modules/) page describes. doriath applies them in order, each module after its own `modules`, and the profile last. These rules merge them:
+
+- A user module with the name of a built-in module replaces it.
+- Lists, such as `mounts` and `egress.allow`, merge.
+- Maps, such as `env.set`, merge, and later values win.
+- If an `[[http]]` host occurs two times, later fields win and later rules go first.
+- Only profiles can set `description` and `secrets`.
+- Unknown keys are errors.
+
+doriath never writes to profiles, because a profile can come from nix. An approval prints the lines to add instead.
 
 ## Profile keys
+
+This example shows every key of a profile. The sections after it give the details.
 
 ```toml
 description = "One line for doriath profiles list"
 modules = ["base", "vcs", "github", "claude"]
-# Device nodes, such as the TPM. Top-level keys go before the first table.
+# Device nodes, such as the TPM.
+# Top-level keys go before the first table.
 devices = ["/dev/tpmrm0"]
 
-# Where each secret comes from: a file with mode 600, a command that prints
-# it, or an OAuth login. doriath reads each once per session and never shows
-# it to the jail. Modules name the secrets they need; the profile says where
-# they are.
+# The source of each secret: a file with mode 600, a command that prints it,
+# or an OAuth login. doriath reads it one time for each session, and the
+# jail never sees it. See "Secrets".
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]
 
-# An OAuth login: run doriath login --profile NAME once, on the host. mcp names
-# an MCP server, which tells doriath where to sign in; otherwise give issuer,
-# client_id and scopes. Sessions get fresh access tokens; see "OAuth logins".
+# An OAuth login. Run doriath login --profile NAME one time, on the host.
+# mcp names an MCP server, which tells doriath where to sign in.
+# Without mcp, give issuer, client_id and scopes. See "OAuth logins".
 [secrets.linear]
 oauth = { mcp = "https://mcp.linear.app/mcp" }
 
 [secrets.agent-signing]
 file = "~/.config/doriath/keys/agent-signing"
 
-# Paths the jail sees, at the same path. mode is read (default), write or
-# hide. See "Mounts" below.
+# Paths that the jail sees, at the same path.
+# mode is read (the default), write or hide. See "Mounts".
 [[mounts]]
 path = "~/Documents/notes"
 optional = true
@@ -55,57 +70,61 @@ mode = "write"
 path = "{repository}/.env"
 mode = "hide"
 
-# Writable paths backed by a directory of the profile's own, which nothing
-# outside the jail reads.
+# Writable paths in a directory of the profile.
+# Nothing outside the jail reads them.
 [[caches]]
 path = "~/.cache/go-build"
 
 [env]
-# Host variables the jail may see. Everything else is dropped.
+# Host variables that the jail sees. doriath drops all others.
 pass = ["PATH", "TERM"]
 set = { GOFLAGS = "-mod=mod" }
-# Directories in front of PATH. The home-manager module fills this from a
-# profile's packages.
+# Directories in front of PATH.
+# The home-manager module fills this from the packages of a profile.
 path_prepend = ["/nix/store/...-xvfb-21.1.24/bin"]
 
 [egress]
-# Hosts reachable on port 443 (and 80 for plain HTTP). "*.example.com"
-# matches subdomains but not example.com itself. host:port names another
-# port, such as a self-hosted forge on git.example.org:3000; the connection
-# must still be HTTP or TLS.
+# Hosts that the jail can reach on port 443, and on 80 for plain HTTP.
+# "*.example.com" matches subdomains, but not example.com.
+# host:port gives a different port. The connection must use HTTP or TLS.
 allow = ["proxy.golang.org", "*.githubusercontent.com", "git.example.org:3000"]
-# Host localhost ports the jail may reach over HTTP, and as raw TCP.
+# Localhost ports of the host that the jail can reach over HTTP,
+# and as raw TCP.
 ports = [4200]
 tcp_ports = [3306]
 
-# Hosts only some programs may reach. A bare name matches a program under a
-# read-only system path such as /nix/store; a path is a glob that may start
-# with ~/. doriath warns about a path the agent can write.
+# Hosts that only some programs can reach.
+# A bare name matches a program under a read-only system path, such as
+# /nix/store. A path is a glob, and it can start with ~/.
+# doriath warns about a path that the agent can write.
 [[egress.programs]]
 binaries = ["~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"]
 allow = ["js.stripe.com"]
 
-# A host whose TLS the proxy terminates, to add a credential and apply rules
-# per request.
+# A host where the proxy terminates TLS, to add a credential and to apply
+# rules to each request.
 [[http]]
 host = "api.github.com"
 # scheme is bearer, token, basic with username, or header with the name of
-# the header, such as PRIVATE-TOKEN. binaries limits the credential to these
-# programs, matched like egress.programs. A rule can carry a credential of its
-# own, for the requests it matches.
+# a header, such as PRIVATE-TOKEN.
+# binaries gives the credential only to these programs, as in
+# egress.programs. A rule can have its own credential.
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
-# For requests no rule matches: allow, approve or deny. Hosts with a
-# credential default to approve, others to allow.
+# The action for requests that match no rule: allow, approve or deny.
+# Hosts with a credential default to approve, other hosts to allow.
 default = "approve"
-# Path prefixes that name one repository. An allow for the session then covers
-# that repository, not every request the rule matches. git's own paths, such
-# as /owner/repo.git/git-receive-pack, name their repository without this.
+# Path prefixes that name one repository, so that an allow for the session
+# covers only that repository. git paths, such as
+# /owner/repo.git/git-receive-pack, name their repository without this key.
 repositories = ["/repos/*/*"]
 
-# The first matching rule wins. In path, "*" matches one segment and "**"
-# any number of segments, such as "/**/git-receive-pack". A rule can also require graphql (operation, and
-# top-level fields by name), a header, mcp_tools (MCP tools called, by glob),
-# or body_contains (strings, also inside JSON). Bodies over 1 MB or compressed are refused for rules that read them.
+# The first rule that matches wins.
+# In path, "*" matches one segment and "**" any number of segments,
+# such as "/**/git-receive-pack".
+# A rule can also require graphql (the operation, and top-level fields),
+# a header, mcp_tools (MCP tools by glob), or body_contains (strings, also
+# inside JSON). Rules that read the body refuse bodies over 1 MB and
+# compressed bodies.
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/releases"
@@ -125,14 +144,14 @@ path = "/**"
 header = "x-api-key"
 action = "deny"
 
-# A git host. With ssh, git in the jail sends the host's SSH remotes, such as
-# git@github.com:owner/repo, over HTTPS instead, through the proxy.
+# A git host. With ssh, git in the jail sends the SSH remotes of the host,
+# such as git@github.com:owner/repo, over HTTPS through the proxy.
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git"] }
 ssh = { user = "git", port = 22 }
 
-# MCP servers the agent may use. See "MCP servers".
+# MCP servers that the agent can use. See "MCP servers".
 [[mcp]]
 name = "bazel"
 command = ["bazel-mcp", "--stdio"]
@@ -141,42 +160,45 @@ command = ["bazel-mcp", "--stdio"]
 name = "notion"
 url = "https://mcp.notion.com/mcp"
 secret = "notion"
-# Tools, by name or glob, to hold for your approval or refuse. Others are
-# allowed, or held with default = "approve" and an allow list.
+# Tools, by name or glob, to hold for your approval or to refuse.
+# doriath allows other tools, or holds them with default = "approve"
+# and an allow list.
 approve = ["notion-create-*", "notion-update-*"]
 deny = ["notion-delete-*"]
 
 [secrets.notion]
 command = ["rbw", "get", "notion-mcp"]
 
-# An agent-only SSH key, named as a secret. It signs git commits and refuses
-# SSH logins.
+# An SSH key for the agent only, named as a secret.
+# It signs git commits and refuses SSH logins.
 [signing]
 key = "agent-signing"
 
-# A podman service behind a broker that checks each API call. See "Containers".
+# A podman service behind a broker that checks each API call.
+# See "Containers".
 [podman]
 enabled = true
 images = ["ghcr.io/acme/*"]
 
 # The system nix daemon. Its builds run outside the jail, without the
-# allowlist, so only the nix-daemon module turns it on.
+# allowlist. Thus only the nix-daemon module turns it on.
 [nix]
 daemon = false
 
-# Writable git and jj stores in read-only repositories. The vcs module turns
-# it on. See "Repositories".
+# Writable git and jj stores in read-only repositories.
+# The vcs module turns it on. See "Repositories".
 [vcs]
 store = true
 
-# Loosen the seccomp and Landlock limits for tools that need it.
+# Make the seccomp and Landlock limits less strict for tools that need it.
 [hardening]
 namespaces = false   # nested sandboxes such as bubblewrap
 ptrace = false       # debuggers
 landlock = true
 
-# A systemd user scope per session. tasks defaults to 8192 (0 is no limit),
-# memory to 75% of RAM, and cpu is unset (200% is two cores).
+# A systemd user scope for each session. tasks defaults to 8192
+# (0 is no limit), memory to 75% of RAM. cpu has no default
+# (200% is two cores).
 [limits]
 tasks = 8192
 memory = "75%"
@@ -184,7 +206,7 @@ cpu = "200%"
 
 # Settings for the claude adapter. The claude module gives the profile its
 # own ~/.claude, with your CLAUDE.md, settings, skills and plugins
-# read-only, and a login of its own: run /login in a session.
+# read-only, and its own login: run /login in a session.
 [claude]
 disable_connectors = true
 denied_mcp_servers = ["claude.ai Gmail"]
@@ -197,7 +219,7 @@ approval_timeout = "60s"
 
 ## Secrets
 
-A secret has a name, which the profile picks, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints it, or an `oauth` login. Three keys refer to a secret by that name:
+A secret has a name that you select, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints it, or an [`oauth` login](#oauth-logins). These keys refer to a secret by its name:
 
 | Key                          | Uses the secret as                       |
 | ---------------------------- | ---------------------------------------- |
@@ -205,13 +227,16 @@ A secret has a name, which the profile picks, and a source under `[secrets.NAME]
 | `[[mcp]] secret`             | the bearer token for a remote MCP server |
 | `[signing] key`              | the agent's SSH key for signing commits  |
 
-A module can refer to a secret it does not define, and leaves its source to the profile. The `github` module's credentials name `github`, so a profile with that module needs `[secrets.github]`. doriath refuses a profile whose credential or signing key names a secret without a source, and says which table to add. Any other name is free, such as `agent-signing` for `[signing] key`.
+A module can name a secret without its source, and the profile gives the source. For example, a profile with the `github` module needs `[secrets.github]`. If a credential or signing key names a secret without a source, doriath refuses the profile and gives the table to add.
 
 ## Mounts
 
-Two placeholders resolve when a session starts, so one profile serves many projects: `{current}` is where `doriath run` starts (or `--current DIR`), and `{repository}` is the root of the git or jj repository that holds it. Entries with `{repository}` are skipped outside a repository.
+Two placeholders resolve when a session starts, thus one profile can serve many projects:
 
-doriath and modules add entries of their own:
+- `{current}` is the folder where `doriath run` starts, or the folder of `--current DIR`.
+- `{repository}` is the root of the git or jj repository that holds it. Outside a repository, doriath skips the entries with `{repository}`.
+
+doriath and modules add these entries:
 
 | Entry                            | Mode    | From     | Kind    |
 | -------------------------------- | ------- | -------- | ------- |
@@ -222,61 +247,104 @@ doriath and modules add entries of their own:
 
 Entries combine by least privilege:
 
-- A default yields to any entry for its path or a directory above it.
-- Otherwise the lowest privilege wins on the same path: `hide`, then `read`, then `write`.
-- A deeper path applies within its subtree: `write` inside a `read` repository, or `hide` inside a `write` directory.
+- A default yields to all entries for its path or for a directory above it.
+- Otherwise, on the same path, the lowest privilege wins: `hide`, then `read`, then `write`.
+- A deeper path applies in its subtree: `write` in a `read` repository, or `hide` in a `write` directory.
 - doriath creates a missing writable entry inside the repository, such as a worktree directory.
 
-`write` changes your files in place, but git's and jj's config, hooks and info stay read-only, because git runs what they name. doriath creates the ones that are missing before the session and leaves them there, empty, so the agent cannot create them: `.git/hooks`, `info`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`, which names `.git` itself. doriath also refuses to start when a mount, or a path in a repository it guards, goes through a symlink inside a directory the jail can write, because an agent could have put the link there in an earlier session; a symlink elsewhere, such as `~/.nix-profile`, mounts what it points to. `hide` shows an empty directory or file, also to containers. A hidden path that does not exist yet inside a writable mount gets an empty placeholder for the session, so the agent cannot create it either; doriath removes it afterwards. doriath refuses `/`, the home directory and any directory above it, in any mode, and a writable mount under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, whose programs get credentials by name.
+`write` changes your files in place, but the config, hooks and info of git and jj stay read-only, because git runs what they name. If these are missing, doriath creates them empty before the session, so that the agent cannot create them: `.git/hooks`, `info`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`.
+
+`hide` shows an empty directory or file, also to containers. A hidden path that is missing in a writable mount gets an empty placeholder for the session, so that the agent cannot create it. doriath removes the placeholder at the end.
+
+doriath refuses to start if a mount, or a guarded path in a repository, goes through a symlink in a directory that the jail can write. An agent can put such a link there in an earlier session. Other symlinks, such as `~/.nix-profile`, mount their target.
+
+doriath also refuses `/`, the home directory and the directories above it, in all modes. It refuses writable mounts under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, because programs there get credentials by name.
 
 ## Repositories
 
-With `[vcs] store = true`, each git or jj repository in the session gets a writable store, so the agent commits, branches and adds worktrees while your checkout stays read-only:
+With `[vcs] store = true`, each git or jj repository gets a writable store. The agent can commit, branch and add worktrees, and your checkout stays read-only:
 
 | Repository | Writable                                                                                                                          | Read-only                                                                                         |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | git        | `.git/objects`, `refs`, `logs`, `worktrees`, `lfs`, and the same in submodules                                                    | the rest of `.git`, such as `config`, `hooks`, `info` and `HEAD`, and each worktree's `commondir` |
 | jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store` and `store/extra` | `.jj/repo/config.toml`, `store/git_target`, `store/type`, and jj's git store as above             |
 
-At the end, doriath removes LFS objects written during the session whose content does not match their name, since your checkout takes a file's content from the object with that name. `rr-cache` stays read-only, so the agent cannot plant a merge resolution that your next merge applies.
+`rr-cache` also stays read-only, so that the agent cannot plant a merge resolution for your next merge.
 
-Starting in a linked git worktree or a secondary jj workspace mounts the main repository's store the same way. Because `.git` itself stays read-only, `git branch -d` fails in the jail. For a colocated jj repository, doriath turns on git's `relativeWorktrees` extension once, as jj's first workspace would.
+In a linked git worktree or a secondary jj workspace, doriath mounts the store of the main repository. Because `.git` stays read-only, `git branch -d` fails in the jail. In a colocated jj repository, doriath turns on the git extension `relativeWorktrees` one time, as the first jj workspace does.
 
-doriath records your branches and bookmarks when a session starts. Existing packs, which hold nearly all of the history, are read-only in the jail for the session, and doriath keeps a copy of the loose objects, so neither deleting nor rewriting objects in place survives the end step. `git gc` in the jail cannot remove old packs, and its background runs warn about it. At the end it keeps the start value of each branch the agent moved as `refs/doriath/<session>/<branch>`, and repairs each worktree the agent added: its `.git` file and `commondir` point back at your repository, and a planted `config.worktree` goes. Until the session ends, an agent worktree is the agent's; do not run git in it.
+At the start, doriath records your branches and bookmarks, and copies the loose objects. Existing packs, which hold almost all of the history, stay read-only. Thus objects that the agent deletes or rewrites in place do not stay that way after the session. `git gc` in the jail cannot remove old packs, and its background runs warn about this.
 
-- `doriath restore SESSION` puts moved branches and bookmarks back. It never runs by itself, because doriath cannot tell the agent's moves from yours.
-- `doriath clean` removes, after you confirm, agent worktrees already in the default branch and old backups. `doriath clean --caches PROFILE` removes a profile's caches.
+At the end, doriath does these steps:
+
+- It keeps the start value of each branch that the agent moved as `refs/doriath/<session>/<branch>`.
+- It removes new LFS objects whose content does not match their name, because your checkout takes file content from the object with that name.
+- It repairs each worktree that the agent added. The `.git` file and `commondir` point to your repository again, and doriath removes a planted `config.worktree`.
+
+Do not run git in an agent worktree until the session ends. `doriath restore SESSION` puts moved branches and bookmarks back. It never runs automatically, because doriath cannot tell the moves of the agent from your moves. [`doriath clean`](/reference/commands/#doriath-clean) removes old agent worktrees and backups.
 
 ## Approvals
 
-A request a rule holds, a host the profile does not name, and a path the agent asks to write all become approvals. [Answering requests](/guides/approvals/) covers how they wait and where you answer them; `host_wait` under [config.toml keys](#configtoml-keys) sets how long the agent waits.
+[Answering requests](/guides/approvals/) tells which requests wait for you, and where you answer them. `host_wait` under [config.toml keys](#configtoml-keys) sets how long the agent waits.
 
-The agent can ask to write only a path it already sees; a request never shows it something new. `doriath grant write` on the host can also attach a directory the jail does not see, which makes its contents readable too. doriath refuses, before asking, a path through a symlink, inside `.git` or `.jj`, hidden by the profile, a system path including `/var/tmp`, outside what Landlock allowed at the start (the home directory, `/tmp` and the writable mounts), or one of `.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.claude`, `.local/share/keyrings`, `.password-store`, the config of git and jj (`.gitconfig`, `.config/git`, `.config/jj`), the nix and home-manager profiles under `.local/state`, and doriath's own configuration, state and cache. Repositories inside a granted path keep the read-only control files of a `write` mount. Containers started after a grant may bind the path writable.
+The agent can ask to write only a path that it already sees. On the host, `doriath grant write` can also attach a directory that the jail does not see, and its contents become readable too.
+
+doriath refuses these paths before it asks you:
+
+- symlinks, and paths inside `.git` or `.jj`
+- paths that the profile hides
+- system paths, `/var/tmp` included
+- paths outside what Landlock allowed at the start: the home directory, `/tmp` and the writable mounts
+- `.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.claude`, `.local/share/keyrings` and `.password-store`
+- the config of git and jj: `.gitconfig`, `.config/git` and `.config/jj`
+- the nix and home-manager profiles under `.local/state`, and the configuration, state and cache of doriath
+
+Repositories in a granted path keep the read-only control files of a `write` mount. Containers that start after a grant can bind the path as writable.
 
 ## MCP servers
 
-`[[mcp]]` lists the MCP servers an agent may use, for every agent doriath supports. Your own MCP servers stay out of the jail; only the profile's are there.
+`[[mcp]]` lists the MCP servers of the profile, for all agents that doriath supports. Your own MCP servers stay outside the jail.
 
-- A local server (`command`, optional `env`) runs inside the jail like any program, under its limits. Its `env` is visible to the agent, so keep secrets out of it.
-- A remote server (`url`, https) is reached through the proxy. With `secret`, doriath intercepts its host and adds the secret as a bearer token, so the agent never holds it, and `[[http]]` rules for the host apply as for any other. Without one, doriath allows the host and leaves its traffic alone.
+- A local server (`command`, optional `env`) runs in the jail with its limits. The agent can read its `env`, so do not put secrets there.
+- A remote server (`url`, https) goes through the proxy. With `secret`, the proxy adds the secret as a bearer token, and `[[http]]` rules for the host apply. Without `secret`, doriath allows the host and does not change its traffic.
 
-For a remote server, `approve` and `deny` hold or refuse tools by name or glob, and `allow` with `default = "approve"` holds every tool but the listed ones. doriath reads each request's JSON-RPC body, on any path of the host: a held call becomes an approval such as "Call notion tool notion-create-pages", with the arguments shown, and a batch is held if any call in it is. On a host doriath intercepts for a server (with a secret or holds), the endpoint's own traffic that calls no tool is allowed, and everything else, including other paths and bodies doriath cannot read as JSON-RPC, waits for approval, as on any credentialed host. A module can ship a server with its holds, and the profile adds the secret. A local server talks to the agent where doriath cannot see, so its tools cannot be held.
+For a remote server, `approve` and `deny` hold or refuse tools by name or glob. `allow` with `default = "approve"` holds all tools except the listed ones. doriath reads the JSON-RPC body on all paths of the host. A held call becomes an approval such as "Call notion tool notion-create-pages", with its arguments. If one call in a batch is held, doriath holds the batch.
 
-doriath writes the list to `/run/doriath/mcp.json` in the common `mcpServers` format, and the agent's adapter points the agent at it, for example with `--mcp-config` for Claude Code. A repository's own `.mcp.json` still applies. A server that signs in with OAuth takes an `oauth` secret; see "OAuth logins".
+If a server has a secret or holds, doriath intercepts its host. There, endpoint traffic that calls no tool goes through. All other traffic waits for approval, as on all hosts with a credential. This includes other paths, and bodies that doriath cannot read as JSON-RPC.
+
+A module can supply a server with its holds, and the profile adds the secret. doriath cannot hold the tools of a local server, because the server talks to the agent where doriath cannot see the traffic.
+
+doriath writes the list to `/run/doriath/mcp.json` in the common `mcpServers` format. The adapter points the agent at it, such as with `--mcp-config` for Claude Code. The `.mcp.json` of a repository also applies.
 
 ## OAuth logins
 
-A secret with `oauth` is a login that doriath keeps on the host. `doriath login --profile NAME` signs in to each OAuth secret of the profile not signed in yet, or to the one you name: doriath opens the sign-in page in your browser and listens for the answer on the host's loopback address, which the jail cannot reach. With `mcp`, doriath discovers the sign-in server from the MCP server and registers itself as a client; with `issuer`, it signs in as `client_id` with `scopes`. Sessions then get a fresh access token for every request that uses the secret, refreshed as it expires, and the proxy adds it, so the agent never holds a token. If the refresh token stops working, doriath says to run `doriath login` again.
+A secret with `oauth` is a login that doriath keeps on the host. To sign in, run this command on the host:
 
-Tokens are stored in `~/.local/state/doriath/oauth/<profile>/<name>.json`, mode 600, outside the jail. The sign-in uses the [official MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk) for discovery and client registration, and `golang.org/x/oauth2` for PKCE and refresh.
+```sh
+doriath login --profile NAME
+```
+
+The command signs in to each OAuth secret of the profile that has no login yet, or to the secret that you name. doriath opens the sign-in page in your browser, and gets the answer on the host loopback address, which the jail cannot reach.
+
+- With `mcp`, doriath finds the sign-in server from the MCP server, and registers itself as a client.
+- With `issuer`, doriath signs in as `client_id` with `scopes`.
+
+Each request that uses the secret gets a fresh access token, which the proxy adds. Thus the agent never holds a token. If the refresh token stops working, doriath tells you to run `doriath login` again. Tokens are in `~/.local/state/doriath/oauth/<profile>/<name>.json`, with mode 600, outside the jail.
 
 ## Containers
 
-`[podman] images` lists the images containers may use, as [`path.Match`](https://pkg.go.dev/path#Match) globs over full references such as `docker.io/library/postgres:16`. Short names expand as Docker does, `*` does not cross `/`, and a pattern without a tag matches every tag. The podman module allows `docker.io/library/*`, `localhost/*`, Playwright's images and Testcontainers' helpers; `["*"]` allows any image.
+`[podman] images` lists the images that containers can use, as [`path.Match`](https://pkg.go.dev/path#Match) globs over full references such as `docker.io/library/postgres:16`:
 
-The first pull of a tag records its digest in `~/.local/state/doriath/images/<profile>.json`. When the tag later resolves to another digest, doriath asks you before the pull, and containers of a pinned tag run the pinned digest. Delete a line to trust a tag again.
+- Short names expand as in Docker.
+- `*` does not match `/`.
+- A pattern without a tag matches all tags.
+- `["*"]` allows all images.
 
-Containers may bind only what the profile mounts, with the same limits. Privileged containers, added capabilities, devices, host namespaces other than the network, and image pushes without approval are refused.
+The podman module allows `docker.io/library/*`, `localhost/*`, the images of Playwright and the helpers of Testcontainers.
+
+The first pull of a tag records its digest in `~/.local/state/doriath/images/<profile>.json`. If the tag later resolves to a different digest, doriath asks you before the pull. Containers of a pinned tag run the pinned digest. To trust a tag again, delete its line.
+
+Containers can bind only what the profile mounts, with the same limits. doriath refuses privileged containers, added capabilities, devices, host namespaces other than the network, and image pushes without your approval.
 
 ## config.toml keys
 
@@ -285,18 +353,19 @@ Containers may bind only what the profile mounts, with the same limits. Privileg
 [approvals]
 desktop = true
 # How long a held request waits for you before the agent gets an error.
-# Default 2m with desktop notifications and 0s without. At most 1h.
+# The default is 2m with desktop notifications and 0s without them.
+# The maximum is 1h.
 host_wait = "2m"
 ```
 
 ## Files doriath writes
 
-| Path                                      | What                                                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `~/.local/state/doriath/audit.jsonl`      | Every session, egress decision and approval; read it with `doriath log`, or lnav with `contrib/lnav` |
-| `~/.local/state/doriath/images/`          | Container image digests per profile                                                                  |
-| `~/.local/state/doriath/oauth/`           | OAuth logins per profile, with their refresh tokens                                                  |
-| `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                      |
-| `~/.local/state/doriath/backups/`         | Branches each session started with, and object hardlinks until it ends                               |
-| `~/.cache/doriath/agents/<profile>/`      | The profile's caches, `/tmp`, agent state and container storage                                      |
-| `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                     |
+| Path                                      | Holds                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `~/.local/state/doriath/audit.jsonl`      | Every session, egress decision and approval. Read it with `doriath log`, or lnav with `contrib/lnav`. |
+| `~/.local/state/doriath/images/`          | Container image digests for each profile                                                              |
+| `~/.local/state/doriath/oauth/`           | OAuth logins for each profile, with their refresh tokens                                              |
+| `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
+| `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |
+| `~/.cache/doriath/agents/<profile>/`      | The caches, `/tmp`, agent state and container storage of the profile                                  |
+| `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                      |

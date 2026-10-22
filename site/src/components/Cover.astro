@@ -1,0 +1,16 @@
+---
+interface Props {
+  level: "yes" | "part" | "no" | "unknown";
+}
+
+const labels = {
+  yes: "Covered",
+  part: "Partly covered",
+  no: "Not covered",
+  unknown: "Not documented",
+};
+const glyphs = { yes: "✓", part: "◐", no: "✕", unknown: "?" };
+const { level } = Astro.props;
+---
+
+<span class={`cover ${level}`} title={labels[level]}><span aria-hidden="true">{glyphs[level]}</span><span class="sr-only">{labels[level]}</span></span>

@@ -3,13 +3,21 @@ title: Claude Code
 description: What doriath sets up for Claude Code, and the choices left to you.
 ---
 
-Your Claude configuration needs no change. The `claude` module gives the profile a `~/.claude` of its own, where your `CLAUDE.md`, settings, skills and plugins appear read-only and the login belongs to the profile: run `/login` once in a session. A new profile starts with your onboarding already done.
+Your Claude configuration needs no change. The [`claude` module](/reference/modules/#claude) gives each profile its own `~/.claude`, with your `CLAUDE.md`, settings, skills and plugins as read-only files. The login belongs to the profile, so run `/login` once in a session. A new profile starts with your onboarding done.
 
-doriath starts Claude with settings it generates. claude.ai connectors are off, the profile's `ask` and `deny` rules apply, and the repository's `.claude/settings.json` is frozen as it was at the start, so the agent cannot loosen its own permissions during the session. At session start, Claude also learns what the jail allows, what `doriath:` errors mean, and how to ask for a host or a writable path.
+## The adapter
 
-Permission prompts go to the [approval queue](/guides/approvals/), and Claude falls back to its own prompt when you do not answer in time. MCP servers come from the profile's [`[[mcp]]`](/reference/configuration/#mcp-servers) list, while yours stay outside the jail. When the session ends, the project's transcripts are copied back to your `~/.claude`, so you can resume outside the jail.
+doriath starts Claude with settings that it generates:
 
-Adapter settings live under `[claude]` in the profile:
+- claude.ai connectors are off.
+- The `ask` and `deny` rules of the profile apply.
+- The `.claude/settings.json` of the repository stays as it was at session start, so the agent cannot loosen its own permissions.
+- At session start, Claude learns what the jail allows, what `doriath:` errors mean, and how to ask for a host or a writable path.
+- Permission prompts go to the [approval queue](/guides/approvals/). If you do not answer in time, Claude shows its own prompt.
+- MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. Your own MCP servers stay outside the jail.
+- When the session ends, doriath copies the transcripts back to your `~/.claude`, so you can resume outside the jail.
+
+Set the adapter under `[claude]` in the profile:
 
 ```toml
 [claude]
@@ -23,20 +31,16 @@ approval_timeout = "60s"
 
 ## Remote Control
 
-Remote Control works in the jail: start `claude --remote-control`, or run `/remote-control` in a session, and continue it from claude.ai or the Claude app. It needs the profile's claude.ai login, which `/login` gives it. The `claude` module turns off telemetry, error reports, feedback and updates one variable at a time, and leaves the feature-flag fetch that Remote Control depends on.
+To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. The `claude` module keeps the feature-flag fetch that Remote Control needs, and turns off telemetry, error reports, feedback and updates.
 
-Permission prompts reach doriath's queue first, and your phone only when you do not answer there in time. An answer from the phone settles Claude's own prompt; whatever the command then sends still goes through the proxy and its rules. Anyone signed in to the profile's claude.ai account can drive the session from the app, which changes who starts work in the jail and leaves what the jail allows as it was.
+Permission prompts go to the doriath queue first, and to your phone only if you do not answer in time. After an answer from the phone, the command still goes through the proxy and its rules. Anyone with the claude.ai login of the profile can control the session. The jail rules stay the same for that person.
 
 ## Sharing your login
 
-A login of the profile's own keeps your account out of the agent's hands. To share yours anyway, mount the credentials file writable, which lets the agent read the token, so reserve it for a profile you trust as much as yourself:
+To share your own login with the profile, mount the credentials file writable. The agent can then read the token, so do this only for a profile that you trust as much as yourself.
 
 ```toml
 [[mounts]]
 path = "~/.claude/.credentials.json"
 mode = "write"
 ```
-
-## Other agents
-
-Agents without an adapter run in a jail too. Give them one instruction, "When something is blocked, run `doriath status`", and the proxy's errors tell them what was blocked and what to run.

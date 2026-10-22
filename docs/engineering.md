@@ -122,7 +122,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 ### Toolchain choices
 
 - Go for the CLI and all helpers. One static binary per architecture, no runtime to install, a standard library that covers sockets, HTTP proxying and process control.
-- Linux first. macOS backends come later, behind the same interfaces.
+- Linux only for now. A macOS backend is possible but out of scope. Keep the jail behind interfaces that such a backend could implement.
 - [gofumpt](https://github.com/mvdan/gofumpt) for formatting, [golangci-lint](https://golangci-lint.run/) for linting, the standard `testing` package for tests.
 - [just](https://just.systems/) for task recipes, the same recipe names locally and in CI.
 - Dependency updates via [Renovate](https://docs.renovatebot.com/). Weekly batch, 7 day minimum release age, no auto-merge. Security advisories handled the same day.

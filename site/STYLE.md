@@ -20,6 +20,8 @@ Write in Simplified Technical English, after ASD-STE100, in a pragmatic form: th
 - Sentence case in headings.
 - No bold, no em-dashes, no emoji.
 - Second person ("you"), present tense ("doriath refuses"), imperative mood for instructions ("run the command").
+- Keep each paragraph to four lines or fewer on a desktop screen: about 70 words, or three to four sentences. Split a longer paragraph by topic, or turn a list of facts into a list.
+- Cut what the reader does not need to act: background, history and repeated caveats. Link to the page that has the detail.
 - Prefer short paragraphs to bullets. Bullets are for lists of items, not for explaining how something works.
 - No value judgements and no comparisons that rank doriath. State what it does and what it leaves open. A comparison with other tools states the facts of each tool, with sources, and leaves the conclusion to the reader.
 - Backticks for commands, paths, config keys, module names and code.

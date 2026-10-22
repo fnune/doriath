@@ -80,6 +80,7 @@ body {
 }
 
 .comparison {
+  position: relative;
   overflow-x: auto;
   margin-block: 1.5rem;
 }
@@ -116,4 +117,36 @@ starlight-tabs [role="tab"] {
 .card-grid > .card:nth-child(n) {
   --sl-card-border: var(--ring);
   --sl-card-bg: var(--ring-soft);
+}
+
+.cover {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35em;
+  height: 1.35em;
+  margin-inline-end: 0.35em;
+  border-radius: var(--radius);
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: -0.15em;
+}
+
+.cover.yes {
+  color: var(--allow);
+  background: color-mix(in srgb, var(--allow) 16%, transparent);
+}
+
+.cover.part {
+  color: var(--ring);
+  background: var(--ring-soft);
+}
+
+.cover.no {
+  color: var(--deny);
+  background: var(--deny-soft);
+}
+
+.cover.unknown {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
 }

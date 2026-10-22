@@ -9,7 +9,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 <Tabs syncKey="install">
   <TabItem label="Release binary">
-    doriath is one static binary with bubblewrap inside. Download it for your architecture, `amd64` or `arm64`, check it, and put it on your `PATH`:
+    The binary is static and has bubblewrap inside. Download it for `amd64` or `arm64`, check it and put it on your `PATH`:
 
     ```sh
     base=https://github.com/fnune/doriath/releases/latest/download
@@ -20,7 +20,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
   </TabItem>
   <TabItem label="home-manager">
-    Add the flake as an input, import its module and turn it on. The module also installs the direnv library, the zsh completion and, if you want it, the approvals page as a service; the [home-manager guide](/guides/home-manager/) lists every option.
+    Add the flake as an input, import its module and enable it. The [home-manager guide](/guides/home-manager/) lists the options.
 
     ```nix title="flake.nix"
     inputs.doriath = {
@@ -39,7 +39,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
   </TabItem>
   <TabItem label="NixOS">
-    doriath runs per user and needs no system service, so a NixOS configuration only adds the package:
+    doriath needs no system service. Add the package:
 
     ```nix title="flake.nix"
     inputs.doriath = {
@@ -54,7 +54,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
   </TabItem>
   <TabItem label="Go">
-    A build from `go install` has no bubblewrap inside. It uses the `bwrap` on your `PATH`, or the one `DORIATH_BWRAP` names:
+    This build has no bubblewrap inside. It uses the `bwrap` on your `PATH`, or the one that `DORIATH_BWRAP` names.
 
     ```sh
     go install github.com/fnune/doriath/cmd/doriath@latest
@@ -62,7 +62,7 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
   </TabItem>
   <TabItem label="From source">
-    The dev shell brings Go, the linters and the static bubblewrap that `just build` embeds:
+    The dev shell has Go and the static bubblewrap that `just build` embeds.
 
     ```sh
     git clone https://github.com/fnune/doriath
@@ -79,24 +79,22 @@ Then check the machine:
 doriath doctor
 ```
 
-doriath needs Linux with unprivileged user namespaces. For the [`podman` module](/reference/modules/#podman) you also need podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user, which `grep $USER /etc/subuid /etc/subgid` shows.
+Without an installation, `nix run github:fnune/doriath -- doctor` does the same check.
 
-To try doriath without installing it, `nix run github:fnune/doriath -- doctor` runs the same check.
+doriath needs Linux with unprivileged user namespaces. macOS is out of scope for now. The [`podman` module](/reference/modules/#podman) also needs podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user. `grep $USER /etc/subuid /etc/subgid` shows these ids.
 
 ## Write a profile
 
-A profile describes one kind of work. It says what the agent can read and write, which hosts it can reach, and which credentials the proxy adds for it. One profile usually serves one project, or a group of projects with the same tools. Each profile is a TOML file in `~/.config/doriath/profiles/`.
-
-A profile lists [modules](/reference/modules/). Each module holds the hosts, caches and rules of one tool, so the profile itself stays short. Save this as `~/.config/doriath/profiles/my-app.toml`:
+A profile is a TOML file that describes one kind of work. It lists [modules](/reference/modules/), and each module holds the hosts, caches and rules of one tool. This profile builds with Go and Node, commits with git, reads documentation sites and runs Claude Code:
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
 modules = ["base", "vcs", "docs", "go", "node", "claude"]
 ```
 
-This profile builds with Go and Node, commits with git, reads documentation sites and runs Claude Code. `claude` is the module of the agent. For another agent, use its module instead, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
+For another agent, use its module instead of `claude`, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
 
-The repository that you start in is read-only in the jail, and the agent commits in worktrees of its own. The `claude` module puts these worktrees in `.claude/worktrees` in the repository. To keep them in another folder, such as `~/Development/.worktrees/my-app`, add the folder with `mode = "write"`:
+The repository is read-only in the jail, and the agent commits in worktrees. The `claude` module puts them in `.claude/worktrees`. To use another folder, add it as a mount:
 
 ```toml
 [[mounts]]
@@ -106,11 +104,13 @@ mode = "write"
 
 ## Create credentials for the profile
 
-Make new credentials for each profile, as you make a new password for each site. Then the token of one profile cannot reach the repositories of another profile, and you can revoke one token with no effect on the other profiles. doriath adds the credentials to requests outside the jail, so the agent never reads them.
+Make new credentials for each profile. Then a token can reach only the repositories of its profile, and you can revoke it alone. The agent never reads the credentials, because doriath adds them outside the jail.
 
-This example uses GitHub. [Forges](/forges/) has the same steps for GitLab, Forgejo and Bitbucket. For GitHub, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile only. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Keep it in your password manager under a name for the profile, such as `github-my-app`.
+These steps are for GitHub. [Forges](/forges/) has the steps for GitLab, Forgejo and Bitbucket.
 
-For commit signing, create an SSH key for the profile and add it to GitHub as a signing key. The commits that the agent signs stay authored by you and show as verified:
+1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
+2. Keep the token in your password manager under a name such as `github-my-app`.
+3. Create an SSH key for commit signing, and add it to GitHub as a signing key. The commits of the agent then show as verified, with you as the author.
 
 ```sh
 install -d -m 700 ~/.config/doriath/keys
@@ -118,7 +118,7 @@ ssh-keygen -t ed25519 -N '' -C 'doriath my-app signing' -f ~/.config/doriath/key
 cat ~/.config/doriath/keys/my-app-signing.pub
 ```
 
-Then add the `github` module to the profile, so that the agent can push and open pull requests, and say where each credential is:
+Then add the `github` module, so that the agent can push and open pull requests. Each `[secrets.NAME]` table gives the source of one secret: a file with mode 600, or a command that prints it.
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
@@ -134,11 +134,11 @@ file = "~/.config/doriath/keys/my-app-signing"
 key = "signing"
 ```
 
-Each `[secrets.NAME]` table gives the source of one secret: a file with mode 600, or a command such as `rbw`, `sops` or `secret-tool` that prints it. The name is how the rest of the configuration refers to the secret. The `github` module asks for a secret named `github`, so that name is fixed. You choose the name of the signing secret, and `[signing] key` must use the same name. doriath reads each secret on the host once per session, and no secret enters the jail. [Secrets](/reference/configuration/#secrets) has the details.
+The `github` module asks for the secret `github`, so that name is fixed. You choose the name of the signing secret, and `[signing] key` must use it. [Secrets](/reference/configuration/#secrets) has the details.
 
 ## Find the hosts of a build
 
-A first build usually needs hosts that the modules do not name. In learning mode, every public host is reachable for one session. When the session ends, doriath prints the `[egress]` lines to add to the profile:
+A first build usually needs hosts that the modules do not name. In learning mode, every public host is reachable for one session. At the end, doriath prints the `[egress]` lines to add to the profile:
 
 ```sh
 doriath run --profile my-app --learn -- make build
@@ -151,11 +151,13 @@ doriath run --profile my-app --learn -- make build
 
 ## Run an agent
 
+Start the agent from the repository. For another agent, use its command instead of `claude`.
+
 ```sh
 cd ~/Development/my-app
 doriath run --profile my-app -- claude
 ```
 
-For another agent, use its command instead of `claude`. Held requests show as desktop notifications. Without a desktop, `doriath approvals web --open` opens a page in your browser, and `doriath approvals watch` asks in another terminal. [Answering requests](/guides/approvals/) has the details.
+Held requests show as desktop notifications. Without a desktop, use `doriath approvals web --open` or `doriath approvals watch`, as [answering requests](/guides/approvals/) describes.
 
-A plain `claude` still runs outside the jail. An alias such as `alias claude-app='doriath run --profile my-app -- claude'` starts it in the jail. A line in the `.envrc` of the project does the same for the whole project, as [projects with direnv](/guides/direnv/) describes.
+A plain `claude` still runs outside the jail. To start it in the jail, use an alias such as `alias claude-app='doriath run --profile my-app -- claude'`. For a whole project, use a line in its `.envrc`, as [projects with direnv](/guides/direnv/) describes.
