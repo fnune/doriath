@@ -423,6 +423,7 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	if h.SSH != nil {
 		cur.SSH = h.SSH
 	}
+	cur.EncodedSlashes = cur.EncodedSlashes || h.EncodedSlashes
 	cur.Rules = append(slices.Clone(h.Rules), cur.Rules...)
 	b.http[i] = cur
 }
@@ -664,7 +665,7 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 	if err != nil {
 		return HTTPHost{}, fmt.Errorf("http: %w", err)
 	}
-	out := HTTPHost{Host: host, Default: ActionAllow}
+	out := HTTPHost{Host: host, Default: ActionAllow, EncodedSlashes: h.EncodedSlashes}
 	if h.Default != "" {
 		action, err := parseAction(h.Default)
 		if err != nil {

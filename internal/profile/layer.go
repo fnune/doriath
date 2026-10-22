@@ -60,12 +60,13 @@ type programsLayer struct {
 }
 
 type httpLayer struct {
-	Host         string           `toml:"host"`
-	Credential   *credentialLayer `toml:"credential"`
-	Default      string           `toml:"default"`
-	Repositories []string         `toml:"repositories"`
-	SSH          *sshLayer        `toml:"ssh"`
-	Rules        []ruleLayer      `toml:"rules"`
+	Host           string           `toml:"host"`
+	Credential     *credentialLayer `toml:"credential"`
+	Default        string           `toml:"default"`
+	Repositories   []string         `toml:"repositories"`
+	SSH            *sshLayer        `toml:"ssh"`
+	EncodedSlashes bool             `toml:"encoded_slashes"`
+	Rules          []ruleLayer      `toml:"rules"`
 }
 
 type sshLayer struct {

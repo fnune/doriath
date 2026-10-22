@@ -974,3 +974,44 @@ default = "allow"
 		t.Fatalf("the credential must reach a host on its port: %v", got.Header)
 	}
 }
+
+func canonicalPath(u *url.URL) bool {
+	_, ok := matchPath(u, false)
+	return ok
+}
+
+func TestEncodedSlashesStayInsideTheirSegment(t *testing.T) {
+	for raw, want := range map[string]string{
+		"/api/v4/projects/group%2Fsub%2Fproj/merge_requests": "/api/v4/projects/group%2Fsub%2Fproj/merge_requests",
+		"/api/v4/projects/a%2fb/ho%6Fks":                     "/api/v4/projects/a%2Fb/hooks",
+		"/api/v4/projects/42":                                "/api/v4/projects/42",
+	} {
+		u, err := url.Parse("https://gitlab.com" + raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := matchPath(u, true)
+		if !ok || got != want {
+			t.Errorf("matchPath(%q) = %q, %v; want %q", raw, got, ok, want)
+		}
+		if strings.Contains(strings.ToLower(raw), "%2f") {
+			if _, ok := matchPath(u, false); ok {
+				t.Errorf("%q must be refused on a host without encoded_slashes", raw)
+			}
+		}
+	}
+	for _, raw := range []string{"/api/v4/projects/a%2F..%2Fb", "/api/v4/projects/a%00b", "/a%2Fb/%2E%2E/hooks", "/a%5Cb"} {
+		u, err := url.Parse("https://gitlab.com" + raw)
+		if err != nil {
+			continue
+		}
+		if got, ok := matchPath(u, true); ok {
+			t.Errorf("matchPath(%q) = %q, accepted", raw, got)
+		}
+	}
+	pattern, _ := profile.ParsePathPattern("/api/v4/projects/*/hooks/**")
+	u, _ := url.Parse("https://gitlab.com/api/v4/projects/a%2Fb/ho%6Fks/1")
+	if got, _ := matchPath(u, true); !pattern.Match(got) {
+		t.Errorf("an encoded letter must not slip past a rule: %q", got)
+	}
+}

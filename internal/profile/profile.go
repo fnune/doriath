@@ -214,8 +214,13 @@ type HTTPHost struct {
 	Repositories []PathPattern
 	// SSH says that git reaches this host over SSH too. Inside the jail,
 	// git sends those remotes over HTTPS instead, through the proxy.
-	SSH   *SSHRemote
-	Rules []Rule
+	SSH *SSHRemote
+	// EncodedSlashes lets a path segment hold %2F, as GitLab's API names a
+	// project by its path. Rules then see each segment decoded on its own,
+	// with the encoded slash kept, so a segment such as group%2Fproj stays
+	// one segment for the rules as it does for the forge.
+	EncodedSlashes bool
+	Rules          []Rule
 }
 
 type SSHRemote struct {

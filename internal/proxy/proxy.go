@@ -276,18 +276,19 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		deny(w, http.StatusBadRequest, "doriath: HTTP methods must be upper case")
 		return
 	}
-	if !canonicalPath(r.URL) {
+	reqPath, ok := matchPath(r.URL, rules.EncodedSlashes)
+	if !ok {
 		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "path is not in canonical form"})
 		deny(w, http.StatusBadRequest, "doriath: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
 		return
 	}
 	var body []byte
-	if rules.NeedsBody(r.Method, r.URL.Path) && !identityEncoding(r.Header.Get("Content-Encoding")) {
-		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "compressed body on an inspected request"})
+	if rules.NeedsBody(r.Method, reqPath) && !identityEncoding(r.Header.Get("Content-Encoding")) {
+		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: "compressed body on an inspected request"})
 		deny(w, http.StatusUnsupportedMediaType, "doriath: send this request uncompressed, so its body can be checked")
 		return
 	}
-	if rules.NeedsBody(r.Method, r.URL.Path) {
+	if rules.NeedsBody(r.Method, reqPath) {
 		var tooLarge bool
 		var err error
 		body, tooLarge, err = readBody(r, maxInspectedBody)
@@ -296,21 +297,21 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			return
 		}
 		if tooLarge {
-			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Reason: "request body too large to inspect"})
+			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Reason: "request body too large to inspect"})
 			deny(w, http.StatusRequestEntityTooLarge, "doriath: request body too large to inspect")
 			return
 		}
 	}
-	rule, matched := rules.DecideRequest(r.Method, r.URL.Path, r.Header, body)
+	rule, matched := rules.DecideRequest(r.Method, reqPath, r.Header, body)
 	action, summary := rule.Action, rule.Summary
 	switch action {
 	case profile.ActionDeny:
-		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: summary})
-		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s %s%s is not allowed by profile %q", r.Method, host, r.URL.Path, s.cfg.Profile))
+		s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Action: string(action), Reason: summary})
+		deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s %s%s is not allowed by profile %q", r.Method, host, reqPath, s.cfg.Profile))
 		return
 	case profile.ActionApprove:
 		if summary == "" {
-			summary = fmt.Sprintf("%s %s%s", r.Method, host, r.URL.Path)
+			summary = fmt.Sprintf("%s %s%s", r.Method, host, reqPath)
 		}
 		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
 			summary += " " + tools
@@ -330,7 +331,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: details,
-			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body, rules.Repository(r.URL.Path)),
+			Scope:   scope(rule, matched, r.Method, reqPath, host, body, rules.Repository(reqPath)),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
@@ -338,14 +339,14 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 				reason = "nobody approved it in time"
 				message = fmt.Sprintf("doriath: %s: %s", summary, reason)
 			}
-			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: r.URL.Path, Action: string(action), Reason: reason})
+			s.record(Event{Kind: "denied", Host: host, Method: r.Method, Path: reqPath, Action: string(action), Reason: reason})
 			if d.Reason != "" && d.Verdict == approval.VerdictDeny {
 				message += ": " + d.Reason
 			}
 			deny(w, http.StatusForbidden, message)
 			return
 		}
-		s.record(Event{Kind: "approved", Host: host, Method: r.Method, Path: r.URL.Path, Reason: summary})
+		s.record(Event{Kind: "approved", Host: host, Method: r.Method, Path: reqPath, Reason: summary})
 	}
 
 	c := rules.Credential
@@ -568,17 +569,37 @@ func pipe(a, b net.Conn) {
 	_ = b.Close()
 }
 
-func canonicalPath(u *url.URL) bool {
+func matchPath(u *url.URL, encodedSlashes bool) (string, bool) {
 	raw := strings.ToLower(u.EscapedPath())
-	if strings.Contains(raw, "%2f") || strings.Contains(raw, "%5c") || strings.Contains(u.Path, "\\") || strings.Contains(u.Path, ";") {
-		return false
+	if strings.Contains(raw, "%5c") || strings.Contains(raw, "%00") || strings.Contains(u.Path, "\\") || strings.Contains(u.Path, ";") {
+		return "", false
 	}
 	p := u.Path
+	if strings.Contains(raw, "%2f") {
+		if !encodedSlashes {
+			return "", false
+		}
+		segments := strings.Split(u.EscapedPath(), "/")
+		for i, seg := range segments {
+			kept := strings.NewReplacer("%2F", "\x00", "%2f", "\x00").Replace(seg)
+			decoded, err := url.PathUnescape(kept)
+			if err != nil || strings.Contains(decoded, "/") {
+				return "", false
+			}
+			for _, part := range strings.Split(decoded, "\x00") {
+				if part == "." || part == ".." {
+					return "", false
+				}
+			}
+			segments[i] = strings.ReplaceAll(decoded, "\x00", "%2F")
+		}
+		p = strings.Join(segments, "/")
+	}
 	if p == "" || p == "/" {
-		return true
+		return p, true
 	}
 	clean := path.Clean(p)
-	return p == clean || (clean != "/" && p == clean+"/")
+	return p, p == clean || (clean != "/" && p == clean+"/")
 }
 
 func identityEncoding(enc string) bool {
