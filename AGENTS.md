@@ -1,6 +1,7 @@
 # Notes for agents
 
 - Read [docs/engineering.md](docs/engineering.md) before changing code: it sets the principles, the layering, the testing seams and the commit conventions.
+- Write prose in Simplified Technical English (ASD-STE100), in a pragmatic form. Put the conclusion first and conditions before instructions. Keep sentences short, at most 20 words for an instruction and 25 for a description. Use active voice, simple tenses and one word for each concept. Do not use phrasal verbs, idioms, contractions or semicolons. Technical terms, commands and identifiers stay exact. [site/STYLE.md](site/STYLE.md) has the full list.
 - Prose you write, in docs, the site, comments, commit messages and error messages, follows [site/STYLE.md](site/STYLE.md). Its list of patterns that read as generated applies everywhere: no sentences in matching pairs or triplets, no "not X, but Y", no question headings, and none of the listed words.
 - The approvals page and the documentation site share their look through `internal/ui`. Change it there, and check both.
 - User documentation lives in `site/src/content/docs` and is published at https://doriath.fnune.com. Link there from Markdown in the repository instead of repeating it. `docs/` holds only what contributors need.

@@ -3,22 +3,28 @@ title: Looking inside a session
 description: Run commands in a jail, reach its ports, and read what it did.
 ---
 
-Servers the agent starts listen only inside the jail. Reach them from another terminal on the host:
+The agent can start a server in the jail, for example a development server on port 3000. Only programs in the jail can connect to that server. To use it from the host, open another terminal and use `doriath exec` or `doriath forward`.
+
+## Run a command in the jail
 
 ```sh
 doriath exec -- curl -sS http://localhost:3000
 doriath exec
 ```
 
-`doriath exec` runs a command, or a shell without one, as another process of the jail, with its files, network and limits.
+`doriath exec` runs a command as one more process of the jail. Without a command, it starts a shell. The process gets the same files, network and limits as the agent.
+
+## Reach a port of the jail
 
 ```sh
 doriath forward 3000
 ```
 
-With `doriath forward`, port 3000 of the jail answers at `localhost:3000` on the host, for every local user of the machine. To debug a browser in the jail, start it with `--remote-debugging-port=9222`, forward 9222 and attach from `chrome://inspect`.
+`doriath forward 3000` connects port 3000 on the host to port 3000 in the jail. Then `localhost:3000` on the host goes to the server in the jail. All local users of the machine can connect to this port.
 
-When several sessions run, pass `--session ID` from `doriath sessions`.
+To debug a browser in the jail, start the browser with `--remote-debugging-port=9222`. Then forward port 9222 and open `chrome://inspect` on the host.
+
+If more than one session runs, add `--session ID`. `doriath sessions` shows the IDs.
 
 ## Session history
 
@@ -28,6 +34,8 @@ doriath log --since 1h
 doriath log --denied --follow
 ```
 
-`doriath status` lists what a session allows and what it blocked, with the profile lines that would allow it. The audit log at `~/.local/state/doriath/audit.jsonl` records every session, egress decision and approval, each with its session and profile, and `doriath log` reads it. For [lnav](https://lnav.org), the repository ships a format in `contrib/lnav`.
+`doriath status` shows what a session allows and what it blocked. For each blocked request, it also shows the profile lines that allow it.
 
-A session prints one summary line when it ends, followed by the hosts it learned as profile lines. Branches the agent moved go back with `doriath restore SESSION`, as [repositories](/reference/configuration/#repositories) explains.
+doriath writes each session, each egress decision and each approval to the audit log, `~/.local/state/doriath/audit.jsonl`. Each record has its session and its profile. `doriath log` reads this file. The repository also has a format for [lnav](https://lnav.org) in `contrib/lnav`.
+
+When a session ends, doriath prints one summary line. After it, doriath prints the hosts that the session learned, as profile lines. If the agent moved branches, `doriath restore SESSION` puts them back. [Repositories](/reference/configuration/#repositories) tells more about this.

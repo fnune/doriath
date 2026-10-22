@@ -4,6 +4,19 @@ Rules for the pages in `src/content/docs`, and for any prose an agent writes in 
 
 ## Prose
 
+Write in Simplified Technical English, after ASD-STE100, in a pragmatic form: the rules apply to the prose, and the domain words of doriath, Linux and git stay as they are.
+
+- Put the conclusion or the instruction first. Reasons and caveats come after it.
+- Put a condition before its instruction: "If the check fails, run `doriath doctor`."
+- Keep instructions to 20 words or fewer, with one instruction in each sentence. Keep descriptions to 25 words or fewer, with one topic in each paragraph.
+- Use active voice and simple tenses: the simple present, past and future, the imperative and the infinitive. Do not use perfect or progressive tenses.
+- Use only the modals "can", "will" and "must".
+- Use one word for one concept, and do not change the word for variety.
+- Do not use noun clusters of more than three words. Use prepositions to break them up.
+- Do not use phrasal verbs, idioms, contractions or semicolons.
+- Keep the articles, the pronouns and "that". The text is plain prose, not a telegram.
+- Keep commands, flags, paths, error text and numbers exactly as they are.
+
 - Sentence case in headings.
 - No bold, no em-dashes, no emoji.
 - Second person ("you"), present tense ("doriath refuses"), imperative mood for instructions ("run the command").
