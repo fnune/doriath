@@ -1,0 +1,100 @@
+# Bitbucket Cloud with a token the agent never sees, and that only git
+# gets on bitbucket.org and only curl and the API's clients get on
+# api.bitbucket.org. Use a repository or workspace access token. Reads and
+# routine work on pull requests go through. Merges, pushes and other writes
+# wait for approval, and changes to webhooks, Pipelines variables and deploy
+# keys are refused. Say where the token comes from under [secrets.bitbucket]
+# in the profile.
+
+[[http]]
+host = "bitbucket.org"
+credential = { secret = "bitbucket", scheme = "basic", username = "x-token-auth", binaries = ["git-remote-https", "git-remote-http", "git"] }
+default = "approve"
+ssh = { user = "git" }
+
+# git over HTTPS. Fetches pass, and each push waits for approval, which you
+# can grant for the session per repository.
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+action = "approve"
+summary = "Push to a Bitbucket repository"
+
+[[http]]
+host = "api.bitbucket.org"
+credential = { secret = "bitbucket", scheme = "bearer", binaries = ["curl"] }
+default = "approve"
+repositories = ["/2.0/repositories/*/*"]
+
+# Refused outright.
+
+[[http.rules]]
+method = "*"
+path = "/2.0/repositories/*/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/2.0/repositories/*/*/pipelines_config/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/2.0/repositories/*/*/deploy-keys/**"
+action = "deny"
+
+# Held with a summary that says what the request does.
+
+[[http.rules]]
+method = "POST"
+path = "/2.0/repositories/*/*/pullrequests/*/merge"
+action = "approve"
+summary = "Merge a pull request"
+
+# Reads, and routine work on pull requests.
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/2.0/repositories/*/*/pullrequests"
+action = "allow"
+
+[[http.rules]]
+method = "PUT"
+path = "/2.0/repositories/*/*/pullrequests/*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/2.0/repositories/*/*/pullrequests/*/comments"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/2.0/repositories/*/*/pullrequests/*/approve"
+action = "allow"

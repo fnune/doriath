@@ -1,0 +1,223 @@
+# GitLab with a token the agent never sees, and that only glab and git get:
+# any other program reaches gitlab.com without it. git sends it over basic
+# auth and glab in the PRIVATE-TOKEN header. Reads and routine work on merge
+# requests, issues and pipelines go through. Merges, releases, tags, pushes
+# and other writes wait for approval, and changes to webhooks, CI variables,
+# members, deploy keys and access tokens are refused. Say where the token
+# comes from under [secrets.gitlab] in the profile. For a self-hosted
+# instance, copy this module under another name and change the host.
+
+# glab refuses to run without a token. This one only satisfies that check:
+# the proxy replaces the PRIVATE-TOKEN header with the real token.
+[env]
+set = { GITLAB_TOKEN = "doriath-placeholder-token" }
+
+[[http]]
+host = "gitlab.com"
+credential = { secret = "gitlab", scheme = "basic", username = "oauth2", binaries = ["git-remote-https", "git-remote-http", "git"] }
+default = "approve"
+repositories = ["/api/v4/projects/*"]
+encoded_slashes = true
+ssh = { user = "git" }
+
+# The API. Each rule that lets a request through carries glab's
+# credential, because git's basic credential does not work there.
+
+# Refused outright.
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/members/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/deploy_keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/deploy_tokens/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/access_tokens/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/protected_branches/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/**/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/**/members/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/**/access_tokens/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/**/deploy_tokens/**"
+action = "deny"
+
+# Held with a summary that says what the request does.
+
+[[http.rules]]
+method = "PUT"
+path = "/api/v4/projects/*/merge_requests/*/merge"
+action = "approve"
+summary = "Merge a merge request"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/releases"
+action = "approve"
+summary = "Create a GitLab release"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/repository/tags"
+action = "approve"
+summary = "Create a tag"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/repository/commits"
+action = "approve"
+summary = "Commit through the API"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+# Reads, and routine work on merge requests, issues and pipelines.
+
+[[http.rules]]
+method = "GET"
+path = "/api/**"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "HEAD"
+path = "/api/**"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/merge_requests"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "PUT"
+path = "/api/v4/projects/*/merge_requests/*"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/merge_requests/*/notes"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/merge_requests/*/discussions"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/issues"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "PUT"
+path = "/api/v4/projects/*/issues/*"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/issues/*/notes"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/pipelines/*/retry"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/pipelines/*/cancel"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/jobs/*/retry"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v4/projects/*/jobs/*/cancel"
+action = "allow"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+# Any other API request, including GraphQL, waits for approval.
+
+[[http.rules]]
+method = "*"
+path = "/api/**"
+action = "approve"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+# git over HTTPS. Fetches pass, and each push waits for approval, which you
+# can grant for the session per repository.
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+action = "approve"
+summary = "Push to a GitLab repository"

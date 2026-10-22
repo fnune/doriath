@@ -1,0 +1,157 @@
+# Forgejo and Gitea, on Codeberg by default, with a token the agent never
+# sees, and that only git and the tea, fj and berg clients get. The API and
+# git share one host. Reads and routine work on pull requests and issues go
+# through. Merges, releases, tags, pushes and other writes wait for
+# approval, and changes to webhooks, Actions secrets and variables,
+# collaborators and deploy keys are refused. Say where the token comes from
+# under [secrets.forgejo] in the profile. For another instance, copy this
+# module under another name and change the host.
+
+[[http]]
+host = "codeberg.org"
+credential = { secret = "forgejo", scheme = "basic", username = "token", binaries = ["git-remote-https", "git-remote-http", "git"] }
+default = "approve"
+repositories = ["/api/v1/repos/*/*"]
+ssh = { user = "git" }
+
+# The API. Each rule that lets a request through carries the clients'
+# credential, because git's basic credential is for git alone.
+
+# Refused outright.
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/actions/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/actions/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/collaborators/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/keys/**"
+action = "deny"
+
+# Held with a summary that says what the request does.
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/pulls/*/merge"
+action = "approve"
+summary = "Merge a pull request"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/releases"
+action = "approve"
+summary = "Create a release"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/tags"
+action = "approve"
+summary = "Create a tag"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "*"
+path = "/api/v1/repos/*/*/contents/**"
+action = "approve"
+summary = "Change files through the API"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+# Reads, and routine work on pull requests and issues.
+
+[[http.rules]]
+method = "GET"
+path = "/api/**"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "HEAD"
+path = "/api/**"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/pulls"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "PATCH"
+path = "/api/v1/repos/*/*/pulls/*"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/pulls/*/reviews"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/issues"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "PATCH"
+path = "/api/v1/repos/*/*/issues/*"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/issues/*/comments"
+action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+# Any other API request waits for approval.
+
+[[http.rules]]
+method = "*"
+path = "/api/**"
+action = "approve"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+# git over HTTPS. Fetches pass, and each push waits for approval, which you
+# can grant for the session per repository.
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-upload-pack"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+action = "approve"
+summary = "Push to a Forgejo repository"

@@ -22,7 +22,10 @@ func TestEveryModuleLoads(t *testing.T) {
 			names = append(names, `"`+name+`"`)
 		}
 	}
-	body := "modules = [" + strings.Join(names, ", ") + "]\n[secrets.github]\ncommand = [\"gh\", \"auth\", \"token\"]\n"
+	body := "modules = [" + strings.Join(names, ", ") + "]\n"
+	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
+	}
 	l := &profile.Loader{
 		Profiles: fstest.MapFS{"all.toml": {Data: []byte(body)}},
 		Modules:  []fs.FS{FS},
@@ -92,5 +95,59 @@ func TestEveryModuleLoads(t *testing.T) {
 	}
 	if !slices.Contains(p.ContainerImages, "docker.io/library/*") || slices.Contains(p.ContainerImages, "*") {
 		t.Errorf("podman images %v, want the official images and not any image", p.ContainerImages)
+	}
+}
+
+func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
+	body := "modules = [\"gitlab\", \"forgejo\", \"bitbucket\"]\n"
+	for _, name := range []string{"gitlab", "forgejo", "bitbucket"} {
+		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
+	}
+	l := &profile.Loader{Profiles: fstest.MapFS{"f.toml": {Data: []byte(body)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		host, method, path, want, secretScheme string
+	}{
+		{"gitlab.com", "GET", "/api/v4/projects/group%2Fsub%2Fproj/merge_requests", "allow", "header"},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/merge_requests/7/merge", "approve", "header"},
+		{"gitlab.com", "POST", "/api/v4/projects/42/hooks", "deny", ""},
+		{"gitlab.com", "PUT", "/api/v4/groups/acme/sub/variables/TOKEN", "deny", ""},
+		{"gitlab.com", "POST", "/api/graphql", "approve", "header"},
+		{"gitlab.com", "POST", "/group/sub/proj.git/git-receive-pack", "approve", "basic"},
+		{"gitlab.com", "POST", "/group/sub/proj.git/git-upload-pack", "allow", "basic"},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/merge", "approve", "token"},
+		{"codeberg.org", "PUT", "/api/v1/repos/a/b/actions/secrets/X", "deny", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/issues/1/comments", "allow", "token"},
+		{"codeberg.org", "POST", "/a/b.git/git-receive-pack", "approve", "basic"},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/merge", "approve", "bearer"},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/hooks", "deny", ""},
+		{"bitbucket.org", "POST", "/ws/repo.git/git-receive-pack", "approve", "basic"},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok {
+			t.Fatalf("%s is not inspected", c.host)
+		}
+		rule, matched := h.Decide(c.method, c.path, nil)
+		if string(rule.Action) != c.want {
+			t.Errorf("%s %s%s: %s, want %s", c.method, c.host, c.path, rule.Action, c.want)
+			continue
+		}
+		if c.secretScheme == "" {
+			continue
+		}
+		cred := h.Credential
+		if matched && rule.Credential != nil {
+			cred = rule.Credential
+		}
+		if cred == nil || string(cred.Scheme) != c.secretScheme {
+			t.Errorf("%s %s%s: credential %+v, want the %s scheme", c.method, c.host, c.path, cred, c.secretScheme)
+		}
+	}
+	gitlab, _ := p.Intercepted("gitlab.com")
+	if !gitlab.EncodedSlashes || gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge") != "/api/v4/projects/42" {
+		t.Errorf("gitlab.com: encoded slashes %v, repository %q", gitlab.EncodedSlashes, gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge"))
 	}
 }
