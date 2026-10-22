@@ -329,7 +329,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host string
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body)),
-			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body),
+			Scope:   scope(rule, matched, r.Method, r.URL.Path, host, body, rules.Repository(r.URL.Path)),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
@@ -433,7 +433,7 @@ func (s *Server) authorization(ctx context.Context, c profile.Credential) (strin
 	}
 }
 
-func scope(r profile.Rule, matched bool, method, path, host string, body []byte) string {
+func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo string) string {
 	if !matched {
 		s := fmt.Sprintf("http %s %s %s", method, host, path)
 		if gql := profile.DescribeGraphQL(body); gql != "" {
@@ -451,23 +451,10 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte)
 	if len(r.MCPTools) > 0 {
 		s += " mcp " + profile.DescribeMCP(body)
 	}
-	if repo := repoPrefix(string(r.Path), path); repo != "" {
+	if repo != "" {
 		s += " in " + repo
 	}
 	return s
-}
-
-func repoPrefix(pattern, p string) string {
-	segs := strings.Split(strings.TrimPrefix(p, "/"), "/")
-	switch {
-	case len(segs) >= 3 && strings.EqualFold(segs[0], "repos"):
-		return strings.ToLower("/" + strings.Join(segs[:3], "/"))
-	case len(segs) >= 2 && strings.EqualFold(segs[0], "repositories"):
-		return strings.ToLower("/" + strings.Join(segs[:2], "/"))
-	case len(segs) >= 3 && strings.HasPrefix(pattern, "/*/*/"):
-		return strings.TrimSuffix(strings.ToLower("/"+segs[0]+"/"+segs[1]), ".git")
-	}
-	return ""
 }
 
 const excerptLimit = 400

@@ -150,6 +150,7 @@ allow = ["example.com", "plain.example"]
 
 [[http]]
 host = "api.github.com"
+repositories = ["/repos/*/*"]
 credential = { secret = "github", scheme = "bearer" }
 
 [[http.rules]]
@@ -333,16 +334,39 @@ func TestRuleDeny(t *testing.T) {
 }
 
 func TestGitHostScopeNamesTheRepository(t *testing.T) {
-	push := profile.Rule{Method: "POST", Path: "/*/*/git-receive-pack", Action: profile.ActionApprove}
-	a := scope(push, true, "POST", "/fnune/project.git/git-receive-pack", "github.com", nil)
-	if a != "http POST github.com /*/*/git-receive-pack in /fnune/project" {
+	push := profile.Rule{Method: "POST", Path: "/**/git-receive-pack", Action: profile.ActionApprove}
+	var forge profile.HTTPHost
+	at := func(path string) string {
+		return scope(push, true, "POST", path, "github.com", nil, forge.Repository(path))
+	}
+	a := at("/fnune/project.git/git-receive-pack")
+	if a != "http POST github.com /**/git-receive-pack in /fnune/project" {
 		t.Fatalf("scope = %q", a)
 	}
-	if b := scope(push, true, "POST", "/fnune/Project/git-receive-pack", "github.com", nil); b != a {
+	if b := at("/fnune/Project/git-receive-pack"); b != a {
 		t.Errorf("the same repository with and without .git must share a grant: %q", b)
 	}
-	if c := scope(push, true, "POST", "/fnune/other/git-receive-pack", "github.com", nil); c == a {
+	if c := at("/fnune/other/git-receive-pack"); c == a {
 		t.Error("a push grant for one repository must not answer a push to another")
+	}
+	if d := at("/group/sub/proj.git/git-receive-pack"); !strings.HasSuffix(d, " in /group/sub/proj") {
+		t.Errorf("a repository in a subgroup must be named whole: %q", d)
+	}
+}
+
+func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
+	merge := profile.Rule{Method: "PUT", Path: "/api/v4/projects/*/merge_requests/*/merge", Action: profile.ActionApprove}
+	pattern, err := profile.ParsePathPattern("/api/v4/projects/*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitlab := profile.HTTPHost{Repositories: []profile.PathPattern{pattern}}
+	path := "/api/v4/projects/42/merge_requests/7/merge"
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, gitlab.Repository(path)); !strings.HasSuffix(s, " in /api/v4/projects/42") {
+		t.Errorf("scope = %q", s)
+	}
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, profile.HTTPHost{}.Repository(path)); strings.Contains(s, " in ") {
+		t.Errorf("without repositories the API path names no repository: %q", s)
 	}
 }
 

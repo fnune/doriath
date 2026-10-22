@@ -417,6 +417,9 @@ func (b *builder) mergeHTTP(h httpLayer) {
 	if h.Default != "" {
 		cur.Default = h.Default
 	}
+	for _, r := range h.Repositories {
+		cur.Repositories = appendNew(cur.Repositories, r)
+	}
 	cur.Rules = append(slices.Clone(h.Rules), cur.Rules...)
 	b.http[i] = cur
 }
@@ -666,6 +669,16 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		if h.Default == "" {
 			out.Default = ActionApprove
 		}
+	}
+	for _, r := range h.Repositories {
+		pattern, err := ParsePathPattern(r)
+		if err != nil {
+			return HTTPHost{}, fmt.Errorf("http %s repositories: %w", h.Host, err)
+		}
+		if strings.Contains(r, "**") {
+			return HTTPHost{}, fmt.Errorf("http %s repositories: %q: a repository prefix has a fixed number of segments, so it cannot hold **", h.Host, r)
+		}
+		out.Repositories = append(out.Repositories, pattern)
 	}
 	for _, r := range h.Rules {
 		rule, err := buildRule(r)

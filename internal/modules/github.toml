@@ -34,12 +34,12 @@ action = "allow"
 
 [[http.rules]]
 method = "POST"
-path = "/*/*/git-upload-pack"
+path = "/**/git-upload-pack"
 action = "allow"
 
 [[http.rules]]
 method = "POST"
-path = "/*/*/git-receive-pack"
+path = "/**/git-receive-pack"
 action = "approve"
 summary = "Push to a GitHub repository"
 
@@ -47,6 +47,7 @@ summary = "Push to a GitHub repository"
 host = "api.github.com"
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 default = "approve"
+repositories = ["/repos/*/*", "/repositories/*"]
 
 # Refused outright, in both path forms.
 [[http.rules]]
@@ -253,3 +254,4 @@ summary = "Merge a pull request"
 host = "uploads.github.com"
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 default = "approve"
+repositories = ["/repos/*/*", "/repositories/*"]

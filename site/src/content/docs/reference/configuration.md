@@ -93,9 +93,13 @@ credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 # For requests no rule matches: allow, approve or deny. Hosts with a
 # credential default to approve, others to allow.
 default = "approve"
+# Path prefixes that name one repository. An allow for the session then covers
+# that repository, not every request the rule matches. git's own paths, such
+# as /owner/repo.git/git-receive-pack, name their repository without this.
+repositories = ["/repos/*/*"]
 
-# The first matching rule wins. In path, "*" matches one segment and a
-# trailing "**" the rest. A rule can also require graphql (operation, and
+# The first matching rule wins. In path, "*" matches one segment and "**"
+# any number of segments, such as "/**/git-receive-pack". A rule can also require graphql (operation, and
 # top-level fields by name), a header, mcp_tools (MCP tools called, by glob),
 # or body_contains (strings, also inside JSON). Bodies over 1 MB or compressed are refused for rules that read them.
 [[http.rules]]

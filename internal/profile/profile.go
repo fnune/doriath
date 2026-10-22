@@ -197,7 +197,37 @@ type HTTPHost struct {
 	Host       HostPattern
 	Credential *Credential
 	Default    Action
-	Rules      []Rule
+	// Repositories are path prefixes that name one repository, such as
+	// /repos/*/* on GitHub's API. A grant for a request under one is
+	// scoped to that repository.
+	Repositories []PathPattern
+	Rules        []Rule
+}
+
+// Repository returns the part of path that names a repository: the prefix
+// one of the host's Repositories patterns matches, or, for git's smart HTTP
+// protocol on any host, everything before the protocol's endpoint.
+func (h HTTPHost) Repository(path string) string {
+	for _, p := range h.Repositories {
+		if prefix, ok := p.Prefix(path); ok {
+			return prefix
+		}
+	}
+	return gitRepository(path)
+}
+
+var gitEndpoints = []string{"/git-receive-pack", "/git-upload-pack", "/info/refs"}
+
+func gitRepository(path string) string {
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		path = path[:i]
+	}
+	for _, e := range gitEndpoints {
+		if repo, ok := strings.CutSuffix(path, e); ok && repo != "" {
+			return strings.TrimSuffix(strings.ToLower(repo), ".git")
+		}
+	}
+	return ""
 }
 
 // Limits caps what a session can use, so a runaway agent cannot exhaust the
@@ -443,8 +473,9 @@ func (p HostPattern) Match(host string) bool {
 	return host == string(p)
 }
 
-// PathPattern matches URL paths segment by segment. "*" matches one segment
-// and a trailing "**" matches the rest of the path, including nothing.
+// PathPattern matches URL paths segment by segment. "*" matches one segment,
+// and "**" matches any number of segments, including none, so
+// "/**/git-receive-pack" matches a push to a repository at any depth.
 type PathPattern string
 
 func ParsePathPattern(s string) (PathPattern, error) {
@@ -453,8 +484,8 @@ func ParsePathPattern(s string) (PathPattern, error) {
 	}
 	segments := strings.Split(strings.TrimPrefix(s, "/"), "/")
 	for i, seg := range segments {
-		if seg == "**" && i != len(segments)-1 {
-			return "", fmt.Errorf("path pattern %q: ** is only allowed at the end", s)
+		if seg == "**" && i > 0 && segments[i-1] == "**" {
+			return "", fmt.Errorf("path pattern %q: ** twice in a row matches the same as once", s)
 		}
 		if strings.Contains(seg, "*") && seg != "*" && seg != "**" {
 			return "", fmt.Errorf("path pattern %q: * must be a whole segment", s)
@@ -472,18 +503,51 @@ func (p PathPattern) Match(path string) bool {
 	}
 	want := strings.Split(strings.TrimPrefix(string(p), "/"), "/")
 	got := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(got) == 1 && got[0] == "" {
+		got = nil
+	}
+	if len(want) == 1 && want[0] == "" {
+		want = nil
+	}
+	consumed := make([]bool, len(got)+1)
+	consumed[0] = true
+	for _, seg := range want {
+		next := make([]bool, len(got)+1)
+		for j := range consumed {
+			if !consumed[j] {
+				continue
+			}
+			switch {
+			case seg == "**":
+				for k := j; k <= len(got); k++ {
+					next[k] = true
+				}
+			case j < len(got) && (seg == "*" || strings.EqualFold(seg, got[j])):
+				next[j+1] = true
+			}
+		}
+		consumed = next
+	}
+	return consumed[len(got)]
+}
+
+// Prefix matches the pattern against the first segments of path, and
+// returns those segments in lower case. The pattern must not hold "**".
+func (p PathPattern) Prefix(path string) (string, bool) {
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		path = path[:i]
+	}
+	want := strings.Split(strings.TrimPrefix(string(p), "/"), "/")
+	got := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(got) < len(want) {
+		return "", false
+	}
 	for i, seg := range want {
-		if seg == "**" {
-			return true
-		}
-		if i >= len(got) {
-			return false
-		}
-		if seg != "*" && !strings.EqualFold(seg, got[i]) {
-			return false
+		if seg == "**" || got[i] == "" || seg != "*" && !strings.EqualFold(seg, got[i]) {
+			return "", false
 		}
 	}
-	return len(got) == len(want)
+	return strings.ToLower("/" + strings.Join(got[:len(want)], "/")), true
 }
 
 func (r Rule) matchHeader(header http.Header) bool {
