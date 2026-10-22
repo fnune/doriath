@@ -84,8 +84,3 @@ doriath run --profile my-app -- claude
 Held requests show as desktop notifications. Without a desktop, `doriath approvals web --open` opens a page in your browser, and `doriath approvals watch` asks in another terminal; [answering requests](/guides/approvals/) has the details.
 
 A plain `claude` still runs outside the jail. An alias such as `alias claude-app='doriath run --profile my-app -- claude'` works, and so does a line in the project's `.envrc`, described in [projects with direnv](/guides/direnv/).
-
-## Known issues
-
-- `git push -u` and `push.autoSetupRemote` write `.git/config`, which is read-only in the jail. The push works, but the upstream is not recorded.
-- So far only `claude -p` is tested; interactive sessions are untested.

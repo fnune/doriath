@@ -15,7 +15,7 @@ Work needs writes, and allowing writes allows exfiltration. Intercepting every h
 
 Credentials and `[[egress.programs]]` hosts go only to named programs, which stops stray programs and stops little else. Over TCP, doriath names the program that holds the socket when the connection opens, and a socket outlives the program that opened it, so a program can write its request and hand the socket to a named one before doriath looks. The agent can still run those programs with any arguments, steer them through config it can write, such as `~/.config/gh` in the jail, or preload a library into them. A program named by a writable path, such as Playwright's browser in its cache, can be replaced; doriath warns about each such path.
 
-The agent needs these programs, so request rules and approvals decide what they may do. Pinning each program by hash for the session would close the replacement case, and is not done yet.
+The agent needs these programs, so request rules and approvals decide what they may do. Pinning each program by hash for the session would close the replacement case.
 
 ## The host filesystem is readable
 
@@ -45,7 +45,7 @@ Worktrees let agents work in parallel without touching your checkout. A copy per
 
 - Claude's transcripts return to `~/.claude/projects`, so resuming one outside the jail reads agent-written history. They also go the other way: a session starts with the project's earlier transcripts, so the agent reads every earlier conversation about the project, including what you pasted into one outside the jail.
 - Agent output reaches your terminal as it is; escape sequences can change its title or state.
-- Caches and container storage are shared by a profile's sessions, so one can plant files a later one trusts. This is a gap to fix.
+- Caches and container storage are shared by a profile's sessions, so one can plant files a later one trusts.
 
 These paths exist for resuming sessions, reading the agent's output and reusing build caches.
 
