@@ -19,6 +19,9 @@ type Jail struct {
 	// RewriteSSH are remotes that the jail reaches over HTTPS in place of
 	// SSH.
 	RewriteSSH []SSHRewrite
+	// SSHCommand is what git runs in place of ssh, which has no route out
+	// of the jail.
+	SSHCommand string
 	// Path is the jail's path to a file of the session's directory.
 	Path func(name string) string
 }

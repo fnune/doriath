@@ -32,3 +32,11 @@ grep -q 'doriath request wait HOST' ~/.other/AGENTS.md || echo "FAIL no session 
 		t.Errorf("your file changed: %q", data)
 	}
 }
+
+func TestGitOverSSHSaysThatTheJailHasNoRouteForIt(t *testing.T) {
+	e := newEnv(t)
+	_, out := e.run(e.profile(""), `git ls-remote git@forge.example:owner/repo.git 2>&1 | head -3`, nil)
+	if !strings.Contains(out, "git tried to reach forge.example over SSH, which has no route out of the jail") {
+		t.Fatalf("git said:\n%s", out)
+	}
+}

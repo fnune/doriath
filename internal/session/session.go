@@ -504,7 +504,7 @@ func (s *Session) startSigning(context.Context) error {
 
 func (s *Session) writeVCSFiles() error {
 	p := s.req.Profile
-	j := vcstools.Jail{Path: jail.InJail}
+	j := vcstools.Jail{Path: jail.InJail, SSHCommand: jail.ExePath + " __ssh"}
 	if p.SigningKey != "" {
 		j.SigningKey = jail.InJail("signing.pub")
 	}

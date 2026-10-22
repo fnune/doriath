@@ -120,6 +120,8 @@ func run(args []string) int {
 		err = promote.Inner(args[1:])
 	case "status":
 		err = cmdStatus(args[1:], os.Stdout)
+	case "__ssh":
+		code, err = cmdSSH(args[1:])
 	case "__statusline":
 		err = cmdStatusline(os.Stdout)
 	case "log":

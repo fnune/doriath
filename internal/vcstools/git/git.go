@@ -144,6 +144,9 @@ func config(desktop []byte, j vcstools.Jail, files map[string]string) []byte {
 		}
 	}
 	set("credential.helper", "")
+	if j.SSHCommand != "" {
+		set("core.sshCommand", j.SSHCommand)
+	}
 	for _, r := range j.RewriteSSH {
 		https := fmt.Sprintf("url.https://%s/.insteadof", r.Host)
 		for _, host := range append([]string{r.Host}, r.SSHHosts...) {
