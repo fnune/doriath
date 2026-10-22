@@ -368,7 +368,7 @@ If a server has a secret or holds, doriath intercepts its host. There, endpoint 
 
 A module can supply a server with its holds, and the profile adds the secret. doriath cannot hold the tools of a local server, because the server talks to the agent where doriath cannot see the traffic.
 
-doriath writes the list to `/run/doriath/mcp.json` in the common `mcpServers` format. The adapter points the agent at it, such as with `--mcp-config` for Claude Code. The `.mcp.json` of a repository also applies.
+Each adapter gives the list to its agent in the format of that agent, such as `--mcp-config` for Claude Code or `mcp_servers` in the config of Codex. doriath also writes the list to `/run/doriath/mcp.json` in the common `mcpServers` format, for an agent without an adapter. The `.mcp.json` of a repository also applies to Claude Code.
 
 ## OAuth logins
 

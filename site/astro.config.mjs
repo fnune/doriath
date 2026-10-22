@@ -80,6 +80,9 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "agents" },
             { label: "Claude Code", slug: "agents/claude-code" },
+            { label: "Codex", slug: "agents/codex" },
+            { label: "Gemini CLI", slug: "agents/gemini-cli" },
+            { label: "opencode", slug: "agents/opencode" },
           ],
         },
         {

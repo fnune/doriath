@@ -31,11 +31,11 @@ doriath writes the summary and the scope. The text on the curled rule with the a
 
 When the timer ends, the agent gets an error and the request is parked. If you allow a parked request before the session ends, the next try of the agent goes through.
 
-| Kind                        | The agent waits                                              | Set by                                                                                    |
-| --------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `host`, `path`              | 2 minutes with desktop notifications, 0 without them         | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys)                 |
-| `http`, podman image pushes | 10 minutes                                                   | fixed                                                                                     |
-| `tool`                      | 60 seconds for Claude Code, then Claude shows its own prompt | The adapter. For Claude Code, `approval_timeout` under [`[claude]`](/agents/claude-code/) |
+| Kind                        | The agent waits                                      | Set by                                                                       |
+| --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `host`, `path`              | 2 minutes with desktop notifications, 0 without them | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys)    |
+| `http`, podman image pushes | 10 minutes                                           | fixed                                                                        |
+| `tool`                      | 60 seconds, then the agent shows its own prompt      | `approval_timeout` under [`[agent]`](/reference/configuration/#profile-keys) |
 
 ## Answers
 

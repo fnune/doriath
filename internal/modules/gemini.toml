@@ -1,0 +1,44 @@
+# Google's Gemini CLI. Sign in with Google in a session: with NO_BROWSER,
+# Gemini prints a link to open in your browser and asks for the code it
+# shows. The gemini adapter adds the profile's MCP servers in system
+# settings, which override yours and the project's.
+
+[env]
+set = { NO_BROWSER = "true" }
+
+# The profile's own ~/.gemini: its login, history and state. A new profile
+# starts with your ui, model and general settings.
+[[caches]]
+path = "~/.gemini"
+
+# Your commands, skills, agents and policies, read-only, inside it. Your
+# GEMINI.md comes in through instructions below.
+[[mounts]]
+path = "~/.gemini/commands"
+optional = true
+
+[[mounts]]
+path = "~/.gemini/skills"
+optional = true
+
+[[mounts]]
+path = "~/.gemini/agents"
+optional = true
+
+[[mounts]]
+path = "~/.gemini/policies"
+optional = true
+
+[[mounts]]
+path = "~/.agents/skills"
+optional = true
+
+# Gemini's hooks need a trusted folder, so the session text reaches it
+# in GEMINI.md, after yours.
+[agent]
+instructions = ["~/.gemini/GEMINI.md"]
+
+# cloudcode-pa serves the models for a Google login, generativelanguage for
+# an API key.
+[egress]
+allow = ["oauth2.googleapis.com", "www.googleapis.com", "cloudcode-pa.googleapis.com", "generativelanguage.googleapis.com"]

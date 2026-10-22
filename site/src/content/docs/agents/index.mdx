@@ -13,18 +13,28 @@ If an agent has no built-in module, write one in `~/.config/doriath/modules/`. P
 
 ## Adapters
 
-Some things cannot be data. An adapter does them in code for one agent:
+Some things cannot be data. An adapter does them in code for one agent. Each agent page tells what its adapter does:
 
-| What                       | With an adapter                                           | Without an adapter                                  |
-| -------------------------- | --------------------------------------------------------- | --------------------------------------------------- |
-| Permission prompts         | Go to the [approval queue](/guides/approvals/).           | Stay in the terminal of the agent.                  |
-| Permission rules           | Are frozen for the session. The agent cannot loosen them. | Belong to the agent, and the agent can change them. |
-| The session text           | Reaches the agent at the start of the session.            | The agent learns of the jail from the proxy errors. |
-| MCP servers from `[[mcp]]` | Reach the agent in its own format.                        | Do not reach the agent.                             |
-| Transcripts                | Come back to your own config when the session ends.       | Stay in the state folder of the profile.            |
+| What                       | [Claude Code](/agents/claude-code/) | [Codex](/agents/codex/) | [Gemini CLI](/agents/gemini-cli/) | [opencode](/agents/opencode/) |
+| -------------------------- | ----------------------------------- | ----------------------- | --------------------------------- | ----------------------------- |
+| Permission prompts         | Approval queue                      | Approval queue          | Terminal of the agent             | Terminal of the agent         |
+| Permission rules           | Frozen for the session              | Frozen for the session  | The agent can change them         | The agent can change them     |
+| Session text               | At session start                    | At session start        | In `GEMINI.md`                    | In its instructions           |
+| MCP servers from `[[mcp]]` | Yes                                 | Yes                     | Yes                               | Yes                           |
+| Status line                | Yes                                 | No                      | No                                | No                            |
+| Transcripts                | Come back to your `~/.claude`       | Stay in the profile     | Stay in the profile               | Stay in the profile           |
 
-doriath uses an adapter only if the profile lists the module of the agent. Without the module, doriath warns you and runs the command as it is. [Claude Code](/agents/claude-code/) has an adapter.
+The approval queue is the [approvals page and `doriath approvals`](/guides/approvals/). The session text tells the agent what the jail allows, what `doriath:` errors mean, and how to ask for a host or a path. The settings that each adapter shares are under [`[agent]`](/reference/configuration/#profile-keys) in the profile.
+
+doriath uses an adapter only if the profile lists the module of the agent. Without the module, doriath warns you and runs the command as it is.
 
 ## Without an adapter
 
-Add this line to the instructions of the agent: "When something is blocked, run `doriath status`." That command shows what the jail allows, what it blocked, and how to ask for a host or a path.
+If your agent reads a global instructions file, name it under `instructions` in the module:
+
+```toml
+[agent]
+instructions = ["~/.config/my-agent/AGENTS.md"]
+```
+
+In the jail, the file shows your instructions and then the session text, read-only. If you have no such file, the agent reads only the session text. The command `doriath status` shows the same text at any time.

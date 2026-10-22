@@ -1,0 +1,18 @@
+---
+title: opencode
+description: What doriath sets up for opencode, and the choices left to you.
+---
+
+The [`opencode` module](/reference/modules/#opencode) gives each profile its own data, state and cache folders, with the logins and sessions of opencode. Your `~/.config/opencode` is read-only, with its config, `AGENTS.md`, agents, commands, plugins and skills. The MCP servers in your `opencode.json` come along and run in the jail.
+
+The login belongs to the profile. Run `opencode auth login` in a session, and allow the hosts of your provider in the profile. The module allows `models.dev`, which lists the models, and `opencode.ai`.
+
+## The adapter
+
+doriath gives opencode more config through `OPENCODE_CONFIG_CONTENT`, which overrides your config and the config of the project:
+
+- MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile.
+- The session text is added to the instructions of opencode.
+- Updates and sharing are off.
+
+Permission prompts stay in the terminal of opencode. Its plugins cannot answer a prompt, so doriath cannot answer for you.

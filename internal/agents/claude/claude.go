@@ -225,13 +225,3 @@ func ProjectDir(cwd string) string {
 }
 
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
-
-// SessionStart is the hook output that adds context for the agent.
-func SessionStart(context string) ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"hookSpecificOutput": map[string]string{
-			"hookEventName":     "SessionStart",
-			"additionalContext": context,
-		},
-	})
-}

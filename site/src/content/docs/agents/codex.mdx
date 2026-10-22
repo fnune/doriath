@@ -1,0 +1,29 @@
+---
+title: Codex
+description: What doriath sets up for OpenAI's Codex CLI, and the choices left to you.
+---
+
+The [`codex` module](/reference/modules/#codex) gives each profile its own `~/.codex`, with your `AGENTS.md`, skills and prompts as read-only files. The login belongs to the profile. To sign in, run `codex login --device-auth` in a session. The browser login waits on a port in the jail, which your browser cannot reach.
+
+## The adapter
+
+For each session, doriath writes `~/.codex/config.toml` and `~/.codex/hooks.json`, read-only:
+
+- Your model, reasoning, personality, approval and `tui` settings come from your own `config.toml`. Your MCP servers, hooks, `notify` command and project trust stay out.
+- Permission prompts go to the [approval queue](/guides/approvals/). If you do not answer in time, Codex shows its own prompt. Your `approval_policy` decides when Codex asks.
+- Codex gets the session text as developer instructions.
+- MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile.
+- The built-in sandbox of Codex is off. It needs user namespaces, which the jail does not give, and the jail confines Codex already.
+- The `.codex` folder of the repository does not load, because doriath marks the project as untrusted.
+- Update checks, analytics and feedback are off.
+
+Codex runs hooks only after you trust them in `/hooks`, or from `/etc/codex`, which the jail cannot add to. doriath starts Codex with `--dangerously-bypass-hook-trust` for this reason. The flag lets the hooks of all loaded config run, and the agent cannot change that config, because the files are read-only and the project layer does not load.
+
+Set how long a prompt waits for you under [`[agent]`](/reference/configuration/#profile-keys):
+
+```toml
+[agent]
+approval_timeout = "90s"
+```
+
+Because the config is read-only, choices that Codex saves to it, such as a model that you pick with `/model`, last only until the session ends. To keep a choice, put it in your own `~/.codex/config.toml`.

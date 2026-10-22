@@ -1,0 +1,19 @@
+---
+title: Gemini CLI
+description: What doriath sets up for Google's Gemini CLI, and the choices left to you.
+---
+
+The [`gemini` module](/reference/modules/#gemini) gives each profile its own `~/.gemini`, with your commands, skills, agents and policies as read-only files. A new profile starts with the `ui`, `model` and `general` settings of your `settings.json`. Your MCP servers and hooks stay out.
+
+The login belongs to the profile. To sign in with Google, start Gemini in a session. The module sets `NO_BROWSER`, so Gemini prints a link. Open the link in your browser, and give Gemini the code that the page shows.
+
+## The adapter
+
+doriath gives Gemini a system settings file through `GEMINI_CLI_SYSTEM_SETTINGS_PATH`. These settings override yours and the settings of the project:
+
+- MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile.
+- Usage statistics and updates are off.
+
+Your `GEMINI.md` reaches Gemini with the session text after it, through [`instructions`](/agents/#without-an-adapter).
+
+Permission prompts stay in the terminal of Gemini. Its hooks can refuse a tool call, but they cannot approve one, so doriath cannot answer for you. The rules in your policies apply as you wrote them.

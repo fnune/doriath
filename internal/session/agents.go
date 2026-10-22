@@ -11,11 +11,14 @@ import (
 
 	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/agents/claude"
+	"github.com/fnune/doriath/internal/agents/codex"
+	"github.com/fnune/doriath/internal/agents/gemini"
+	"github.com/fnune/doriath/internal/agents/opencode"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
 )
 
-var adapters = []agents.Adapter{claude.Adapter{}}
+var adapters = []agents.Adapter{claude.Adapter{}, codex.Adapter{}, gemini.Adapter{}, opencode.Adapter{}}
 
 const mcpConfigFile = "mcp.json"
 
@@ -41,17 +44,24 @@ func AdapterNamed(name string) agents.Adapter {
 
 func (s *Session) writeInstructions() error {
 	text := s.status().Describe()
-	for i, path := range s.req.Profile.Agent.Instructions {
+	for _, path := range s.req.Profile.Agent.Instructions {
 		own, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("read your instructions %s: %w", path, err)
 		}
-		name := fmt.Sprintf("instructions-%d.md", i)
-		if err := writeFile(s.jailPath(name), withSession(own, text), 0o644); err != nil {
+		if err := s.place(path, withSession(own, text)); err != nil {
 			return err
 		}
-		s.instructions = append(s.instructions, jail.Bind{Source: s.jailPath(name), Dest: path, ReadOnly: true})
 	}
+	return nil
+}
+
+func (s *Session) place(jailPath string, data []byte) error {
+	name := fmt.Sprintf("placed-%d-%s", len(s.placed), filepath.Base(jailPath))
+	if err := writeFile(s.jailPath(name), data, 0o644); err != nil {
+		return err
+	}
+	s.placed = append(s.placed, jail.Bind{Source: s.jailPath(name), Dest: jailPath, ReadOnly: true})
 	return nil
 }
 
@@ -101,11 +111,13 @@ func (s *Session) agentSession() agents.Session {
 		mcp = jail.InJail(mcpConfigFile)
 	}
 	return agents.Session{
-		Titled:    s.titled,
-		MCPConfig: mcp,
-		Profile:   s.req.Profile,
-		Home:      home,
-		Cwd:       s.req.Cwd,
+		Titled:       s.titled,
+		MCPConfig:    mcp,
+		Instructions: s.status().Describe(),
+		Place:        s.place,
+		Profile:      s.req.Profile,
+		Home:         home,
+		Cwd:          s.req.Cwd,
 		HostPath: func(p string) string {
 			for _, c := range s.req.Profile.Caches {
 				if c.Path == p {

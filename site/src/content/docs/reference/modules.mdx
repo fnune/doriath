@@ -63,6 +63,24 @@ For Claude Code, `claude` gives the profile its own `~/.claude` and its own logi
 
 <ModuleSource name="claude" />
 
+## codex
+
+For OpenAI's Codex CLI, `codex` gives the profile its own `~/.codex` and its own login. Your `AGENTS.md`, skills and prompts are mounted read-only. The adapter writes the config of the session. See [Codex](/agents/codex/).
+
+<ModuleSource name="codex" />
+
+## gemini
+
+For Google's Gemini CLI, `gemini` gives the profile its own `~/.gemini` and its own login. Your commands, skills, agents and policies are mounted read-only, and your `GEMINI.md` comes with the session text. See [Gemini CLI](/agents/gemini-cli/).
+
+<ModuleSource name="gemini" />
+
+## opencode
+
+For opencode, `opencode` gives the profile its own data, state and cache folders, and mounts your `~/.config/opencode` read-only. Allow the hosts of your provider in the profile. See [opencode](/agents/opencode/).
+
+<ModuleSource name="opencode" />
+
 ## go
 
 With `go`, Go builds can reach the module proxy and the checksum database. The build, module and golangci-lint caches stay in the profile.

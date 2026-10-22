@@ -121,6 +121,8 @@ type env struct {
 	vcs      []vcstools.Tool
 	hostWait time.Duration
 	resolver session.Resolver
+	agent    string
+	modules  []string
 }
 
 func newEnv(t *testing.T) *env {
@@ -187,8 +189,12 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) profile(extra string) *profile.Profile {
 	e.t.Helper()
+	listed := `"base"`
+	for _, m := range e.modules {
+		listed += fmt.Sprintf(", %q", m)
+	}
 	body := fmt.Sprintf(`
-modules = ["base"]
+modules = [%s]
 
 [[mounts]]
 path = %q
@@ -209,7 +215,7 @@ method = "POST"
 path = "/repos/*/*/releases"
 action = "approve"
 summary = "Create a GitHub release"
-%s`, e.work, e.binaries, extra)
+%s`, listed, e.work, e.binaries, extra)
 	for _, name := range slices.Sorted(maps.Keys(e.secrets)) {
 		body += fmt.Sprintf("\n[secrets.%s]\nfile = %q\n", name, e.secrets[name].File)
 	}
@@ -236,6 +242,9 @@ func (e *env) run(p *profile.Profile, script string, while func()) (int, string)
 func (e *env) start(p *profile.Profile, script string, while func()) (int, string, error) {
 	e.t.Helper()
 	scriptPath := filepath.Join(e.work, "script.sh")
+	if e.agent != "" {
+		scriptPath = filepath.Join(e.work, e.agent)
+	}
 	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"+script), 0o700); err != nil {
 		e.t.Fatal(err)
 	}

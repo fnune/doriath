@@ -1,0 +1,32 @@
+# opencode. Sign in to a provider with opencode auth login in a session, and
+# allow that provider's hosts in the profile. The opencode adapter adds the
+# profile's MCP servers and the session text to your config.
+
+# LSP servers download from GitHub releases, which the jail does not reach.
+[env]
+set = { OPENCODE_DISABLE_LSP_DOWNLOAD = "true" }
+
+# The profile's own logins, sessions, state and cache.
+[[caches]]
+path = "~/.local/share/opencode"
+
+[[caches]]
+path = "~/.local/state/opencode"
+
+[[caches]]
+path = "~/.cache/opencode"
+
+# Your config, AGENTS.md, agents, commands, plugins and skills, read-only.
+# The MCP servers in your opencode.json come along and run in the jail.
+[[mounts]]
+path = "~/.config/opencode"
+optional = true
+
+[[mounts]]
+path = "~/.agents/skills"
+optional = true
+
+# models.dev lists the models of each provider, and opencode.ai serves
+# opencode's own models.
+[egress]
+allow = ["models.dev", "opencode.ai"]

@@ -27,9 +27,15 @@ type Session struct {
 	// WriteFile puts a file into the session's directory, which the jail
 	// sees read-only, and returns its path in the jail.
 	WriteFile func(name string, data []byte) (string, error)
+	// Place puts a file at a path in the jail, read-only, for config the
+	// agent must not change during the session.
+	Place func(jailPath string, data []byte) error
 	// MCPConfig is the jail's path to the profile's MCP servers in the
 	// common mcpServers format, or "" when the profile names none.
 	MCPConfig string
+	// Instructions tells the agent what the jail allows and how to ask for
+	// more.
+	Instructions string
 	// Titled says that doriath sets the terminal's title for the session,
 	// so the agent should leave it alone.
 	Titled bool

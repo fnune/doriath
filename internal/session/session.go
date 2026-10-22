@@ -144,11 +144,11 @@ type Session struct {
 	closers []func()
 	entry   Entry
 
-	agent        agents.Adapter
-	command      []string
-	agentEnv     map[string]string
-	instructions []jail.Bind
-	netnsPID     int
+	agent    agents.Adapter
+	command  []string
+	agentEnv map[string]string
+	placed   []jail.Bind
+	netnsPID int
 
 	repository      string
 	containerBroker *containers.Broker
@@ -595,7 +595,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	if b, ok := s.bazelrc(home); ok {
 		extra = append(extra, b)
 	}
-	extra = append(extra, s.instructions...)
+	extra = append(extra, s.placed...)
 	argv := []string{jail.ExePath, "__init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
