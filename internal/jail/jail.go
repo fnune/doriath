@@ -273,7 +273,19 @@ func Guards(p *profile.Profile, host Host) []string {
 	return out
 }
 
+// GitRoots lists the git stores whose root the jail can write: those of
+// repositories in writable mounts, and those that the vcs module opens.
+func GitRoots(p *profile.Profile, host Host) []string {
+	g, _ := mountGuards(p, Layout{}, host)
+	return g.roots
+}
+
 func mountBinds(p *profile.Profile, layout Layout, host Host) ([]Bind, []Placeholder, []error) {
+	g, errs := mountGuards(p, layout, host)
+	return g.binds, g.missing, errs
+}
+
+func mountGuards(p *profile.Profile, layout Layout, host Host) (*guards, []error) {
 	var errs []error
 	g := &guards{host: host}
 	for _, m := range p.Mounts {
@@ -307,13 +319,14 @@ func mountBinds(p *profile.Profile, layout Layout, host Host) ([]Bind, []Placeho
 			}
 		}
 	}
-	return g.binds, g.missing, errs
+	return g, errs
 }
 
 type guards struct {
 	host    Host
 	binds   []Bind
 	missing []Placeholder
+	roots   []string
 }
 
 func (g *guards) guard(src, dest string, hold *Placeholder) {
@@ -466,14 +479,17 @@ var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks"
 
 var gitHolds = map[string]*Placeholder{
 	"config.worktree":         {},
-	"commondir":               {Content: ".\n"},
 	"hooks":                   {Dir: true},
 	"info":                    {Dir: true},
 	"objects/info/alternates": {},
 }
 
 func (g *guards) gitDir(srcGit, destGit string, depth int) {
+	g.roots = append(g.roots, srcGit)
 	for _, name := range GitControlFiles {
+		if name == vcs.Commondir {
+			continue
+		}
 		g.guard(filepath.Join(srcGit, name), filepath.Join(destGit, name), gitHolds[name])
 	}
 	g.packs(srcGit)

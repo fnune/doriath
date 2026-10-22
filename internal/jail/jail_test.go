@@ -245,7 +245,6 @@ func TestMissingControlPathsAreHeld(t *testing.T) {
 		".git/hooks":                        {Dir: true},
 		".git/info":                         {Dir: true},
 		".git/config.worktree":              {},
-		".git/commondir":                    {Content: ".\n"},
 		".git/objects/info/alternates":      {},
 		".git/worktrees/wt/config.worktree": {},
 		".jj/repo/config.toml":              {},
@@ -332,10 +331,16 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{".git/commondir", ".git/config.worktree", ".git/modules/emu/config", ".git/modules/emu/hooks"} {
+	for _, p := range []string{".git/config.worktree", ".git/modules/emu/config", ".git/modules/emu/hooks"} {
 		if mode(s.Binds, repo+"/"+p) != "read" {
 			t.Errorf("%s must be read-only", p)
 		}
+	}
+	if mode(s.Binds, repo+"/.git/commondir") != "none" {
+		t.Error("a bind would keep a commondir that the root guard removes")
+	}
+	if roots := GitRoots(testProfile(), h); !slices.Contains(roots, repo+"/.git") || !slices.Contains(roots, repo+"/.git/modules/emu") {
+		t.Errorf("the root guard must watch the store and its submodules: %q", roots)
 	}
 	w := host()
 	w["/home/u/Development/project/.git"] = "file"

@@ -128,6 +128,7 @@ R=%[1]s
 J="%[2]s --config user.name=You --config user.email=you@example.org"
 $J -R $R file list | grep -q .idea && echo "FAIL jj tracks what your global ignore covers"
 [ -z "$(git -C $R status --porcelain --ignored=no -- .idea)" ] || echo "FAIL git shows what your global ignore covers"
+echo /tmp/elsewhere > $R/.git/commondir
 $J -R $R describe -m "the agent describes your work" || echo "FAIL describe"
 $J -R $R new -m "the agent's work" || echo "FAIL new"
 $J -R $R bookmark create agent -r @- || echo "FAIL bookmark create"
@@ -147,6 +148,9 @@ echo done
 	})
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") || strings.Contains(out, "Failed to take lock") {
 		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if _, err := os.Lstat(filepath.Join(repo, ".git", "commondir")); err == nil {
+		t.Error("a commondir in the store sends libgit2, and so nix, to a broken worktree")
 	}
 	if !strings.Contains(hostJJ("-R", repo, "bookmark", "list"), "agent") {
 		t.Error("the agent's bookmark is missing on the host")

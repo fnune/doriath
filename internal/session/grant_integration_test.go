@@ -118,7 +118,7 @@ probe() {
   touch $1/file || echo "FAIL $1 is not writable"
   echo x >> $1/.git/config 2>/dev/null && echo "FAIL $1/.git/config is writable"
   mkdir -p $1/.git/hooks 2>/dev/null; touch $1/.git/hooks/pre-commit 2>/dev/null && echo "FAIL $1 took a hook"
-  echo /tmp > $1/.git/commondir 2>/dev/null && echo "FAIL $1/.git/commondir is writable"
+  echo /tmp > $1/.git/commondir 2>/dev/null && sleep 1 && [ -e $1/.git/commondir ] && echo "FAIL $1/.git/commondir stayed"
   touch $1/.git/refs/heads/x || echo "FAIL $1/.git/refs is not writable"
 }
 $G request write %[1]s --reason "work on several projects" || echo "FAIL request"

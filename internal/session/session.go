@@ -41,6 +41,7 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/sshagent"
 	"github.com/fnune/doriath/internal/term"
+	"github.com/fnune/doriath/internal/vcs"
 	"github.com/fnune/doriath/internal/vcstools"
 )
 
@@ -154,6 +155,8 @@ type Session struct {
 	mu       sync.Mutex
 	listings *listingCache
 	vcsEnv   map[string]string
+	roots    *vcs.RootGuard
+	rootLog  *repairLog
 	titled   bool
 }
 
@@ -268,6 +271,13 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.holdHiddenPaths(); err != nil {
 		return err
 	}
+	s.rootLog = &repairLog{log: s.log}
+	roots, err := vcs.NewRootGuard(s.rootLog)
+	if err != nil {
+		s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("doriath removes a commondir that the agent writes into a repository's store only when the session ends: %v", err)})
+	}
+	s.roots = roots
+	s.closers = append(s.closers, roots.Close)
 	if err := s.holdControlPaths(); err != nil {
 		return err
 	}
@@ -682,6 +692,10 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
 	t := term.New(s.deps.Stderr)
 	var repos bytes.Buffer
+	if s.roots != nil {
+		s.roots.Close()
+		_, _ = repos.Write(s.rootLog.lines.Bytes())
+	}
 	s.finishRepositories(&repos)
 	var end []note
 	for _, line := range strings.Split(strings.TrimSpace(repos.String()), "\n") {
