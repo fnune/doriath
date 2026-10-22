@@ -308,10 +308,10 @@ Upstream tracking, as `git push -u` records it, and the setting that jj needs fo
 
 With `[vcs] store = true`, each git or jj repository gets a writable store. The agent can commit, branch and add worktrees, and your checkout stays read-only:
 
-| Repository | Writable                                                                                                                          | Read-only                                                                                         |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| git        | `.git/objects`, `refs`, `logs`, `worktrees`, `lfs`, and the same in submodules                                                    | the rest of `.git`, such as `config`, `hooks`, `info` and `HEAD`, and each worktree's `commondir` |
-| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store` and `store/extra` | `.jj/repo/config.toml`, `store/git_target`, `store/type`, and jj's git store as above             |
+| Repository | Writable                                                                                                                          | Read-only                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| git        | `.git/objects`, `refs`, `logs`, `worktrees`, `lfs`, and the same in submodules                                                    | the rest of `.git`, such as `config`, `hooks`, `info` and `HEAD`, and each worktree's `commondir`  |
+| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store` and `store/extra` | `.jj/repo/config.toml`, `config-id`, `store/git_target`, `store/type`, and jj's git store as above |
 
 `rr-cache` also stays read-only, so that the agent cannot plant a merge resolution for your next merge.
 

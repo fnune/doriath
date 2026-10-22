@@ -27,7 +27,7 @@ func TestPrepareCreatesWhatGitWouldOnFirstUse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	notes, err := Prepare(context.Background(), Tools{Git: "git"}, r, []string{"git_import_export.lock"})
+	notes, err := Prepare(context.Background(), Tools{Git: "git"}, r)
 	if err != nil || notes != nil {
 		t.Fatalf("Prepare = %v, %v", notes, err)
 	}
@@ -55,30 +55,24 @@ func TestPrepareLeavesTheGitConfigOfAColocatedRepositoryAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r, []string{"git_import_export.lock"})
+	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r)
 	if err != nil || len(notes) != 0 {
 		t.Fatalf("Prepare = %q, %v", notes, err)
 	}
 	if after, _ := os.ReadFile(filepath.Join(r, ".git", "config")); string(after) != string(before) {
 		t.Errorf("the config changed:\n%s", after)
 	}
-	if _, err := os.Stat(filepath.Join(r, ".jj", "repo", "git_import_export.lock")); err != nil {
-		t.Errorf("the jj lock file is missing: %v", err)
-	}
 }
 
 func TestPrepareLeavesTheGitConfigOfAJJStoreAlone(t *testing.T) {
 	r := jjRepo(t, false)
-	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r, []string{"git_import_export.lock"})
+	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r)
 	if err != nil || len(notes) != 0 {
 		t.Fatalf("Prepare = %q, %v", notes, err)
 	}
 	store := filepath.Join(r, ".jj", "repo", "store", "git")
 	if _, err := os.Stat(filepath.Join(store, "objects", "info", "alternates")); err != nil {
 		t.Errorf("jj's git store needs its alternates guard too: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(r, ".jj", "repo", "git_import_export.lock")); err != nil {
-		t.Errorf("the jj lock file is missing: %v", err)
 	}
 }
 

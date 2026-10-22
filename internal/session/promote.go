@@ -147,7 +147,7 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, part := range strings.Split(path, "/") {
 		if part == ".git" || part == ".jj" {
-			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable; the vcs module makes the store writable", path)
+			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with the vcs module they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, use doriath request edit", path)
 		}
 	}
 	s.mu.Lock()

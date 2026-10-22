@@ -179,3 +179,17 @@ func TestWritableRepositoriesKeepTheirControlFilesReadOnly(t *testing.T) {
 		repo + "/.jj/repo/store/git/hooks":    "read",
 	})
 }
+
+func TestAJJLockThatHostJJDeletedIsHeldAgainWhileJJRepoStaysReadOnly(t *testing.T) {
+	const repo = "/home/u/repo"
+	h := storeHost()
+	delete(h, repo+"/.jj/repo/git_import_export.lock")
+	g := &guards{host: h}
+	g.store(repo)
+	if !slices.ContainsFunc(g.missing, func(p Placeholder) bool { return p.Path == repo+"/.jj/repo/git_import_export.lock" && !p.Dir }) {
+		t.Errorf("placeholders = %+v", g.missing)
+	}
+	if mode(g.binds, repo+"/.jj/repo") != "none" {
+		t.Error(".jj/repo became writable, where the agent could plant a config.toml that host jj copies into your own config")
+	}
+}

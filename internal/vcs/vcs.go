@@ -168,7 +168,7 @@ func colocated(repo string) bool {
 // Prepare creates the store directories, lock files and settings that git
 // and jj create on first use, because the agent cannot create them in a
 // read-only control directory. It returns notes on what it changed.
-func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]string, error) {
+func Prepare(ctx context.Context, t Tools, repo string) ([]string, error) {
 	if git := Store(repo); git != "" {
 		for _, name := range []string{"worktrees", "logs", "refs"} {
 			if err := os.MkdirAll(filepath.Join(git, name), 0o755); err != nil {
@@ -176,18 +176,6 @@ func Prepare(ctx context.Context, t Tools, repo string, jjLocks []string) ([]str
 			}
 		}
 		if err := guardAlternates(git, 0); err != nil {
-			return nil, err
-		}
-	}
-	if !hasJJ(repo) {
-		return nil, nil
-	}
-	for _, name := range jjLocks {
-		f, err := os.OpenFile(filepath.Join(repo, ".jj", "repo", name), os.O_CREATE|os.O_WRONLY, 0o644)
-		if err != nil {
-			return nil, err
-		}
-		if err := f.Close(); err != nil {
 			return nil, err
 		}
 	}

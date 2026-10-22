@@ -137,6 +137,9 @@ func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
 	jjRun("describe", "-m", "first")
 	jjRun("bookmark", "create", "main", "-r", "@")
 	jjRun("new")
+	if err := os.Remove(filepath.Join(repo, ".jj", "repo", "git_import_export.lock")); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
 
 	p := e.profile(fmt.Sprintf(`
 [[mounts]]
@@ -163,11 +166,12 @@ git config --file /tmp/c extensions.relativeWorktrees true
 $J --repository $R workspace add /tmp/ws || echo "FAIL workspace add"
 cd /tmp/ws && echo x > f && $J describe -m agent && $J new && $J bookmark create agent -r @- || echo "FAIL commit in the workspace"
 echo x >> $R/.jj/repo/store/git_target 2>/dev/null && echo "FAIL git_target writable"
+touch $R/.jj/repo/store/planted 2>/dev/null && echo "FAIL store writable"
 echo '[ui]' > $R/.jj/repo/config.toml 2>/dev/null && echo "FAIL repo config created"
 echo x > $R/README 2>/dev/null && echo "FAIL checkout writable"
 echo done
 `, jj, repo), nil)
-	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") || strings.Contains(out, "Failed to take lock") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 	if !strings.Contains(jjRun("bookmark", "list"), "agent") {

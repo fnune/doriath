@@ -374,7 +374,7 @@ const repositoryDepth = 3
 
 var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
 
-var jjControlFiles = map[string]*Placeholder{"config.toml": {}, "store/git_target": nil, "store/type": nil}
+var jjControlFiles = map[string]*Placeholder{"config.toml": {}, "config-id": nil, "store/git_target": nil, "store/type": nil}
 
 func (g *guards) jj(repo string) {
 	jjRepo := filepath.Join(repo, ".jj", "repo")
@@ -422,10 +422,13 @@ func (g *guards) jjRepoStore(jjRepo string) {
 	for _, name := range jjRepoData {
 		g.writable(filepath.Join(jjRepo, name))
 	}
-	for _, name := range JJLockFiles {
-		if p := filepath.Join(jjRepo, name); g.host.Kind(p) == "file" {
+	for _, name := range jjLockFiles {
+		p := filepath.Join(jjRepo, name)
+		if g.host.Kind(p) == "file" {
 			g.binds = append(g.binds, Bind{Source: p, Dest: p})
+			continue
 		}
+		g.missing = append(g.missing, Placeholder{Path: p})
 	}
 	if s := filepath.Join(jjRepo, "store", "git"); g.host.Kind(s) == "dir" {
 		g.gitStore(s, 0)
@@ -435,9 +438,7 @@ func (g *guards) jjRepoStore(jjRepo string) {
 var (
 	gitStoreData = []string{"objects", "refs", "logs", "worktrees", "lfs"}
 	jjRepoData   = []string{"index", "op_heads", "op_store", "submodule_store", "workspace_store", "store/extra"}
-	// JJLockFiles are locks jj takes in .jj/repo itself. jj keeps the files
-	// and only locks them, so doriath creates them before the session.
-	JJLockFiles = []string{"git_import_export.lock"}
+	jjLockFiles  = []string{"git_import_export.lock"}
 
 	worktreeControlFiles = map[string]*Placeholder{"commondir": nil, "gitdir": nil, "config.worktree": {}}
 )

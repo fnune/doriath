@@ -530,3 +530,19 @@ func TestRepositoriesFindRepositoriesUpToTheirDepth(t *testing.T) {
 		t.Errorf("repositories = %v, want %v", got, want)
 	}
 }
+
+func TestTheJJConfigIDOfAWritableRepositoryStaysReadOnly(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := held(testProfile(), host())
+	h[repo+"/.jj"] = "dir"
+	h[repo+"/.jj/repo"] = "dir"
+	h[repo+"/.jj/repo/config-id"] = "file"
+	h = held(testProfile(), h)
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode(s.Binds, repo+"/.jj/repo/config-id") != "read" {
+		t.Error("config-id, which picks the jj config host jj trusts, is writable")
+	}
+}

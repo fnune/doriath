@@ -81,7 +81,7 @@ func (s *Session) startRepositories(ctx context.Context) error {
 		return fmt.Errorf("the vcs module needs git on the host to keep your branches recoverable")
 	}
 	for _, repo := range repos {
-		notes, err := vcs.Prepare(ctx, s.vcsTools(), repo, jail.JJLockFiles)
+		notes, err := vcs.Prepare(ctx, s.vcsTools(), repo)
 		if err != nil {
 			return fmt.Errorf("prepare %s: %w", repo, err)
 		}
