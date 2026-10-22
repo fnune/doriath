@@ -70,7 +70,15 @@ echo done
 			t.Errorf("grant: %v", err)
 		}
 		var entry session.Entry
-		if data, err := os.ReadFile(filepath.Join(filepath.Dir(socks[0]), session.EntryFile)); err != nil || json.Unmarshal(data, &entry) != nil || !slices.Contains(entry.AgentWritable, outside) {
+		var err error
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			var data []byte
+			entry = session.Entry{}
+			if data, err = os.ReadFile(filepath.Join(filepath.Dir(socks[0]), session.EntryFile)); err == nil && json.Unmarshal(data, &entry) == nil && slices.Contains(entry.AgentWritable, outside) {
+				break
+			}
+		}
+		if !slices.Contains(entry.AgentWritable, outside) {
 			t.Errorf("the session entry must list the grant for doriath exec: %+v, %v", entry, err)
 		}
 	})
