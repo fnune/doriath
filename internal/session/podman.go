@@ -317,7 +317,6 @@ func (s *Session) startContainerBroker(raw string) error {
 	return nil
 }
 
-// The agent's links in a cache are in its backing directory, not at the path.
 type jailPaths struct {
 	caches map[string]string
 }

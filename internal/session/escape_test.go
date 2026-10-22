@@ -103,8 +103,6 @@ func readEscapeHeader(path string) (escapeHeader, error) {
 	return h, sc.Err()
 }
 
-// prepareEscape fills the script's placeholders with things outside the
-// jail that it should not reach, and returns profile lines its setup needs.
 func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string) {
 	t.Helper()
 	secretFile := filepath.Join(e.home, "outside-secret.txt")
@@ -198,9 +196,6 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 	return strings.NewReplacer(replacements...).Replace(script), extra
 }
 
-// escapeResolver answers like public DNS for the test hosts, and points
-// rebinding.example at the cloud metadata address, so the proxy's address
-// guard runs as it does outside tests.
 type escapeResolver struct{}
 
 func (escapeResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.Addr, error) {

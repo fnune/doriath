@@ -83,3 +83,9 @@ func TestGuardDialer(t *testing.T) {
 		}
 	}
 }
+
+func TestTheFakeIPAnswersOfLocalDNSProxiesStayReachable(t *testing.T) {
+	if why := (&guardDialer{}).refuse("public.example.com", netip.MustParseAddr("198.18.0.5")); why != "" {
+		t.Errorf("198.18.0.5 is refused: %s", why)
+	}
+}

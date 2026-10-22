@@ -26,8 +26,6 @@ func TestMergedRefusesWhatItCannotVouchFor(t *testing.T) {
 			name:   "a checkout whose .git points at another store",
 			branch: "main",
 			setup: func(t *testing.T, r, wt string) {
-				// A clone has the same commits, so only the pointer check
-				// stops git from vouching for a worktree of another store.
 				evil := filepath.Join(t.TempDir(), "evil")
 				git(t, r, "clone", "-q", r, evil)
 				git(t, evil, "worktree", "add", "-q", "--detach", filepath.Join(t.TempDir(), "evilwt"))

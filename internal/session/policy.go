@@ -88,8 +88,6 @@ func (l *livePolicy) allow(host string) {
 	l.mu.Unlock()
 }
 
-// pendingTTL keeps a request open for as long as a session plausibly runs:
-// you may answer it long after the agent stopped waiting.
 const pendingTTL = 12 * time.Hour
 
 // HoldHost asks you about a host the profile does not name, and waits up to
@@ -137,9 +135,6 @@ func publicAddr(ip netip.Addr) bool {
 	return ip.IsGlobalUnicast() && !private(ip)
 }
 
-// openUploadHosts accept data from anyone: object storage, paste and file
-// drops, request bins and chat webhooks. Allowing one gives the agent a
-// place to send what it reads.
 var openUploadHosts = []string{
 	"amazonaws.com", "storage.googleapis.com", "blob.core.windows.net", "r2.cloudflarestorage.com",
 	"digitaloceanspaces.com", "backblazeb2.com",

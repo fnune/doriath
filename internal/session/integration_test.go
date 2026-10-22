@@ -113,7 +113,7 @@ type env struct {
 	binaries   string
 	systemdRun string
 	lastID     string
-	// cwd is where sessions start; empty means the work directory.
+
 	cwd      string
 	hostWait time.Duration
 	resolver session.Resolver

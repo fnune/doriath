@@ -613,9 +613,6 @@ func identityEncoding(enc string) bool {
 
 const ReasonNotInProfile = "host not in the profile"
 
-// admit reports whether the request's program may reach host. For a host
-// the profile does not name, it asks you and waits a while, when it can,
-// and otherwise refuses with the reason.
 func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string) bool {
 	exe := IdentityFrom(r.Context()).Exe
 	if s.policy.AllowsHostFor(host, exe) {
@@ -653,10 +650,6 @@ func (s *Server) denyHost(w http.ResponseWriter, host string) {
 	deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s is not in profile %q; add it to [egress] allow if the agent needs it", host, s.cfg.Profile))
 }
 
-// tunnelMismatch says why a tunnel's first bytes do not fit its host: they
-// must be a ClientHello for that host. Only an address may go without a
-// name, as clients send none for one; without a name, a shared front end
-// could route the request by its encrypted Host header instead.
 func tunnelMismatch(host, name string, isTLS bool) string {
 	switch {
 	case !isTLS:

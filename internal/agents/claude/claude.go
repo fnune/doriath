@@ -31,9 +31,6 @@ func (Adapter) Matches(argv []string) bool {
 	return len(argv) > 0 && filepath.Base(argv[0]) == "claude"
 }
 
-// seeded are the keys of ~/.claude.json a new profile starts with: the
-// onboarding and notices you already went through. Accounts, MCP servers,
-// project history and identifiers stay out.
 var seeded = []string{
 	"hasCompletedOnboarding", "lastOnboardingVersion", "lastReleaseNotesSeen",
 	"hasSeenTasksHint", "hasShownOpus45Notice", "hasShownOpus46Notice", "effortCalloutV2Dismissed",

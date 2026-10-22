@@ -17,7 +17,6 @@ import (
 	"github.com/fnune/doriath/internal/vcs"
 )
 
-// Paths inside the jail where doriath puts its own files and sockets.
 const (
 	Dir       = "/run/doriath"
 	ExePath   = "/run/doriath-bin/doriath"
@@ -375,7 +374,6 @@ const repositoryDepth = 3
 
 var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, ".cache": true, "vendor": true, "target": true}
 
-// jjControlFiles decide what jj runs or which git store it uses.
 var jjControlFiles = map[string]*Placeholder{"config.toml": {}, "store/git_target": nil, "store/type": nil}
 
 func (g *guards) jj(repo string) {
@@ -398,9 +396,6 @@ func (g *guards) jj(repo string) {
 	}
 }
 
-// store makes a repository's store writable inside a read-only mount.
-// The control directories themselves stay read-only, so no control file can
-// appear in them; only their data subdirectories become writable.
 func (g *guards) store(repo string) {
 	switch {
 	case filepath.Base(repo) == ".git":
@@ -419,8 +414,6 @@ func (g *guards) store(repo string) {
 	}
 }
 
-// isJJRepo reports whether dir is a jj repository directory itself, as
-// mounted for a secondary workspace whose .jj/repo points at it.
 func isJJRepo(dir string) bool {
 	return filepath.Base(dir) == "repo" && filepath.Base(filepath.Dir(dir)) == ".jj"
 }
@@ -445,8 +438,7 @@ var (
 	// JJLockFiles are locks jj takes in .jj/repo itself. jj keeps the files
 	// and only locks them, so doriath creates them before the session.
 	JJLockFiles = []string{"git_import_export.lock"}
-	// worktreeControlFiles, in a worktree's admin directory, decide which
-	// repository and config git uses in that worktree.
+
 	worktreeControlFiles = map[string]*Placeholder{"commondir": nil, "gitdir": nil, "config.worktree": {}}
 )
 
@@ -483,7 +475,7 @@ var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks"
 
 var gitHolds = map[string]*Placeholder{
 	"config.worktree":         {},
-	"commondir":               {Content: ".\n"}, // git refuses an empty one; "." names .git itself
+	"commondir":               {Content: ".\n"},
 	"hooks":                   {Dir: true},
 	"info":                    {Dir: true},
 	"objects/info/alternates": {},
@@ -516,10 +508,6 @@ func (g *guards) gitDir(srcGit, destGit string, depth int) {
 	}
 }
 
-// packs bind each existing pack file read-only. Packs hold nearly all
-// of a repository's history, and the files belong to you, so an agent could
-// chmod one and overwrite it in place, which no backup by hardlink survives.
-// New packs stay writable; git gc in the jail cannot drop the old ones.
 func (g *guards) packs(gitDir string) {
 	dir := filepath.Join(gitDir, "objects", "pack")
 	for _, name := range g.host.Entries(dir) {

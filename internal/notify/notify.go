@@ -50,7 +50,7 @@ func Actions(req approval.Request) []string {
 	case approval.KindPath:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 	}
-	return []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"} // nothing opens req.URL: the agent wrote it
+	return []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 }
 
 func safeURL(raw string) bool {

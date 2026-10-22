@@ -105,3 +105,13 @@ func TestFindRepository(t *testing.T) {
 		}
 	}
 }
+
+func TestTheSameMountTwiceKeepsTheLesserAccess(t *testing.T) {
+	for _, order := range [][2]Mode{{ModeWrite, ModeRead}, {ModeRead, ModeWrite}} {
+		mounts := mergeKeepingLessAccess(nil, Mount{Path: "/p", Mode: order[0]})
+		mounts = mergeKeepingLessAccess(mounts, Mount{Path: "/p", Mode: order[1]})
+		if len(mounts) != 1 || mounts[0].Mode != ModeRead {
+			t.Errorf("%v then %v = %+v", order[0], order[1], mounts)
+		}
+	}
+}

@@ -31,9 +31,7 @@ func gitAllowed(key string) bool {
 	return true
 }
 
-// gitKey is the form git itself prints keys in. A key outside it, such as
-// one with a trailing space, could be read back by git as a denied key.
-var gitKey = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[^\n]*)?\.[A-Za-z][A-Za-z0-9-]*$`)
+var keyGitPrints = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[^\n]*)?\.[A-Za-z][A-Za-z0-9-]*$`)
 
 type gitEntry struct{ key, value string }
 
@@ -66,7 +64,7 @@ type GitOptions struct {
 func GitConfig(o GitOptions) []byte {
 	var entries []gitEntry
 	for _, e := range parseGitList(o.Desktop) {
-		if gitKey.MatchString(e.key) && gitAllowed(e.key) {
+		if keyGitPrints.MatchString(e.key) && gitAllowed(e.key) {
 			entries = append(entries, e)
 		}
 	}

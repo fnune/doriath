@@ -149,8 +149,7 @@ type Outcome struct {
 type pending struct {
 	req      Request
 	decision chan Decision
-	// done closes once the request is decided or expires, after result is
-	// set, for everyone else who waits on it.
+
 	done   chan struct{}
 	result Decision
 }
@@ -209,7 +208,7 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 	}
 	m.refusalRecorded = false
 	req.ID = m.ids.New()
-	for m.pending[req.ID] != nil { // ids are short enough to repeat
+	for m.pending[req.ID] != nil {
 		req.ID = m.ids.New()
 	}
 	req.Created = now

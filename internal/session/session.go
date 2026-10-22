@@ -43,7 +43,6 @@ import (
 	"github.com/fnune/doriath/internal/term"
 )
 
-// Socket and file names in the jail directory.
 const (
 	ProxySocket   = "proxy.sock"
 	BrokerSocket  = "broker.sock"
@@ -143,15 +142,15 @@ type Session struct {
 	informs informLimit
 	closers []func()
 	entry   Entry
-	// agent adapts a known agent's permission prompts and transcripts.
+
 	agent    agents.Adapter
 	command  []string
 	agentEnv map[string]string
 	netnsPID int
-	// repository is the root of the repository the session started in.
+
 	repository      string
 	containerBroker *containers.Broker
-	// mu guards the profile's mounts, which promotion extends.
+
 	mu       sync.Mutex
 	listings *listingCache
 	titled   bool
@@ -977,7 +976,6 @@ type Entry struct {
 }
 
 func (s *Session) writeEntry(pid int, spec jail.Spec) {
-	// doriath exec joins these namespaces, so they must be complete first.
 	for deadline := time.Now().Add(entryWait); !s.peers.initRunning(pid); {
 		if time.Now().After(deadline) {
 			s.log.Write("entry-error", map[string]string{"error": "the jail's init did not start"})

@@ -11,14 +11,10 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-// adapters are the agents doriath supports beyond what their modules give
-// them. Any other command runs as is.
 var adapters = []agents.Adapter{claude.Adapter{}}
 
 const mcpConfigFile = "mcp.json"
 
-// writeMCPConfig puts the profile's MCP servers where every agent's adapter
-// can point the agent at them.
 func (s *Session) writeMCPConfig() error {
 	if len(s.req.Profile.MCP) == 0 {
 		return nil

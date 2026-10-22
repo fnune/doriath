@@ -17,8 +17,6 @@ import (
 
 type tlsCertificate = tls.Certificate
 
-// Methods on the broker socket, which the jail can reach. They can ask for
-// decisions but never make them.
 const (
 	MethodSubmit       = "approval.submit"
 	MethodInform       = "inform"
@@ -42,7 +40,6 @@ type RequestWriteResult struct {
 	Pending  string            `json:"pending,omitempty"`
 }
 
-// Methods on the control socket, which only the host can reach.
 const (
 	MethodList       = "approvals.list"
 	MethodDecide     = "approvals.decide"

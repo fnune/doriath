@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// The placeholders a mount path may start with. They resolve when a session
-// starts, so one profile serves many projects.
 const (
 	// Current is the directory doriath run starts in.
 	Current = "{current}"
@@ -18,8 +16,6 @@ const (
 	Repository = "{repository}"
 )
 
-// placeholderPath reports whether p starts with a placeholder, and cleans
-// what follows it.
 func placeholderPath(p string) (string, bool) {
 	for _, ph := range []string{Current, Repository} {
 		if p == ph {
@@ -53,10 +49,7 @@ func checkMode(path string, mode Mode) error {
 
 var privilege = map[Mode]int{ModeHide: 0, ModeRead: 1, ModeWrite: 2}
 
-// mergeMount adds m, or, when an entry for the same path exists, keeps the
-// lower privilege of the two: promotion, not a later layer, is the way to
-// more access.
-func mergeMount(mounts []Mount, m Mount) []Mount {
+func mergeKeepingLessAccess(mounts []Mount, m Mount) []Mount {
 	i := slices.IndexFunc(mounts, func(x Mount) bool { return x.Path == m.Path })
 	if i < 0 {
 		return append(mounts, m)
@@ -134,13 +127,13 @@ func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 	var explicit []Mount
 	for _, m := range p.Mounts {
 		if r, ok := resolve(m); ok {
-			explicit = mergeMount(explicit, r)
+			explicit = mergeKeepingLessAccess(explicit, r)
 		}
 	}
 	for _, d := range p.Defaults() {
 		r, ok := resolve(d)
 		if ok && !slices.ContainsFunc(explicit, func(m Mount) bool { return within(r.Path, m.Path) }) {
-			out.Mounts = mergeMount(out.Mounts, r)
+			out.Mounts = mergeKeepingLessAccess(out.Mounts, r)
 		}
 	}
 	out.Mounts = append(out.Mounts, explicit...)

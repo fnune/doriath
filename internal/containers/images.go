@@ -112,8 +112,6 @@ func tagged(ref string) (imageRef, bool) {
 	return r, true
 }
 
-// The parts of an image reference, after Docker's reference grammar. A
-// reference outside it has no repository the allowlist could speak for.
 var (
 	referenceDomain = regexp.MustCompile(`^(localhost|[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(:[0-9]+)?$`)
 	referencePath   = regexp.MustCompile(`^[a-z0-9]+(([._]|__|-+)[a-z0-9]+)*$`)

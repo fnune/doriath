@@ -77,7 +77,6 @@ func (wt *watcher) add(dir string, what watched) {
 	}
 }
 
-// adopt watches a worktree the agent added, and repairs it now.
 func (wt *watcher) adopt(r *Repo, name string) {
 	admin := filepath.Join(r.GitDir, "worktrees", name)
 	wt.add(admin, watched{repo: r, kind: kindAdmin, admin: admin})

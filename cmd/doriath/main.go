@@ -264,8 +264,6 @@ func lookPath(name string) string {
 	return p
 }
 
-// clock is what the commands that wait or read the time need, so tests
-// decide when time passes.
 type clock interface {
 	Now() time.Time
 	After(d time.Duration) <-chan time.Time
@@ -319,8 +317,6 @@ func refuseRoot(euid int) error {
 	return nil
 }
 
-// startDirs returns {current} and the directory the command starts in: where
-// you are when that is inside --current, else --current itself.
 func startDirs(current, cwd string) (string, string, error) {
 	if current == "" {
 		return cwd, cwd, nil
@@ -338,8 +334,6 @@ func startDirs(current, cwd string) (string, string, error) {
 	return abs, abs, nil
 }
 
-// hostWait holds refused requests only where someone can see them in time,
-// unless config.toml says otherwise.
 func hostWait(a config.Approvals, n approval.Notifier) time.Duration {
 	if _, none := n.(notify.None); none && a.HostWait == nil {
 		return 0

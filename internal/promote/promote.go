@@ -78,8 +78,6 @@ func enter(ctx context.Context, r Request, extra []*os.File, args ...string) err
 	return nil
 }
 
-// openHostTree clones a host directory in a user namespace of its own,
-// which can see host paths and may clone mounts, and receives the clone.
 func openHostTree(ctx context.Context, r Request) (*os.File, error) {
 	pair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
@@ -184,10 +182,6 @@ func bindReadOnly(fd int) error {
 	return unix.MoveMount(tree, "", fd, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH)
 }
 
-// writableInPlace clears read-only on the mount rooted at path, which every
-// process in the jail sees at once. For a path inside a mount, it stacks a
-// writable clone of that subtree, mounts below it included, so the guards
-// and hidden paths inside keep their own mounts.
 func writableInPlace(path string) error {
 	fd, err := openNoSymlinks(unix.AT_FDCWD, path, 0)
 	if err != nil {
@@ -244,8 +238,6 @@ func receive(sock int) (int, error) {
 	return fds[0], nil
 }
 
-// attach mounts the host directory received as fd 4 at path, creating the
-// directories on the way without following symlinks.
 func attach(path string) error {
 	target, err := mkdirNoSymlinks(path)
 	if err != nil {

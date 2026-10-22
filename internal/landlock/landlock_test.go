@@ -165,8 +165,7 @@ func TestRestrictWritesRefusesAPathItCannotOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
-	// The error comes before the ruleset applies, so this process stays
-	// unrestricted.
+
 	err := RestrictWrites([]string{filepath.Join(locked, "inside")})
 	if !errors.Is(err, unix.EACCES) || !strings.Contains(err.Error(), "inside") {
 		t.Fatalf("err = %v", err)

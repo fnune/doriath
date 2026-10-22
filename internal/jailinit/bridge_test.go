@@ -31,7 +31,7 @@ func upstream(t *testing.T) (sock string, lines <-chan [2]string) {
 			return
 		}
 		defer c.Close()
-		// A client that sends fewer lines must fail the test, not hang it.
+
 		_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
 		r := bufio.NewReader(c)
 		first, _ := r.ReadString('\n')

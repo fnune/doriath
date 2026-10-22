@@ -497,7 +497,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
-		p.Mounts = mergeMount(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
+		p.Mounts = mergeKeepingLessAccess(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional})
 	}
 	for _, img := range b.images {
 		if err := imagePattern(img); err != nil {
@@ -902,9 +902,6 @@ func (b *builder) buildPrograms(l programsLayer) (ProgramEgress, error) {
 	return out, nil
 }
 
-// buildMCP checks one MCP server. A remote server's host is reached through
-// the proxy: with a secret, as an intercepted host whose requests carry it
-// and are allowed unless a rule of the profile says otherwise.
 func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 	if !namePattern.MatchString(m.Name) {
 		return MCPServer{}, fmt.Errorf("mcp %q: name it with lowercase letters, digits and dashes", m.Name)
@@ -959,13 +956,6 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 	return server, nil
 }
 
-// mcpRules turns a server's tool lists into rules for its host: deny,
-// approve and allow lists first, then the server's default for every other
-// tool, all on any path, since a server may answer on more than one. Then
-// the endpoint's own traffic that calls no tool: opening and closing its
-// stream, and JSON-RPC such as listing tools. Anything else on the host,
-// including a body doriath cannot read as JSON-RPC, falls to the host's
-// default, which is approve.
 func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 	if endpoint == "" {
 		endpoint = "/"

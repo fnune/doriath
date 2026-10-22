@@ -621,7 +621,7 @@ func (r Rule) matchHeader(header http.Header) bool {
 	if r.Header == "" {
 		return true
 	}
-	for _, v := range header.Values(r.Header) { // the upstream may honor any of them
+	for _, v := range header.Values(r.Header) {
 		if r.HeaderPrefix == "" && v != "" || r.HeaderPrefix != "" && len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix) {
 			return true
 		}

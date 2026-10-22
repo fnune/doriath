@@ -122,3 +122,10 @@ func TestGitConfigRewritesSSHWithItsUserAndPort(t *testing.T) {
 		}
 	}
 }
+
+func TestAKeyThatGitWouldNotPrintStaysOut(t *testing.T) {
+	got := string(GitConfig(GitOptions{Desktop: []byte("user.name\nMe\x00user.email \nevil@example.com\x00")}))
+	if !strings.Contains(got, "Me") || strings.Contains(got, "evil@example.com") {
+		t.Errorf("config:\n%s", got)
+	}
+}

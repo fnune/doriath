@@ -90,7 +90,6 @@ var nonPublic = []netip.Prefix{
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("192.0.0.0/24"),
 	netip.MustParsePrefix("240.0.0.0/4"),
-	// Not 198.18.0.0/15: fake-IP DNS proxies answer with it.
 }
 
 func private(a netip.Addr) bool {

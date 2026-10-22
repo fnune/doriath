@@ -164,9 +164,7 @@ func decodeLayer(origin string, data []byte) (layer, error) {
 		}
 		return layer{}, fmt.Errorf("%s: unknown keys: %s", origin, strings.Join(keys, ", "))
 	}
-	// The TOML decoder matches field names without regard to case, so
-	// "rules" and "Rules" would both fill one field and the result would
-	// depend on which it read last.
+
 	for _, key := range md.Keys() {
 		for _, part := range key {
 			if part != strings.ToLower(part) && fieldNames[strings.ToLower(part)] {

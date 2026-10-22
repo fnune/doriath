@@ -118,10 +118,6 @@ func Root(repo string) string {
 	return repo
 }
 
-// guardAlternates gives a git store, and its submodules' stores, an empty
-// objects/info/alternates, which the jail binds read-only. An agent could
-// otherwise create one and make host git read objects from any directory.
-// An empty file names no alternates.
 func guardAlternates(gitDir string, depth int) error {
 	info := filepath.Join(gitDir, "objects", "info")
 	if err := os.MkdirAll(info, 0o755); err != nil {
@@ -258,8 +254,6 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 // stores.
 const MaxSubmoduleDepth = 4
 
-// submoduleStores are the stores of a store's submodules, nested ones
-// included, as deep as the jail makes them writable.
 func submoduleStores(gitDir string, depth int) []string {
 	if depth > MaxSubmoduleDepth {
 		return nil
@@ -558,8 +552,6 @@ func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error
 	return m, nil
 }
 
-// bookmarks leaves out conflicted bookmarks: they have no single target to
-// put back, and jj prints an error in place of one.
 func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, error) {
 	out, err := run(ctx, t.JJ, "--repository", repo, "--ignore-working-copy", "--color", "never", "bookmark", "list", "-T", `if(!remote && normal_target, name ++ " " ++ normal_target.commit_id() ++ "\n")`)
 	if err != nil {
@@ -574,12 +566,6 @@ func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, er
 	return m, nil
 }
 
-// dropForgedLFS removes LFS objects the session wrote or changed whose
-// content does not hash to their name, and anything there that is not a
-// regular file. Your checkout takes an LFS file's content from the object
-// with its name, so a forged one would put the agent's content into your
-// tree outside any commit. The change time, unlike the modification time,
-// is one the agent cannot set back.
 func dropForgedLFS(dir string, since time.Time) []string {
 	var forged []string
 	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
@@ -620,12 +606,6 @@ func sha256File(p string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// repairWorktree makes an agent worktree safe to use with git on the host.
-// Its admin directory and its checkout's .git file are both the agent's
-// work, and git follows them: to another store, whose config and hooks it
-// runs, or to config.worktree settings such as core.fsmonitor.
-// While the session runs, a missing .git is left to git, which is still
-// creating the worktree.
 func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bool) error {
 	name := filepath.Base(admin)
 	if info, err := os.Lstat(admin); err == nil && !info.IsDir() {
@@ -682,9 +662,6 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 	return nil
 }
 
-// removing reports a worktree that git worktree remove is deleting: it
-// deletes the checkout before the admin directory, and recreating files in
-// the admin directory then would make that fail.
 func removing(admin string) bool {
 	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
 	if err != nil {
@@ -699,9 +676,6 @@ func within(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// resetCommondir points an agent worktree's admin directory back at its own
-// repository. git in that worktree on the host follows commondir, and an
-// agent could point it at a store whose config runs commands.
 func resetCommondir(admin string) (bool, error) {
 	p := filepath.Join(admin, "commondir")
 	data, err := os.ReadFile(p)
@@ -714,9 +688,6 @@ func resetCommondir(admin string) (bool, error) {
 	return true, os.WriteFile(p, []byte("../..\n"), 0o644)
 }
 
-// gitEnv keeps the host's git away from what a session could have planted:
-// hooks and the fsmonitor are user config, which the jail cannot write, but
-// doriath's own commands need neither.
 var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false'"}
 
 func runStore(ctx context.Context, t Tools, gitDir string, args ...string) (string, error) {
@@ -735,10 +706,6 @@ func run(ctx context.Context, name string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// mirror keeps every file under src in dst: packs as hardlinks, since the
-// jail binds them read-only for the session, and everything else, such as
-// loose objects, as copies, since a hardlink shares the file the agent can
-// rewrite.
 func mirror(src, dst string) error {
 	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -762,8 +729,6 @@ func mirror(src, dst string) error {
 	})
 }
 
-// unmirror puts back every file of a mirror that is missing from dst, or,
-// apart from packs, which the jail kept read-only, changed in it.
 func unmirror(src, dst string) error {
 	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -869,8 +834,6 @@ func (r *Record) Save(path string) error {
 	return os.Rename(tmp, path)
 }
 
-// pointsTo reports whether the checkout's .git file names admin, so that
-// git run there uses this repository and nothing the agent pointed it at.
 func pointsTo(checkout, admin string) bool {
 	data, err := os.ReadFile(filepath.Join(checkout, ".git"))
 	if err != nil {

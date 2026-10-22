@@ -16,13 +16,6 @@ import (
 	"strings"
 )
 
-// dropForgedObjects removes what the session added to a store and git
-// cannot vouch for: a loose object whose content does not hash to its name,
-// or a pack that git verify-pack refuses. A forged object would stand in
-// for the real one, for example one your next fetch then skips as present.
-// It also removes new indexes git rebuilds on its own, such as bitmaps and
-// commit graphs, which could otherwise lie about the objects. Files that
-// were there at the start are in mirror, and Finish restores those.
 func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []string {
 	newHash := sha1.New
 	if format, err := runStore(ctx, t, gitDir, "rev-parse", "--show-object-format"); err == nil && strings.TrimSpace(format) == "sha256" {
@@ -81,9 +74,6 @@ func rebuiltIndex(name string) bool {
 	return strings.HasPrefix(name, "multi-pack-index")
 }
 
-// zlibMaxRatio bounds how much zlib can expand its input, so an object
-// that claims more than that is forged, and decompressing stops at the size
-// it claims instead of whatever the agent made it expand to.
 const zlibMaxRatio = 1032
 
 func looseObjectID(p string, newHash func() hash.Hash) (string, error) {
@@ -117,8 +107,6 @@ func looseObjectID(p string, newHash func() hash.Hash) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// readHeader reads up to the NUL that ends an object's header, a byte at a
-// time so that the content after it stays unread.
 func readHeader(r io.Reader) (string, error) {
 	var header []byte
 	b := make([]byte, 1)

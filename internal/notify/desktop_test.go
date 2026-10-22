@@ -31,8 +31,6 @@ const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Con
 </busconfig>
 `
 
-// privateBus starts a session bus of its own, so the test neither needs nor
-// disturbs a desktop.
 func privateBus(t *testing.T) string {
 	t.Helper()
 	daemon, err := exec.LookPath("dbus-daemon")
@@ -75,8 +73,6 @@ type shown struct {
 	hints   map[string]dbus.Variant
 }
 
-// fakeServer implements the parts of org.freedesktop.Notifications that
-// doriath calls.
 type fakeServer struct {
 	conn *dbus.Conn
 
@@ -170,9 +166,6 @@ func (e *desktopEnv) notify(t *testing.T, req approval.Request) (uint32, <-chan 
 	return e.server.last(t).id, decisions, withdraw
 }
 
-// settle returns once the desktop's connection has read every message sent
-// to it so far by conn, because the bus keeps the order of messages from one
-// connection to another, and godbus queues signals as it reads them.
 func (e *desktopEnv) settle(t *testing.T, conn *dbus.Conn) {
 	t.Helper()
 	if err := conn.Object(e.desktop.conn.Names()[0], "/").Call("org.freedesktop.DBus.Peer.Ping", 0).Err; err != nil {

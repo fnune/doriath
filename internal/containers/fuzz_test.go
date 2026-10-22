@@ -68,9 +68,6 @@ func FuzzCreate(f *testing.F) {
 	})
 }
 
-// fields returns the values of every key that names field, under the case
-// folding of encoding/json and under the ASCII lower-casing of other JSON
-// decoders, so that a key one decoder reads and another skips is caught.
 func fields(doc map[string]any, field string) []any {
 	var out []any
 	for k, v := range doc {
@@ -250,9 +247,6 @@ var (
 	reference = regexp.MustCompile(`^((?:` + refDomain + `/)?` + refPath + `(?:/` + refPath + `)*)(?::[\w][\w.-]{0,127})?(?:@[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,})?$`)
 )
 
-// referenceRepo names the repository the way the reference grammar of the
-// container tools does, so that a reference podman can parse is checked
-// against the same repository that podman pulls.
 func referenceRepo(ref string) (string, bool) {
 	m := reference.FindStringSubmatch(ref)
 	if m == nil {

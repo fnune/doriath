@@ -18,9 +18,6 @@ import (
 	"github.com/fnune/doriath/internal/vcs"
 )
 
-// storeRepositories are the main repositories whose store the jail can
-// write, when the profile asks for it: those in its mounts, and those whose
-// linked worktrees or workspaces are there.
 func storeRepositories(p *profile.Profile, host jail.Host) []string {
 	if !p.VCSStore {
 		return nil
@@ -39,9 +36,6 @@ func storeRepositories(p *profile.Profile, host jail.Host) []string {
 	return out
 }
 
-// withLinkedStores adds, read-only, the main repository's store of each
-// linked git worktree and secondary jj workspace in a read mount, so git and
-// jj work there, and the vcs module makes the store's data writable.
 func withLinkedStores(p *profile.Profile, host jail.Host) *profile.Profile {
 	if !p.VCSStore {
 		return p
@@ -111,10 +105,6 @@ func (s *Session) startRepositories(ctx context.Context) error {
 	return nil
 }
 
-// watchWorktrees repairs agent worktrees while the session runs, so git on
-// the host never follows pointers the agent wrote for longer than a moment.
-// Repairs go to the audit log, and to the terminal when the session ends,
-// since the agent owns the terminal until then.
 func (s *Session) watchWorktrees(rec *vcs.Record) {
 	ctx, cancel := context.WithCancel(context.Background())
 	repairs := &repairLog{log: s.log}
