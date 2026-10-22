@@ -239,6 +239,7 @@ type builder struct {
 	limits   Limits
 	claude   claudeLayer
 	disable  bool
+	agent    agentLayer
 	status   bool
 	secrets  map[string]secretLayer
 	modules  []string
@@ -345,12 +346,20 @@ func (b *builder) apply(l layer) {
 			b.harden.NoLandlock = !*h.Landlock
 		}
 	}
+	if a := l.Agent; a != nil {
+		if a.StatusLine != nil {
+			b.status = *a.StatusLine
+		}
+		if a.ApprovalTimeout != "" {
+			b.agent.ApprovalTimeout = a.ApprovalTimeout
+		}
+		for _, path := range a.Instructions {
+			b.agent.Instructions = appendNew(b.agent.Instructions, path)
+		}
+	}
 	if c := l.Claude; c != nil {
 		if c.DisableConnectors != nil {
 			b.disable = *c.DisableConnectors
-		}
-		if c.StatusLine != nil {
-			b.status = *c.StatusLine
 		}
 		for _, s := range c.DeniedMCPServers {
 			b.claude.DeniedMCPServers = appendNew(b.claude.DeniedMCPServers, s)
@@ -360,9 +369,6 @@ func (b *builder) apply(l layer) {
 		}
 		for _, s := range c.Deny {
 			b.claude.Deny = appendNew(b.claude.Deny, s)
-		}
-		if c.ApprovalTimeout != "" {
-			b.claude.ApprovalTimeout = c.ApprovalTimeout
 		}
 	}
 	for k, v := range l.Secrets {
@@ -682,11 +688,12 @@ func (b *builder) build(top layer) (*Profile, error) {
 	if b.limits.CPU != "" && !cpuValue.MatchString(b.limits.CPU) {
 		errs = append(errs, fmt.Errorf("limits cpu %q: want a percentage such as 200%%", b.limits.CPU))
 	}
-	claude, err := b.buildClaude()
+	agent, err := b.buildAgent()
 	if err != nil {
 		errs = append(errs, err)
 	}
-	p.Claude = claude
+	p.Agent = agent
+	p.Claude = b.buildClaude()
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
@@ -875,23 +882,32 @@ func parseAction(s string) (Action, error) {
 	return "", fmt.Errorf("action %q: want allow, approve or deny", s)
 }
 
-func (b *builder) buildClaude() (Claude, error) {
-	c := Claude{
+func (b *builder) buildAgent() (Agent, error) {
+	a := Agent{StatusLine: b.status, ApprovalTimeout: defaultApprovalTimeout}
+	if b.agent.ApprovalTimeout != "" {
+		d, err := time.ParseDuration(b.agent.ApprovalTimeout)
+		if err != nil || d <= 0 {
+			return a, fmt.Errorf("agent approval_timeout %q: want a positive duration like 90s", b.agent.ApprovalTimeout)
+		}
+		a.ApprovalTimeout = d
+	}
+	for _, raw := range b.agent.Instructions {
+		path, err := b.expand(raw)
+		if err != nil {
+			return a, fmt.Errorf("agent instructions: %w", err)
+		}
+		a.Instructions = appendNew(a.Instructions, path)
+	}
+	return a, nil
+}
+
+func (b *builder) buildClaude() Claude {
+	return Claude{
 		DisableConnectors: b.disable,
-		StatusLine:        b.status,
 		DeniedMCPServers:  b.claude.DeniedMCPServers,
 		Ask:               b.claude.Ask,
 		Deny:              b.claude.Deny,
-		ApprovalTimeout:   defaultApprovalTimeout,
 	}
-	if b.claude.ApprovalTimeout != "" {
-		d, err := time.ParseDuration(b.claude.ApprovalTimeout)
-		if err != nil || d <= 0 {
-			return c, fmt.Errorf("claude approval_timeout %q: want a positive duration like 90s", b.claude.ApprovalTimeout)
-		}
-		c.ApprovalTimeout = d
-	}
-	return c, nil
 }
 
 func (b *builder) expand(p string) (string, error) {

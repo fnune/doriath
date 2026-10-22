@@ -1,7 +1,11 @@
 package session
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 
@@ -24,6 +28,30 @@ func (s *Session) writeMCPConfig() error {
 		return err
 	}
 	return writeFile(filepath.Join(s.jailDir, mcpConfigFile), data, 0o644)
+}
+
+func (s *Session) writeInstructions() error {
+	text := s.status().Describe()
+	for i, path := range s.req.Profile.Agent.Instructions {
+		own, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("read your instructions %s: %w", path, err)
+		}
+		name := fmt.Sprintf("instructions-%d.md", i)
+		if err := writeFile(s.jailPath(name), withSession(own, text), 0o644); err != nil {
+			return err
+		}
+		s.instructions = append(s.instructions, jail.Bind{Source: s.jailPath(name), Dest: path, ReadOnly: true})
+	}
+	return nil
+}
+
+func withSession(own []byte, session string) []byte {
+	own = bytes.TrimRight(own, "\n")
+	if len(own) == 0 {
+		return []byte(session)
+	}
+	return append(append(own, "\n\n"...), session...)
 }
 
 func adapterFor(p *profile.Profile, argv []string) (agents.Adapter, string) {

@@ -31,7 +31,7 @@ func TestLoadRejectsUnsafeSettings(t *testing.T) {
 		"live, which is gone":   {"[[mounts]]\npath = \"/x\"\nlive = true", "unknown key"},
 		"port above range":      {"[egress]\nports = [65536]", "out of range"},
 		"tcp port above range":  {"[egress]\ntcp_ports = [65536]", "out of range"},
-		"zero approval timeout": {"[claude]\napproval_timeout = \"0s\"", "approval_timeout"},
+		"zero approval timeout": {"[agent]\napproval_timeout = \"0s\"", "approval_timeout"},
 		"mount of the root":     {"[[mounts]]\npath = \"/\"", "whole filesystem"},
 		"mount of the home":     {"[[mounts]]\npath = \"~\"", "whole home"},
 		"mount above the home":  {"[[mounts]]\npath = \"/home\"", "whole home"},

@@ -215,17 +215,24 @@ tasks = 8192
 memory = "75%"
 cpu = "200%"
 
+# Settings for every agent. statusline shows the session in the agent's
+# status line, where its adapter can. instructions names the agent's own
+# instructions files: the jail shows each as your file followed by what
+# the session allows, so the agent knows the jail from its start.
+[agent]
+statusline = true
+# How long a permission prompt waits for you before the agent shows its own.
+approval_timeout = "60s"
+instructions = ["~/.codex/AGENTS.md"]
+
 # Settings for the claude adapter. The claude module gives the profile its
 # own ~/.claude, with your CLAUDE.md, settings, skills and plugins
 # read-only, and its own login: run /login in a session.
 [claude]
 disable_connectors = true
 denied_mcp_servers = ["claude.ai Gmail"]
-statusline = true
 ask = ["mcp__claude-in-chrome__javascript_tool"]
 deny = []
-# How long a permission prompt waits for you before Claude shows its own.
-approval_timeout = "60s"
 ```
 
 ## Secrets

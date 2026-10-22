@@ -105,7 +105,7 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		out, err := claude.SessionStart(describeStatus(st))
+		out, err := claude.SessionStart(st.Describe())
 		if err != nil {
 			return err
 		}

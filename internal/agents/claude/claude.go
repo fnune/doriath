@@ -178,19 +178,19 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 			s.Env[k] = v
 		}
 	}
-	timeout := int((p.Claude.ApprovalTimeout + hookTimeoutMargin) / time.Second)
+	timeout := int((p.Agent.ApprovalTimeout + hookTimeoutMargin) / time.Second)
 	s.Hooks["PermissionRequest"] = append(s.Hooks["PermissionRequest"], hookGroup{
 		Matcher: "*",
 		Hooks: []hookCommand{{
 			Type:    "command",
-			Command: fmt.Sprintf("%s __hook claude permission-request --timeout %s", jail.ExePath, p.Claude.ApprovalTimeout),
+			Command: fmt.Sprintf("%s __hook claude permission-request --timeout %s", jail.ExePath, p.Agent.ApprovalTimeout),
 			Timeout: timeout,
 		}},
 	})
 	s.Hooks["SessionStart"] = append(s.Hooks["SessionStart"], hookGroup{
 		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " __hook claude session-start", Timeout: 10}},
 	})
-	if p.Claude.StatusLine {
+	if p.Agent.StatusLine {
 		s.StatusLine = &statusLine{Type: "command", Command: jail.ExePath + " __statusline"}
 	}
 	s.Hooks["Notification"] = append(s.Hooks["Notification"], hookGroup{

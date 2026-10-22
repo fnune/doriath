@@ -26,6 +26,7 @@ type layer struct {
 	MCP         []mcpLayer             `toml:"mcp"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Limits      *limitsLayer           `toml:"limits"`
+	Agent       *agentLayer            `toml:"agent"`
 	Claude      *claudeLayer           `toml:"claude"`
 	Secrets     map[string]secretLayer `toml:"secrets"`
 	source      string
@@ -150,13 +151,17 @@ type podmanLayer struct {
 	Images  []string `toml:"images"`
 }
 
+type agentLayer struct {
+	StatusLine      *bool    `toml:"statusline"`
+	ApprovalTimeout string   `toml:"approval_timeout"`
+	Instructions    []string `toml:"instructions"`
+}
+
 type claudeLayer struct {
 	DisableConnectors *bool    `toml:"disable_connectors"`
-	StatusLine        *bool    `toml:"statusline"`
 	DeniedMCPServers  []string `toml:"denied_mcp_servers"`
 	Ask               []string `toml:"ask"`
 	Deny              []string `toml:"deny"`
-	ApprovalTimeout   string   `toml:"approval_timeout"`
 }
 
 func decodeLayer(origin string, data []byte) (layer, error) {

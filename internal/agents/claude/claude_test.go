@@ -36,11 +36,10 @@ func TestArgs(t *testing.T) {
 }
 
 func TestSettings(t *testing.T) {
-	p := &profile.Profile{Claude: profile.Claude{
+	p := &profile.Profile{Agent: profile.Agent{ApprovalTimeout: 60 * time.Second}, Claude: profile.Claude{
 		DisableConnectors: true,
 		DeniedMCPServers:  []string{"claude.ai Gmail"},
 		Ask:               []string{"mcp__claude-in-chrome__javascript_tool"},
-		ApprovalTimeout:   60 * time.Second,
 	}}
 	files := mapFiles{
 		"/w/.claude/settings.json":       `{"permissions":{"allow":["Bash(just check)"],"deny":["Bash(rm -rf:*)"]},"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"just fmt"}]}]}}`,
@@ -159,7 +158,7 @@ func TestStartAndEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := agents.Session{
-		Profile: &profile.Profile{Claude: profile.Claude{ApprovalTimeout: time.Minute}},
+		Profile: &profile.Profile{Agent: profile.Agent{ApprovalTimeout: time.Minute}},
 		Home:    home,
 		Cwd:     cwd,
 		HostPath: func(p string) string {

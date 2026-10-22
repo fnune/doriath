@@ -311,13 +311,25 @@ type Hardening struct {
 	NoLandlock bool
 }
 
+// Agent holds what each agent adapter does alike.
+type Agent struct {
+	// StatusLine shows the session's profile, hosts and waiting requests
+	// in the agent's status line, where the agent has one.
+	StatusLine bool
+	// ApprovalTimeout is how long a permission prompt waits in doriath's
+	// queue before the agent shows its own.
+	ApprovalTimeout time.Duration
+	// Instructions are the agent's own instructions files. The jail shows
+	// each as your file followed by what the session allows, for an agent
+	// that doriath cannot tell at its start.
+	Instructions []string
+}
+
 type Claude struct {
 	DisableConnectors bool
-	StatusLine        bool
 	DeniedMCPServers  []string
 	Ask               []string
 	Deny              []string
-	ApprovalTimeout   time.Duration
 }
 
 // MCPServer is an MCP server the agent may use. A local one runs in the
@@ -362,6 +374,7 @@ type Profile struct {
 	// checkout and the files git runs stay read-only.
 	VCSStore bool
 	MCP      []MCPServer
+	Agent    Agent
 	Claude   Claude
 	// Secrets says where each secret this profile uses comes from. They live
 	// in the profile, not in a shared table, so a profile reaches only the

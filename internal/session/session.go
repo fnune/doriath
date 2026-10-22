@@ -144,10 +144,11 @@ type Session struct {
 	closers []func()
 	entry   Entry
 
-	agent    agents.Adapter
-	command  []string
-	agentEnv map[string]string
-	netnsPID int
+	agent        agents.Adapter
+	command      []string
+	agentEnv     map[string]string
+	instructions []jail.Bind
+	netnsPID     int
 
 	repository      string
 	containerBroker *containers.Broker
@@ -310,6 +311,9 @@ func (s *Session) prepare(ctx context.Context) error {
 		return err
 	}
 	if err := s.writeMCPConfig(); err != nil {
+		return err
+	}
+	if err := s.writeInstructions(); err != nil {
 		return err
 	}
 	s.command = s.req.Command
@@ -591,6 +595,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	if b, ok := s.bazelrc(home); ok {
 		extra = append(extra, b)
 	}
+	extra = append(extra, s.instructions...)
 	argv := []string{jail.ExePath, "__init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
