@@ -161,3 +161,19 @@ func TestHookSessionStart(t *testing.T) {
 		t.Errorf("session-start = %s", out)
 	}
 }
+
+func TestAQuestionToYouIsLeftToClaude(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce}, nil)
+	for _, tool := range []string{"AskUserQuestion", "ExitPlanMode"} {
+		out, err := hook(t, "permission-request", `{"tool_name":"`+tool+`","tool_input":{}}`, "--timeout", "45s")
+		if err != nil || out != "" {
+			t.Errorf("%s: out %q, err %v", tool, out, err)
+		}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.submits) != 0 {
+		t.Errorf("the hook asked you whether Claude may ask you: %+v", b.submits)
+	}
+}

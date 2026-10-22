@@ -116,6 +116,9 @@ func cmdHook(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
+		if req.AsksYou() {
+			return nil
+		}
 		summary, note, details := req.Describe()
 		scope := "tool " + req.ToolName
 		if req.ToolName == "Bash" {

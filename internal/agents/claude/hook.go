@@ -3,6 +3,7 @@ package claude
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -27,6 +28,13 @@ func ParsePermissionRequest(data []byte) (PermissionRequest, error) {
 }
 
 const maxDetails = 2000
+
+var questionTools = []string{"AskUserQuestion", "ExitPlanMode"}
+
+// AsksYou reports whether the tool is itself a question to you, such as
+// a choice between options or a plan to approve: Claude's own prompt shows
+// it, and an approval to ask it would only repeat it.
+func (r PermissionRequest) AsksYou() bool { return slices.Contains(questionTools, r.ToolName) }
 
 // Describe turns a tool call into a one-line summary, the agent's own
 // description of it, and readable details.
