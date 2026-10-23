@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
@@ -23,7 +24,7 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 		return RequestWriteResult{}, err
 	}
 	if !s.visible(path) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add a directory, run doriath approvals grant on the host", path)
+		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add it, run on the host: %s", path, cli.Line("approvals", "grant", "--session", s.id, path))
 	}
 	req := approval.Request{
 		Session: s.id,
@@ -147,7 +148,7 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, part := range strings.Split(path, "/") {
 		if part == ".git" || part == ".jj" {
-			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with the vcs module they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, use doriath request edit", path)
+			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with the vcs module they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s < NEW_CONTENT", path, cli.Line("request", "edit", "PATH", "--reason", "TEXT"))
 		}
 	}
 	s.mu.Lock()

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/fnune/doriath/internal/cli"
 )
 
 func cmdForward(args []string) error {
@@ -27,7 +29,9 @@ func cmdForward(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, entry, err := runningEntry(*id)
+	_, entry, err := runningEntry(*id, func(id string) string {
+		return cli.Line("forward", "--session", id, flags.Arg(0))
+	})
 	if err != nil {
 		return err
 	}

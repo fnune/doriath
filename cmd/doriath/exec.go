@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/session"
 )
@@ -26,7 +27,9 @@ func cmdExec(args []string) (int, error) {
 	if len(command) == 0 {
 		command = []string{"bash"}
 	}
-	dir, entry, err := runningEntry(*id)
+	dir, entry, err := runningEntry(*id, func(id string) string {
+		return cli.Line(append([]string{"exec", "--session", id}, flags.Args()...)...)
+	})
 	if err != nil {
 		return 1, err
 	}
@@ -72,7 +75,7 @@ func cmdExec(args []string) (int, error) {
 	return 0, nil
 }
 
-func runningEntry(id string) (string, session.Entry, error) {
+func runningEntry(id string, commandFor func(id string) string) (string, session.Entry, error) {
 	p, err := paths()
 	if err != nil {
 		return "", session.Entry{}, err
@@ -81,7 +84,7 @@ func runningEntry(id string) (string, session.Entry, error) {
 	if err != nil {
 		return "", session.Entry{}, err
 	}
-	dir, err := pickSession(sessions, id, p.Sessions())
+	dir, err := pickSession(sessions, id, p.Sessions(), commandFor)
 	if err != nil {
 		return "", session.Entry{}, err
 	}
@@ -99,14 +102,14 @@ func runningEntry(id string) (string, session.Entry, error) {
 	return dir, entry, nil
 }
 
-func pickSession(sessions []liveSession, id, root string) (string, error) {
+func pickSession(sessions []liveSession, id, root string, commandFor func(id string) string) (string, error) {
 	if id != "" {
 		for _, s := range sessions {
 			if s.info.ID == id {
 				return filepath.Join(root, id), nil
 			}
 		}
-		return "", fmt.Errorf("no running session %s: see doriath status", id)
+		return "", fmt.Errorf("no running session %s; to list them, run: %s", id, cli.Line("status"))
 	}
 	switch len(sessions) {
 	case 0:
@@ -114,11 +117,12 @@ func pickSession(sessions []liveSession, id, root string) (string, error) {
 	case 1:
 		return filepath.Join(root, sessions[0].info.ID), nil
 	}
-	ids := make([]string, len(sessions))
-	for i, s := range sessions {
-		ids[i] = s.info.ID
+	var b strings.Builder
+	b.WriteString("several sessions are running; name one:")
+	for _, s := range sessions {
+		fmt.Fprintf(&b, "\n  %s  # profile %s in %s", commandFor(s.info.ID), s.info.Profile, s.info.Cwd)
 	}
-	return "", fmt.Errorf("several sessions are running (%s): pick one with --session", strings.Join(ids, ", "))
+	return "", errors.New(b.String())
 }
 
 func entryCwd(sessionCwd string) string {

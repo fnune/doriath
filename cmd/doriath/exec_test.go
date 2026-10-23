@@ -26,7 +26,7 @@ func TestRunningEntry(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, _, err := runningEntry(""); err == nil || !strings.Contains(err.Error(), tc.want) {
+		if _, _, err := runningEntry("", nil); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: %v, want %q", name, err, tc.want)
 		}
 	}
@@ -34,7 +34,7 @@ func TestRunningEntry(t *testing.T) {
 	if err := os.WriteFile(entry, []byte(`{"pid":`+strconv.Itoa(os.Getpid())+`,"cwd":"/work","landlock":true}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	dir, e, err := runningEntry("s1")
+	dir, e, err := runningEntry("s1", nil)
 	if err != nil || dir != filepath.Join(p.Sessions(), "s1") || e.Cwd != "/work" || !e.Landlock {
 		t.Errorf("running = %q, %+v, %v", dir, e, err)
 	}
@@ -71,7 +71,7 @@ func TestForwardChecksItsArgumentsBeforeLookingForASession(t *testing.T) {
 		{[]string{"3000", "4000"}, "usage: doriath forward"},
 		{[]string{"http"}, `port "http": want a number from 1 to 65535`},
 		{[]string{"3000"}, "no running sessions"},
-		{[]string{"--session", "s9", "3000"}, "no running session s9: see doriath status"},
+		{[]string{"--session", "s9", "3000"}, "no running session s9; to list them, run: doriath status"},
 	} {
 		if err := cmdForward(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("forward %q = %v, want %q", tc.args, err, tc.want)

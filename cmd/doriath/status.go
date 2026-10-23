@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/session"
 )
@@ -31,7 +32,7 @@ func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	for i, s := range sessions {
 		if id == "" || s.info.ID == id {
 			if target != nil && id == "" {
-				return st, errors.New("several sessions are running; name one with --session ID (see doriath status)")
+				return st, fmt.Errorf("several sessions are running; to list them, run: %s", cli.Line("status"))
 			}
 			target = &sessions[i]
 		}

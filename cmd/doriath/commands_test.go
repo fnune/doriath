@@ -356,19 +356,20 @@ func TestCleanCaches(t *testing.T) {
 
 func TestPickSession(t *testing.T) {
 	sessions := []liveSession{{info: session.Info{ID: "a"}}, {info: session.Info{ID: "b"}}}
-	if dir, err := pickSession(sessions, "b", "/run"); err != nil || dir != "/run/b" {
+	retry := func(id string) string { return "doriath exec --session " + id }
+	if dir, err := pickSession(sessions, "b", "/run", retry); err != nil || dir != "/run/b" {
 		t.Errorf("named = %q, %v", dir, err)
 	}
-	if _, err := pickSession(sessions, "c", "/run"); err == nil {
+	if _, err := pickSession(sessions, "c", "/run", retry); err == nil {
 		t.Error("an unknown session must fail")
 	}
-	if _, err := pickSession(sessions, "", "/run"); err == nil || !strings.Contains(err.Error(), "a, b") {
+	if _, err := pickSession(sessions, "", "/run", retry); err == nil || !strings.Contains(err.Error(), "doriath exec --session a") || !strings.Contains(err.Error(), "doriath exec --session b") {
 		t.Errorf("several = %v", err)
 	}
-	if dir, err := pickSession(sessions[:1], "", "/run"); err != nil || dir != "/run/a" {
+	if dir, err := pickSession(sessions[:1], "", "/run", retry); err != nil || dir != "/run/a" {
 		t.Errorf("only one = %q, %v", dir, err)
 	}
-	if _, err := pickSession(nil, "", "/run"); err == nil {
+	if _, err := pickSession(nil, "", "/run", retry); err == nil {
 		t.Error("no sessions must fail")
 	}
 }

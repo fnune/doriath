@@ -53,7 +53,7 @@ Answers:
   doriath approvals [list]
   doriath approvals allow ID [--for once|session|DURATION]
   doriath approvals deny ID [--reason TEXT]
-  doriath approvals grant PATH [--session ID]
+  doriath approvals grant [--session ID] PATH
   doriath web [--listen HOST:PORT]
   doriath web open [--listen HOST:PORT] [--print]
 

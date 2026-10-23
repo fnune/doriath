@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -127,10 +129,10 @@ func TestGrantWriteReachesTheSession(t *testing.T) {
 	first := startSession(t, p, "s1", "kitchen", time.Now().Add(-time.Minute))
 	second := startSession(t, p, "s2", "garden", time.Now())
 
-	if _, err := grant(t, "/srv/data"); err == nil || !strings.Contains(err.Error(), "pick one with --session") {
+	if _, err := grant(t, "/srv/data"); err == nil || !strings.Contains(err.Error(), "doriath approvals grant --session s2 /srv/data  # profile garden") {
 		t.Errorf("two sessions without --session = %v", err)
 	}
-	out, err := grant(t, "/srv/data", "--session", "s2")
+	out, err := grant(t, "--session", "s2", "/srv/data")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +146,28 @@ func TestGrantWriteReachesTheSession(t *testing.T) {
 
 func TestGrantUsage(t *testing.T) {
 	testPaths(t)
-	for _, args := range [][]string{nil} {
+	for _, args := range [][]string{nil, {"/a", "/b"}, {"--session", "s1"}} {
 		if _, err := grant(t, args...); err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("grant %q = %v", args, err)
 		}
 	}
 	if _, err := grant(t, "/srv"); err == nil || !strings.Contains(err.Error(), "no running sessions") {
 		t.Errorf("without sessions = %v", err)
+	}
+}
+
+func TestFlagsParseAfterTheOperandThoughTheFlagPackageStopsThere(t *testing.T) {
+	for args, want := range map[string][]string{
+		"/p --reason r":      {"/p"},
+		"--reason r /p":      {"/p"},
+		"/p -- --reason":     {"/p", "--reason"},
+		"--reason r -- -a b": {"-a", "b"},
+	} {
+		flags := flag.NewFlagSet("t", flag.ContinueOnError)
+		flags.String("reason", "", "")
+		got, err := parseInterspersed(flags, strings.Fields(args))
+		if err != nil || !slices.Equal(got, want) {
+			t.Errorf("%s = %q, %v, want %q", args, got, err, want)
+		}
 	}
 }

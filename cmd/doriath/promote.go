@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/edit"
 	"github.com/fnune/doriath/internal/session"
@@ -44,10 +45,14 @@ func cmdRequest(args []string, w io.Writer) error {
 	}
 	flags := flag.NewFlagSet("request write", flag.ContinueOnError)
 	reason := flags.String("reason", "", "why the agent needs to write there, shown to you")
-	if err := flags.Parse(args[2:]); err != nil {
+	operands, err := parseInterspersed(flags, args[1:])
+	if err != nil {
 		return err
 	}
-	path, err := filepath.Abs(args[1])
+	if len(operands) != 1 {
+		return errors.New("request write: usage: doriath request write PATH [--reason TEXT]")
+	}
+	path, err := filepath.Abs(operands[0])
 	if err != nil {
 		return err
 	}
@@ -56,7 +61,7 @@ func cmdRequest(args []string, w io.Writer) error {
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: doriath request wait %s", res.Pending, res.Pending)
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s", res.Pending, cli.Line("request", "wait", res.Pending))
 	}
 	return reportDecision(w, res.Decision, path+" is writable now.")
 }
@@ -64,10 +69,14 @@ func cmdRequest(args []string, w io.Writer) error {
 func requestEdit(ctx context.Context, broker string, args []string, in io.Reader, w io.Writer) error {
 	flags := flag.NewFlagSet("request edit", flag.ContinueOnError)
 	reason := flags.String("reason", "", "why the agent needs the change, shown to you")
-	if err := flags.Parse(args[1:]); err != nil {
+	operands, err := parseInterspersed(flags, args)
+	if err != nil {
 		return err
 	}
-	path, err := filepath.Abs(args[0])
+	if len(operands) != 1 {
+		return errors.New("request edit: usage: doriath request edit PATH [--reason TEXT] < NEW_CONTENT")
+	}
+	path, err := filepath.Abs(operands[0])
 	if err != nil {
 		return err
 	}
@@ -83,7 +92,7 @@ func requestEdit(ctx context.Context, broker string, args []string, in io.Reader
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: doriath request wait %s, then run doriath request edit again", res.Pending, res.Pending)
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s, then run doriath request edit again", res.Pending, cli.Line("request", "wait", res.Pending))
 	}
 	if res.Changes == "" {
 		fmt.Fprintf(w, "%s already has that content.\n", path)
@@ -120,15 +129,16 @@ func reportDecision(w io.Writer, d approval.Decision, allowed string) error {
 }
 
 func cmdGrant(args []string, w io.Writer) error {
-	if len(args) < 1 {
-		return errors.New("approvals grant: usage: doriath approvals grant PATH [--session ID]")
-	}
 	flags := flag.NewFlagSet("approvals grant", flag.ContinueOnError)
 	id := flags.String("session", "", "the session, when several run")
-	if err := flags.Parse(args[1:]); err != nil {
+	operands, err := parseInterspersed(flags, args)
+	if err != nil {
 		return err
 	}
-	path, err := filepath.Abs(args[0])
+	if len(operands) != 1 {
+		return errors.New("approvals grant: usage: doriath approvals grant [--session ID] PATH")
+	}
+	path, err := filepath.Abs(operands[0])
 	if err != nil {
 		return err
 	}
@@ -140,7 +150,9 @@ func cmdGrant(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dir, err := pickSession(sessions, *id, p.Sessions())
+	dir, err := pickSession(sessions, *id, p.Sessions(), func(id string) string {
+		return cli.Line("approvals", "grant", "--session", id, path)
+	})
 	if err != nil {
 		return err
 	}
@@ -150,4 +162,21 @@ func cmdGrant(args []string, w io.Writer) error {
 	}
 	fmt.Fprintf(w, "%s is writable in session %s until it ends.\n%s\n", path, filepath.Base(dir), res.Hint)
 	return nil
+}
+
+func parseInterspersed(flags *flag.FlagSet, args []string) ([]string, error) {
+	var operands []string
+	for {
+		if err := flags.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := flags.Args()
+		if n := len(args) - len(rest); n > 0 && args[n-1] == "--" {
+			return append(operands, rest...), nil
+		}
+		if len(rest) == 0 {
+			return operands, nil
+		}
+		operands, args = append(operands, rest[0]), rest[1:]
+	}
 }

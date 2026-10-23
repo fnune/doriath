@@ -97,11 +97,11 @@ func AgentCommand(p *profile.Profile) (string, error) {
 	}
 	switch len(found) {
 	case 0:
-		return "", fmt.Errorf("profile %s lists no agent module doriath has an adapter for; name the command with --command", p.Name)
+		return "", fmt.Errorf("profile %s lists no agent module doriath has an adapter for; name the command in .envrc: use doriath %s --command NAME", p.Name, p.Name)
 	case 1:
 		return found[0].Command(), nil
 	}
-	return "", fmt.Errorf("profile %s lists several agent modules; name the command with --command", p.Name)
+	return "", fmt.Errorf("profile %s lists several agent modules; name the command in .envrc: use doriath %s --command NAME", p.Name, p.Name)
 }
 
 func (s *Session) agentSession() agents.Session {
