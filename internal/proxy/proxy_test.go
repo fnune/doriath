@@ -38,6 +38,11 @@ func (u *upstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	u.requests = append(u.requests, r)
 	u.bodies = append(u.bodies, body)
 	u.mu.Unlock()
+	w.Header().Set("X-Upstream-Proto", r.Proto)
+	if r.Header.Get("Content-Type") == "application/grpc" {
+		w.Header().Set("Trailer", "Grpc-Status")
+		defer w.Header().Set("Grpc-Status", "0")
+	}
 	fmt.Fprintf(w, "ok %s %s %d", r.Host, r.URL.Path, len(body))
 }
 
@@ -219,6 +224,7 @@ func newHarnessWith(t *testing.T, toml string) *harness {
 	tlsServer.TLS = &tls.Config{GetCertificate: func(h *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		return upCA.Certificate(h.ServerName)
 	}}
+	tlsServer.EnableHTTP2 = true
 	tlsServer.StartTLS()
 	t.Cleanup(tlsServer.Close)
 	plainServer := httptest.NewServer(up)
@@ -1014,5 +1020,34 @@ func TestEncodedSlashesStayInsideTheirSegment(t *testing.T) {
 	u, _ := url.Parse("https://gitlab.com/api/v4/projects/a%2Fb/ho%6Fks/1")
 	if got, _ := matchPath(u, true); !pattern.Match(got) {
 		t.Errorf("an encoded letter must not slip past a rule: %q", got)
+	}
+}
+
+func TestAGRPCCallGetsTheCredentialOverHTTP2WithItsTrailers(t *testing.T) {
+	h := newHarness(t)
+	pool := h.upCA.Pool()
+	pool.AppendCertsFromPEM(h.session.CertPEM())
+	client := &http.Client{Transport: &http.Transport{
+		Proxy:             http.ProxyURL(h.proxyURL),
+		TLSClientConfig:   &tls.Config{RootCAs: pool},
+		ForceAttemptHTTP2: true,
+	}, Timeout: 10 * time.Second}
+	req, _ := http.NewRequest(http.MethodPost, "https://api.github.com/build.bazel.remote.execution.v2.Capabilities/GetCapabilities", strings.NewReader("\x00\x00\x00\x00\x00"))
+	req.Header.Set("Content-Type", "application/grpc")
+	req.Header.Set("Te", "trailers")
+	req.Header.Set("Authorization", "Bearer placeholder")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = body(t, resp)
+	if resp.ProtoMajor != 2 || resp.Header.Get("X-Upstream-Proto") != "HTTP/2.0" {
+		t.Fatalf("jail side %s, upstream side %s: gRPC needs HTTP/2 on both", resp.Proto, resp.Header.Get("X-Upstream-Proto"))
+	}
+	if resp.Trailer.Get("Grpc-Status") != "0" {
+		t.Errorf("trailers = %v: gRPC reports its status in them", resp.Trailer)
+	}
+	if got, _ := h.upstream.last(t); got.Header.Get("Authorization") != "Bearer real-token" {
+		t.Errorf("upstream Authorization = %q", got.Header.Get("Authorization"))
 	}
 }

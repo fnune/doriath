@@ -245,7 +245,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 func (s *Server) intercept(conn net.Conn, host, target string, rules profile.HTTPHost, id Identity) {
 	tlsConn := tls.Server(conn, &tls.Config{
 		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"http/1.1"},
+		NextProtos: []string{"h2", "http/1.1"},
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			name := strings.ToLower(hello.ServerName)
 			if name != "" && name != host {
@@ -257,10 +257,14 @@ func (s *Server) intercept(conn net.Conn, host, target string, rules profile.HTT
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.intercepted(w, r, host, target, rules)
 	})
+	var protocols http.Protocols
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 30 * time.Second,
 		ConnContext:       func(ctx context.Context, _ net.Conn) context.Context { return withIdentity(ctx, id) },
+		Protocols:         &protocols,
 	}
 	_ = srv.Serve(newOneConnListener(tlsConn))
 }

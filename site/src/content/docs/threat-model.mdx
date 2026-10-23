@@ -84,8 +84,6 @@ Each allowed host can receive data, because work needs writes. The shipped modul
 - The `github` module lets `gh` post comments. doriath cannot hold comments outside your repositories, because GraphQL names the repository by an opaque ID.
 - For a host without an `[[http]]` entry, doriath checks only the host and the TLS server name. Behind a CDN, the request can name any site on that CDN, and Encrypted Client Hello can hide the server name.
 
-Interception of every host would break gRPC clients such as Bazel's remote cache, because the interceptor speaks only HTTP/1.1.
-
 ### Allowed programs
 
 Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`. doriath pins each program that `binaries` names by path when the session starts, with the files in its folder. A program gets nothing if it runs another file at that path, the same file after a change, or code from a file that is outside the system paths and was not pinned. This covers `LD_PRELOAD` and libraries that the program loads later, and also a program that the session builds.

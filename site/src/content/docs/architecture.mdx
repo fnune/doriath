@@ -28,7 +28,7 @@ The proxy runs on the host and checks each connection in this order:
 
 1. The host must be in [`[egress] allow`](/reference/configuration/#profile-keys) of the profile or its modules. Another host becomes a request for you.
 2. The address must be public. The proxy refuses private, link-local, shared and metadata addresses, also inside 6to4 and Teredo.
-3. For a host with an `[[http]]` entry, the proxy terminates TLS, applies the rules of the entry and adds its credential.
+3. For a host with an `[[http]]` entry, the proxy terminates TLS, applies the rules of the entry and adds its credential. It speaks HTTP/1.1 and HTTP/2, so gRPC services, such as a Bazel remote cache, work through it.
 
 Only the jail trusts the TLS authority, and it lasts for one session. [`doriath log`](/guides/inside-a-session/#session-history) shows each decision of the proxy.
 
