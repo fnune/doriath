@@ -159,3 +159,15 @@ func TestAPasswordPromptIsPrecededByTheProfilesOwnCommand(t *testing.T) {
 		t.Errorf("notice = %q", got)
 	}
 }
+
+func TestDoriathsNextMessageStartsOnItsOwnLine(t *testing.T) {
+	for out, want := range map[string]string{"You are not logged in.": "You are not logged in.\n", "done\n": "done\n", "": ""} {
+		var b bytes.Buffer
+		l := &lineCloser{w: &b}
+		_, _ = l.Write([]byte(out))
+		l.closeLine()
+		if b.String() != want {
+			t.Errorf("%q = %q, want %q", out, b.String(), want)
+		}
+	}
+}

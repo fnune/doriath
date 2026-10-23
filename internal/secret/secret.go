@@ -238,7 +238,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 	if err != nil {
 		msg := strings.TrimSpace(string(stderr))
 		if msg != "" {
-			return Value{}, fmt.Errorf("secret %q: command %s: %w: %s", name, b.Command[0], err, firstLine(msg))
+			return Value{}, fmt.Errorf("secret %q: command %s: %w: %s", name, b.Command[0], err, lastLine(msg))
 		}
 		return Value{}, fmt.Errorf("secret %q: command %s: %w", name, b.Command[0], err)
 	}
@@ -254,9 +254,8 @@ func trimmed(name string, data []byte) (Value, error) {
 	return NewValue(data), nil
 }
 
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	return line
+func lastLine(s string) string {
+	return s[strings.LastIndex(s, "\n")+1:]
 }
 
 type OSFiles struct{}

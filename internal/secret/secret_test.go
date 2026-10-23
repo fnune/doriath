@@ -63,12 +63,7 @@ func TestFileBackendRefusesLoosePermissions(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	run := &fakeRunner{stderr: "vault is locked\nmore", err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"locked": {Command: []string{"rbw", "get", "x"}}}, run, mapFiles{})
-	_, err := s.Get(context.Background(), "locked")
-	if err == nil || !strings.Contains(err.Error(), "vault is locked") || strings.Contains(err.Error(), "more") {
-		t.Fatalf("err = %v", err)
-	}
+	s := NewConfigured(map[string]Backend{}, &fakeRunner{}, mapFiles{})
 	if _, err := s.Get(context.Background(), "missing"); !errors.Is(err, ErrUnknown) {
 		t.Fatalf("missing err = %v", err)
 	}
@@ -246,5 +241,13 @@ func TestRefreshReadsATokenAgainOnItsSchedule(t *testing.T) {
 	}
 	if err := (Backend{Command: []string{"x"}, Refresh: time.Second}).Validate(); err == nil {
 		t.Error("a refresh under a minute must be refused")
+	}
+}
+
+func TestAFailedCommandIsReportedByItsLastLineAfterPromptsAndProgress(t *testing.T) {
+	run := &fakeRunner{stderr: "? Master password: [hidden]\nstack trace\nYou are not logged in.", err: errors.New("exit status 1")}
+	s := NewConfigured(map[string]Backend{"locked": {Command: []string{"bw", "unlock"}}}, run, mapFiles{})
+	if _, err := s.Get(context.Background(), "locked"); err == nil || !strings.HasSuffix(err.Error(), ": You are not logged in.") {
+		t.Fatalf("err = %v", err)
 	}
 }

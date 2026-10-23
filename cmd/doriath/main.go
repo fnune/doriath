@@ -332,10 +332,30 @@ func (execRunner) Output(ctx context.Context, c secret.Command) ([]byte, []byte,
 	if c.Terminal && isTerminal(os.Stdin) {
 		term.New(os.Stderr).Line(term.Info, terminalNotice(c))
 		cmd.Stdin = os.Stdin
-		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
+		shown := &lineCloser{w: os.Stderr}
+		cmd.Stderr = io.MultiWriter(shown, &stderr)
+		defer shown.closeLine()
 	}
 	out, err := cmd.Output()
 	return out, stderr.b, err
+}
+
+type lineCloser struct {
+	w    io.Writer
+	open bool
+}
+
+func (l *lineCloser) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		l.open = p[len(p)-1] != '\n'
+	}
+	return l.w.Write(p)
+}
+
+func (l *lineCloser) closeLine() {
+	if l.open {
+		_, _ = io.WriteString(l.w, "\n")
+	}
 }
 
 func terminalNotice(c secret.Command) string {
