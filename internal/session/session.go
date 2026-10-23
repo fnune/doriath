@@ -255,12 +255,12 @@ func (s *Session) prepare(ctx context.Context) error {
 	}
 	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
 
-	for _, d := range []string{s.cacheRoot(), s.tmp()} {
+	for _, d := range []string{s.cacheRoot(), s.tmp(), s.scratchHome()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
-	s.closers = append(s.closers, func() { _ = os.RemoveAll(s.tmp()) })
+	s.closers = append(s.closers, func() { _ = os.RemoveAll(s.tmp()) }, func() { _ = os.RemoveAll(s.scratchHome()) })
 	for _, c := range p.Caches {
 		if err := os.MkdirAll(jail.CacheSource(s.cacheRoot(), c.Path, s.deps.Paths.Home), 0o700); err != nil {
 			return fmt.Errorf("create cache for %s: %w", c.Path, err)
@@ -353,8 +353,9 @@ func (s *Session) prepare(ctx context.Context) error {
 	return s.writeInfo()
 }
 
-func (s *Session) cacheRoot() string { return s.deps.Paths.AgentCache(s.req.Profile.StateName()) }
-func (s *Session) tmp() string       { return filepath.Join(s.cacheRoot(), "tmp", s.id) }
+func (s *Session) cacheRoot() string   { return s.deps.Paths.AgentCache(s.req.Profile.StateName()) }
+func (s *Session) tmp() string         { return filepath.Join(s.cacheRoot(), "tmp", s.id) }
+func (s *Session) scratchHome() string { return filepath.Join(s.cacheRoot(), "scratch", s.id) }
 func (s *Session) jailPath(name string) string {
 	return filepath.Join(s.jailDir, name)
 }
@@ -580,7 +581,7 @@ func (s *Session) writeInfo() error {
 }
 
 func (s *Session) layout() jail.Layout {
-	return jail.Layout{JailDir: s.jailDir, CacheRoot: s.cacheRoot(), Tmp: s.tmp(), Exe: s.deps.Exe}
+	return jail.Layout{JailDir: s.jailDir, CacheRoot: s.cacheRoot(), Tmp: s.tmp(), Home: s.scratchHome(), Exe: s.deps.Exe}
 }
 
 func (s *Session) forwards() []string {
@@ -768,6 +769,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		}
 		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines(learned)
 		end = append(end, note{term.Info, text})
+	}
+	if large := largeScratchFolders(s.scratchHome()); len(large) > 0 {
+		end = append(end, note{term.Info, scratchNote(large, s.req.Profile.Name)})
 	}
 	end = append(end, summary(s.egress.Denials(), s.manager.History())...)
 	if len(end) > 0 {

@@ -37,7 +37,10 @@ type Layout struct {
 	CacheRoot string
 	// Tmp backs /tmp, so scratch files survive a resumed session.
 	Tmp string
-	Exe string
+	// Home backs the home directory, so that what the agent writes outside
+	// the mounts and caches stays on disk instead of in memory.
+	Home string
+	Exe  string
 }
 
 // EmptyDir is the empty directory, inside the jail directory, that hidden
@@ -170,10 +173,6 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 			s.Tmpfs = append(s.Tmpfs, root)
 		}
 	}
-	homeShowsThrough := !slices.ContainsFunc(s.Tmpfs, func(root string) bool { return within(opts.Home, root) })
-	if homeShowsThrough && host.Kind(opts.Home) == "dir" {
-		s.Tmpfs = append(s.Tmpfs, opts.Home)
-	}
 	for link, target := range varLinks {
 		if host.Kind("/var") == "dir" {
 			if s.Symlinks == nil {
@@ -211,6 +210,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	if err := checkCwd(opts.Cwd, binds); err != nil {
 		errs = append(errs, err)
 	}
+	binds = append(binds, Bind{Source: layout.Home, Dest: opts.Home})
 	if err := errors.Join(errs...); err != nil {
 		return Spec{}, err
 	}

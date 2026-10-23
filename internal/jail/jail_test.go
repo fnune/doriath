@@ -75,7 +75,7 @@ func host() fakeHost {
 }
 
 func layout() Layout {
-	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/project", Tmp: "/home/u/.cache/g/agents/project/tmp", Exe: "/nix/store/x/bin/doriath"}
+	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/project", Tmp: "/home/u/.cache/g/agents/project/tmp", Home: "/home/u/.cache/g/agents/project/scratch/s1", Exe: "/nix/store/x/bin/doriath"}
 }
 
 func opts() Options {
@@ -102,6 +102,7 @@ func TestPlan(t *testing.T) {
 		dests = append(dests, b.Dest)
 	}
 	want := []string{
+		"/home/u",
 		"/tmp",
 		"/run/doriath",
 		"/dev/tpmrm0",
@@ -504,11 +505,26 @@ func TestHomeOutsideHiddenRootsIsHidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(s.Tmpfs, "/data/home/u") {
-		t.Fatalf("tmpfs = %v", s.Tmpfs)
+	if !slices.Contains(s.Binds, Bind{Source: layout().Home, Dest: "/data/home/u"}) {
+		t.Fatalf("binds = %v", s.Binds)
 	}
-	if s, _ := Plan(testProfile(), layout(), opts(), host()); slices.Contains(s.Tmpfs, "/home/u") {
-		t.Error("a home under /home is hidden with it")
+}
+
+func TestTheHomeIsOnDiskSoThatScratchFilesDoNotFillMemory(t *testing.T) {
+	s, err := Plan(testProfile(), layout(), opts(), host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(s.Tmpfs, "/home/u") || !slices.Contains(s.Binds, Bind{Source: layout().Home, Dest: "/home/u"}) {
+		t.Errorf("tmpfs = %v, binds = %v", s.Tmpfs, s.Binds)
+	}
+}
+
+func TestTheScratchHomeDoesNotCountAsAMountForTheWorkingDirectory(t *testing.T) {
+	o := opts()
+	o.Cwd = "/home/u/elsewhere"
+	if _, err := Plan(testProfile(), layout(), o, host()); err == nil || !strings.Contains(err.Error(), "not inside any mount") {
+		t.Errorf("err = %v", err)
 	}
 }
 

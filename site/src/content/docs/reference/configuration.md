@@ -366,6 +366,12 @@ doriath refuses to start if a mount, or a guarded path in a repository, goes thr
 
 doriath also refuses `/`, the home directory and the directories above it, in all modes. It refuses writable mounts under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, because programs there get credentials by name.
 
+## Home
+
+The home directory in the jail is an empty folder on disk for each session, under `~/.cache/doriath/agents/<profile>/scratch/`. Mounts and caches show through it. Files that the agent writes anywhere else in the home stay for the session only, and doriath deletes them at the end.
+
+When the session ends, doriath lists each folder there that holds more than 512 MB, such as `~/.cache/bazel-disk`. It prints the `[[caches]]` lines that keep the folder for later sessions.
+
 ## Edits
 
 The agent can ask to change one file that is read-only in the jail, such as `.git/config` when git or jj cannot write it. It writes the whole new content to a file, and runs `doriath request edit PATH --reason TEXT < FILE`. doriath compares the new content with the file, shows you what changes, and writes it once if you allow it. The file stays read-only in the jail before and after.
@@ -509,5 +515,5 @@ title = true
 | `~/.local/state/doriath/oauth/`           | OAuth logins for each profile, with their refresh tokens                                              |
 | `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
 | `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |
-| `~/.cache/doriath/agents/<profile>/`      | The caches, `/tmp`, agent state and container storage of the profile                                  |
+| `~/.cache/doriath/agents/<profile>/`      | The caches, `/tmp`, home, agent state and container storage of the profile                            |
 | `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                      |
