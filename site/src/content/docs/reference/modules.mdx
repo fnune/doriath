@@ -99,6 +99,12 @@ With `go`, Go builds can reach the module proxy and the checksum database. The b
 
 <ModuleSource name="node" />
 
+## maven
+
+`maven` allows Maven Central and keeps the local repository in a cache of the profile. doriath gives every JVM the address of its proxy in `JAVA_TOOL_OPTIONS`, because Java ignores `HTTPS_PROXY`. Maven uses that address only with the flag that this module sets in `MAVEN_OPTS`.
+
+<ModuleSource name="maven" />
+
 ## playwright
 
 With `playwright`, Playwright downloads its browsers into a cache of the profile.

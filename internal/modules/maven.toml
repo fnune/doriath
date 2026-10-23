@@ -1,0 +1,10 @@
+# Maven reads the JVM's proxy settings, which doriath sets in
+# JAVA_TOOL_OPTIONS, only with this flag.
+[env]
+set = { MAVEN_OPTS = "-Daether.connector.http.useSystemProperties=true" }
+
+[[caches]]
+path = "~/.m2/repository"
+
+[egress]
+allow = ["repo.maven.apache.org", "repo1.maven.org"]

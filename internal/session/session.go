@@ -1095,8 +1095,12 @@ func (s *Session) saveEntry() {
 }
 
 func javaToolOptions(profile string) string {
+	port := strconv.Itoa(jail.ProxyPort)
 	opts := "-Djavax.net.ssl.trustStore=" + jail.InJail("truststore.p12") +
-		" -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword
+		" -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword +
+		" -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=" + port +
+		" -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=" + port +
+		" -Dhttp.nonProxyHosts=localhost|127.0.0.1|[::1]"
 	if profile != "" {
 		return profile + " " + opts
 	}

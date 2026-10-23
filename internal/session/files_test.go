@@ -2,10 +2,13 @@ package session
 
 import (
 	"io/fs"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/jail"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
@@ -40,5 +43,17 @@ func TestJavaTrustStoreHoldsTheBundle(t *testing.T) {
 	}
 	if _, err := JavaTrustStore([]byte("nothing")); err == nil {
 		t.Error("an empty trust store would make Java trust nothing")
+	}
+}
+
+func TestJavaReachesTheNetworkThroughTheProxyBecauseItIgnoresHTTPSProxy(t *testing.T) {
+	got := javaToolOptions("-Xmx2g")
+	for _, want := range []string{"-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=" + strconv.Itoa(jail.ProxyPort), "-Dhttp.nonProxyHosts=localhost|127.0.0.1|[::1]"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("JAVA_TOOL_OPTIONS = %q, want %s", got, want)
+		}
+	}
+	if !strings.HasPrefix(got, "-Xmx2g ") {
+		t.Errorf("JAVA_TOOL_OPTIONS = %q: the profile's own options come first", got)
 	}
 }
