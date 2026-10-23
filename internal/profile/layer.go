@@ -177,6 +177,7 @@ type agentLayer struct {
 type claudeLayer struct {
 	DisableConnectors *bool    `toml:"disable_connectors"`
 	DeniedMCPServers  []string `toml:"denied_mcp_servers"`
+	AllowedMCPServers []string `toml:"allowed_mcp_servers"`
 	Ask               []string `toml:"ask"`
 	Deny              []string `toml:"deny"`
 }

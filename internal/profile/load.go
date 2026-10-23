@@ -498,6 +498,9 @@ func (b *builder) apply(l layer) {
 		for _, s := range c.DeniedMCPServers {
 			b.claude.DeniedMCPServers = appendNew(b.claude.DeniedMCPServers, s)
 		}
+		for _, s := range c.AllowedMCPServers {
+			b.claude.AllowedMCPServers = appendNew(b.claude.AllowedMCPServers, s)
+		}
 		for _, s := range c.Ask {
 			b.claude.Ask = appendNew(b.claude.Ask, s)
 		}

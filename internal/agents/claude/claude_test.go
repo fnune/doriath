@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,5 +154,30 @@ func TestStartAndEnd(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude", "projects", project, "new.jsonl")); err != nil {
 		t.Fatal("the session's transcript must come back")
+	}
+}
+
+func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {
+	p := &profile.Profile{
+		MCP:    []profile.MCPServer{{Name: "linear"}},
+		Claude: profile.Claude{AllowedMCPServers: []string{"https://docs.example.com/mcp", "bazel"}},
+	}
+	data, err := Settings(p, "/w", mapFiles{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Allowed []map[string]string `json:"allowedMcpServers"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := []map[string]string{{"serverName": "linear"}, {"serverUrl": "https://docs.example.com/mcp"}, {"serverName": "bazel"}}
+	if !reflect.DeepEqual(got.Allowed, want) {
+		t.Errorf("allowedMcpServers = %v, want %v", got.Allowed, want)
+	}
+	data, _ = Settings(&profile.Profile{MCP: p.MCP}, "/w", mapFiles{})
+	if strings.Contains(string(data), "allowedMcpServers") {
+		t.Error("without an allow list, every server stays allowed")
 	}
 }

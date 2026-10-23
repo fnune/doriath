@@ -32,6 +32,18 @@ ask = ["mcp__claude-in-chrome__javascript_tool"]
 deny = []
 ```
 
+## Connectors
+
+The `claude` module turns claude.ai connectors off, because a connector reaches your accounts through Anthropic, where doriath cannot see the calls. To use some connectors, turn them on and list them in `allowed_mcp_servers`, by the connector's URL or by its name. Claude then refuses all other connectors and MCP servers, except the `[[mcp]]` servers of the profile, which doriath adds to the list.
+
+```toml
+[claude]
+disable_connectors = false
+allowed_mcp_servers = ["https://mcp.example.com/mcp"]
+```
+
+`/mcp` in a session outside doriath shows the name and URL of each connector.
+
 ## Remote Control
 
 To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. The `claude` module keeps the feature-flag fetch that Remote Control needs, and turns off telemetry, error reports, feedback and updates.

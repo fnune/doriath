@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/fnune/doriath/internal/agents"
@@ -108,7 +109,8 @@ type Files interface {
 type settings struct {
 	DisableClaudeAiConnectors bool              `json:"disableClaudeAiConnectors,omitempty"`
 	StatusLine                *statusLine       `json:"statusLine,omitempty"`
-	DeniedMcpServers          []deniedServer    `json:"deniedMcpServers,omitempty"`
+	DeniedMcpServers          []mcpServerRef    `json:"deniedMcpServers,omitempty"`
+	AllowedMcpServers         []mcpServerRef    `json:"allowedMcpServers,omitempty"`
 	Permissions               permissions       `json:"permissions"`
 	Hooks                     map[string][]any  `json:"hooks"`
 	Env                       map[string]string `json:"env,omitempty"`
@@ -119,8 +121,16 @@ type statusLine struct {
 	Command string `json:"command"`
 }
 
-type deniedServer struct {
-	ServerName string `json:"serverName"`
+type mcpServerRef struct {
+	ServerName string `json:"serverName,omitempty"`
+	ServerURL  string `json:"serverUrl,omitempty"`
+}
+
+func serverRef(nameOrURL string) mcpServerRef {
+	if strings.Contains(nameOrURL, "://") {
+		return mcpServerRef{ServerURL: nameOrURL}
+	}
+	return mcpServerRef{ServerName: nameOrURL}
 }
 
 type permissions struct {
@@ -158,7 +168,15 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 		Hooks:                     map[string][]any{},
 	}
 	for _, name := range p.Claude.DeniedMCPServers {
-		s.DeniedMcpServers = append(s.DeniedMcpServers, deniedServer{ServerName: name})
+		s.DeniedMcpServers = append(s.DeniedMcpServers, serverRef(name))
+	}
+	if len(p.Claude.AllowedMCPServers) > 0 {
+		for _, m := range p.MCP {
+			s.AllowedMcpServers = append(s.AllowedMcpServers, mcpServerRef{ServerName: m.Name})
+		}
+		for _, name := range p.Claude.AllowedMCPServers {
+			s.AllowedMcpServers = append(s.AllowedMcpServers, serverRef(name))
+		}
 	}
 	for _, name := range []string{"settings.json", "settings.local.json"} {
 		ps, err := readProject(files, filepath.Join(cwd, ".claude", name))

@@ -242,6 +242,9 @@ instructions = ["~/.codex/AGENTS.md"]
 [claude]
 disable_connectors = true
 denied_mcp_servers = ["claude.ai Gmail"]
+# When set, the only connectors and MCP servers that Claude can use, by
+# URL or name, besides the [[mcp]] servers of the profile.
+allowed_mcp_servers = []
 ask = ["mcp__claude-in-chrome__javascript_tool"]
 deny = []
 ```

@@ -375,6 +375,9 @@ type Agent struct {
 type Claude struct {
 	DisableConnectors bool
 	DeniedMCPServers  []string
+	// AllowedMCPServers, when set, is the only MCP servers and connectors
+	// the agent can use, besides the profile's own.
+	AllowedMCPServers []string
 	Ask               []string
 	Deny              []string
 }
