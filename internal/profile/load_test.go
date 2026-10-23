@@ -462,3 +462,33 @@ func TestHostPatternsWithAPort(t *testing.T) {
 		t.Errorf("SplitTarget of a bare IPv6 address = %q, %q", h, port)
 	}
 }
+
+func TestCredentialBinariesStartWithTheHomeAsEgressProgramsDo(t *testing.T) {
+	l := &Loader{Profiles: fstest.MapFS{"p.toml": {Data: []byte(`
+[secrets.t]
+command = ["true"]
+
+[[http]]
+host = "api.example.com"
+credential = { secret = "t", scheme = "bearer", binaries = ["~/.cache/tool/bin/tool", "gh"] }
+`)}}, Home: "/home/u"}
+	p, err := l.Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, _ := p.Intercepted("api.example.com")
+	if got := h.Credential.Binaries; !slices.Equal(got, []string{"/home/u/.cache/tool/bin/tool", "gh"}) {
+		t.Errorf("binaries = %v", got)
+	}
+	l.Profiles = fstest.MapFS{"p.toml": {Data: []byte(`
+[secrets.t]
+command = ["true"]
+
+[[http]]
+host = "api.example.com"
+credential = { secret = "t", scheme = "bearer", binaries = ["bin/tool"] }
+`)}}
+	if _, err := l.Load("p"); err == nil {
+		t.Error("a relative path must be refused")
+	}
+}

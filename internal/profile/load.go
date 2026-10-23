@@ -880,7 +880,7 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		out.Default = action
 	}
 	if c := h.Credential; c != nil {
-		cred, err := buildCredential(*c)
+		cred, err := b.buildCredential(*c)
 		if err != nil {
 			return HTTPHost{}, fmt.Errorf("http %s credential: %w", h.Host, err)
 		}
@@ -922,7 +922,7 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 		out.Repositories = append(out.Repositories, pattern)
 	}
 	for _, r := range h.Rules {
-		rule, err := buildRule(r)
+		rule, err := b.buildRule(r)
 		if err != nil {
 			return HTTPHost{}, fmt.Errorf("http %s rule: %w", h.Host, err)
 		}
@@ -931,7 +931,7 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 	return out, nil
 }
 
-func buildCredential(c credentialLayer) (Credential, error) {
+func (b *builder) buildCredential(c credentialLayer) (Credential, error) {
 	if !namePattern.MatchString(c.Secret) {
 		return Credential{}, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", c.Secret)
 	}
@@ -961,20 +961,26 @@ func buildCredential(c credentialLayer) (Credential, error) {
 	default:
 		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic, header or sigv4", c.Scheme)
 	}
-	for _, b := range c.Binaries {
-		if b == "" {
+	var binaries []string
+	for _, bin := range c.Binaries {
+		if bin == "" {
 			return Credential{}, fmt.Errorf("binaries entries must not be empty")
 		}
-		if strings.Contains(b, "/") && !strings.HasPrefix(b, "/") {
-			return Credential{}, fmt.Errorf("binary %q: a path must be absolute", b)
+		if strings.Contains(bin, "/") {
+			expanded, err := b.expand(bin)
+			if err != nil {
+				return Credential{}, fmt.Errorf("binary %q: a path must be absolute or start with ~/", bin)
+			}
+			bin = expanded
 		}
+		binaries = append(binaries, bin)
 	}
-	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), KeyID: c.KeyID, Binaries: c.Binaries}, nil
+	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), KeyID: c.KeyID, Binaries: binaries}, nil
 }
 
 var methodPattern = regexp.MustCompile(`^(\*|[A-Z]+)$`)
 
-func buildRule(r ruleLayer) (Rule, error) {
+func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 	method := r.Method
 	if method == "" {
 		method = "*"
@@ -1028,7 +1034,7 @@ func buildRule(r ruleLayer) (Rule, error) {
 		rule.GraphQL = &g
 	}
 	if r.Credential != nil {
-		cred, err := buildCredential(*r.Credential)
+		cred, err := b.buildCredential(*r.Credential)
 		if err != nil {
 			return Rule{}, fmt.Errorf("credential: %w", err)
 		}
