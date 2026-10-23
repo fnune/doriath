@@ -74,11 +74,12 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 		return errors.New("the jail is not running yet")
 	}
 	asWriteMount := &profile.Profile{Mounts: []profile.Mount{{Path: path, Mode: profile.ModeWrite}}}
-	if err := s.holdControlPathsOf(asWriteMount, osHost{}); err != nil {
+	listings := newListingCache()
+	if err := s.holdControlPathsOf(asWriteMount, listings); err != nil {
 		return err
 	}
-	guards := jail.Guards(asWriteMount, osHost{})
-	if err := jail.CheckLinks(asWriteMount, osHost{}, guards...); err != nil {
+	guards := jail.Guards(asWriteMount, listings)
+	if err := jail.CheckLinks(asWriteMount, listings, guards...); err != nil {
 		return err
 	}
 	err = s.deps.Promote(ctx, promote.Request{

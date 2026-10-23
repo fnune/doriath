@@ -2,12 +2,16 @@ package session
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 func TestMissingHiddenPathInAWritableMountGetsAPlaceholder(t *testing.T) {
@@ -99,5 +103,41 @@ func TestHiddenPathsThatNeedNoPlaceholder(t *testing.T) {
 				t.Errorf("%s was created: %v", hide, err)
 			}
 		})
+	}
+}
+
+type countingHost struct {
+	osHost
+	lists int
+}
+
+func (c *countingHost) List(dir string) []jail.Entry {
+	c.lists++
+	return c.osHost.List(dir)
+}
+
+func TestHoldingControlPathsWalksAFolderOfManyWorktreesAFewTimesOnly(t *testing.T) {
+	root := t.TempDir()
+	for i := range 30 {
+		if err := os.MkdirAll(filepath.Join(root, fmt.Sprintf("wt-%d", i), ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := &profile.Profile{Mounts: []profile.Mount{{Path: root, Mode: profile.ModeWrite}}}
+	oneWalk := &countingHost{}
+	jail.Repositories(root, oneWalk)
+
+	roots, err := vcs.NewRootGuard(io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer roots.Close()
+	s := &Session{roots: roots}
+	host := &countingHost{}
+	if err := s.holdControlPathsOf(p, host); err != nil {
+		t.Fatal(err)
+	}
+	if host.lists > 4*oneWalk.lists {
+		t.Errorf("%d listings for %d in one walk: each placeholder must not walk the mount again", host.lists, oneWalk.lists)
 	}
 }

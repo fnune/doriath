@@ -48,10 +48,15 @@ func (s *Session) showJJSecureConfigs() {
 // The placeholders stay: another session may still bind them.
 func (s *Session) holdControlPathsOf(p *profile.Profile, host jail.Host) error {
 	s.roots.Add(jail.GitRoots(p, host)...)
-	for _, h := range jail.Placeholders(p, host) {
-		if err := jail.CheckLinks(p, osHost{}, h.Path); err != nil {
-			return err
-		}
+	holds := jail.Placeholders(p, host)
+	paths := make([]string, len(holds))
+	for i, h := range holds {
+		paths[i] = h.Path
+	}
+	if err := jail.CheckLinks(p, host, paths...); err != nil {
+		return err
+	}
+	for _, h := range holds {
 		if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {
 			return fmt.Errorf("hold %s: %w", h.Path, err)
 		}

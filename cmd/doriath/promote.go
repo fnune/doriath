@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/cli"
@@ -156,6 +157,10 @@ func cmdGrant(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	slow := time.AfterFunc(2*time.Second, func() {
+		fmt.Fprintf(os.Stderr, "doriath: looking for git and jj repositories in %s before the jail can write it; a folder of many checkouts takes a while\n", path)
+	})
+	defer slow.Stop()
 	var res session.GrantWriteResult
 	if err := control.Call(context.Background(), filepath.Join(dir, session.ControlSocket), session.MethodGrantWrite, session.GrantWriteParams{Path: path}, &res); err != nil {
 		return fmt.Errorf("approvals grant: %w", err)
