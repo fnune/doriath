@@ -59,6 +59,7 @@ export default defineConfig({
         {
           label: "Guides",
           items: [
+            { label: "Profiles with an agent", slug: "guides/profile-setup" },
             { label: "Answering requests", slug: "guides/approvals" },
             { label: "home-manager", slug: "guides/home-manager" },
             { label: "Projects with direnv", slug: "guides/direnv" },

@@ -1,0 +1,130 @@
+These steps are for an agent that helps a person write a doriath profile for a project. A profile decides what the jail allows. Thus the person approves each file before you write it.
+
+## Rules for the agent
+
+- If the variable `DORIATH_BROKER` is set, you run in a jail. Follow "Draft in a jail" below.
+- Show the full content of each file before you write it, and write only after the person says yes.
+- You can write three kinds of files: the profile, the line in the project's `.envrc`, and the doriath part of a home-manager configuration. Do not write other files.
+- Do not read, print or store a secret value. Write only the command or the file that gives the secret.
+- Do not create keys or tokens. Give the person the command or the page, and let the person do it.
+- Do not run `doriath run`, and never with `--learn`. Learning mode reaches every public host, so the person starts it.
+
+## Draft in a jail
+
+In a jail, the doriath configuration is not visible, and `doriath doctor` checks the jail instead of the host. You can still read the project and draft the profile:
+
+1. Write the draft to a scratch folder, such as `$TMPDIR/doriath/profiles/NAME.toml`.
+2. Check it with `DORIATH_CONFIG_DIR=$TMPDIR/doriath doriath profiles show NAME`.
+3. Ask the person where it goes. If the jail does not show that folder, the person grants it with `doriath approvals grant`, or saves the file.
+4. Give the person the checks to run on the host: `doriath profiles show NAME`, `doriath doctor --profile NAME` in the project, and the steps of the last section.
+
+## Find how the person installs doriath
+
+Run `doriath doctor`. If it fails, show the person its output and stop until the machine passes.
+
+Then find where profiles live, because you write the profile there:
+
+1. Run `ls -la ~/.config/doriath/profiles`.
+2. If the profile files are links into `/nix/store`, home-manager writes them. Ask the person for the path of the home-manager configuration, and find `programs.doriath` in it.
+3. If a link points to a folder, such as `private -> ~/Development/doriath-profiles`, that folder holds profiles that the person keeps in a repository. Ask whether the new profile goes there.
+4. Otherwise, the profile is a TOML file at `~/.config/doriath/profiles/NAME.toml`.
+
+Run `doriath profiles list`. If a profile already covers part of the work, ask whether to compose with it, such as `--profile my-app+deploy`, instead of a copy. See https://doriath.fnune.com/reference/configuration/#composed-profiles.
+
+## Choose the modules
+
+A profile lists modules, and each module holds the hosts, caches and rules of one tool. Run `doriath modules list` for the modules on this machine, and `doriath modules show NAME` to read one. Start from these:
+
+- `base` for almost all profiles.
+- `vcs` if the project is a git or jj repository.
+- `docs` so that the agent can read documentation sites.
+- One agent module: `claude`, `codex`, `gemini` or `opencode`. Ask the person which agent they use.
+
+Read the files of the project to find the toolchains:
+
+| File in the project                            | Module       |
+| ---------------------------------------------- | ------------ |
+| `go.mod`                                       | `go`         |
+| `package.json`, a lockfile of npm or pnpm      | `node`       |
+| a Playwright config                            | `playwright` |
+| `.pre-commit-config.yaml`                      | `pre-commit` |
+| `flake.nix`, `shell.nix`                       | `nix`        |
+| a `Dockerfile`, `compose.yaml`, Testcontainers | `podman`     |
+| a `pom.xml`                                    | `maven`      |
+
+Some builds need settings in place of a module:
+
+- If the tests start sandboxes of their own, such as bubblewrap or a nested doriath, add `[hardening] namespaces = true`.
+- If containers use images outside `docker.io/library`, add them to `[podman] images`, such as `"ghcr.io/acme/*"`.
+
+Run `git remote -v` to find the forge. Add `github`, `gitlab`, `forgejo` or `bitbucket` for it. Without a forge module, the agent can read public pages of the forge, but it cannot push or open pull requests. `nix-daemon` and `aws` give the jail more reach, so add them only if the person asks for them.
+
+## Choose the mounts
+
+The jail shows the folder where the session starts, and `vcs` shows the whole repository. Both are read-only. The agent commits in worktrees, and the `claude` module makes `.claude/worktrees` writable. Ask the person where they keep worktrees, and mount that folder with `mode = "write"`.
+
+A writable folder with many worktrees is slow to walk. If the folder holds worktrees of other projects, mount a narrower folder.
+
+Hide files with secrets that the agent does not need, such as `.env` files. Git ignores most of them, so look in the ignored files: `git ls-files --others --ignored --exclude-standard --directory`. Add a mount with `mode = "hide"` for each one.
+
+## Add credentials
+
+Each forge module needs a token in a secret with a fixed name, such as `github`. Tell the person to make a new token for this profile only, as https://doriath.fnune.com/forges/ describes for each forge. A token of an organization can need an approval from its admins, so say this before the person starts.
+
+Ask which password manager the person uses. `command -v rbw bw op secret-tool` shows the ones that are installed. These commands print a secret:
+
+- `rbw`: `["rbw", "get", "ITEM"]`
+- `bw`: `["sh", "-c", "bw get password ITEM --session \"$(bw unlock --raw)\""]`, which asks for the password one time for each session
+- `op`: `["op", "read", "op://VAULT/ITEM/credential"]`
+- `secret-tool`: `["secret-tool", "lookup", "KEY", "VALUE"]`
+- a file with mode 600: `file = "~/.config/doriath/keys/NAME"`
+
+Run `command -v` for the program of the command. If the path is a shim of a version manager, such as mise or asdf, use the absolute path of the real program. A shim chooses its tool from a config in the working folder, and the agent can write that config.
+
+Run `git config --get commit.gpgsign` and `jj config get signing.behavior`. If either one signs commits, the profile needs `[signing]`. Tell the person the two choices:
+
+- A signing key for the profile. The person creates it with `ssh-keygen -t ed25519 -N '' -f ~/.config/doriath/keys/NAME-signing`, and adds the public key to the forge as a signing key. The profile then has `[secrets.signing]` and `[signing] key = "signing"`.
+- `[signing] enable = false`, and the agent commits unsigned.
+
+A session does not start until each secret of its profile exists. Tell the person to create the secrets before the first session.
+
+## Write the profile
+
+This example is a TOML profile for a Go and Node project on GitHub, with Claude Code:
+
+```toml
+description = "My app"
+modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+
+[secrets.github]
+command = ["rbw", "get", "github-my-app"]
+
+[[mounts]]
+path = "~/Development/.worktrees/my-app"
+mode = "write"
+
+[[mounts]]
+path = "{repository}/.env"
+mode = "hide"
+```
+
+In home-manager, the same profile goes under `programs.doriath.profiles.my-app`, with the same keys as attributes. `packages` adds tools to the `PATH` of the jail. See https://doriath.fnune.com/guides/home-manager/#profiles-in-nix.
+
+After you write a TOML profile, run `doriath profiles show NAME`. It refuses a profile with an error, and it names the module behind each entry. Show the output to the person. For a home-manager profile, ask the person to run `home-manager switch` first.
+
+In the project, run `doriath doctor --profile NAME`. It tells whether the jail shows the repository, and whether the agent can commit and sign there.
+
+## Start sessions from the project
+
+If the person uses direnv, add `use doriath NAME` to the project's `.envrc`, after `use flake`. If `git ls-files .envrc` shows that the repository tracks `.envrc`, put the line in `.envrc.local` instead, and keep that file out of the repository. The person then runs `direnv allow`. See https://doriath.fnune.com/guides/direnv/.
+
+Without direnv, suggest an alias, such as `alias claude-my-app='doriath run --profile my-app -- claude'`.
+
+## Give the rest to the person
+
+End with a list of the steps that only the person can do:
+
+1. Create the token and the secrets, then run `doriath doctor --secrets`.
+2. Add the public signing key to the forge, if the profile has one.
+3. Run a build in learning mode, such as `doriath run --profile NAME --learn -- make build`. At the end, doriath prints the `[egress]` lines to add to the profile.
+4. Start the agent in a session, and sign in to it there. Each profile has its own agent login.

@@ -30,16 +30,18 @@ Add the flake as an input and import its module:
 }
 ```
 
-| Option                 | Default                  | What it does                                                                                |
-| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
-| `enable`               | `false`                  | Installs doriath and writes `~/.config/doriath/config.toml`.                                |
-| `direnv`               | `programs.direnv.enable` | Installs the [direnv](/guides/direnv/) library, for `use doriath PROFILE`.                  |
-| `zsh.completion`       | `programs.zsh.enable`    | Loads the zsh completion.                                                                   |
-| `approvals.desktop`    | `true`                   | Shows requests as desktop notifications.                                                    |
-| `approvals.web.enable` | `false`                  | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service. |
-| `approvals.web.listen` | `"127.0.0.1:7341"`       | The loopback address of the page.                                                           |
-| `profiles.<name>`      | `{ }`                    | Profiles, with the same keys as their TOML.                                                 |
-| `modules.<name>`       | `{ }`                    | Your own modules. A module with the name of a built-in module is an error.                  |
+| Option                 | Default                            | What it does                                                                                |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `enable`               | `false`                            | Installs doriath and writes `~/.config/doriath/config.toml`.                                |
+| `direnv`               | `programs.direnv.enable`           | Installs the [direnv](/guides/direnv/) library, for `use doriath PROFILE`.                  |
+| `zsh.completion`       | `programs.zsh.enable`              | Loads the zsh completion.                                                                   |
+| `approvals.desktop`    | `true`                             | Shows requests as desktop notifications.                                                    |
+| `approvals.web.enable` | `false`                            | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service. |
+| `approvals.web.listen` | `"127.0.0.1:7341"`                 | The loopback address of the page.                                                           |
+| `skill.enable`         | `false`                            | Installs the skill for [profiles with an agent](/guides/profile-setup/).                    |
+| `skill.directories`    | `.claude/skills`, `.agents/skills` | The folders under the home directory where agents read skills.                              |
+| `profiles.<name>`      | `{ }`                              | Profiles, with the same keys as their TOML.                                                 |
+| `modules.<name>`       | `{ }`                              | Your own modules. A module with the name of a built-in module is an error.                  |
 
 ## Profiles in Nix
 

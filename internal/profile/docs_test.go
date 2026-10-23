@@ -70,7 +70,7 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 // copies one gets a file doriath accepts.
 func TestDocExamplesLoad(t *testing.T) {
 	root := filepath.Join("..", "..")
-	docs := []string{filepath.Join(root, "README.md")}
+	docs := []string{filepath.Join(root, "README.md"), filepath.Join(root, "internal", "guide", "profile.md")}
 	err := filepath.WalkDir(filepath.Join(root, "site", "src", "content", "docs"), func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".mdx")) {
 			docs = append(docs, path)

@@ -69,6 +69,7 @@ Repositories:
 Setup:
   doriath doctor [--secrets] [--profile NAME]
   doriath direnv
+  doriath guide profile | skill
   doriath completion zsh
   doriath version
 
@@ -126,6 +127,8 @@ func run(args []string) int {
 		err = cmdAgentCommand(args[1:], os.Stdout)
 	case "direnv":
 		err = cmdDirenv(os.Stdout)
+	case "guide":
+		err = cmdGuide(args[1:], os.Stdout)
 	case "__promote":
 		err = promote.Inner(args[1:])
 	case "status":

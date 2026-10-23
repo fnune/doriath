@@ -26,6 +26,7 @@ _doriath() {
     'clean:remove merged agent worktrees and old branch backups'
     'restore:put back the branches a session moved'
     'direnv:print the direnv library'
+    'guide:print the steps for an agent that sets up a profile'
     'doctor:check this machine'
     'completion:print a shell completion script'
     'version:print the version'
@@ -75,6 +76,10 @@ _doriath() {
         '--denied[only denials]' '--since[only the last duration]:duration:' '--json[JSON lines]' '--follow[keep printing]' ;;
     completion)
       _values 'shell' zsh ;;
+    guide)
+      if (( CURRENT == 3 )); then
+        _values 'guide' profile skill
+      fi ;;
   esac
 }
 

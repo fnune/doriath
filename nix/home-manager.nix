@@ -134,6 +134,21 @@ in
       '';
     };
 
+    skill = {
+      enable = lib.mkEnableOption "a skill that tells an agent to run `doriath guide profile` and follow it";
+      directories = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [
+          ".claude/skills"
+          ".agents/skills"
+        ];
+        description = ''
+          Folders under the home directory where agents read skills. Codex,
+          Gemini CLI and opencode read .agents/skills.
+        '';
+      };
+    };
+
     zsh = {
       completion = lib.mkOption {
         type = lib.types.bool;
@@ -198,6 +213,17 @@ in
       };
       Install.WantedBy = [ "default.target" ];
     };
+
+    home.file = lib.mkIf cfg.skill.enable (
+      lib.listToAttrs (
+        map (
+          dir:
+          lib.nameValuePair "${dir}/setting-up-doriath-profiles/SKILL.md" {
+            source = pkgs.runCommand "doriath-skill.md" { } "${lib.getExe cfg.package} guide skill > $out";
+          }
+        ) cfg.skill.directories
+      )
+    );
 
     programs.zsh.initContent = lib.mkIf cfg.zsh.completion ''
       source <(${lib.getExe cfg.package} completion zsh)

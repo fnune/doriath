@@ -1,0 +1,17 @@
+---
+title: Profiles with an agent
+description: Let an agent write a profile for a project, with your approval for each file.
+---
+
+import Guide from "../../../../../internal/guide/profile.md";
+
+An agent can read a project and write its profile for you. `doriath guide profile` prints the steps that the agent follows, and this page shows the same steps. It asks you before it writes each file, and it leaves secrets, keys and learning mode to you. In a jail, the agent drafts the profile in a scratch folder, and you save it or grant the folder where it goes.
+
+To start, tell your agent to run `doriath guide profile` and follow it. To let the agent find the steps without that sentence, install the skill that points to them:
+
+- With [home-manager](/guides/home-manager/#the-module), set `programs.doriath.skill.enable = true`.
+- Without it, save the output of `doriath guide skill` as `setting-up-doriath-profiles/SKILL.md` in the skills folder of your agent, such as `~/.claude/skills` or `~/.agents/skills`.
+
+## The steps
+
+<Guide />

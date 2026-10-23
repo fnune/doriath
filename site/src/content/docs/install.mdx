@@ -92,6 +92,8 @@ description = "My app"
 modules = ["base", "vcs", "docs", "go", "node", "claude"]
 ```
 
+To let an agent read the project and write the profile with you, see [profiles with an agent](/guides/profile-setup/).
+
 For another agent, use its module instead of `claude`, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
 
 The repository is read-only in the jail, and the agent commits in worktrees. The `claude` module puts them in `.claude/worktrees`. To use another folder, add it as a mount:
