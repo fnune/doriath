@@ -39,6 +39,11 @@ func TestRunExitStatus(t *testing.T) {
 		{[]string{"exec", "--no-such-flag"}, 2},
 		{[]string{"exec"}, 1},
 		{[]string{"doctor", "--no-such-flag"}, 2},
+		{[]string{"exec", "--help"}, 0},
+		{[]string{"approvals", "grant", "--help"}, 0},
+		{[]string{"profiles", "show", "app", "--help"}, 0},
+		{[]string{"exec", "bash", "--help"}, 1},
+		{[]string{"run", "--profile", "app", "--", "true", "--help"}, 1},
 	} {
 		if code := run(tc.args); code != tc.want {
 			t.Errorf("doriath %q exits %d, want %d", tc.args, code, tc.want)
@@ -169,5 +174,15 @@ func TestDoriathsNextMessageStartsOnItsOwnLine(t *testing.T) {
 		if b.String() != want {
 			t.Errorf("%q = %q, want %q", out, b.String(), want)
 		}
+	}
+}
+
+func TestHelpShowsTheUsageOfTheCommandOnly(t *testing.T) {
+	got := commandUsage("approvals")
+	if !strings.Contains(got, "doriath approvals grant") || strings.Contains(got, "doriath web") {
+		t.Errorf("usage = %q", got)
+	}
+	if commandUsage("app") != "" {
+		t.Error("a prefix of a command name is not that command")
 	}
 }

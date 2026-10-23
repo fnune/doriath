@@ -90,6 +90,10 @@ func run(args []string) int {
 		fmt.Fprint(os.Stderr, usage)
 		return 2
 	}
+	if lines := commandUsage(args[0]); lines != "" && asksForHelp(args[0], args[1:]) {
+		fmt.Print(lines)
+		return 0
+	}
 	ctx := context.Background()
 	var err error
 	code := 0
@@ -157,6 +161,31 @@ func run(args []string) int {
 		}
 	}
 	return code
+}
+
+func commandUsage(command string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(usage, "\n") {
+		if l := strings.TrimSpace(line); l == "doriath "+command || strings.HasPrefix(l, "doriath "+command+" ") {
+			b.WriteString(line + "\n")
+		}
+	}
+	return b.String()
+}
+
+func asksForHelp(command string, args []string) bool {
+	runsACommand := command == "run" || command == "exec"
+	for _, a := range args {
+		switch {
+		case a == "--":
+			return false
+		case a == "-h" || a == "--help" || a == "-help":
+			return true
+		case runsACommand && !strings.HasPrefix(a, "-"):
+			return false
+		}
+	}
+	return false
 }
 
 func paths() (config.Paths, error) { return config.DefaultPaths(os.Getenv) }
