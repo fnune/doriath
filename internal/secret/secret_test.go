@@ -20,9 +20,9 @@ type fakeRunner struct {
 	terminal []bool
 }
 
-func (f *fakeRunner) Output(_ context.Context, _ []string, terminal bool) ([]byte, []byte, error) {
+func (f *fakeRunner) Output(_ context.Context, c Command) ([]byte, []byte, error) {
 	f.calls++
-	f.terminal = append(f.terminal, terminal)
+	f.terminal = append(f.terminal, c.Terminal)
 	return []byte(f.stdout), []byte(f.stderr), f.err
 }
 

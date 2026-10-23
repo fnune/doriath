@@ -9,9 +9,15 @@ const Name = "doriath"
 // Line is the doriath command line for args, quoted so that a shell runs
 // it as given.
 func Line(args ...string) string {
-	words := []string{Name}
-	for _, a := range args {
-		words = append(words, quote(a))
+	return Words(append([]string{Name}, args...)...)
+}
+
+// Words is the command line for argv, quoted so that a shell runs it as
+// given.
+func Words(argv ...string) string {
+	words := make([]string, len(argv))
+	for i, a := range argv {
+		words[i] = quote(a)
 	}
 	return strings.Join(words, " ")
 }

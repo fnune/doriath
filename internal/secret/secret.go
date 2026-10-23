@@ -95,11 +95,17 @@ type OAuthTokens interface {
 	Token(ctx context.Context, name string, o OAuth) (Value, error)
 }
 
-// Runner runs a secret's command. With terminal, the command may ask you
-// for a password there. A refresh during the session never gets the
+// Command is one run of a secret's command. With Terminal, the command may
+// ask you for a password there. A refresh during the session never gets the
 // terminal, which the agent uses.
+type Command struct {
+	Secret   string
+	Argv     []string
+	Terminal bool
+}
+
 type Runner interface {
-	Output(ctx context.Context, argv []string, terminal bool) (stdout, stderr []byte, err error)
+	Output(ctx context.Context, c Command) (stdout, stderr []byte, err error)
 }
 
 type FileReader interface {
@@ -228,7 +234,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
-	stdout, stderr, err := c.run.Output(ctx, b.Command, terminal)
+	stdout, stderr, err := c.run.Output(ctx, Command{Secret: name, Argv: b.Command, Terminal: terminal})
 	if err != nil {
 		msg := strings.TrimSpace(string(stderr))
 		if msg != "" {

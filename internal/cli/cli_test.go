@@ -15,3 +15,10 @@ func TestLine(t *testing.T) {
 		}
 	}
 }
+
+func TestWordsQuotesOnlyWhatTheShellWouldSplit(t *testing.T) {
+	got := Words("sh", "-c", `bw get password github --session "$(bw unlock --raw)"`)
+	if want := `sh -c 'bw get password github --session "$(bw unlock --raw)"'`; got != want {
+		t.Errorf("Words = %s, want %s", got, want)
+	}
+}

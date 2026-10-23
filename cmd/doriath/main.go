@@ -22,6 +22,7 @@ import (
 	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/modules"
@@ -324,16 +325,21 @@ func (realClock) After(d time.Duration) <-chan time.Time { return time.After(d) 
 
 type execRunner struct{}
 
-func (execRunner) Output(ctx context.Context, argv []string, terminal bool) ([]byte, []byte, error) {
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+func (execRunner) Output(ctx context.Context, c secret.Command) ([]byte, []byte, error) {
+	cmd := exec.CommandContext(ctx, c.Argv[0], c.Argv[1:]...)
 	var stderr limitedBuffer
 	cmd.Stderr = &stderr
-	if terminal && isTerminal(os.Stdin) {
+	if c.Terminal && isTerminal(os.Stdin) {
+		term.New(os.Stderr).Line(term.Info, terminalNotice(c))
 		cmd.Stdin = os.Stdin
 		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	}
 	out, err := cmd.Output()
 	return out, stderr.b, err
+}
+
+func terminalNotice(c secret.Command) string {
+	return fmt.Sprintf("secret %s: your profile runs this command, which can ask you for a password:\n%s", c.Secret, cli.Words(c.Argv...))
 }
 
 func isTerminal(f *os.File) bool {

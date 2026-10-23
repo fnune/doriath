@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 func TestRunExitStatus(t *testing.T) {
@@ -148,5 +150,12 @@ func TestARepositoryProfileCannotLinkToAFileOutsideTheFolder(t *testing.T) {
 	_, profiles := repositoryProfiles(repo)
 	if _, err := fs.ReadFile(profiles, "dev.toml"); err == nil {
 		t.Fatal("read a file outside .doriath through a symlink")
+	}
+}
+
+func TestAPasswordPromptIsPrecededByTheProfilesOwnCommand(t *testing.T) {
+	got := terminalNotice(secret.Command{Secret: "github", Argv: []string{"sh", "-c", "bw unlock --raw"}})
+	if !strings.Contains(got, "secret github") || !strings.HasSuffix(got, "\nsh -c 'bw unlock --raw'") {
+		t.Errorf("notice = %q", got)
 	}
 }

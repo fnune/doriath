@@ -311,7 +311,7 @@ A secret has a name that you select, and a source under `[secrets.NAME]`: a `fil
 | `[[mcp]] secret`             | the bearer token for a remote MCP server |
 | `[signing] key`              | the agent's SSH key for signing commits  |
 
-doriath reads each file and command secret when the session starts, before the agent. A command gets your terminal, so a password manager can ask for its password there. For example, Bitwarden's `bw` asks one time for each session:
+doriath reads each file and command secret when the session starts, before the agent. A command gets your terminal, so a password manager can ask for its password there. Before the command starts, doriath prints the name of the secret and the command, so that you can see that the prompt comes from your profile. For example, Bitwarden's `bw` asks one time for each session:
 
 ```toml
 [secrets.github]

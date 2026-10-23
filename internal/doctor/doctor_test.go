@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 type countingRunner struct{ runs int }
 
-func (r *countingRunner) Output(context.Context, []string, bool) ([]byte, []byte, error) {
+func (r *countingRunner) Output(context.Context, secret.Command) ([]byte, []byte, error) {
 	r.runs++
 	return []byte("token"), nil, nil
 }
