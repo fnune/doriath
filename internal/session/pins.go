@@ -1,6 +1,7 @@
 package session
 
 import (
+	"debug/elf"
 	"fmt"
 	"io/fs"
 	"os"
@@ -43,6 +44,9 @@ func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) 
 			}
 			out.programs[jailPath] = jailinit.FileIDOf(info)
 			out.pinFolder(filepath.Dir(jailPath), filepath.Dir(source))
+			for _, rel := range libraryFolders(runpaths(source)) {
+				out.pinFolder(filepath.Join(filepath.Dir(jailPath), rel), filepath.Join(filepath.Dir(source), rel))
+			}
 			if slices.ContainsFunc(writable, func(w string) bool { return source == w || strings.HasPrefix(source, w+"/") }) {
 				notes = append(notes, fmt.Sprintf("the agent can write %s: a file that it puts there gets no credential in this session, but the next session trusts it", shortPath(jailPath)))
 			}
@@ -88,6 +92,43 @@ func (ps pins) pinFolder(jailDir, sourceDir string) {
 		}
 		return nil
 	})
+}
+
+func runpaths(path string) []string {
+	f, err := elf.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	var out []string
+	for _, tag := range []elf.DynTag{elf.DT_RUNPATH, elf.DT_RPATH} {
+		entries, _ := f.DynString(tag)
+		for _, e := range entries {
+			out = append(out, strings.Split(e, ":")...)
+		}
+	}
+	return out
+}
+
+func libraryFolders(runpaths []string) []string {
+	var out []string
+	for _, entry := range runpaths {
+		rest, ok := strings.CutPrefix(entry, "$ORIGIN")
+		if !ok {
+			rest, ok = strings.CutPrefix(entry, "${ORIGIN}")
+		}
+		if !ok {
+			continue
+		}
+		rel := filepath.Clean("." + rest)
+		if rel == "." || strings.HasPrefix(rel, "../..") || rel == ".." {
+			continue
+		}
+		if !slices.Contains(out, rel) {
+			out = append(out, rel)
+		}
+	}
+	return out
 }
 
 func isScript(path string) bool {

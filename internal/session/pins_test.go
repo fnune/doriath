@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -71,5 +72,12 @@ func TestPinsFindTheProfilesFilesInMountsAndCaches(t *testing.T) {
 	joined := strings.Join(notes, "\n")
 	if !strings.Contains(joined, "script is a script") || !strings.Contains(joined, "the agent can write") {
 		t.Errorf("notes:\n%s", joined)
+	}
+}
+
+func TestAProgramsLibraryFoldersArePinnedWithinItsInstallPrefixOnly(t *testing.T) {
+	got := libraryFolders([]string{"$ORIGIN", "$ORIGIN/../lib", "${ORIGIN}/../lib/server", "/usr/lib", "$ORIGIN/../..", "$ORIGIN/..", "$ORIGIN/../lib"})
+	if want := []string{"../lib", "../lib/server"}; !slices.Equal(got, want) {
+		t.Errorf("folders = %v, want %v", got, want)
 	}
 }

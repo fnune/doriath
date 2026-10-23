@@ -86,7 +86,7 @@ Each allowed host can receive data, because work needs writes. The shipped modul
 
 ### Allowed programs
 
-Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`. doriath pins each program that `binaries` names by path when the session starts, with the files in its folder. A program gets nothing if it runs another file at that path, the same file after a change, or code from a file that is outside the system paths and was not pinned. This covers `LD_PRELOAD` and libraries that the program loads later, and also a program that the session builds.
+Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`. doriath pins each program that `binaries` names by path when the session starts, with the files in its folder. It also pins the library folders that the program names relative to itself in its ELF `RUNPATH`, such as `$ORIGIN/../lib` in a JDK, if they stay inside the folder above the program. A program gets nothing if it runs another file at that path, the same file after a change, or code from a file that is outside the system paths and was not pinned. This covers `LD_PRELOAD` and libraries that the program loads later, and also a program that the session builds.
 
 These checks stop stray programs and programs the agent changed. The agent can still:
 
