@@ -592,3 +592,22 @@ func TestJJReposListsTheReposWhoseControlFilesTheJailGuards(t *testing.T) {
 		t.Errorf("with the vcs store: %q", got)
 	}
 }
+
+func TestALinkInAReadOnlyCheckoutNeedsNoMountOfItsOwn(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.pre-commit-config.yaml"] = "link"
+	p := &profile.Profile{Name: "default", Mounts: []profile.Mount{
+		{Path: repo, Mode: profile.ModeRead},
+		{Path: repo + "/.pre-commit-config.yaml", Mode: profile.ModeRead, Missing: profile.MissingHold},
+	}}
+	s, err := Plan(p, layout(), opts(), held(p, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range s.Binds {
+		if b.Dest == repo+"/.pre-commit-config.yaml" {
+			t.Errorf("bubblewrap cannot mount onto the link: %+v", b)
+		}
+	}
+}

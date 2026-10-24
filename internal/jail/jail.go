@@ -211,6 +211,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		errs = append(errs, err)
 	}
 	binds = append(binds, Bind{Source: layout.Home, Dest: opts.Home})
+	binds = withoutLinksInReadOnlyMounts(binds, host)
 	if err := errors.Join(errs...); err != nil {
 		return Spec{}, err
 	}
@@ -587,6 +588,33 @@ func checkLinks(paths, roots []string, host Host) error {
 		}
 	}
 	return nil
+}
+
+// withoutLinksInReadOnlyMounts drops the read-only mount of a symlink onto
+// itself inside a read-only mount of its own directory. The link cannot
+// change there, and bubblewrap cannot mount onto a symlink.
+func withoutLinksInReadOnlyMounts(binds []Bind, host Host) []Bind {
+	out := binds[:0:0]
+	for _, b := range binds {
+		if b.ReadOnly && !b.Device && b.Source == b.Dest && host.Link(b.Dest) {
+			if parent, ok := enclosing(binds, b.Dest); ok && parent.ReadOnly && parent.Source == parent.Dest {
+				continue
+			}
+		}
+		out = append(out, b)
+	}
+	return out
+}
+
+func enclosing(binds []Bind, path string) (Bind, bool) {
+	var best Bind
+	found := false
+	for _, b := range binds {
+		if b.Dest != path && !b.Device && within(path, b.Dest) && (!found || len(b.Dest) > len(best.Dest)) {
+			best, found = b, true
+		}
+	}
+	return best, found
 }
 
 func writableSources(binds []Bind) []string {

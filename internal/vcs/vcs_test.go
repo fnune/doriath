@@ -1,6 +1,7 @@
 package vcs
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -487,5 +488,17 @@ func TestTheBackupSkipsFilesThatGitRemovesWhileItCopies(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(target, "maintenance.lock")); err == nil {
 			t.Fatal("the backup copied git's lock file")
 		}
+	}
+}
+
+func TestAFinishedSessionWhoseRepositoryIsGoneIsFinished(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "repo")
+	rec := &Record{Session: "s1", Repos: []Repo{{Path: gone, GitDir: filepath.Join(gone, ".git")}}}
+	var out bytes.Buffer
+	if err := Finish(context.Background(), Tools{Git: "git"}, filepath.Join(t.TempDir(), "backup"), rec, &out); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !rec.Finished || !strings.Contains(out.String(), "is gone") {
+		t.Errorf("finished = %v, out = %q", rec.Finished, out.String())
 	}
 }

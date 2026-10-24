@@ -310,6 +310,10 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 	var errs []error
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
+		if _, err := os.Stat(r.GitDir); errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(w, "%s is gone, so there is nothing to check in it\n", r.Path)
+			continue
+		}
 		if err := unmirror(filepath.Join(backup, fmt.Sprint(i), "objects"), filepath.Join(r.GitDir, "objects")); err != nil {
 			errs = append(errs, fmt.Errorf("bring back the objects of %s: %w", r.Path, err))
 			continue

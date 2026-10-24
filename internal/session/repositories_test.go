@@ -106,13 +106,15 @@ func TestStartRepositoriesNeedsGitForTheVCSModule(t *testing.T) {
 func TestFinishRecordSavesTheRecordAlsoWhenTheEndStepFails(t *testing.T) {
 	paths := config.Paths{State: t.TempDir()}
 	mkdirAll(t, paths.Backups())
+	broken := t.TempDir()
+	mkdirAll(t, filepath.Join(broken, ".git"))
 	for _, c := range []struct {
 		name    string
 		rec     *vcs.Record
 		failing bool
 	}{
 		{"no repositories", &vcs.Record{Session: "s1"}, false},
-		{"a repository git cannot read", &vcs.Record{Session: "s2", Repos: []vcs.Repo{{Path: "/nonexistent", GitDir: "/nonexistent/.git"}}}, true},
+		{"a repository git cannot read", &vcs.Record{Session: "s2", Repos: []vcs.Repo{{Path: broken, GitDir: filepath.Join(broken, ".git")}}}, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "/nonexistent/git"}, c.rec, &bytes.Buffer{})

@@ -918,3 +918,25 @@ func TestARefusedHostIsRefusedWithoutAsking(t *testing.T) {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+func TestASessionStartsInAReadOnlyCheckoutWhoseHookConfigIsASymlink(t *testing.T) {
+	e := newEnv(t)
+	e.modules = []string{"vcs-readonly"}
+	repo := filepath.Join(e.home, "checkout")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	target := filepath.Join(e.home, "pre-commit-config.json")
+	if err := os.WriteFile(target, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(repo, ".pre-commit-config.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	e.cwd = repo
+	code, out := e.run(e.profile(fmt.Sprintf("[[mounts]]\npath = %q\n", repo)), `echo started`, nil)
+	if code != 0 || !strings.Contains(out, "started") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
