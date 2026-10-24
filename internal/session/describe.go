@@ -48,6 +48,12 @@ func (st Status) Describe() string {
 	if st.Podman {
 		b.WriteString("Containers: podman through CONTAINER_HOST. Containers share this network and the proxy.\n")
 	}
+	if len(st.Unavailable) > 0 {
+		b.WriteString("Secrets that doriath cannot read, so these fail until the user fixes them on the host. doriath tries again at most every 30 seconds:\n")
+		for _, m := range st.Unavailable {
+			fmt.Fprintf(&b, "  - %s (%s): %s\n", m.Secret, strings.Join(m.Users, ", "), m.Error)
+		}
+	}
 	if st.Pending > 0 {
 		fmt.Fprintf(&b, "Requests waiting for the user: %d\n", st.Pending)
 	}

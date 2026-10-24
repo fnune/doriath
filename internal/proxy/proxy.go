@@ -459,7 +459,7 @@ func (w noCloseNotify) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (string, string, error) {
 	v, err := s.secrets.Get(ctx, c.Secret)
 	if err != nil {
-		return "", "", err
+		return "", "", unavailable(err)
 	}
 	token := string(v.Reveal())
 	switch c.Scheme {
@@ -472,6 +472,10 @@ func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (st
 	default:
 		return "Authorization", "Bearer " + token, nil
 	}
+}
+
+func unavailable(err error) error {
+	return fmt.Errorf("%w. Ask the user to fix the secret on the host: doriath tries again within 30 seconds", err)
 }
 
 func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {

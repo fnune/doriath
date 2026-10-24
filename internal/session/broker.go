@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -231,6 +233,15 @@ type Status struct {
 	Podman      bool         `json:"podman"`
 	Pending     int          `json:"pending"`
 	Denied      []Denial     `json:"denied"`
+	Unavailable []Missing    `json:"unavailable,omitempty"`
+}
+
+// Missing is a secret that doriath could not read, and what fails without
+// it.
+type Missing struct {
+	Secret string   `json:"secret"`
+	Error  string   `json:"error"`
+	Users  []string `json:"users"`
 }
 
 type StatusHost struct {
@@ -278,6 +289,10 @@ func (s *Session) status() Status {
 			sh.Rules = append(sh.Rules, StatusRule{Method: r.Method, Path: string(r.Path), Action: string(r.Action), Summary: r.Summary})
 		}
 		st.Intercepted = append(st.Intercepted, sh)
+	}
+	unavailable := s.deps.Secrets.Unavailable()
+	for _, name := range slices.Sorted(maps.Keys(unavailable)) {
+		st.Unavailable = append(st.Unavailable, Missing{Secret: name, Error: unavailable[name].Error(), Users: secretUsers(p, name)})
 	}
 	return st
 }

@@ -125,7 +125,7 @@ func (s *Server) presigned(ctx context.Context, secret string, r *http.Request, 
 func (s *Server) awsCredentials(ctx context.Context, secret string) (aws.Credentials, error) {
 	v, err := s.secrets.Get(ctx, secret)
 	if err != nil {
-		return aws.Credentials{}, err
+		return aws.Credentials{}, unavailable(err)
 	}
 	creds, err := parseAWSCredentials(v.Reveal())
 	if err != nil {

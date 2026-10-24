@@ -126,15 +126,31 @@ func TestOAuthBackendValidation(t *testing.T) {
 	}
 }
 
-func TestFailedCommandRunsAgainOnTheNextGet(t *testing.T) {
+func TestAFailedCommandRunsAgainAfterThirtySecondsWithoutTheTerminal(t *testing.T) {
+	start := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	c := &clock{t: start}
 	run := &fakeRunner{err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run, mapFiles{})
+	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run, mapFiles{}).WithClock(c.now)
 	if _, err := s.Get(context.Background(), "gh"); err == nil || err.Error() != `secret "gh": command rbw: exit status 1` {
 		t.Fatalf("err = %v", err)
 	}
 	run.err, run.stdout = nil, "tok"
+	c.t = start.Add(10 * time.Second)
+	if _, err := s.Get(context.Background(), "gh"); !errors.Is(err, ErrUnavailable) || run.calls != 1 {
+		t.Fatalf("before the retry is due: calls = %d, err = %v", run.calls, err)
+	}
+	if got := s.Unavailable(); got["gh"] == nil {
+		t.Errorf("unavailable = %v", got)
+	}
+	c.t = start.Add(31 * time.Second)
 	if v, err := s.Get(context.Background(), "gh"); err != nil || string(v.Reveal()) != "tok" {
 		t.Fatalf("after unlocking: %q, %v", v.Reveal(), err)
+	}
+	if want := []bool{true, false}; !slices.Equal(run.terminal, want) {
+		t.Errorf("terminal = %v, want %v: a retry during the session must not take the agent's terminal", run.terminal, want)
+	}
+	if got := s.Unavailable(); len(got) != 0 {
+		t.Errorf("unavailable after it worked = %v", got)
 	}
 }
 

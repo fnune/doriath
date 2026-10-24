@@ -35,6 +35,11 @@ let
         ];
         description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
       };
+      required = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Stop the session when the secret fails. Without it, the session starts and what needs the secret fails.";
+      };
     };
   };
 

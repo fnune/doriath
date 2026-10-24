@@ -540,7 +540,7 @@ func TestPlainHTTP(t *testing.T) {
 	}
 }
 
-func TestMissingSecretFailsClosed(t *testing.T) {
+func TestAMissingSecretFailsClosedAndTellsTheAgentWhoFixesIt(t *testing.T) {
 	h := newHarness(t)
 	p := loadPolicy(t)
 	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool()}, p, h.approver, mapSecrets{}, h.session, redirectDialer{}, h.events)
@@ -550,6 +550,9 @@ func TestMissingSecretFailsClosed(t *testing.T) {
 	srv.intercepted(rec, req, "api.github.com", "api.github.com", host)
 	if rec.Code != http.StatusBadGateway || h.upstream.count() != 0 {
 		t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
+	}
+	if msg := deniedMessage(t, rec); !strings.Contains(msg, "Ask the user to fix the secret on the host") {
+		t.Errorf("message = %q", msg)
 	}
 }
 

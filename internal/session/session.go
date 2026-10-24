@@ -62,10 +62,17 @@ type Informer interface {
 	Inform(title, body string) error
 }
 
+// Secrets serves the profile's secrets, and tells which ones it could not
+// read.
+type Secrets interface {
+	secret.Store
+	Unavailable() map[string]error
+}
+
 type Deps struct {
 	Paths    config.Paths
 	User     config.User
-	Secrets  secret.Store
+	Secrets  Secrets
 	Notifier approval.Notifier
 	Informer Informer
 	Clock    approval.Clock
@@ -486,11 +493,38 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 		if p.Secrets[name].OAuth != nil {
 			continue
 		}
-		if _, err := s.deps.Secrets.Get(ctx, name); err != nil {
+		_, err := s.deps.Secrets.Get(ctx, name)
+		switch {
+		case err == nil:
+		case p.Secrets[name].Required:
 			return err
+		default:
+			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", err, strings.Join(secretUsers(p, name), ", "))})
 		}
 	}
 	return nil
+}
+
+func secretUsers(p *profile.Profile, name string) []string {
+	var users []string
+	for _, h := range p.HTTP {
+		uses := h.Credential != nil && h.Credential.Secret == name
+		for _, r := range h.Rules {
+			uses = uses || r.Credential != nil && r.Credential.Secret == name
+		}
+		if uses {
+			users = append(users, "requests to "+string(h.Host))
+		}
+	}
+	for _, m := range p.MCP {
+		if m.Secret == name {
+			users = append(users, "the MCP server "+m.Name)
+		}
+	}
+	if len(users) == 0 {
+		users = append(users, "nothing in the profile uses it")
+	}
+	return users
 }
 
 func (s *Session) startSigning(context.Context) error {

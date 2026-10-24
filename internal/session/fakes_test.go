@@ -13,6 +13,7 @@ import (
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 // stillClock never lets a request expire, and lets a wait of zero end at
@@ -89,7 +90,7 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	log := audit.New(&buf, stillClock{}.Now, "s1", "p")
 	promoted := &promotions{}
 	s := &Session{
-		deps:     Deps{Paths: paths, Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable},
+		deps:     Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable},
 		req:      Request{Profile: &profile.Profile{Name: "p"}},
 		id:       "s1",
 		log:      log,

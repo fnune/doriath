@@ -48,11 +48,14 @@ let
         }
       ];
       secrets = {
-        github.command = [
-          "rbw"
-          "get"
-          "github"
-        ];
+        github = {
+          command = [
+            "rbw"
+            "get"
+            "github"
+          ];
+          required = true;
+        };
         signing.file = "/run/secrets/signing";
       };
       packages = [ pkgs.hello ];
@@ -104,6 +107,7 @@ pkgs.runCommand "doriath-home-manager-module"
     expect '[.Mounts[] | select(.Mode == "write")] | length == 1'
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
     expect '.Secrets.signing.File == "/run/secrets/signing"'
+    grep -qx 'required = true' $config/profiles/work.toml || { echo "secrets.github.required is not in the profile"; cat $config/profiles/work.toml; exit 1; }
 
     tables=$(grep '^\[' $config/config.toml)
     [ "$tables" = "[approvals]" ] || { echo "config.toml has more than [approvals]:"; cat $config/config.toml; exit 1; }

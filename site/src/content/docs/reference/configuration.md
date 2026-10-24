@@ -53,9 +53,11 @@ devices = ["/dev/tpmrm0"]
 
 # The source of each secret: a file with mode 600, a command that prints it,
 # or an OAuth login. doriath reads it when the session starts, and the
-# jail never sees it. See "Secrets".
+# jail never sees it. required = true stops the session when the
+# secret fails. See "Secrets".
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]
+required = true
 
 # An OAuth login. Run doriath profiles login NAME one time, on the host.
 # mcp names an MCP server, which tells doriath where to sign in.
@@ -343,6 +345,14 @@ refresh = "45m"
 ```
 
 A command that runs again during the session does not get your terminal, because the agent uses it. If it fails, doriath keeps the old value until it expires, and tries again every 30 seconds.
+
+A session starts without a secret that fails, so that one missing login does not block the work that does not need it. doriath prints the error and what fails without the secret before the agent starts:
+
+- The proxy refuses each request that needs the secret, and tells the agent to ask you to fix it.
+- `doriath status` in the jail lists the secret, its error and the hosts that need it.
+- doriath tries a command or a file again when a request needs it, at most every 30 seconds and without your terminal. Thus a login on the host, such as `aws sso login`, starts to work during the session.
+
+Set `required = true` on a secret to stop the session when the secret fails. The secret of `[signing] key` is always required, because the agent cannot commit without it. `doriath doctor --secrets` marks an optional secret that fails with `·`, and a required one with `✕`.
 
 doriath checks that the agent cannot write the program that a command starts. Here that program is `sh`, so keep `bw` at a path that the agent cannot write, such as the Nix store.
 

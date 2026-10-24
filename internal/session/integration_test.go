@@ -229,7 +229,7 @@ action = "approve"
 summary = "Create a GitHub release"
 %s`, listed, e.work, e.binaries, extra)
 	for _, name := range slices.Sorted(maps.Keys(e.secrets)) {
-		body += fmt.Sprintf("\n[secrets.%s]\nfile = %q\n", name, e.secrets[name].File)
+		body += fmt.Sprintf("\n[secrets.%s]\nfile = %q\nrequired = %t\n", name, e.secrets[name].File, e.secrets[name].Required)
 	}
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "it.toml"), []byte(body), 0o600); err != nil {
 		e.t.Fatal(err)
@@ -888,9 +888,18 @@ echo done
 	}
 }
 
-func TestASecretThatCannotBeReadStopsTheSessionBeforeTheAgent(t *testing.T) {
+func TestAnOptionalSecretThatCannotBeReadLeavesTheSessionRunning(t *testing.T) {
 	e := newEnv(t)
 	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}
+	code, out := e.run(e.profile(""), `curl -sS https://api.github.com/user`, nil)
+	if code != 0 || !strings.Contains(out, `secret \"github\": stat `) || !strings.Contains(out, "Ask the user to fix the secret on the host") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
+
+func TestARequiredSecretThatCannotBeReadStopsTheSessionBeforeTheAgent(t *testing.T) {
+	e := newEnv(t)
+	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token"), Required: true}
 	_, out, err := e.start(e.profile(""), `echo ran > "$PWD/ran"`, nil)
 	if err == nil || !strings.Contains(err.Error(), `secret "github"`) {
 		t.Fatalf("err = %v\n%s", err, out)

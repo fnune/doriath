@@ -521,3 +521,28 @@ credential = { secret = "t", scheme = "bearer", binaries = ["bin/tool"] }
 		t.Error("a relative path must be refused")
 	}
 }
+
+func TestASecretIsOptionalUnlessItSaysRequiredOrSigns(t *testing.T) {
+	body := `[secrets.github]
+command = ["gh-token"]
+
+[secrets.deploy]
+command = ["deploy-token"]
+required = true
+
+[secrets.signing]
+file = "~/.config/doriath/keys/agent-signing"
+
+[signing]
+key = "signing"
+`
+	p, err := loader(fstest.MapFS{"app.toml": file(body)}, fstest.MapFS{}).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]bool{"github": false, "deploy": true, "signing": true} {
+		if got := p.Secrets[name].Required; got != want {
+			t.Errorf("secret %s: required = %v, want %v", name, got, want)
+		}
+	}
+}

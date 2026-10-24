@@ -269,12 +269,17 @@ mcp = "https://mcp.linear.app/mcp"
 
 [secrets.token]
 command = ["no-such-password-manager", "get", "token"]
+
+[secrets.deploy]
+command = ["no-such-password-manager", "get", "deploy"]
+required = true
 `)
 	var out bytes.Buffer
 	cmdDoctor(nil, &out)
 	for _, want := range []string{
-		"  ✕ secret app/linear (oauth): not signed in: run doriath profiles login app linear\n",
-		"  ✕ secret app/token (command no-such-password-manager): ",
+		"  · secret app/linear (oauth): not signed in: run doriath profiles login app linear: sessions start without it\n",
+		"  · secret app/token (command no-such-password-manager): ",
+		"  ✕ secret app/deploy (command no-such-password-manager): ",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("doctor lacks %q:\n%s", want, out.String())

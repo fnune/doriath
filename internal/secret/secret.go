@@ -34,6 +34,10 @@ type Store interface {
 
 var ErrUnknown = errors.New("unknown secret")
 
+// ErrUnavailable wraps the last failure of a secret that doriath could not
+// read yet, until the next try is due.
+var ErrUnavailable = errors.New("unavailable")
+
 // Backend is the configuration for one secret: a file, a command, or an
 // OAuth login that doriath refreshes.
 type Backend struct {
@@ -43,6 +47,10 @@ type Backend struct {
 	// Refresh reads a file or command secret again after this long, for a
 	// short-lived token whose source prints no expiry.
 	Refresh time.Duration
+	// Required stops a session from starting without the secret. Without
+	// it, the session starts and what needs the secret fails until the
+	// secret works.
+	Required bool `json:"-"`
 }
 
 // OAuth is a login you complete once with doriath profiles login. The server either is
@@ -133,8 +141,20 @@ type Configured struct {
 
 	oauth OAuthTokens
 
-	mu    sync.Mutex
-	cache map[string]cached
+	mu     sync.Mutex
+	cache  map[string]cached
+	failed map[string]failure
+}
+
+type unavailableError struct{ err error }
+
+func (e unavailableError) Error() string        { return e.err.Error() }
+func (e unavailableError) Unwrap() error        { return e.err }
+func (e unavailableError) Is(target error) bool { return target == ErrUnavailable }
+
+type failure struct {
+	err     error
+	retryAt time.Time
 }
 
 type cached struct {
@@ -149,7 +169,7 @@ func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 }
 
 func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
-	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}}
+	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
 }
 
 // WithClock replaces the clock that decides when a secret is due.
@@ -176,17 +196,36 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 		}
 		return c.oauth.Token(ctx, name, *b.OAuth)
 	}
-	v, err := c.fetch(ctx, name, b, !seen)
+	f, failedBefore := c.failed[name]
+	if !seen && failedBefore && now.Before(f.retryAt) {
+		return Value{}, unavailableError{f.err}
+	}
+	v, err := c.fetch(ctx, name, b, !seen && !failedBefore)
 	if err != nil {
 		if seen && (old.expires.IsZero() || now.Before(old.expires)) {
 			old.due = now.Add(retryFailedRefreshAfter)
 			c.cache[name] = old
 			return old.value, nil
 		}
+		delete(c.cache, name)
+		c.failed[name] = failure{err: err, retryAt: now.Add(retryFailedRefreshAfter)}
 		return Value{}, err
 	}
+	delete(c.failed, name)
 	c.cache[name] = lifetime(v, b, now)
 	return v, nil
+}
+
+// Unavailable returns the last error of each secret that doriath has not
+// read since it failed.
+func (c *Configured) Unavailable() map[string]error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := map[string]error{}
+	for name, f := range c.failed {
+		out[name] = f.err
+	}
+	return out
 }
 
 func lifetime(v Value, b Backend, now time.Time) cached {

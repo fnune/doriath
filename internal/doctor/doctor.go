@@ -165,6 +165,13 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 		}
 		out = append(out, Result{Name: name, Level: OK})
 	}
+	checkSecret := func(name string, b secret.Backend, err error) {
+		if err != nil && !b.Required {
+			out = append(out, Result{Name: name, Level: Note, Detail: err.Error() + ": sessions start without it"})
+			return
+		}
+		check(name, err)
+	}
 	p := opts.Paths
 	secrets := 0
 	for _, prof := range profiles {
@@ -184,22 +191,23 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 				_, err := store.Get(ctx, name)
 				cancel()
-				check(label, err)
+				checkSecret(label, b, err)
 			case b.OAuth != nil:
 				_, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(name), name))
 				if errors.Is(err, os.ErrNotExist) {
 					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
 				}
-				check(label+" (oauth)", err)
+				checkSecret(label+" (oauth)", b, err)
 			case b.File != "":
 				info, err := os.Stat(b.File)
 				if err == nil && info.Mode().Perm()&0o077 != 0 {
-					err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
+					check(label+" (file)", fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File))
+					continue
 				}
-				check(label+" (file)", err)
+				checkSecret(label+" (file)", b, err)
 			default:
 				_, err := exec.LookPath(b.Command[0])
-				check(label+" (command "+b.Command[0]+")", err)
+				checkSecret(label+" (command "+b.Command[0]+")", b, err)
 			}
 		}
 	}

@@ -800,7 +800,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", name))
 			continue
 		}
-		backend := secret.Backend{File: s.File, Command: s.Command}
+		backend := secret.Backend{File: s.File, Command: s.Command, Required: s.Required || name == b.signing}
 		if s.Refresh != "" {
 			d, err := time.ParseDuration(s.Refresh)
 			if err != nil {

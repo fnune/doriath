@@ -87,7 +87,7 @@ Run `git config --get commit.gpgsign` and `jj config get signing.behavior`. If e
 - A signing key for the profile. The person creates it with `ssh-keygen -t ed25519 -N '' -f ~/.config/doriath/keys/NAME-signing`, and adds the public key to the forge as a signing key. The profile then has `[secrets.signing]` and `[signing] key = "signing"`.
 - `[signing] enable = false`, and the agent commits unsigned.
 
-A session does not start until each secret of its profile exists. Tell the person to create the secrets before the first session.
+A session starts without a secret that fails, and what needs the secret fails until the person fixes it. The signing key, and each secret with `required = true`, stop the session instead. Tell the person to create the secrets before the first session.
 
 ## Write the profile
 
