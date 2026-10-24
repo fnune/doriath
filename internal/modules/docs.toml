@@ -1,9 +1,4 @@
-# Documentation sites, so agents read docs with WebFetch, curl or a docs
-# tool without asking you. Each host serves documentation and accepts no
-# writes without a login, so allowing it gives the agent nowhere to send
-# what it reads. Requests pass through as sent: Accept: text/markdown and
-# llms.txt work wherever the site offers them.
-
+description = "Documentation sites that accept no writes, so the agent reads them without asking you."
 [egress]
 allow = [
   "go.dev",

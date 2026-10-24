@@ -1,19 +1,9 @@
-# AWS with credentials the agent never sees. The jail gets placeholder keys,
-# every AWS tool signs with them, and the proxy signs each request again with
-# the credentials that a command on your machine prints, such as
-# aws configure export-credentials --profile NAME --format process. Say where
-# they come from under [secrets.aws], and set AWS_REGION in the profile.
-# Reads go through, and so does anything else that matches no rule only
-# after you approve it, named by its operation. Calls that return
-# credentials are refused, because the credentials would enter the jail.
-
+description = "AWS through credentials the agent never sees: reads pass, other calls wait for you, and calls that return credentials are refused."
 uses_secrets = ["aws"]
 
 [env]
 set = { AWS_ACCESS_KEY_ID = "AKIADORIATHPLACEHOLD", AWS_SECRET_ACCESS_KEY = "doriath-placeholder" }
 
-# IAM and Organizations change who can do what. Reads pass, and everything
-# else is refused. These come before *.amazonaws.com, so they win.
 [[http]]
 host = "iam.amazonaws.com"
 credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
@@ -52,17 +42,11 @@ header = "X-Amz-Target"
 header_glob = "*.List*"
 action = "allow"
 
-# Every other AWS service. Query APIs, such as STS, CloudFormation and EC2,
-# name the operation in the Action field. JSON APIs, such as DynamoDB, ECS
-# and Secrets Manager, name it in X-Amz-Target. REST APIs, such as S3 and
-# Lambda, name it with the method and the path.
 [[http]]
 host = "*.amazonaws.com"
 credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "approve"
 operation = { header = "X-Amz-Target", form = "Action" }
-
-# Refused: these return credentials.
 
 [[http.rules]]
 method = "*"
@@ -113,8 +97,6 @@ path = "/v1/authorization-token"
 action = "deny"
 summary = "Get a CodeArtifact token: it would enter the jail"
 
-# Held: these read secrets into the jail.
-
 [[http.rules]]
 method = "POST"
 path = "/"
@@ -138,8 +120,6 @@ header = "X-Amz-Target"
 header_glob = "TrentService.Decrypt"
 action = "approve"
 summary = "Decrypt with KMS"
-
-# Reads.
 
 [[http.rules]]
 method = "*"

@@ -1,15 +1,7 @@
-# OpenAI's Codex CLI. Run codex login --device-auth in a session: the
-# browser login waits on a port in the jail that your browser cannot
-# reach. The codex adapter writes the session's config.toml and hooks.json,
-# read-only, so the agent cannot change its approvals.
-
-# The profile's own ~/.codex: its login, history and state.
+description = "OpenAI's Codex CLI, with its own login and your instructions read-only."
 [[caches]]
 path = "~/.codex"
 
-# Your instructions, skills and prompts, read-only, inside it. Your
-# config.toml stays out: the adapter takes your model and approval
-# settings from it, and leaves your MCP servers, hooks and project trust.
 [[mounts]]
 path = "~/.codex/AGENTS.md"
 missing = "skip"
@@ -26,7 +18,5 @@ missing = "skip"
 path = "~/.agents/skills"
 missing = "skip"
 
-# chatgpt.com serves the models for a ChatGPT login, and api.openai.com for
-# an API key.
 [egress]
 allow = ["auth.openai.com", "chatgpt.com", "api.openai.com"]

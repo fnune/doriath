@@ -1,7 +1,3 @@
-# The images in your clipboard, for pasting a screenshot into the agent.
-# The jail gets a Wayland display that offers nothing but the clipboard, and
-# only its images: no text, no screen, no input. Each read asks you, once or
-# for the session. The agent cannot set your clipboard.
-
+description = "The images in your clipboard, each read after you allow it."
 [clipboard]
 images = true

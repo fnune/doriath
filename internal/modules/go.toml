@@ -1,3 +1,4 @@
+description = "The Go module proxy and checksum database, with the build and module caches."
 [[caches]]
 path = "~/.cache/go-build"
 

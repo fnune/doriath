@@ -1,5 +1,4 @@
-# Maven reads the JVM's proxy settings, which doriath sets in
-# JAVA_TOOL_OPTIONS, only with this flag.
+description = "Maven Central, with the local repository in a cache."
 [env]
 set = { MAVEN_OPTS = "-Daether.connector.http.useSystemProperties=true" }
 

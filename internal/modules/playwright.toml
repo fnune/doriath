@@ -1,3 +1,4 @@
+description = "Playwright's browser downloads, in a cache."
 [[caches]]
 path = "~/.cache/ms-playwright"
 

@@ -1,15 +1,4 @@
-# Forgejo and Gitea, on Codeberg by default, with a token the agent never
-# sees, and that only git and the tea, fj and berg clients get. The API and
-# git share one host. Reads and routine work on pull requests and issues go
-# through. Merges, releases, tags, pushes and other writes wait for
-# approval, and changes to webhooks, Actions secrets and variables,
-# collaborators, deploy keys, branch protections, mirrors and runners are refused. Say where the token comes from
-# under [secrets.forgejo] in the profile. For another instance, copy this
-# module under another name and change the host.
-
-# tea and berg refuse to run without a login. These only satisfy that
-# check: the proxy replaces the Authorization header with the real token.
-# fj needs none.
+description = "Forgejo and Gitea, on Codeberg by default, with a token that only git, tea, fj and berg get."
 uses_secrets = ["forgejo"]
 
 [env]
@@ -21,11 +10,6 @@ credential = { secret = "forgejo", scheme = "basic", username = "token", binarie
 default = "approve"
 repositories = ["/api/v1/repos/*/*"]
 ssh = { user = "git" }
-
-# The API. Each rule that lets a request through carries the clients'
-# credential, because git's basic credential is for git alone.
-
-# Refused outright.
 
 [[http.rules]]
 method = "*"
@@ -117,8 +101,6 @@ method = "*"
 path = "/api/v1/users/*/tokens/**"
 action = "deny"
 
-# Held with a summary that says what the request does.
-
 [[http.rules]]
 method = "POST"
 path = "/api/v1/repos/*/*/pulls/*/merge"
@@ -160,8 +142,6 @@ path = "/api/v1/repos/*/*/contents/**"
 action = "approve"
 summary = "Change files through the API"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
-
-# Reads, and routine work on pull requests and issues.
 
 [[http.rules]]
 method = "GET"
@@ -217,18 +197,11 @@ path = "/api/v1/repos/*/*/issues/comments/*"
 action = "allow"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
-# Any other API request waits for approval.
-
 [[http.rules]]
 method = "*"
 path = "/api/**"
 action = "approve"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
-
-# git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository. A Git LFS upload waits at the
-# batch request, which names the objects. An object that no pushed commit
-# names publishes nothing, so the upload itself then passes.
 
 [[http.rules]]
 method = "PUT"

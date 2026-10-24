@@ -1,20 +1,11 @@
-# A podman service for this session, in its own user namespace. Containers
-# share the session's network: they reach the internet only through the
-# proxy, and the agent reaches their ports on localhost.
-
+description = "A podman service for the session, behind a broker that checks each call."
 [podman]
 enabled = true
-# Images containers may use. A profile adds to this list, and "*" allows any
-# image. The first pull of each tag pins the digest it resolved to.
 images = [
-  # Docker's official images, such as postgres or node.
   "docker.io/library/*",
-  # Images built or loaded in the session.
   "localhost/*",
-  # Playwright's browsers, for end-to-end suites.
   "mcr.microsoft.com/playwright",
   "mcr.microsoft.com/playwright/*",
-  # Testcontainers starts these beside the containers a test asks for.
   "docker.io/testcontainers/ryuk",
   "docker.io/testcontainers/sshd",
 ]

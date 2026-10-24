@@ -1,3 +1,4 @@
+description = "The npm and Yarn registries and Node.js downloads, with their caches."
 [[caches]]
 path = "~/.npm"
 

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/BurntSushi/toml"
+
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/profile"
@@ -195,6 +197,12 @@ func moduleNames(p config.Paths) ([]string, error) {
 }
 
 func moduleSummary(data []byte) string {
+	var described struct {
+		Description string `toml:"description"`
+	}
+	if _, err := toml.Decode(string(data), &described); err == nil && described.Description != "" {
+		return firstSentence(described.Description)
+	}
 	var lines []string
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
@@ -204,9 +212,12 @@ func moduleSummary(data []byte) string {
 		}
 		lines = append(lines, strings.TrimSpace(line))
 	}
-	text := strings.Join(lines, " ")
+	return firstSentence(strings.Join(lines, " "))
+}
+
+func firstSentence(text string) string {
 	if i := strings.Index(text, ". "); i >= 0 {
-		text = text[:i+1]
+		return text[:i+1]
 	}
 	return text
 }

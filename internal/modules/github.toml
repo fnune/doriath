@@ -1,25 +1,12 @@
-# GitHub with a token the agent never sees, and that only gh and git get:
-# any other program reaches these hosts without it. The proxy adds it to
-# requests for these hosts. Reads and routine work on pull requests, issues
-# and CI runs go through. Everything else waits for approval, and changes to
-# webhooks, secrets, collaborators and deploy keys are refused. Say where
-# the token comes from under [secrets.github] in the profile.
-
+description = "GitHub with a token that only gh and git get, and that the agent never sees."
 uses_secrets = ["github"]
 
 [egress]
 allow = ["*.githubusercontent.com"]
 
-# gh refuses to run without a token. This one only satisfies that check: the
-# proxy replaces the whole Authorization header with the real token.
 [env]
 set = { GH_TOKEN = "doriath-placeholder-token" }
 
-# git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository. A Git LFS upload waits at the
-# batch request, which names the objects.
-# Some builds, nix's among them, link git-remote-https to git-remote-http, and
-# the kernel names the program by the file it runs.
 [[http]]
 host = "github.com"
 credential = { secret = "github", scheme = "basic", username = "x-access-token", binaries = ["git-remote-https", "git-remote-http", "git", "git-lfs"] }
@@ -70,7 +57,6 @@ credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 default = "approve"
 repositories = ["/repos/*/*", "/repositories/*"]
 
-# Refused outright, in both path forms.
 [[http.rules]]
 method = "*"
 path = "/repos/*/*/hooks/**"
@@ -121,8 +107,6 @@ method = "*"
 path = "/repositories/*/keys/**"
 action = "deny"
 
-# Held with a summary that says what the request does. Anything else that is
-# not allowed below is held too, with its method and path as the summary.
 [[http.rules]]
 method = "PUT"
 path = "/repos/*/*/pulls/*/merge"
@@ -135,7 +119,6 @@ path = "/repos/*/*/releases"
 action = "approve"
 summary = "Create a GitHub release"
 
-# Reads.
 [[http.rules]]
 method = "GET"
 path = "/**"
@@ -146,7 +129,6 @@ method = "HEAD"
 path = "/**"
 action = "allow"
 
-# Pull requests.
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/pulls"
@@ -172,7 +154,6 @@ method = "POST"
 path = "/repos/*/*/pulls/*/requested_reviewers"
 action = "allow"
 
-# Issues and comments.
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/issues"
@@ -198,7 +179,6 @@ method = "POST"
 path = "/repos/*/*/issues/*/labels"
 action = "allow"
 
-# CI runs.
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/actions/runs/*/rerun"
@@ -219,10 +199,6 @@ method = "POST"
 path = "/repos/*/*/actions/jobs/*/rerun"
 action = "allow"
 
-# GraphQL carries reads and writes on one path, so these rules read the
-# operations in the body. Reads pass, routine pull request and issue writes
-# pass, merges wait for approval with their own summary, and every other
-# write falls to the host default and waits too.
 [[http.rules]]
 method = "POST"
 path = "/graphql"

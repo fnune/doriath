@@ -1,32 +1,15 @@
-# Claude Code. Connectors are off and Chrome tools that act on pages ask
-# first. The Chrome bridge host is not allowed, so claude-in-chrome stays off
-# unless a profile adds it.
-
-# Telemetry, error reports, feedback and updates are off one by one.
-# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC would also stop the feature-flag
-# fetch that Remote Control needs.
+description = "Claude Code, with its own login, your settings read-only and claude.ai connectors off."
 [env]
 set = { DISABLE_AUTOUPDATER = "1", DISABLE_TELEMETRY = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
-# downloads.claude.ai serves Claude Code's releases. Claude asks for it
-# even with the updater off, and a jailed Claude has nothing to update.
-# mcp-proxy.anthropic.com carries claude.ai connectors, which this module
-# turns off. Claude asks for it all the same. A profile that turns
-# connectors on allows it.
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com"]
 deny = ["downloads.claude.ai", "mcp-proxy.anthropic.com"]
 notes = { "mcp-proxy.anthropic.com" = "Claude Code reaches claude.ai connectors through this host. Connectors reach your accounts through Anthropic, where doriath cannot see the calls.", "downloads.claude.ai" = "Claude Code downloads its updates from this host. A jailed Claude has nothing to update." }
 
-# The profile's own ~/.claude: its login and state, which the claude adapter
-# points Claude at with CLAUDE_CONFIG_DIR. Your login and MCP servers stay
-# out: run /login in a session, and list servers under [[mcp]]. To share your login instead, a profile adds
-# ~/.claude/.credentials.json with mode = "write", which lets the agent read
-# the token or swap in another account.
 [[caches]]
 path = "~/.claude"
 
-# Your configuration, read-only, inside it.
 [[mounts]]
 path = "~/.claude/CLAUDE.md"
 missing = "skip"
@@ -71,16 +54,10 @@ missing = "skip"
 path = "~/.claude/chrome"
 missing = "skip"
 
-# Claude Code's own worktrees (claude --worktree, EnterWorktree), so that
-# the agent can work beside your checkout, also with vcs-readonly.
 [[mounts]]
 path = "{repository}/.claude/worktrees"
 mode = "write"
 
-# Claude uses the profile's login. A request that carries an API key, such as
-# one the agent found or brought, could send the project to another account,
-# so it is refused. A profile that runs Claude with ANTHROPIC_API_KEY allows
-# it again with its own rule for api.anthropic.com: profile rules come first.
 [[http]]
 host = "api.anthropic.com"
 default = "allow"
@@ -92,8 +69,6 @@ header = "x-api-key"
 action = "deny"
 summary = "Use an API key instead of the profile's Claude login"
 
-# The same key sent as a bearer token. The profile's own login sends an
-# OAuth token, sk-ant-oat..., which this does not match.
 [[http.rules]]
 method = "*"
 path = "/**"

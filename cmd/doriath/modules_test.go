@@ -27,7 +27,7 @@ func TestModulesListShowsOriginAndSummary(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(p.Modules(), "go.toml"), []byte("# My Go. With more.\n[egress]\nallow = [\"proxy.golang.org\"]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(p.Modules(), "team.toml"), []byte("# The team's hosts.\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(p.Modules(), "team.toml"), []byte("description = \"The team's hosts. With more.\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	out, err := modulesCmd(t, "list")

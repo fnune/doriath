@@ -1,6 +1,4 @@
-# Caches and hosts for nix tools that run in the jail. The nix daemon itself
-# is not reachable: add the nix-daemon module for that.
-
+description = "Caches and hosts for the nix tools in the jail."
 [[caches]]
 path = "~/.cache/nix"
 

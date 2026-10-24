@@ -1,20 +1,9 @@
-# GitLab with a token the agent never sees, and that only glab, git and
-# git-lfs get: any other program reaches gitlab.com without it. git sends it
-# over basic auth and glab in the PRIVATE-TOKEN header. Reads and routine work on merge
-# requests, issues and pipelines go through. Merges, releases, tags, pushes
-# and other writes wait for approval, and changes to webhooks, CI variables,
-# members, deploy keys, mirrors and access tokens are refused. Say where the token
-# comes from under [secrets.gitlab] in the profile. For a self-hosted
-# instance, copy this module under another name and change the host.
-
-# glab refuses to run without a token. This one only satisfies that check:
-# the proxy replaces the PRIVATE-TOKEN header with the real token.
+description = "GitLab with a token that only glab, git and git-lfs get, and that the agent never sees."
 uses_secrets = ["gitlab"]
 
 [env]
 set = { GITLAB_TOKEN = "doriath-placeholder-token" }
 
-# Job artifacts download from GitLab's CDN, where the API redirects.
 [egress]
 allow = ["cdn.artifacts.gitlab-static.net"]
 
@@ -25,11 +14,6 @@ default = "approve"
 repositories = ["/api/v4/projects/*"]
 encoded_slashes = true
 ssh = { user = "git" }
-
-# The API. Each rule that lets a request through carries glab's
-# credential, because git's basic credential does not work there.
-
-# Refused outright.
 
 [[http.rules]]
 method = "*"
@@ -166,8 +150,6 @@ method = "*"
 path = "/api/v4/user/gpg_keys/**"
 action = "deny"
 
-# Held with a summary that says what the request does.
-
 [[http.rules]]
 method = "PUT"
 path = "/api/v4/projects/*"
@@ -223,8 +205,6 @@ path = "/api/v4/projects/*/repository/commits"
 action = "approve"
 summary = "Commit through the API"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
-
-# Reads, and routine work on merge requests, issues and pipelines.
 
 [[http.rules]]
 method = "GET"
@@ -316,18 +296,11 @@ path = "/api/v4/projects/*/jobs/*/cancel"
 action = "allow"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
 
-# Any other API request, including GraphQL, waits for approval.
-
 [[http.rules]]
 method = "*"
 path = "/api/**"
 action = "approve"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
-
-# git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository. A Git LFS upload waits at the
-# batch request, which names the objects. An object that no pushed commit
-# names publishes nothing, so the upload itself then passes.
 
 [[http.rules]]
 method = "PUT"

@@ -1,8 +1,4 @@
-# vcs-readwrite with a read-only checkout: the agent commits, branches and
-# adds git worktrees or jj workspaces, but cannot change your files. On one
-# path the lesser access holds, so this read entry wins over the write
-# entry of vcs-readwrite.
-
+description = "vcs-readwrite with a read-only checkout."
 modules = ["vcs-readwrite"]
 
 [[mounts]]

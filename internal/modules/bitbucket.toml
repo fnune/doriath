@@ -1,22 +1,11 @@
-# Bitbucket Cloud with a token the agent never sees, and that only git and
-# git-lfs get on bitbucket.org and only curl gets on api.bitbucket.org. Use a repository or workspace access token. Reads and
-# routine work on pull requests go through. Merges, pushes and other writes
-# wait for approval, and changes to webhooks, Pipelines and deployment variables,
-# deploy keys, branch restrictions and permissions are refused. Say where the token comes from under [secrets.bitbucket]
-# in the profile.
-
+description = "Bitbucket Cloud with a token that only git, git-lfs and curl get, and that the agent never sees."
 uses_secrets = ["bitbucket"]
 
 [[http]]
 host = "bitbucket.org"
 credential = { secret = "bitbucket", scheme = "basic", username = "x-token-auth", binaries = ["git-remote-https", "git-remote-http", "git", "git-lfs"] }
 default = "approve"
-# The API names ssh.bitbucket.org in its clone links.
 ssh = { user = "git", hosts = ["ssh.bitbucket.org"] }
-
-# git over HTTPS. Fetches pass, and each push waits for approval, which you
-# can grant for the session per repository. A Git LFS upload waits at the
-# batch request, which names the objects.
 
 [[http.rules]]
 method = "GET"
@@ -61,8 +50,6 @@ host = "api.bitbucket.org"
 credential = { secret = "bitbucket", scheme = "bearer", binaries = ["curl"] }
 default = "approve"
 repositories = ["/2.0/repositories/*/*"]
-
-# Refused outright.
 
 [[http.rules]]
 method = "*"
@@ -119,8 +106,6 @@ method = "*"
 path = "/2.0/workspaces/*/projects/*/permissions-config/**"
 action = "deny"
 
-# Held with a summary that says what the request does.
-
 [[http.rules]]
 method = "PUT"
 path = "/2.0/repositories/*/*"
@@ -132,8 +117,6 @@ method = "POST"
 path = "/2.0/repositories/*/*/pullrequests/*/merge"
 action = "approve"
 summary = "Merge a pull request"
-
-# Reads, and routine work on pull requests.
 
 [[http.rules]]
 method = "GET"
