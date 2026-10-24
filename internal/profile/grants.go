@@ -29,6 +29,7 @@ func (p *Profile) Grants() ([]string, error) {
 	}
 	if egress, ok := top["Egress"].(map[string]any); ok {
 		delete(egress, "Notes")
+		delete(egress, "Deny")
 	}
 	var lines []string
 	flatten("", top, &lines)

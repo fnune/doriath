@@ -96,3 +96,14 @@ func TestArgumentsInANewOrderAreAGrant(t *testing.T) {
 		t.Fatalf("added = %q: the same arguments in a new order run another command", added)
 	}
 }
+
+func TestARefusedHostGivesTheJailNothing(t *testing.T) {
+	before := grantsOf(t, "[egress]\nallow = [\"a.example\"]\n")
+	after := grantsOf(t, "[egress]\nallow = [\"a.example\"]\ndeny = [\"b.example\"]\n")
+	if added := Added(before, after); len(added) != 0 {
+		t.Errorf("a refusal counts as more: %v", added)
+	}
+	if added := Added(after, before); len(added) != 0 {
+		t.Errorf("dropping a refusal counts as more, though the host still asks: %v", added)
+	}
+}
