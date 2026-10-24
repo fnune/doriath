@@ -85,6 +85,7 @@ type fakeSession struct {
 	status    session.Status
 	mu        sync.Mutex
 	granted   []string
+	provided  map[string]string
 }
 
 func startSession(t *testing.T, p config.Paths, id, profile string, started time.Time) *fakeSession {
@@ -137,6 +138,19 @@ func startSession(t *testing.T, p config.Paths, id, profile string, started time
 			defer s.mu.Unlock()
 			s.granted = append(s.granted, params.Path)
 			return session.GrantWriteResult{Hint: "add it to the profile to keep it"}, nil
+		},
+		session.MethodProvide: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.ProvideParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.provided == nil {
+				s.provided = map[string]string{}
+			}
+			s.provided[params.Name] = params.Value
+			return struct{}{}, nil
 		},
 	})
 	go func() { _ = srv.Serve(context.Background(), l) }()

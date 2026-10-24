@@ -55,6 +55,7 @@ Answers:
   doriath approvals allow ID [--for once|session|DURATION]
   doriath approvals deny ID [--reason TEXT]
   doriath approvals grant [--session ID] PATH
+  doriath secrets provide [--session ID] NAME
   doriath web [--listen HOST:PORT]
   doriath web open [--listen HOST:PORT] [--print]
 
@@ -115,6 +116,8 @@ func run(args []string) int {
 		err = cmdHook(args[1:], os.Stdin, os.Stdout)
 	case "approvals":
 		err = cmdApprovals(ctx, args[1:], realClock{}, os.Stdout)
+	case "secrets":
+		err = cmdSecrets(args[1:], os.Stdin, os.Stdout)
 	case "web":
 		err = cmdWeb(ctx, args[1:], realClock{}, os.Stdout)
 	case "clean":

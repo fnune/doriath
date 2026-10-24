@@ -32,7 +32,7 @@ const (
 	green  = "\x1b[32m"
 	yellow = "\x1b[33m"
 	cyan   = "\x1b[36m"
-	badge  = "\x1b[35;7m"
+	badge  = "\x1b[34;7m"
 )
 
 var marks = map[Level]struct{ mark, color string }{
@@ -103,7 +103,7 @@ func (t *Writer) Bold(s string) string { return t.paint(bold, s) }
 func (t *Writer) Tint(level Level, s string) string { return t.paint(marks[level].color, s) }
 
 // Badge sets s apart from the program around it: the text takes the
-// terminal's background color on a magenta field, in the terminal's own
+// terminal's background color on a blue field, in the terminal's own
 // palette. NO_COLOR prints s as it is.
 func Badge(s string) string {
 	if os.Getenv("NO_COLOR") != "" {

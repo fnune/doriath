@@ -83,6 +83,14 @@ doriath approvals grant [--session ID] PATH
 
 Makes a path writable in a running session, without a request from the agent. The path must exist: to give the jail a new folder, create it first.
 
+### `doriath secrets provide`
+
+```txt frame="none"
+doriath secrets provide [--session ID] NAME
+```
+
+Gives a running session the value of one of its secrets, such as a token that its source could not give. In a terminal, it asks for the value without echo. Otherwise it reads the value from standard input, such as `rbw get my-token | doriath secrets provide acme`. The session uses the value until it ends, and does not read the source again. The profile must name the secret. The signing key and OAuth logins cannot be provided this way.
+
 ### `doriath web`
 
 ```txt frame="none"

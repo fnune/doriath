@@ -216,6 +216,26 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	return v, nil
 }
 
+// Provide sets a secret for the rest of the session, in place of what its
+// source gives. doriath does not read the source again.
+func (c *Configured) Provide(name string, v Value) error {
+	b, ok := c.backends[name]
+	if !ok {
+		return fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile, and start a new session", name, ErrUnknown, name)
+	}
+	if b.OAuth != nil {
+		return fmt.Errorf("secret %q is an OAuth login: run doriath profiles login on the host instead", name)
+	}
+	if len(bytes.TrimSpace(v.b)) == 0 {
+		return fmt.Errorf("secret %q is empty", name)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cache[name] = cached{value: v}
+	delete(c.failed, name)
+	return nil
+}
+
 // Unavailable returns the last error of each secret that doriath has not
 // read since it failed.
 func (c *Configured) Unavailable() map[string]error {

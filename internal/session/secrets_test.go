@@ -51,3 +51,27 @@ func TestARequiredSecretStopsTheSession(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestAProvidedSecretLeavesTheStatusAndTheAuditLogNamesIt(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"acme": {Command: []string{"acme-token"}}})
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.provide("acme", secret.NewValue([]byte("tok"))); err != nil {
+		t.Fatal(err)
+	}
+	if st := s.status(); len(st.Unavailable) != 0 {
+		t.Errorf("unavailable after provide = %+v", st.Unavailable)
+	}
+	if log := s.audit.String(); !strings.Contains(log, `"secret-provided"`) || strings.Contains(log, "tok") {
+		t.Errorf("audit log = %s", log)
+	}
+}
+
+func TestTheSigningKeyCannotBeProvided(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"signing": {File: "/k", Required: true}})
+	s.req.Profile.SigningKey = "signing"
+	if err := s.provide("signing", secret.NewValue([]byte("key"))); err == nil || !strings.Contains(err.Error(), "signing key") {
+		t.Errorf("err = %v", err)
+	}
+}

@@ -16,6 +16,7 @@ _doriath() {
   commands=(
     'run:run a command in a jail'
     'approvals:list and decide pending requests'
+    'secrets:give a running session the value of a secret'
     'web:serve the approvals page, or open it'
     'exec:run a command in a running jail'
     'forward:reach a port of a running jail'
@@ -47,6 +48,12 @@ _doriath() {
         _arguments '--for[how long the allow lasts]:lasting:(once session 15m 1h)'
       elif [[ "${words[3]}" == grant ]]; then
         _arguments '--session[the session]:session:($(doriath __complete sessions))' '*:path:_files'
+      fi ;;
+    secrets)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' provide
+      else
+        _arguments '--session[the session]:session:($(doriath __complete sessions))'
       fi ;;
     web)
       if (( CURRENT == 3 )); then

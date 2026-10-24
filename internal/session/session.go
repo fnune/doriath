@@ -67,6 +67,7 @@ type Informer interface {
 type Secrets interface {
 	secret.Store
 	Unavailable() map[string]error
+	Provide(name string, v secret.Value) error
 }
 
 type Deps struct {

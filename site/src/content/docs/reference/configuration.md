@@ -352,6 +352,8 @@ A session starts without a secret that fails, so that one missing login does not
 - `doriath status` in the jail lists the secret, its error and the hosts that need it.
 - doriath tries a command or a file again when a request needs it, at most every 30 seconds and without your terminal. Thus a login on the host, such as `aws sso login`, starts to work during the session.
 
+To give a running session a value yourself, run [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide) on the host.
+
 Set `required = true` on a secret to stop the session when the secret fails. The secret of `[signing] key` is always required, because the agent cannot commit without it. `doriath doctor --secrets` marks an optional secret that fails with `·`, and a required one with `✕`.
 
 doriath checks that the agent cannot write the program that a command starts. Here that program is `sh`, so keep `bw` at a path that the agent cannot write, such as the Nix store.

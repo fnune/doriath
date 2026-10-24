@@ -15,6 +15,7 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 type tlsCertificate = tls.Certificate
@@ -47,7 +48,13 @@ const (
 	MethodDecide     = "approvals.decide"
 	MethodInfo       = "session.info"
 	MethodGrantWrite = "path.grant_write"
+	MethodProvide    = "secret.provide"
 )
+
+type ProvideParams struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
 
 type RequestWriteParams struct {
 	Path string `json:"path"`
@@ -207,6 +214,13 @@ func (s *Session) startControl(ctx context.Context) error {
 			}
 			return GrantWriteResult{Hint: s.profileHint(filepath.Clean(p.Path))}, nil
 		},
+		MethodProvide: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[ProvideParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return struct{}{}, s.provide(p.Name, secret.NewValue([]byte(p.Value)))
+		},
 		MethodInfo: func(context.Context, json.RawMessage) (any, error) {
 			data, err := os.ReadFile(filepath.Join(s.dir, InfoFile))
 			if err != nil {
@@ -294,6 +308,17 @@ func (s *Session) status() Status {
 	secrets := s.secretsStatus()
 	st.Secrets, st.Unavailable = secrets.Secrets, secrets.Unavailable
 	return st
+}
+
+func (s *Session) provide(name string, v secret.Value) error {
+	if name == s.req.Profile.SigningKey {
+		return fmt.Errorf("secret %q is the signing key, which the session reads when it starts", name)
+	}
+	if err := s.deps.Secrets.Provide(name, v); err != nil {
+		return err
+	}
+	s.log.Write("secret-provided", map[string]string{"secret": name})
+	return nil
 }
 
 func (s *Session) secretsStatus() Status {

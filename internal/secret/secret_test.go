@@ -267,3 +267,29 @@ func TestAFailedCommandIsReportedByItsLastLineAfterPromptsAndProgress(t *testing
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestAProvidedSecretReplacesAFailedOneForTheSession(t *testing.T) {
+	run := &fakeRunner{err: errors.New("exit status 1")}
+	s := NewConfigured(map[string]Backend{"acme": {Command: []string{"acme-token"}, Refresh: time.Minute}}, run, mapFiles{})
+	if _, err := s.Get(context.Background(), "acme"); err == nil {
+		t.Fatal("the failing command gave a value")
+	}
+	if err := s.Provide("acme", NewValue([]byte("tok"))); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.Get(context.Background(), "acme"); err != nil || string(v.Reveal()) != "tok" {
+		t.Fatalf("after provide: %q, %v", v.Reveal(), err)
+	}
+	if run.calls != 1 || len(s.Unavailable()) != 0 {
+		t.Errorf("calls = %d, unavailable = %v: a provided value must not run the source again", run.calls, s.Unavailable())
+	}
+}
+
+func TestOnlyANamedNonOAuthSecretCanBeProvided(t *testing.T) {
+	s := NewConfigured(map[string]Backend{"linear": {OAuth: &OAuth{MCP: "https://mcp.linear.app/mcp"}}, "gh": {Command: []string{"gh"}}}, &fakeRunner{}, mapFiles{})
+	for name, value := range map[string]string{"nope": "x", "linear": "x", "gh": "  "} {
+		if err := s.Provide(name, NewValue([]byte(value))); err == nil {
+			t.Errorf("provide %s = nil", name)
+		}
+	}
+}
