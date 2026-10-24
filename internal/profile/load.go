@@ -1356,6 +1356,7 @@ func (b *builder) buildAgent() (Agent, error) {
 func (b *builder) buildClaude() Claude {
 	return Claude{
 		DisableConnectors: b.disable,
+		AllowedMCPServers: b.claude.AllowedMCPServers,
 		DeniedMCPServers:  b.claude.DeniedMCPServers,
 		Ask:               b.claude.Ask,
 		Deny:              b.claude.Deny,

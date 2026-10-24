@@ -642,3 +642,17 @@ cpu = "200%"
 		}
 	}
 }
+
+func TestAllowedMCPServersReachTheProfile(t *testing.T) {
+	p, err := loader(fstest.MapFS{
+		"app.toml": file("modules = [\"docs\"]\n\n[claude]\nallowed_mcp_servers = [\"https://mcp.example.com/mcp\"]\n"),
+	}, fstest.MapFS{
+		"docs.toml": file("[claude]\nallowed_mcp_servers = [\"bazel\"]\n"),
+	}).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(p.Claude.AllowedMCPServers, []string{"bazel", "https://mcp.example.com/mcp"}) {
+		t.Errorf("allowed MCP servers = %q", p.Claude.AllowedMCPServers)
+	}
+}
