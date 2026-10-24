@@ -3,6 +3,7 @@ package vcs
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"crypto/sha1" //nolint:gosec // git names objects by SHA-1
 	"io"
 	"os"
@@ -181,5 +182,26 @@ func TestStartKeepsEachRepositoryInItsOwnBackup(t *testing.T) {
 	out := f.finish()
 	if _, err := os.Lstat(forged); !os.IsNotExist(err) {
 		t.Errorf("a forged object in the second repository stays\n%s", out)
+	}
+}
+
+func TestAPackThatStallsVerificationFailsIt(t *testing.T) {
+	dir := t.TempDir()
+	stalls := filepath.Join(dir, "git")
+	if err := os.WriteFile(stalls, []byte("#!/bin/sh\nsleep 30 &\nwait\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pack := filepath.Join(dir, "pack-1.pack")
+	if err := os.WriteFile(pack, []byte("PACK"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	began := time.Now()
+	if err := verifyPack(ctx, Tools{Git: stalls}, dir, pack); err == nil {
+		t.Fatal("a stalled verification must fail")
+	}
+	if took := time.Since(began); took > 3*time.Second {
+		t.Errorf("verification waited %v for the stalled check", took)
 	}
 }

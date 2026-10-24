@@ -11,9 +11,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []string {
@@ -54,7 +57,7 @@ func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []st
 	})
 	for _, pack := range packs {
 		base := strings.TrimSuffix(pack, ".pack")
-		if _, err := runStore(ctx, t, gitDir, "verify-pack", base+".idx"); err == nil {
+		if verifyPack(ctx, t, gitDir, pack) == nil {
 			continue
 		}
 		matches, _ := filepath.Glob(base + ".*")
@@ -63,6 +66,28 @@ func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []st
 		}
 	}
 	return dropped
+}
+
+const (
+	verifyBase    = time.Minute
+	verifyPerMiB  = time.Second
+	verifyMaxWait = 5 * time.Second
+)
+
+func verifyPack(ctx context.Context, t Tools, gitDir, pack string) error {
+	info, err := os.Stat(pack)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, verifyBase+time.Duration(info.Size()>>20)*verifyPerMiB)
+	defer cancel()
+	idx := strings.TrimSuffix(pack, ".pack") + ".idx"
+	cmd := exec.CommandContext(ctx, t.Git, "--git-dir", gitDir, "--work-tree", gitDir, "verify-pack", idx)
+	cmd.Env = append(os.Environ(), gitEnv...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = verifyMaxWait
+	return cmd.Run()
 }
 
 func rebuiltIndex(name string) bool {

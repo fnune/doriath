@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -304,21 +305,30 @@ func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
 	return nil
 }
 
-func (s *Session) startContainerBroker(raw string) error {
-	p := s.req.Profile
-	var mounts []containers.Mount
+func containerMounts(p *profile.Profile, host jail.Host) []containers.Mount {
+	var mounts, guarded []containers.Mount
 	for _, m := range p.Mounts {
 		mounts = append(mounts, containers.Mount{Path: m.Path, ReadOnly: m.Mode != profile.ModeWrite, Hidden: m.Mode == profile.ModeHide})
 		if m.Mode == profile.ModeWrite {
 			for _, name := range jail.GitControlFiles {
-				mounts = append(mounts, containers.Mount{Path: filepath.Join(m.Path, ".git", name), ReadOnly: true})
+				guarded = append(guarded, containers.Mount{Path: filepath.Join(m.Path, ".git", name), ReadOnly: true})
 			}
+		}
+	}
+	for _, g := range jail.Guards(p, host) {
+		if slices.ContainsFunc(p.Mounts, func(m profile.Mount) bool { return m.Mode == profile.ModeWrite && within(g, m.Path) }) {
+			guarded = append(guarded, containers.Mount{Path: g, ReadOnly: true})
 		}
 	}
 	for _, c := range p.Caches {
 		mounts = append(mounts, containers.Mount{Path: c.Path})
 	}
-	broker := containers.New(containers.Policy{Images: p.ContainerImages, Mounts: mounts}, raw, s.manager, s.log, containers.Config{
+	return append(mounts, guarded...)
+}
+
+func (s *Session) startContainerBroker(raw string) error {
+	p := s.req.Profile
+	broker := containers.New(containers.Policy{Images: p.ContainerImages, Mounts: containerMounts(p, s.listings)}, raw, s.manager, s.log, containers.Config{
 		Session:     s.id,
 		Profile:     p.Name,
 		ApprovalTTL: approvalTTL,

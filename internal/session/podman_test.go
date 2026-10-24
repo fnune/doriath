@@ -3,7 +3,11 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/fnune/doriath/internal/containers"
+	"github.com/fnune/doriath/internal/profile"
 )
 
 func TestContainerBindsResolveLinksInTheJailsCache(t *testing.T) {
@@ -31,6 +35,27 @@ func TestContainerBindsResolveLinksInTheJailsCache(t *testing.T) {
 		got, err := j.EvalSymlinks(p)
 		if err != nil || got != want {
 			t.Errorf("%s resolves to %q (%v), want %s", p, got, err, want)
+		}
+	}
+}
+
+func TestContainersCannotWriteTheControlFilesOfNestedAndSubmoduleStores(t *testing.T) {
+	repo := t.TempDir()
+	nested := filepath.Join(repo, "vendored", ".git", "config")
+	submodule := filepath.Join(repo, ".git", "modules", "lib", "config")
+	for _, f := range []string{filepath.Join(repo, ".git", "config"), nested, submodule} {
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(f, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := &profile.Profile{Mounts: []profile.Mount{{Path: repo, Mode: profile.ModeWrite}}}
+	mounts := containerMounts(p, osHost{})
+	for _, want := range []string{nested, submodule} {
+		if !slices.Contains(mounts, containers.Mount{Path: want, ReadOnly: true}) {
+			t.Errorf("%s is not read-only for containers: %+v", want, mounts)
 		}
 	}
 }
