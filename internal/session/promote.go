@@ -185,6 +185,8 @@ func (s *Session) checkGrant(path string, write bool) (string, error) {
 		switch {
 		case m.Mode == profile.ModeHide && (within(path, m.Path) || !write && within(m.Path, path)):
 			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
+		case m.Path != path && within(m.Path, path):
+			return "", fmt.Errorf("%s: it holds %s, which the profile mounts with its own guards, and a grant of the parent would cover them. Ask for a path beside it", path, m.Path)
 		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
 			return "", fmt.Errorf("%s is already writable", path)
 		case !write && m.Mode != profile.ModeHide && within(path, m.Path):

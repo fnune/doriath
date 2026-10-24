@@ -17,7 +17,7 @@ func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
 	s := newTestSession(t, nil)
 	home := s.home
 	repo := filepath.Join(home, "repo")
-	mkdirAll(t, filepath.Join(repo, "assets"), filepath.Join(home, "work"))
+	mkdirAll(t, filepath.Join(repo, "assets"), filepath.Join(home, "work"), filepath.Join(home, "dev", "app"))
 	if err := os.Symlink(repo, filepath.Join(home, "link")); err != nil {
 		t.Fatal(err)
 	}
@@ -25,6 +25,7 @@ func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
 		{Path: repo, Mode: profile.ModeRead},
 		{Path: filepath.Join(repo, "secret"), Mode: profile.ModeHide},
 		{Path: filepath.Join(home, "work"), Mode: profile.ModeWrite},
+		{Path: filepath.Join(home, "dev", "app"), Mode: profile.ModeRead},
 	}
 	s.req.Profile.Caches = []profile.Cache{{Path: filepath.Join(home, ".claude")}}
 	for _, c := range []struct {
@@ -47,6 +48,7 @@ func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
 		{"a jj store", filepath.Join(repo, ".jj", "repo"), "inside .git or .jj"},
 		{"a hidden path", filepath.Join(repo, "secret", "key"), "the profile hides " + filepath.Join(repo, "secret")},
 		{"a writable path", filepath.Join(home, "work", "sub"), "already writable"},
+		{"the parent of a mount", filepath.Join(home, "dev"), "it holds " + filepath.Join(home, "dev", "app")},
 		{"a path Landlock cannot open later", "/etc/doriath-test", "Landlock fixes its rules"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
