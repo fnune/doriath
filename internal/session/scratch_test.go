@@ -38,3 +38,10 @@ func TestLargeScratchFoldersAreReportedPerToolWithTheCachesThatKeepThem(t *testi
 		t.Errorf("note = %s", note)
 	}
 }
+
+func TestTheScratchNoteEscapesFolderNames(t *testing.T) {
+	got := scratchNote([]scratchFolder{{path: "~/.cache/x\x1b[2J\nfake: 9 GB", size: 1e9}}, "app")
+	if strings.ContainsRune(got, 0x1b) || strings.Contains(got, "\nfake") {
+		t.Errorf("note = %q", got)
+	}
+}

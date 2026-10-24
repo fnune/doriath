@@ -14,6 +14,7 @@ import (
 	"github.com/godbus/dbus/v5"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/term"
 )
 
 const (
@@ -201,7 +202,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
-		appName, uint32(0), "dialog-password", req.Summary, body, actions, hints, int32(0))
+		appName, uint32(0), "dialog-password", oneLineTitle(req.Summary), body, actions, hints, int32(0))
 	if err := call.Store(&id); err != nil {
 		return nil, fmt.Errorf("show notification: %w", err)
 	}
@@ -248,13 +249,33 @@ func Urgency(req approval.Request) byte {
 // Inform shows a message without buttons, for events that need attention
 // but no decision.
 func (d *Desktop) Inform(title, body string) error {
-	title = "Agent: " + title
+	title = "Agent: " + oneLineTitle(title)
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("doriath")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
 		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err
 }
 
 func (None) Inform(string, string) error { return nil }
+
+const maxTitle = 120
+
+func oneLineTitle(s string) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		if n == maxTitle {
+			b.WriteString("…")
+			break
+		}
+		n++
+		if term.Unprintable(r) {
+			fmt.Fprintf(&b, "\\u%04x", r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
 
 // None is used when desktop notifications are off. Requests still wait in
 // the queue for doriath approvals.

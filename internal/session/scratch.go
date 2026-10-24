@@ -66,7 +66,7 @@ func scratchNote(folders []scratchFolder, profile string) string {
 	var list, lines strings.Builder
 	for _, f := range folders {
 		total += f.size
-		fmt.Fprintf(&list, "\n%s: %s", f.path, gigabytes(f.size))
+		fmt.Fprintf(&list, "\n%s: %s", PrintableLine(f.path), gigabytes(f.size))
 		if !f.file {
 			fmt.Fprintf(&lines, "\n[[caches]]\npath = %s\n", strconv.Quote(f.path))
 		}

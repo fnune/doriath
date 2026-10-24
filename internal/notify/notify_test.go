@@ -113,3 +113,13 @@ func TestASecretCardOffersToTryAgainOrDismiss(t *testing.T) {
 		t.Errorf("read actions = %v", got)
 	}
 }
+
+func TestANotificationTitleIsOneShortEscapedLine(t *testing.T) {
+	got := oneLineTitle("Push\x1b]0;x\x07\nfake\u202e\u200b" + strings.Repeat("a", 200))
+	if strings.ContainsAny(got, "\x1b\x07\n\u202e\u200b") || !strings.HasPrefix(got, `Push\u001b]0;x\u0007\u000afake\u202e\u200b`) {
+		t.Errorf("title = %q", got)
+	}
+	if strings.Count(got, "a") >= 200 || !strings.HasSuffix(got, "…") {
+		t.Errorf("a long title is not cut: %q", got)
+	}
+}

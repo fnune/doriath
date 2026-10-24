@@ -9,9 +9,17 @@ func TestPrintableEscapesTerminalControls(t *testing.T) {
 		"rm -rf \u202e/ emoh":            "rm -rf \\u202e/ emoh",
 		"line\n\tnext ünïcode":           "line\n\tnext ünïcode",
 		"cr\roverwrite":                  `cr\u000doverwrite`,
+		"rm\u200b -rf\u2060 \ufeff/":     `rm\u200b -rf\u2060 \ufeff/`,
+		"one\u2028two\u2029three":        `one\u2028two\u2029three`,
 	} {
 		if got := Printable(in); got != want {
 			t.Errorf("Printable(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestPrintableLineKeepsAnEntryOnOneLine(t *testing.T) {
+	if got := PrintableLine("a\n\tb\x1b"); got != `a\n\tb\u001b` {
+		t.Errorf("PrintableLine = %q", got)
 	}
 }

@@ -868,12 +868,12 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	var end []note
 	for _, line := range strings.Split(strings.TrimSpace(repos.String()), "\n") {
 		if line != "" {
-			end = append(end, note{term.Warn, line})
+			end = append(end, note{term.Warn, Printable(line)})
 		}
 	}
 	if s.agent != nil {
 		if err := s.agent.End(s.agentSession()); err != nil {
-			end = append(end, note{term.Problem, err.Error()})
+			end = append(end, note{term.Problem, Printable(err.Error())})
 		}
 	}
 	if learned := s.policy.Learned(); len(learned) > 0 {
@@ -881,7 +881,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		s.log.Write("learned", map[string]any{"hosts": learned, "by_program": by})
 		text := fmt.Sprintf("reached %d hosts that the profile does not allow", len(learned))
 		for _, prog := range slices.Sorted(maps.Keys(by)) {
-			text += fmt.Sprintf("\n%s: %s", prog, strings.Join(by[prog], " "))
+			text += fmt.Sprintf("\n%s: %s", PrintableLine(prog), PrintableLine(strings.Join(by[prog], " ")))
 		}
 		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines(learned)
 		end = append(end, note{term.Info, text})

@@ -75,6 +75,21 @@ func Width(w io.Writer) int {
 	return int(ws.Col)
 }
 
+// Unprintable reports whether r is a control character, or a format
+// character that hides text or reorders what you read, such as a
+// bidirectional override or a zero-width space.
+func Unprintable(r rune) bool {
+	switch {
+	case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
+		return true
+	case r >= 0x200b && r <= 0x200f, r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069:
+		return true
+	case r == 0x2060, r == 0xfeff, r == 0x2028, r == 0x2029:
+		return true
+	}
+	return false
+}
+
 // Title saves the terminal's window title on its title stack, sets it, and
 // returns a function that puts the saved title back.
 func Title(w io.Writer, title string) (restore func()) {
