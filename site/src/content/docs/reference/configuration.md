@@ -154,8 +154,8 @@ repositories = ["/repos/*/*"]
 # such as "/**/git-receive-pack".
 # A rule can also require graphql (the operation, and top-level fields),
 # a header, mcp_tools (MCP tools by glob), or body_contains (strings, also
-# inside JSON). Rules that read the body refuse bodies over 1 MB and
-# compressed bodies.
+# inside JSON, where spaces and the case of keys do not count). Rules that
+# read the body refuse bodies over 1 MB and compressed bodies.
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/releases"

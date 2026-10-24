@@ -652,7 +652,7 @@ func (r Rule) matchBody(body []byte) bool {
 	if len(r.BodyContains) == 0 {
 		return true
 	}
-	texts := append([][]byte{body}, jsonStrings(body)...)
+	texts := append([][]byte{body, compactJSON(body)}, jsonStrings(body)...)
 	for _, s := range r.BodyContains {
 		for _, t := range texts {
 			if bytes.Contains(t, []byte(s)) {
@@ -669,6 +669,66 @@ func (r Rule) matchGraphQL(parse func() ([]graphQLOperation, bool)) bool {
 	}
 	ops, ok := parse()
 	return ok && r.GraphQL.match(ops)
+}
+
+func compactJSON(body []byte) []byte {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	var out []byte
+	type level struct {
+		object bool
+		count  int
+	}
+	var stack []level
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil
+		}
+		if n := len(stack); n > 0 {
+			top := &stack[n-1]
+			if _, closing := tok.(json.Delim); !closing || tok == json.Delim('{') || tok == json.Delim('[') {
+				switch {
+				case top.object && top.count%2 == 1:
+					out = append(out, ':')
+				case top.count > 0:
+					out = append(out, ',')
+				}
+				top.count++
+			}
+		}
+		key := len(stack) > 0 && stack[len(stack)-1].object && stack[len(stack)-1].count%2 == 1
+		switch t := tok.(type) {
+		case json.Delim:
+			out = append(out, byte(t))
+			switch t {
+			case '{', '[':
+				stack = append(stack, level{object: t == '{'})
+			default:
+				stack = stack[:len(stack)-1]
+			}
+		case string:
+			if key {
+				t = strings.ToLower(strings.ToUpper(t))
+			}
+			var buf bytes.Buffer
+			enc := json.NewEncoder(&buf)
+			enc.SetEscapeHTML(false)
+			if enc.Encode(t) != nil {
+				return nil
+			}
+			out = append(out, bytes.TrimSuffix(buf.Bytes(), []byte("\n"))...)
+		case json.Number:
+			out = append(out, t...)
+		case bool:
+			out = strconv.AppendBool(out, t)
+		case nil:
+			out = append(out, "null"...)
+		}
+		if len(stack) == 0 {
+			return out
+		}
+	}
 }
 
 func jsonStrings(body []byte) [][]byte {

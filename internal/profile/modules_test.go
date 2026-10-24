@@ -3,6 +3,7 @@ package profile_test
 import (
 	"io/fs"
 	"net/http"
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -37,6 +38,39 @@ func TestClaudeRefusesAPIKeysInEitherHeader(t *testing.T) {
 	} {
 		if r, _ := h.DecideRequest("POST", "/v1/messages", tc.header, nil); r.Action != tc.want {
 			t.Errorf("%s: %s, want %s", name, r.Action, tc.want)
+		}
+	}
+}
+
+func TestAnLFSUploadIsHeldHoweverItsJSONIsWritten(t *testing.T) {
+	for _, forge := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+		l := &profile.Loader{
+			Profiles: fstest.MapFS{"p.toml": {Data: []byte("modules = [\"" + forge + "\"]\n[secrets." + forge + "]\ncommand = [\"true\"]\n")}},
+			Modules:  []fs.FS{modules.FS},
+			Home:     "/home/u",
+		}
+		p, err := l.Load("p")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var h profile.HTTPHost
+		for _, c := range p.HTTP {
+			if slices.ContainsFunc(c.Rules, func(r profile.Rule) bool { return len(r.BodyContains) > 0 }) {
+				h = c
+			}
+		}
+		for body, want := range map[string]profile.Action{
+			`{"operation":"upload","objects":[]}`:                             profile.ActionApprove,
+			`{"operation" : "upload"}`:                                        profile.ActionApprove,
+			"{\"operation\":\n\t\"upload\"}":                                  profile.ActionApprove,
+			`{"operation":"\u0075pload"}`:                                     profile.ActionApprove,
+			`{"Operation":"upload"}`:                                          profile.ActionApprove,
+			`{"operation":"download","operation":"upload"}`:                   profile.ActionApprove,
+			`{"operation": "download", "objects": [{"oid": "a", "size": 1}]}`: profile.ActionAllow,
+		} {
+			if r, _ := h.Decide("POST", "/o/r.git/info/lfs/objects/batch", []byte(body)); r.Action != want {
+				t.Errorf("%s %s: %s, want %s", forge, body, r.Action, want)
+			}
 		}
 	}
 }
