@@ -3,6 +3,7 @@
 package session_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -106,7 +107,8 @@ echo done
 }
 
 // TestStoreOfAReadOnlyJJRepository does the same for a colocated jj
-// repository: the agent works in a workspace of its own.
+// repository: the agent works in a workspace of its own, which it adds
+// without a change to .git/config.
 func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
 	jj, err := exec.LookPath("jj")
 	if err != nil {
@@ -142,14 +144,14 @@ func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	config, err := os.ReadFile(filepath.Join(repo, ".git", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	p := e.profile(fmt.Sprintf(`
 [[mounts]]
 path = %q
 mode = "read"
-
-[[mounts]]
-path = "{git}/config"
-edit = { format = "git-config", safe = ["extensions.relativeworktrees = true", "core.repositoryformatversion = 1"] }
 
 [vcs]
 store = true
@@ -159,12 +161,8 @@ set -u
 J="%[1]s --config user.name=a --config user.email=a@b"
 R=%[2]s
 $J --repository $R log -r 'all()' --no-graph -T 'description' >/dev/null || echo "FAIL log in the read-only checkout"
-$J --repository $R workspace add /tmp/ws 2>/dev/null && echo "FAIL workspace add without the setting"
-cp $R/.git/config /tmp/c
-git config --file /tmp/c core.repositoryformatversion 1
-git config --file /tmp/c extensions.relativeWorktrees true
-/run/doriath-bin/doriath request edit $R/.git/config < /tmp/c || echo "FAIL request edit"
 $J --repository $R workspace add /tmp/ws || echo "FAIL workspace add"
+case "$(cat $R/.git/worktrees/ws/gitdir)" in /*) ;; *) echo "FAIL relative worktree path" ;; esac
 cd /tmp/ws && echo x > f && $J describe -m agent && $J new && $J bookmark create agent -r @- || echo "FAIL commit in the workspace"
 echo x >> $R/.jj/repo/store/git_target 2>/dev/null && echo "FAIL git_target writable"
 touch $R/.jj/repo/store/planted 2>/dev/null && echo "FAIL store writable"
@@ -174,6 +172,9 @@ echo done
 `, jj, repo), nil)
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") || strings.Contains(out, "Failed to take lock") {
 		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if now, err := os.ReadFile(filepath.Join(repo, ".git", "config")); err != nil || !bytes.Equal(now, config) {
+		t.Errorf("adding a workspace changed .git/config:\n%s", now)
 	}
 	if !strings.Contains(jjRun("bookmark", "list"), "agent") {
 		t.Errorf("the agent's bookmark is missing:\n%s", jjRun("bookmark", "list"))

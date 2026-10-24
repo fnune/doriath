@@ -77,3 +77,11 @@ func TestLimitedBufferKeepsTheStartOfLongOutput(t *testing.T) {
 		t.Errorf("kept %d bytes ending in %q", len(l.b), l.b[len(l.b)-4:])
 	}
 }
+
+func TestJJGitAsksGitForAbsoluteWorktreePaths(t *testing.T) {
+	got := jjGitArgs([]string{"-c", "worktree.useRelativePaths=true", "worktree", "add", "worktree.useRelativePaths=true"})
+	want := []string{"-c", "worktree.useRelativePaths=false", "worktree", "add", "worktree.useRelativePaths=true"}
+	if !slices.Equal(got, want) {
+		t.Errorf("args = %q, want %q: only the setting jj passes with -c changes", got, want)
+	}
+}

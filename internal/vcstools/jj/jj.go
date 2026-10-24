@@ -73,6 +73,9 @@ func (t Tool) Jail(j vcstools.Jail) vcstools.Config {
 	if j.SigningKey != "" {
 		override = fmt.Sprintf("[signing]\nbehavior = \"own\"\nbackend = \"ssh\"\nkey = %q\n", j.SigningKey)
 	}
+	if j.JJGit != "" {
+		override += fmt.Sprintf("\n[git]\nexecutable-path = %q\n", j.JJGit)
+	}
 	return vcstools.Config{
 		Files: map[string][]byte{configFile: []byte(override)},
 		Env:   map[string]string{"JJ_CONFIG": strings.Join(append(t.configs(), j.Path(configFile)), ":")},

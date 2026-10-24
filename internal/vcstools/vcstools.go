@@ -24,6 +24,9 @@ type Jail struct {
 	SSHCommand string
 	// Path is the jail's path to a file of the session's directory.
 	Path func(name string) string
+	// JJGit is the git that jj runs, a doriath front that keeps the paths
+	// of git worktrees absolute, or "" for plain git.
+	JJGit string
 }
 
 type SSHRewrite struct {

@@ -128,7 +128,7 @@ git on your machine follows the `.git` file and admin directory of an agent work
 - While the session runs, a rebase or cherry-pick that the agent left in a store can hold `exec` lines, which git on your machine runs if you continue it. doriath moves this state aside only at the end.
 - The agent can change what your index stages and which branch `HEAD` names. Neither runs code.
 
-`doriath request edit` changes a guarded file without asking when every change is on the profile's safe list. That list is part of what you trust: a module that marks a setting as safe lets the agent change it in your repository. The `vcs` module lists only upstream tracking and the setting that jj needs for a workspace, and refuses a remote's URL as a branch's remote.
+`doriath request edit` changes a guarded file without asking when every change is on the profile's safe list. That list is part of what you trust: a module that marks a setting as safe lets the agent change it in your repository. The `vcs` module lists only upstream tracking, and refuses a remote's URL as a branch's remote.
 
 Review the files of an agent worktree as you review a pull request. Worktrees let agents work in parallel, and a copy for each session would cost disk, time and a step to land the work.
 

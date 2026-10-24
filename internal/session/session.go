@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net"
 	"net/http"
@@ -505,9 +506,15 @@ func (s *Session) startSigning(context.Context) error {
 	return nil
 }
 
+// JJGit is the name the doriath binary answers to as the git that jj runs.
+const JJGit = "jj-git"
+
 func (s *Session) writeVCSFiles() error {
 	p := s.req.Profile
-	j := vcstools.Jail{Path: jail.InJail, SSHCommand: jail.ExePath + " __ssh"}
+	if err := os.Symlink(jail.ExePath, s.jailPath(JJGit)); err != nil && !errors.Is(err, fs.ErrExist) {
+		return err
+	}
+	j := vcstools.Jail{Path: jail.InJail, SSHCommand: jail.ExePath + " __ssh", JJGit: jail.InJail(JJGit)}
 	if p.SigningKey != "" {
 		j.SigningKey = jail.InJail("signing.pub")
 	}

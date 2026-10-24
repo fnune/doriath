@@ -76,6 +76,10 @@ Inside a jail:
 `
 
 func main() {
+	if filepath.Base(os.Args[0]) == session.JJGit {
+		fmt.Fprintln(os.Stderr, "doriath:", cmdJJGit(os.Args[1:]))
+		os.Exit(1)
+	}
 	os.Exit(run(os.Args[1:]))
 }
 

@@ -336,12 +336,10 @@ path = "{git}/config"
 edit = { format = "git-config", safe = [
   "branch.*.remote = *",
   "branch.*.merge = refs/heads/**",
-  "extensions.relativeworktrees = true",
-  "core.repositoryformatversion = 1",
 ] }
 ```
 
-Upstream tracking, as `git push -u` records it, and the setting that jj needs for a workspace then change at once. A setting that names a program, such as `core.fsmonitor`, or a remote's URL, waits for you. A read-only file without an `edit` table changes as text, and also waits for you.
+Upstream tracking, as `git push -u` records it, then changes at once. jj workspaces need no setting: in the jail, git and jj record worktrees with absolute paths, which need no extension in `.git/config`. A setting that names a program, such as `core.fsmonitor`, or a remote's URL, waits for you. A read-only file without an `edit` table changes as text, and also waits for you.
 
 ## Repositories
 

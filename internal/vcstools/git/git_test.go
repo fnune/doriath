@@ -55,6 +55,22 @@ func TestGitConfigWithRealGit(t *testing.T) {
 	}
 }
 
+func TestGitConfigKeepsWorktreePathsAbsolute(t *testing.T) {
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not installed")
+	}
+	data := config([]byte("worktree.useRelativePaths\ntrue\x00"), vcstools.Jail{}, nil)
+	path := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(gitBin, "config", "-f", path, "--get", "worktree.useRelativePaths").Output()
+	if err != nil || strings.TrimSpace(string(out)) != "false" {
+		t.Errorf("worktree.useRelativePaths = %q, %v, want false over your own true", out, err)
+	}
+}
+
 func TestGitConfigWithoutSigning(t *testing.T) {
 	data := string(config([]byte(desktopGit), vcstools.Jail{}, nil))
 	if !strings.Contains(data, "gpgsign = \"false\"") || strings.Contains(data, "signingkey") {

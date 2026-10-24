@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
+
 	"github.com/fnune/doriath/internal/vcstools"
 )
 
@@ -48,6 +50,23 @@ func TestTheJailSignsWithTheProfilesKeyOrNotAtAll(t *testing.T) {
 	c = New(h, osKind).Jail(vcstools.Jail{Path: inJail})
 	if got := string(c.Files["jj.toml"]); !strings.Contains(got, `behavior = "drop"`) {
 		t.Errorf("without a key, jj would sign with a key the jail lacks: %s", got)
+	}
+}
+
+func TestJJRunsTheGitThatTheJailNames(t *testing.T) {
+	inJail := func(name string) string { return "/run/doriath/" + name }
+	c := New(home(t, nil), osKind).Jail(vcstools.Jail{Path: inJail, JJGit: "/run/doriath/jj-git"})
+	var got struct {
+		Git struct {
+			ExecutablePath string `toml:"executable-path"`
+		} `toml:"git"`
+	}
+	if _, err := toml.Decode(string(c.Files["jj.toml"]), &got); err != nil || got.Git.ExecutablePath != "/run/doriath/jj-git" {
+		t.Errorf("jj.toml = %s, %v", c.Files["jj.toml"], err)
+	}
+	plain := New(home(t, nil), osKind).Jail(vcstools.Jail{Path: inJail})
+	if strings.Contains(string(plain.Files["jj.toml"]), "executable-path") {
+		t.Errorf("without a front jj runs plain git: %s", plain.Files["jj.toml"])
 	}
 }
 
