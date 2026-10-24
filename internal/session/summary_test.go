@@ -1,9 +1,12 @@
 package session
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/term"
 )
 
@@ -31,5 +34,24 @@ func TestSummary(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("line %d = %v, want %v", i, got[i], want[i])
 		}
+	}
+}
+
+func TestSecretCardsAreNotCountedAsRequests(t *testing.T) {
+	history := []approval.Outcome{{Request: approval.Request{Kind: approval.KindSecret}, Decision: approval.Decision{Verdict: approval.VerdictDeny}}}
+	for _, n := range summary(nil, history) {
+		if strings.Contains(n.text, "requests:") {
+			t.Errorf("a secret card counted as a request: %q", n.text)
+		}
+	}
+}
+
+func TestASessionStartRaisesNoSecretCard(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"acme": {Command: []string{"acme-token"}}})
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if p := s.manager.Pending(); len(p) != 0 {
+		t.Errorf("a card at start notifies on every session: %+v", p)
 	}
 }

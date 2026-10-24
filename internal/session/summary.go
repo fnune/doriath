@@ -30,6 +30,9 @@ func summary(denied []Denial, history []approval.Outcome) []note {
 	}
 	counts := map[approval.Verdict]int{}
 	for _, o := range history {
+		if o.Request.Kind == approval.KindSecret {
+			continue
+		}
 		counts[o.Decision.Verdict]++
 	}
 	var decided []string

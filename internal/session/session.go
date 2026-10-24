@@ -516,7 +516,6 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 			return err
 		default:
 			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", err, strings.Join(secretUsers(p, name), ", "))})
-			s.secretCard(name, err)
 		}
 	}
 	return nil
