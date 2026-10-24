@@ -50,7 +50,7 @@ A profile in Nix has the same keys as its TOML file, as attributes. It also has 
 ```nix
 programs.doriath.profiles.my-app = {
   description = "My app";
-  modules = [ "base" "vcs-readwrite" "go" "github" "claude" ];
+  modules = [ "vcs-readwrite" "go" "github" "claude" ];
   secrets.github.command = [ "rbw" "get" "github-my-app" ];
   packages = [ pkgs.xvfb-run ];
   mounts = [

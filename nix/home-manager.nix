@@ -50,7 +50,7 @@ let
         type = lib.types.listOf lib.types.str;
         default = [ ];
         example = [
-          "base"
+          "vcs-readwrite"
           "nix"
           "go"
           "github"

@@ -46,7 +46,7 @@ This example shows every key of a profile. The sections after it give the detail
 
 ```toml
 description = "One line for doriath profiles list"
-modules = ["base", "vcs-readwrite", "github", "claude"]
+modules = ["vcs-readwrite", "github", "claude"]
 # Device nodes, such as the TPM.
 # Top-level keys go before the first table.
 devices = ["/dev/tpmrm0"]
@@ -93,8 +93,9 @@ edit = { format = "text" }
 path = "~/.cache/go-build"
 
 [env]
-# Host variables that the jail sees. doriath drops all others.
-pass = ["PATH", "TERM"]
+# Host variables that the jail sees. doriath drops all others, but always
+# passes PATH and the terminal and locale variables.
+pass = ["DEBUG"]
 set = { GOFLAGS = "-mod=mod" }
 # Directories in front of PATH.
 # The home-manager module fills this from the packages of a profile.
@@ -390,7 +391,7 @@ doriath also refuses `/`, the home directory and the directories above it, in al
 
 ## Home
 
-The home directory in the jail is an empty folder on disk for each session, under `~/.cache/doriath/agents/<profile>/scratch/`. Mounts and caches show through it. Files that the agent writes anywhere else in the home stay for the session only, and doriath deletes them at the end.
+The home directory in the jail is an empty folder on disk for each session, under `~/.cache/doriath/agents/<profile>/scratch/`. Mounts and caches show through it, and nothing else of your home does: tools in `~/.nix-profile` or `~/.local/bin` need a mount. Files that the agent writes anywhere else in the home stay for the session only, and doriath deletes them at the end.
 
 When the session ends, doriath lists each folder there that holds more than 512 MB, such as `~/.cache/bazel-disk`. It prints the `[[caches]]` lines that keep the folder for later sessions.
 

@@ -200,10 +200,11 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) profile(extra string) *profile.Profile {
 	e.t.Helper()
-	listed := `"base"`
-	for _, m := range e.modules {
-		listed += fmt.Sprintf(", %q", m)
+	quoted := make([]string, len(e.modules))
+	for i, m := range e.modules {
+		quoted[i] = fmt.Sprintf("%q", m)
 	}
+	listed := strings.Join(quoted, ", ")
 	body := fmt.Sprintf(`
 modules = [%s]
 
@@ -574,7 +575,7 @@ func TestPodmanThroughProxy(t *testing.T) {
 	e.dialer = &net.Dialer{Timeout: 30 * time.Second}
 	e.roots = nil
 	e.bundle = "/etc/ssl/certs/ca-certificates.crt"
-	body := fmt.Sprintf("modules = [\"base\", \"podman\"]\n[[mounts]]\npath = %q\nmode = \"write\"\n[egress]\nallow = [\"example.com\"]\n", e.work)
+	body := fmt.Sprintf("modules = [\"podman\"]\n[[mounts]]\npath = %q\nmode = \"write\"\n[egress]\nallow = [\"example.com\"]\n", e.work)
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "net.toml"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}

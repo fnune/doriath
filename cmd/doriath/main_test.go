@@ -20,7 +20,7 @@ import (
 
 func TestRunExitStatus(t *testing.T) {
 	p := testPaths(t)
-	writeProfile(t, p, "app", `modules = ["base"]`)
+	writeProfile(t, p, "app", `modules = []`)
 	for _, tc := range []struct {
 		args []string
 		want int

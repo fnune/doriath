@@ -32,15 +32,11 @@ let
     direnv = true;
     skill.enable = true;
     modules.team = {
-      modules = [ "base" ];
       egress.allow = [ "team.example" ];
     };
     profiles.work = {
       description = "Work on the app";
-      modules = [
-        "base"
-        "team"
-      ];
+      modules = [ "team" ];
       mounts = [
         {
           path = "~/Documents/notes";

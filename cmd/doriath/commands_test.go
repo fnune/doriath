@@ -30,7 +30,7 @@ func TestProfilesList(t *testing.T) {
 		t.Fatalf("empty list = %q, %v", out, err)
 	}
 	writeProfile(t, p, "kitchen", `description = "Kitchen"
-modules = ["base", "go"]
+modules = ["go"]
 `)
 	writeProfile(t, p, "broken", `modules = ["no-such-module"]`)
 	out, err := profiles(t, "list")
@@ -48,7 +48,7 @@ modules = ["base", "go"]
 func TestProfilesShow(t *testing.T) {
 	p := testPaths(t)
 	writeProfile(t, p, "kitchen", `description = "Kitchen"
-modules = ["base"]
+modules = ["go"]
 
 [egress]
 allow = ["example.com"]
@@ -57,7 +57,7 @@ allow = ["example.com"]
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"kitchen: Kitchen", "Modules: base", "Hosts", "example.com", "profile", "~/.config/jj", "base"} {
+	for _, want := range []string{"kitchen: Kitchen", "Modules: go", "Hosts", "example.com", "profile", "proxy.golang.org", "go"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("show lacks %q:\n%s", want, text)
 		}
@@ -82,8 +82,8 @@ func TestProfilesEdit(t *testing.T) {
 		t.Fatalf("new profile: %v, %v", info, err)
 	}
 
-	writeProfile(t, p, "broken", `modules = ["base"]`)
-	t.Setenv("EDITOR", `sed -i 's/base/bsae/'`)
+	writeProfile(t, p, "broken", `modules = []`)
+	t.Setenv("EDITOR", `sed -i 's/\[\]/["bsae"]/'`)
 	out.Reset()
 	err := cmdProfiles([]string{"edit", "broken"}, strings.NewReader("n\n"), &out)
 	if err == nil || !strings.Contains(out.String(), "Edit again?") {
@@ -97,11 +97,11 @@ func TestProfilesEditOpensAProfileInAFolder(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(nested), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(nested, []byte(`modules = ["base"]`), 0o600); err != nil {
+	if err := os.WriteFile(nested, []byte(`modules = []`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", `sed -i 's/base/vcs-readwrite/'`)
+	t.Setenv("EDITOR", `sed -i 's/\[\]/["vcs-readwrite"]/'`)
 	var out bytes.Buffer
 	if err := cmdProfiles([]string{"edit", "nested"}, strings.NewReader(""), &out); err != nil {
 		t.Fatalf("%v\n%s", err, out.String())
@@ -231,7 +231,7 @@ func TestDoctorFlagsReadableSecretFile(t *testing.T) {
 	if err := os.WriteFile(private, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	writeProfile(t, p, "app", `modules = ["base"]
+	writeProfile(t, p, "app", `modules = []
 
 [secrets.open]
 file = "`+open+`"
@@ -262,7 +262,7 @@ file = "`+private+`"
 func TestDoctorSaysHowToFixOAuthAndCommandSecrets(t *testing.T) {
 	p := testPaths(t)
 	t.Setenv("DORIATH_BWRAP", filepath.Join(p.Home, "no-bwrap"))
-	writeProfile(t, p, "app", `modules = ["base"]
+	writeProfile(t, p, "app", `modules = []
 
 [secrets.linear.oauth]
 mcp = "https://mcp.linear.app/mcp"
@@ -420,7 +420,7 @@ func TestStartDirs(t *testing.T) {
 
 func TestLoginArguments(t *testing.T) {
 	p := testPaths(t)
-	writeProfile(t, p, "plain", `modules = ["base"]`)
+	writeProfile(t, p, "plain", `modules = []`)
 	var out bytes.Buffer
 	login := func(args ...string) error {
 		return cmdProfiles(append([]string{"login"}, args...), strings.NewReader(""), &out)
@@ -442,7 +442,7 @@ func TestLoginArguments(t *testing.T) {
 func TestLoginSkipsSecretsAlreadySignedIn(t *testing.T) {
 	p := testPaths(t)
 	key := filepath.Join(p.Home, "key")
-	writeProfile(t, p, "app", `modules = ["base"]
+	writeProfile(t, p, "app", `modules = []
 
 [secrets.linear.oauth]
 mcp = "https://mcp.linear.app/mcp"

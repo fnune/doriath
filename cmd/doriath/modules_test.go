@@ -34,7 +34,7 @@ func TestModulesListShowsOriginAndSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"base", "built in", "go", "yours and built in: rename yours", "My Go.", "team", "The team's hosts."} {
+	for _, want := range []string{"claude", "built in", "go", "yours and built in: rename yours", "My Go.", "team", "The team's hosts."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("list lacks %q:\n%s", want, out)
 		}

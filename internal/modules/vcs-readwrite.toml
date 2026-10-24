@@ -23,6 +23,10 @@ edit = { format = "git-config", safe = [
   "branch.*.merge = refs/heads/**",
 ] }
 
+[[mounts]]
+path = "~/.config/jj"
+missing = "skip"
+
 # The files below run on your machine without you choosing to run them, so
 # they stay read-only in the checkout. The agent reads them, and changes
 # one with doriath request edit, which shows you the new content first.

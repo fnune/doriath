@@ -165,6 +165,7 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	}
 
 	b := newBuilder(l.Home)
+	b.apply(defaults)
 	for _, ly := range layers {
 		b.apply(ly)
 	}
@@ -394,7 +395,7 @@ func (b *builder) from(source, key string) {
 }
 
 func (b *builder) apply(l layer) {
-	if !strings.HasPrefix(l.source, "profile") {
+	if !strings.HasPrefix(l.source, "profile") && l.source != defaultsSource {
 		b.modules = append(b.modules, l.source)
 	}
 	b.record(l)

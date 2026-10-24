@@ -20,7 +20,7 @@ bubblewrap, inside the `doriath` binary, creates the namespaces of the jail. The
 | Network | Loopback only. Every connection goes through the proxy.                                                                                                                                  |
 | Limits  | A systemd user scope with task and memory limits, and a CPU quota if the profile sets one.                                                                                               |
 
-The jail gets only the host variables that the profile passes. The [`base` module](/reference/modules/#base) passes the usual ones, such as `PATH` and `TERM`.
+The jail gets `PATH`, the terminal and locale variables, and the host variables that the profile passes. doriath drops all others.
 
 ## The proxy
 

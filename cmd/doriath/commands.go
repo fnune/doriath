@@ -556,7 +556,7 @@ func cmdSandboxExec(args []string) error {
 const profileTemplate = `description = ""
 # Add your agent's module, such as claude, and the modules of your tools.
 # doriath modules list shows them all.
-modules = ["base"]
+modules = []
 
 [[mounts]]
 path = "~/Development/my-project"

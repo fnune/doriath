@@ -89,7 +89,7 @@ A profile is a TOML file that describes one kind of work. It lists [modules](/re
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
-modules = ["base", "vcs-readwrite", "docs", "go", "node", "claude"]
+modules = ["vcs-readwrite", "docs", "go", "node", "claude"]
 ```
 
 To let an agent read the project and write the profile with you, see [profiles with an agent](/guides/profile-setup/).
@@ -124,7 +124,7 @@ Then add the `github` module, so that the agent can push and open pull requests.
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
-modules = ["base", "vcs-readwrite", "docs", "go", "node", "github", "claude"]
+modules = ["vcs-readwrite", "docs", "go", "node", "github", "claude"]
 
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]

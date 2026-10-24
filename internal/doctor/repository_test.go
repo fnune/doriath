@@ -58,7 +58,7 @@ func details(results []Result) string {
 func TestARepositoryIsCheckedWithTheProfileItsEnvrcNames(t *testing.T) {
 	opts := repoOptions(t, "use flake\nuse doriath app\n", map[string]string{
 		"app":     "modules = [\"vcs-readonly\"]\n\n[secrets.key]\nfile = \"/k\"\n\n[signing]\nkey = \"key\"\n",
-		"default": "modules = [\"base\"]\n",
+		"default": "modules = []\n",
 	})
 	got := details(repository(opts))
 	for _, want := range []string{"ok repository " + filepath.Dir(opts.Dir) + " with profile app: the agent commits through the store", "ok signing: with the secret key"} {
@@ -75,7 +75,7 @@ func TestAnEnvrcThatComposesProfilesNamesThemAll(t *testing.T) {
 }
 
 func TestARepositoryWithoutAProfileIsCheckedWithTheDefault(t *testing.T) {
-	opts := repoOptions(t, "", map[string]string{"default": "modules = [\"base\"]\n"})
+	opts := repoOptions(t, "", map[string]string{"default": "modules = []\n"})
 	got := details(repository(opts))
 	if !strings.Contains(got, "problem repository") || !strings.Contains(got, "cannot find it") {
 		t.Errorf("from a subdirectory, the jail shows only that:\n%s", got)
