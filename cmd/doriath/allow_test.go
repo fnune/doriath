@@ -185,3 +185,24 @@ func TestADroppedRestrictionAsksAndShowsTheLine(t *testing.T) {
 		t.Errorf("the allowed profile asked again: %v\n%s", err, out)
 	}
 }
+
+func TestTheFirstQuestionShowsSecretSourcesCredentialsAndSettings(t *testing.T) {
+	p := appProfile("a.example")
+	p.Sources["secret gh"] = []string{"profile"}
+	p.Sources["source gh: command ./scripts/token.sh"] = []string{"profile"}
+	p.Sources["credential api.example: gh for gh, curl"] = []string{"profile"}
+	p.Sources["default api.example: allow"] = []string{"profile"}
+	p.Sources["setting nix.daemon = true"] = []string{"profile"}
+	p.Sources["setting hardening.landlock = false"] = []string{"profile"}
+	out, _ := confirm(t, memoryGrants{}, p, "n\n", true)
+	for _, want := range []string{
+		"\nSecret sources\n  gh: command ./scripts/token.sh\n",
+		"\nCredentials\n  api.example: gh for gh, curl\n",
+		"\nHost defaults\n  api.example: allow\n",
+		"\nSettings\n  hardening.landlock = false\n  nix.daemon = true\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in:\n%s", want, out)
+		}
+	}
+}

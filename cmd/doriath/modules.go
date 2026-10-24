@@ -23,16 +23,24 @@ import (
 	"github.com/fnune/doriath/internal/term"
 )
 
-var profileSections = []struct{ prefix, title string }{
-	{"mount ", "Mounts"},
-	{"cache ", "Caches"},
-	{"device ", "Devices"},
-	{"host ", "Hosts"},
-	{"http ", "Hosts the proxy inspects"},
-	{"env ", "Environment"},
-	{"mcp ", "MCP servers"},
-	{"image ", "Container images"},
-	{"secret ", "Secrets"},
+var profileSections = []struct {
+	prefix, title string
+	eachOnItsLine bool
+}{
+	{"mount ", "Mounts", false},
+	{"cache ", "Caches", false},
+	{"device ", "Devices", false},
+	{"host ", "Hosts", false},
+	{"http ", "Hosts the proxy inspects", false},
+	{"env ", "Environment", false},
+	{"mcp ", "MCP servers", false},
+	{"image ", "Container images", false},
+	{"secret ", "Secrets", false},
+	{"source ", "Secret sources", true},
+	{"credential ", "Credentials", true},
+	{"default ", "Host defaults", true},
+	{"open ", "Links the browser opens", true},
+	{"setting ", "Settings", true},
 }
 
 func printProfile(w io.Writer, p *profile.Profile) error {
@@ -65,6 +73,11 @@ var summaryTones = map[string]term.Level{
 	"device ":      term.Problem,
 	"http ":        term.Action,
 	"secret ":      term.Problem,
+	"source ":      term.Problem,
+	"credential ":  term.Problem,
+	"default ":     term.Action,
+	"open ":        term.Action,
+	"setting ":     term.Warn,
 }
 
 func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int) {
@@ -102,6 +115,15 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 			}
 		}
 		fmt.Fprintf(w, "\n%s\n", tint(section.prefix, t.Bold(section.title)))
+		if section.eachOnItsLine {
+			for _, g := range groups {
+				sort.Strings(entries[g])
+				for _, entry := range entries[g] {
+					fmt.Fprintln(w, "  "+entry)
+				}
+			}
+			continue
+		}
 		for _, g := range groups {
 			sort.Strings(entries[g])
 			label := "  " + tint(section.prefix+g, fmt.Sprintf("%-*s", labelWidth, g))

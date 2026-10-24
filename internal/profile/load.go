@@ -607,11 +607,114 @@ func (b *builder) record(l layer) {
 			b.from(l.source, "image "+img)
 		}
 	}
-	for k := range l.Secrets {
+	for k, v := range l.Secrets {
 		b.from(l.source, "secret "+k)
+		b.from(l.source, "source "+k+": "+describeSecretSource(v))
 	}
 	for _, k := range l.UsesSecrets {
 		b.from(l.source, "secret "+k+" for "+l.source)
+	}
+	b.recordDecisions(l)
+}
+
+func describeSecretSource(v secretLayer) string {
+	switch {
+	case len(v.Command) > 0:
+		return "command " + strings.Join(v.Command, " ")
+	case v.File != "":
+		return "file " + v.File
+	case v.OAuth != nil && v.OAuth.MCP != "":
+		return "login to MCP server " + v.OAuth.MCP
+	case v.OAuth != nil:
+		return "login at " + v.OAuth.Issuer
+	}
+	return "unset"
+}
+
+func (b *builder) recordDecisions(l layer) {
+	describeCredential := func(c *credentialLayer) string {
+		programs := "any program"
+		if len(c.Binaries) > 0 {
+			programs = strings.Join(c.Binaries, ", ")
+		}
+		return c.Secret + " for " + programs
+	}
+	for _, h := range l.HTTP {
+		if h.Credential != nil {
+			b.from(l.source, "credential "+h.Host+": "+describeCredential(h.Credential))
+		}
+		if h.Default != "" {
+			b.from(l.source, "default "+h.Host+": "+h.Default)
+		}
+		for _, r := range h.Rules {
+			if r.Credential != nil {
+				b.from(l.source, "credential "+h.Host+" "+r.Method+" "+r.Path+": "+describeCredential(r.Credential))
+			}
+		}
+	}
+	for _, o := range l.Open {
+		b.from(l.source, "open "+o.Host+" "+o.Path+": "+o.Action)
+	}
+	for _, m := range l.Mounts {
+		if m.Edit != nil && len(m.Edit.Safe) > 0 {
+			b.from(l.source, "setting edit "+m.Path+": safe without asking: "+strings.Join(m.Edit.Safe, "; "))
+		}
+	}
+	setting := func(key string, value any) {
+		b.from(l.source, fmt.Sprintf("setting %s = %v", key, value))
+	}
+	if l.Nix != nil && l.Nix.Daemon != nil {
+		setting("nix.daemon", *l.Nix.Daemon)
+	}
+	if l.Podman != nil && l.Podman.Enabled != nil {
+		setting("podman.enabled", *l.Podman.Enabled)
+	}
+	if l.VCS != nil && l.VCS.Store != nil {
+		setting("vcs.store", *l.VCS.Store)
+	}
+	if l.Clipboard != nil && l.Clipboard.Images != nil {
+		setting("clipboard.images", *l.Clipboard.Images)
+	}
+	if h := l.Hardening; h != nil {
+		if h.Namespaces != nil {
+			setting("hardening.namespaces", *h.Namespaces)
+		}
+		if h.Ptrace != nil {
+			setting("hardening.ptrace", *h.Ptrace)
+		}
+		if h.Landlock != nil {
+			setting("hardening.landlock", *h.Landlock)
+		}
+	}
+	if s := l.Signing; s != nil {
+		if s.Key != "" {
+			setting("signing.key", s.Key)
+		}
+		if s.Enable != nil {
+			setting("signing.enable", *s.Enable)
+		}
+	}
+	if lim := l.Limits; lim != nil {
+		if lim.Tasks != nil {
+			setting("limits.tasks", *lim.Tasks)
+		}
+		if lim.Memory != "" {
+			setting("limits.memory", lim.Memory)
+		}
+		if lim.CPU != "" {
+			setting("limits.cpu", lim.CPU)
+		}
+	}
+	if a := l.Agent; a != nil && len(a.Instructions) > 0 {
+		setting("agent.instructions", strings.Join(a.Instructions, ", "))
+	}
+	if c := l.Claude; c != nil {
+		if c.DisableConnectors != nil {
+			setting("claude.disable_connectors", *c.DisableConnectors)
+		}
+		if len(c.AllowedMCPServers) > 0 {
+			setting("claude.allowed_mcp_servers", strings.Join(c.AllowedMCPServers, ", "))
+		}
 	}
 }
 

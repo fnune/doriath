@@ -2,6 +2,7 @@ package profile
 
 import (
 	iofs "io/fs"
+	"maps"
 	"net/http"
 	"reflect"
 	"slices"
@@ -577,5 +578,67 @@ func TestAProfileOpenRuleComesBeforeItsModules(t *testing.T) {
 	}
 	if _, ok := modulesOnly.OpenRule("login.example", "/elsewhere"); ok {
 		t.Error("a rule matched a path it does not name")
+	}
+}
+
+func TestSourcesNameWhatDecidesWhereSecretsGo(t *testing.T) {
+	p, err := loader(fstest.MapFS{"app.toml": file(`
+[secrets.gh]
+command = ["pass", "show", "gh"]
+
+[secrets.key]
+file = "~/.config/doriath/keys/key"
+
+[[http]]
+host = "api.example"
+credential = { secret = "gh", binaries = ["gh", "curl"] }
+default = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/upload"
+action = "allow"
+credential = { secret = "key" }
+
+[[open]]
+host = "www.example"
+path = "/**"
+action = "allow"
+
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = ["core.hookspath = **"] }
+
+[nix]
+daemon = true
+
+[hardening]
+landlock = false
+
+[signing]
+enable = false
+
+[limits]
+cpu = "200%"
+`)}, fstest.MapFS{}).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{
+		"source gh: command pass show gh",
+		"source key: file ~/.config/doriath/keys/key",
+		"credential api.example: gh for gh, curl",
+		"credential api.example POST /upload: key for any program",
+		"default api.example: allow",
+		"open www.example /**: allow",
+		"setting edit {git}/config: safe without asking: core.hookspath = **",
+		"setting nix.daemon = true",
+		"setting hardening.landlock = false",
+		"setting signing.enable = false",
+		"setting limits.cpu = 200%",
+	} {
+		if p.Sources[key] == nil {
+			t.Errorf("no source %q; have %v", key, slices.Sorted(maps.Keys(p.Sources)))
+		}
 	}
 }
