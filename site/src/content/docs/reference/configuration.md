@@ -257,8 +257,6 @@ cpu = "200%"
 # instructions files: the jail shows each as your file followed by what
 # the session allows, so the agent knows the jail from its start.
 [agent]
-# How long a permission prompt waits for you before the agent shows its own.
-approval_timeout = "60s"
 instructions = ["~/.codex/AGENTS.md"]
 
 # Settings for the claude adapter. The claude module gives the profile its
@@ -559,6 +557,9 @@ desktop = true
 # The default is 2m with desktop notifications and 0s without them.
 # The maximum is 1h.
 host_wait = "2m"
+# How long a permission prompt of the agent waits for you before the agent
+# shows its own. The maximum is 1h.
+tool_wait = "60s"
 
 # While a session runs in a terminal, show "doriath · PROFILE" as the
 # window title, so that tabs and panes tell sessions apart. The title

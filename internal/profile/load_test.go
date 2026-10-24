@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 )
 
 func loader(profiles, modules fstest.MapFS) *Loader {
@@ -99,9 +98,6 @@ action = "deny"
 	if r, ok := host.Decide("GET", "/repos/fnune/project", nil); ok || r.Action != ActionApprove {
 		t.Errorf("a credentialed host must hold unnamed requests, got %+v", r)
 	}
-	if p.Agent.ApprovalTimeout != defaultApprovalTimeout {
-		t.Errorf("timeout = %v", p.Agent.ApprovalTimeout)
-	}
 }
 
 func TestLoadRejects(t *testing.T) {
@@ -122,7 +118,6 @@ func TestLoadRejects(t *testing.T) {
 		"bad path glob":      {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/a*\"\naction = \"deny\"", want: "whole segment"},
 		"cache outside home": {profile: "[[caches]]\npath = \"/var/cache\"", want: "inside the home"},
 		"device outside dev": {profile: "devices = [\"/etc/passwd\"]", want: "under /dev"},
-		"bad timeout":        {profile: "[agent]\napproval_timeout = \"soon\"", want: "approval_timeout"},
 		"missing module":     {profile: `modules = ["nope"]`, want: `module "nope" not found`},
 		"undefined secret":   {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
 		"undefined signing":  {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
@@ -292,13 +287,6 @@ func TestPathPattern(t *testing.T) {
 				t.Errorf("%s Match(%q) = %v", pattern, path, got)
 			}
 		}
-	}
-}
-
-func TestApprovalTimeout(t *testing.T) {
-	p, err := loader(fstest.MapFS{"p.toml": file("[agent]\napproval_timeout = \"90s\"")}, fstest.MapFS{}).Load("p")
-	if err != nil || p.Agent.ApprovalTimeout != 90*time.Second {
-		t.Fatalf("got %v, %v", p, err)
 	}
 }
 

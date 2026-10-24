@@ -38,11 +38,11 @@ A request for a host also shows what doriath knows about it:
 
 When the timer ends, the agent gets an error and the request is parked. If you allow a parked request before the session ends, the next try of the agent goes through.
 
-| Kind                        | The agent waits                                      | Set by                                                                       |
-| --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `host`, `path`              | 2 minutes with desktop notifications, 0 without them | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys)    |
-| `http`, podman image pushes | 10 minutes                                           | fixed                                                                        |
-| `tool`                      | 60 seconds, then the agent shows its own prompt      | `approval_timeout` under [`[agent]`](/reference/configuration/#profile-keys) |
+| Kind                        | The agent waits                                      | Set by                                                                    |
+| --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| `host`, `path`              | 2 minutes with desktop notifications, 0 without them | `host_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) |
+| `http`, podman image pushes | 10 minutes                                           | fixed                                                                     |
+| `tool`                      | 60 seconds, then the agent shows its own prompt      | `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) |
 
 ## Answers
 

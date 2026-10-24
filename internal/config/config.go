@@ -111,6 +111,9 @@ type Approvals struct {
 	// HostWait is how long a request doriath refused waits for your
 	// decision before the agent gets an error. Nil means the default.
 	HostWait *time.Duration
+	// ToolWait is how long an agent's permission prompt waits in doriath's
+	// queue before the agent shows its own.
+	ToolWait time.Duration
 }
 
 // DefaultHostWait holds requests while desktop notifications can show them,
@@ -129,6 +132,7 @@ type userFile struct {
 	Approvals struct {
 		Desktop  *bool   `toml:"desktop"`
 		HostWait *string `toml:"host_wait"`
+		ToolWait *string `toml:"tool_wait"`
 	} `toml:"approvals"`
 	Terminal struct {
 		Title *bool `toml:"title"`
@@ -138,7 +142,7 @@ type userFile struct {
 
 // LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
-	u := User{Approvals: Approvals{Desktop: true}, Terminal: Terminal{Title: true, Bar: true}}
+	u := User{Approvals: Approvals{Desktop: true, ToolWait: time.Minute}, Terminal: Terminal{Title: true, Bar: true}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return u, nil
@@ -173,6 +177,13 @@ func LoadUser(path string) (User, error) {
 			return User{}, fmt.Errorf("%s: approvals.host_wait %q: want a duration from 0s to 1h, such as 2m", path, *f.Approvals.HostWait)
 		}
 		u.Approvals.HostWait = &d
+	}
+	if f.Approvals.ToolWait != nil {
+		d, err := time.ParseDuration(*f.Approvals.ToolWait)
+		if err != nil || d <= 0 || d > time.Hour {
+			return User{}, fmt.Errorf("%s: approvals.tool_wait %q: want a duration from 1s to 1h, such as 90s", path, *f.Approvals.ToolWait)
+		}
+		u.Approvals.ToolWait = d
 	}
 	return u, nil
 }

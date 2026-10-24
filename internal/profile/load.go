@@ -21,8 +21,6 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-const defaultApprovalTimeout = 60 * time.Second
-
 // Loader reads profiles and the modules they name. A module name is in one
 // of Modules only, so that no module replaces another without notice.
 // Repository holds the profiles named with RepoPrefix, and is nil outside a
@@ -495,9 +493,6 @@ func (b *builder) apply(l layer) {
 		}
 	}
 	if a := l.Agent; a != nil {
-		if a.ApprovalTimeout != "" {
-			b.agent.ApprovalTimeout = a.ApprovalTimeout
-		}
 		for _, path := range a.Instructions {
 			b.agent.Instructions = appendNew(b.agent.Instructions, path)
 		}
@@ -1140,14 +1135,7 @@ func parseAction(s string) (Action, error) {
 }
 
 func (b *builder) buildAgent() (Agent, error) {
-	a := Agent{ApprovalTimeout: defaultApprovalTimeout}
-	if b.agent.ApprovalTimeout != "" {
-		d, err := time.ParseDuration(b.agent.ApprovalTimeout)
-		if err != nil || d <= 0 {
-			return a, fmt.Errorf("agent approval_timeout %q: want a positive duration like 90s", b.agent.ApprovalTimeout)
-		}
-		a.ApprovalTimeout = d
-	}
+	var a Agent
 	for _, raw := range b.agent.Instructions {
 		path, err := b.expand(raw)
 		if err != nil {

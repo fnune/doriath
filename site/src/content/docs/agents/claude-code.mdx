@@ -18,13 +18,9 @@ doriath starts Claude with settings that it generates:
 - MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. Your own MCP servers stay outside the jail.
 - When the session ends, doriath copies the transcripts back to your `~/.claude`, so you can resume outside the jail.
 
-Set the adapter under `[claude]` in the profile, and what every adapter shares under `[agent]`:
+Set the adapter under `[claude]` in the profile. How long a permission prompt waits for you before Claude shows its own is `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys).
 
 ```toml
-[agent]
-# How long a permission prompt waits for you before Claude shows its own.
-approval_timeout = "60s"
-
 [claude]
 disable_connectors = true
 ask = ["mcp__claude-in-chrome__javascript_tool"]

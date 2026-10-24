@@ -205,8 +205,7 @@ type podmanLayer struct {
 }
 
 type agentLayer struct {
-	ApprovalTimeout string   `toml:"approval_timeout"`
-	Instructions    []string `toml:"instructions"`
+	Instructions []string `toml:"instructions"`
 }
 
 type claudeLayer struct {

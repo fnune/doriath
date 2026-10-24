@@ -19,11 +19,6 @@ For each session, doriath writes `~/.codex/config.toml` and `~/.codex/hooks.json
 
 Codex runs hooks only after you trust them in `/hooks`, or from `/etc/codex`, which the jail cannot add to. doriath starts Codex with `--dangerously-bypass-hook-trust` for this reason. The flag lets the hooks of all loaded config run, and the agent cannot change that config, because the files are read-only and the project layer does not load.
 
-Set how long a prompt waits for you under [`[agent]`](/reference/configuration/#profile-keys):
-
-```toml
-[agent]
-approval_timeout = "90s"
-```
+Set how long a prompt waits for you with `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys).
 
 Because the config is read-only, choices that Codex saves to it, such as a model that you pick with `/model`, last only until the session ends. To keep a choice, put it in your own `~/.codex/config.toml`.

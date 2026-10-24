@@ -319,6 +319,7 @@ func cmdRun(args []string) (int, error) {
 		Git:         lookPath("git"),
 		JJ:          lookPath("jj"),
 		HostWait:    hostWait(user.Approvals, notifier),
+		ToolWait:    user.Approvals.ToolWait,
 		SystemdRun:  lookPath("systemd-run"),
 		Promote:     promote.Writable,
 		Read:        promote.Readable,

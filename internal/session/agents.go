@@ -112,6 +112,7 @@ func (s *Session) agentSession() agents.Session {
 	}
 	return agents.Session{
 		Titled:       s.titled,
+		ToolWait:     s.deps.ToolWait,
 		MCPConfig:    mcp,
 		Instructions: s.status().Describe(),
 		Place:        s.place,

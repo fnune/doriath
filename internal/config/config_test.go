@@ -115,3 +115,27 @@ func TestHostWait(t *testing.T) {
 		}
 	}
 }
+
+func TestToolWait(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	for content, want := range map[string]time.Duration{
+		"":                                   time.Minute,
+		"[approvals]\ntool_wait = \"90s\"\n": 90 * time.Second,
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		u, err := LoadUser(path)
+		if err != nil || u.Approvals.ToolWait != want {
+			t.Errorf("%q: wait %v, %v; want %v", content, u.Approvals.ToolWait, err, want)
+		}
+	}
+	for _, bad := range []string{"soon", "0s", "2h"} {
+		if err := os.WriteFile(path, []byte("[approvals]\ntool_wait = \""+bad+"\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "approvals.tool_wait") {
+			t.Errorf("%q: err = %v", bad, err)
+		}
+	}
+}

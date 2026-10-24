@@ -37,7 +37,7 @@ func TestArgs(t *testing.T) {
 }
 
 func TestSettings(t *testing.T) {
-	p := &profile.Profile{Agent: profile.Agent{ApprovalTimeout: 60 * time.Second}, Claude: profile.Claude{
+	p := &profile.Profile{Claude: profile.Claude{
 		DisableConnectors: true,
 		DeniedMCPServers:  []string{"claude.ai Gmail"},
 		Ask:               []string{"mcp__claude-in-chrome__javascript_tool"},
@@ -46,7 +46,7 @@ func TestSettings(t *testing.T) {
 		"/w/.claude/settings.json":       `{"permissions":{"allow":["Bash(just check)"],"deny":["Bash(rm -rf:*)"]},"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"just fmt"}]}]}}`,
 		"/w/.claude/settings.local.json": `{"permissions":{"allow":["Bash(go test:*)"]},"env":{"FOO":"1"}}`,
 	}
-	data, err := Settings(p, "/w", files)
+	data, err := Settings(p, "/w", time.Minute, files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestSettings(t *testing.T) {
 		t.Error("project env must be kept")
 	}
 
-	if _, err := Settings(p, "/w", mapFiles{"/w/.claude/settings.json": "{"}); err == nil {
+	if _, err := Settings(p, "/w", time.Minute, mapFiles{"/w/.claude/settings.json": "{"}); err == nil {
 		t.Error("broken project settings must be an error")
 	}
 }
@@ -107,9 +107,10 @@ func TestStartAndEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := agents.Session{
-		Profile: &profile.Profile{Agent: profile.Agent{ApprovalTimeout: time.Minute}},
-		Home:    home,
-		Cwd:     cwd,
+		Profile:  &profile.Profile{},
+		ToolWait: time.Minute,
+		Home:     home,
+		Cwd:      cwd,
 		HostPath: func(p string) string {
 			if p == filepath.Join(home, ".claude") {
 				return private
@@ -162,7 +163,7 @@ func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {
 		MCP:    []profile.MCPServer{{Name: "linear"}},
 		Claude: profile.Claude{AllowedMCPServers: []string{"https://docs.example.com/mcp", "bazel"}},
 	}
-	data, err := Settings(p, "/w", mapFiles{})
+	data, err := Settings(p, "/w", time.Minute, mapFiles{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,14 +177,14 @@ func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {
 	if !reflect.DeepEqual(got.Allowed, want) {
 		t.Errorf("allowedMcpServers = %v, want %v", got.Allowed, want)
 	}
-	data, _ = Settings(&profile.Profile{MCP: p.MCP}, "/w", mapFiles{})
+	data, _ = Settings(&profile.Profile{MCP: p.MCP}, "/w", time.Minute, mapFiles{})
 	if strings.Contains(string(data), "allowedMcpServers") {
 		t.Error("without an allow list, every server stays allowed")
 	}
 }
 
 func TestTheEmptyPlaceholderThatVCSHoldsReadsAsNoProjectSettings(t *testing.T) {
-	if _, err := Settings(&profile.Profile{}, "/w", mapFiles{"/w/.claude/settings.json": ""}); err != nil {
+	if _, err := Settings(&profile.Profile{}, "/w", time.Minute, mapFiles{"/w/.claude/settings.json": ""}); err != nil {
 		t.Fatalf("the placeholder for a missing settings file stopped the session: %v", err)
 	}
 }

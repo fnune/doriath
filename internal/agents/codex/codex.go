@@ -59,7 +59,7 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 	if err := s.Place(filepath.Join(home, "config.toml"), config); err != nil {
 		return nil, nil, err
 	}
-	hooks, err := Hooks(s.Profile.Agent.ApprovalTimeout)
+	hooks, err := Hooks(s.ToolWait)
 	if err != nil {
 		return nil, nil, err
 	}

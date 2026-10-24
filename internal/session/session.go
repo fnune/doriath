@@ -106,6 +106,9 @@ type Deps struct {
 	// HostWait is how long a refused request waits for your decision
 	// before the agent gets an error. The request stays pending after.
 	HostWait time.Duration
+	// ToolWait is how long an agent's permission prompt waits in doriath's
+	// queue before the agent shows its own.
+	ToolWait time.Duration
 	// JJ records and restores bookmarks of jj repositories that are not
 	// colocated with git. Empty skips them.
 	JJ string

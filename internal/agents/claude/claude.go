@@ -59,7 +59,7 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 			return nil, nil, fmt.Errorf("copy the Claude project directory: %w", err)
 		}
 	}
-	data, err := Settings(s.Profile, s.Cwd, osFiles{})
+	data, err := Settings(s.Profile, s.Cwd, s.ToolWait, osFiles{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -156,7 +156,7 @@ var hookTimeoutMargin = 30 * time.Second
 // Settings builds the settings file for one session. Project rules and hooks
 // come from the repo's settings files as they are now, so later edits by the
 // agent have no effect until the next session.
-func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
+func Settings(p *profile.Profile, cwd string, toolWait time.Duration, files Files) ([]byte, error) {
 	s := settings{
 		DisableClaudeAiConnectors: p.Claude.DisableConnectors,
 		Permissions:               permissions{Ask: slices.Clone(p.Claude.Ask), Deny: slices.Clone(p.Claude.Deny)},
@@ -191,12 +191,12 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 			s.Env[k] = v
 		}
 	}
-	timeout := int((p.Agent.ApprovalTimeout + hookTimeoutMargin) / time.Second)
+	timeout := int((toolWait + hookTimeoutMargin) / time.Second)
 	s.Hooks["PermissionRequest"] = append(s.Hooks["PermissionRequest"], hookGroup{
 		Matcher: "*",
 		Hooks: []hookCommand{{
 			Type:    "command",
-			Command: fmt.Sprintf("%s __hook claude permission-request --timeout %s", jail.ExePath, p.Agent.ApprovalTimeout),
+			Command: fmt.Sprintf("%s __hook claude permission-request --timeout %s", jail.ExePath, toolWait),
 			Timeout: timeout,
 		}},
 	})

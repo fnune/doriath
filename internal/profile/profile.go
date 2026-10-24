@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -391,9 +390,6 @@ type Hardening struct {
 
 // Agent holds what each agent adapter does alike.
 type Agent struct {
-	// ApprovalTimeout is how long a permission prompt waits in doriath's
-	// queue before the agent shows its own.
-	ApprovalTimeout time.Duration
 	// Instructions are the agent's own instructions files. The jail shows
 	// each as your file followed by what the session allows, for an agent
 	// that doriath cannot tell at its start.

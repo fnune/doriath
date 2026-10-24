@@ -27,16 +27,15 @@ func mustLoad(t *testing.T, profile string, modules fstest.MapFS) *Profile {
 
 func TestLoadRejectsUnsafeSettings(t *testing.T) {
 	cases := map[string]struct{ profile, want string }{
-		"cache is the home":     {"[[caches]]\npath = \"~\"", "inside the home"},
-		"old mode name":         {"[[mounts]]\npath = \"/x\"\nmode = \"rw\"", "want read, write or hide"},
-		"live, which is gone":   {"[[mounts]]\npath = \"/x\"\nlive = true", "unknown key"},
-		"port above range":      {"[egress]\nports = [65536]", "out of range"},
-		"tcp port above range":  {"[egress]\ntcp_ports = [65536]", "out of range"},
-		"zero approval timeout": {"[agent]\napproval_timeout = \"0s\"", "approval_timeout"},
-		"mount of the root":     {"[[mounts]]\npath = \"/\"", "whole filesystem"},
-		"mount of the home":     {"[[mounts]]\npath = \"~\"", "whole home"},
-		"mount above the home":  {"[[mounts]]\npath = \"/home\"", "whole home"},
-		"writable home mount":   {"[[mounts]]\npath = \"~/\"\nmode = \"write\"", "whole home"},
+		"cache is the home":    {"[[caches]]\npath = \"~\"", "inside the home"},
+		"old mode name":        {"[[mounts]]\npath = \"/x\"\nmode = \"rw\"", "want read, write or hide"},
+		"live, which is gone":  {"[[mounts]]\npath = \"/x\"\nlive = true", "unknown key"},
+		"port above range":     {"[egress]\nports = [65536]", "out of range"},
+		"tcp port above range": {"[egress]\ntcp_ports = [65536]", "out of range"},
+		"mount of the root":    {"[[mounts]]\npath = \"/\"", "whole filesystem"},
+		"mount of the home":    {"[[mounts]]\npath = \"~\"", "whole home"},
+		"mount above the home": {"[[mounts]]\npath = \"/home\"", "whole home"},
+		"writable home mount":  {"[[mounts]]\npath = \"~/\"\nmode = \"write\"", "whole home"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

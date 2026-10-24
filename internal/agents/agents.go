@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/fnune/doriath/internal/profile"
 )
@@ -39,6 +40,9 @@ type Session struct {
 	// Titled says that doriath sets the terminal's title for the session,
 	// so the agent should leave it alone.
 	Titled bool
+	// ToolWait is how long a permission prompt waits in doriath's queue
+	// before the agent shows its own.
+	ToolWait time.Duration
 }
 
 type Adapter interface {
