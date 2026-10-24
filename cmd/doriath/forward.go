@@ -37,7 +37,7 @@ func cmdForward(args []string) error {
 	}
 	nsenter, err := exec.LookPath("nsenter")
 	if err != nil {
-		return fmt.Errorf("doriath forward needs nsenter from util-linux: %w", err)
+		return fmt.Errorf("`doriath forward` needs nsenter from util-linux: %w", err)
 	}
 	if err := entry.CheckHelper(nsenter); err != nil {
 		return err

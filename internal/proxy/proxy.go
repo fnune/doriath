@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -475,7 +476,7 @@ func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (st
 }
 
 func unavailable(err error) error {
-	return fmt.Errorf("%w. Ask the user to fix the secret on the host, where doriath secrets provide gives the session a value. doriath tries again within 30 seconds", err)
+	return fmt.Errorf("%w. Ask the user to fix the secret on the host, where `doriath secrets provide` gives the session a value. doriath tries again within 30 seconds", err)
 }
 
 func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {
@@ -673,7 +674,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 		}
 		if id != "" {
 			s.record(Event{Kind: "denied", Host: host, Port: port, Exe: exe, Reason: reason})
-			deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s is not in profile %q, and approval %s is pending. To wait for the answer, run: doriath request wait %s", host, s.cfg.Profile, id, host))
+			deny(w, http.StatusForbidden, fmt.Sprintf("doriath: %s is not in profile %q, and approval %s is pending. To wait for the answer, run: %s", host, s.cfg.Profile, id, cli.Code(cli.Line("request", "wait", host))))
 			return false
 		}
 	}

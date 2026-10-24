@@ -24,7 +24,7 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 		return RequestWriteResult{}, err
 	}
 	if !s.visible(path) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add it, run on the host: %s", path, cli.Line("approvals", "grant", "--session", s.id, path))
+		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add it, run on the host: %s", path, cli.Code(cli.Line("approvals", "grant", "--session", s.id, path)))
 	}
 	req := approval.Request{
 		Session: s.id,
@@ -149,7 +149,7 @@ func (s *Session) checkPromotion(path string) (string, error) {
 	}
 	for _, part := range strings.Split(path, "/") {
 		if part == ".git" || part == ".jj" {
-			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with vcs-readwrite or vcs-readonly they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s < NEW_CONTENT", path, cli.Line("request", "edit", "PATH", "--reason", "TEXT"))
+			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with vcs-readwrite or vcs-readonly they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s", path, cli.Code(cli.Line("request", "edit", "PATH", "--reason", "TEXT")+" < NEW_CONTENT"))
 		}
 	}
 	s.mu.Lock()

@@ -93,7 +93,7 @@ func TestRestoreErrors(t *testing.T) {
 	if err := cmdRestore(nil, &out); err == nil || !strings.Contains(err.Error(), "usage: doriath restore SESSION") {
 		t.Errorf("without a session = %v", err)
 	}
-	if err := cmdRestore([]string{"gone"}, &out); err == nil || err.Error() != "restore: no record of session gone, or doriath clean removed it" {
+	if err := cmdRestore([]string{"gone"}, &out); err == nil || err.Error() != "restore: no record of session gone, or `doriath clean` removed it" {
 		t.Errorf("an unknown session = %v", err)
 	}
 }

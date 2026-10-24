@@ -12,6 +12,12 @@ func Line(args ...string) string {
 	return Words(append([]string{Name}, args...)...)
 }
 
+// Code marks a command inside a sentence, so that it does not read as
+// part of the sentence.
+func Code(command string) string {
+	return "`" + command + "`"
+}
+
 // Words is the command line for argv, quoted so that a shell runs it as
 // given.
 func Words(argv ...string) string {

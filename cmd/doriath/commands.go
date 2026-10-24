@@ -227,7 +227,7 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdout io.Writer)
 		lasting := flags.String("for", "once", "once, session, or a duration such as 30m")
 		reason := flags.String("reason", "", "a reason the agent sees")
 		if len(args) == 0 {
-			return fmt.Errorf("approvals %s: name the request id; to list them, run: %s", sub, cli.Line("approvals"))
+			return fmt.Errorf("approvals %s: name the request id; to list them, run: %s", sub, cli.Code(cli.Line("approvals")))
 		}
 		id := args[0]
 		if err := flags.Parse(args[1:]); err != nil {
@@ -277,7 +277,7 @@ func decide(ctx context.Context, p config.Paths, id string, d approval.Decision)
 	}
 	switch len(match) {
 	case 0:
-		return fmt.Errorf("no pending request %s; to list them, run: %s", id, cli.Line("approvals"))
+		return fmt.Errorf("no pending request %s; to list them, run: %s", id, cli.Code(cli.Line("approvals")))
 	case 1:
 		return control.Call(ctx, match[0].control, session.MethodDecide, session.DecideParams{ID: id, Decision: d}, nil)
 	}
@@ -335,7 +335,7 @@ func listSessions(sessions []liveSession, w io.Writer) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "\nDescribe one with: doriath status --session ID")
+	fmt.Fprintln(w, "\nDescribe one with: `doriath status --session ID`")
 	return nil
 }
 

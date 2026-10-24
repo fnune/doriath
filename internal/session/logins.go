@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/oauth"
 	"github.com/fnune/doriath/internal/profile"
 )
@@ -27,7 +28,7 @@ func refuseOwnLogins(p *profile.Profile, stateDir string) *profile.Profile {
 		if i < 0 {
 			continue
 		}
-		summary := fmt.Sprintf("doriath holds the %s login for profile %s, so the agent needs none. If calls to %s fail, run on the host: doriath profiles login %s %s", m.Secret, p.Name, m.Name, p.Name, m.Secret)
+		summary := fmt.Sprintf("doriath holds the %s login for profile %s, so the agent needs none. If calls to %s fail, run on the host: %s", m.Secret, p.Name, m.Name, cli.Code(cli.Line("profiles", "login", p.Name, m.Secret)))
 		var rules []profile.Rule
 		for _, path := range loginPaths(stateDir, p.SecretOwner(m.Secret), m.Secret, host) {
 			if pp, err := profile.ParsePathPattern(path); err == nil {

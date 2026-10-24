@@ -99,7 +99,7 @@ func TestRequestWriteRefusesWhatTheAgentCannotSee(t *testing.T) {
 	notifier := &answering{seen: make(chan approval.Request, 1)}
 	s := newTestSession(t, notifier)
 	_, err := s.requestWrite(filepath.Join(s.home, "videos"), "")
-	if err == nil || !strings.Contains(err.Error(), "run on the host: doriath approvals grant --session s1 "+filepath.Join(s.home, "videos")) {
+	if err == nil || !strings.Contains(err.Error(), "run on the host: `doriath approvals grant --session s1 "+filepath.Join(s.home, "videos")+"`") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(notifier.seen) != 0 {

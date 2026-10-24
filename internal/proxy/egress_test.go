@@ -79,7 +79,7 @@ func TestUnlistedHostWaitsForYourAnswer(t *testing.T) {
 		"still pending": {
 			holder:      &fakeHolder{pending: "r7"},
 			wantStatus:  http.StatusForbidden,
-			wantMessage: []string{"approval r7 is pending", "run: doriath request wait evil.example"},
+			wantMessage: []string{"approval r7 is pending", "run: `doriath request wait evil.example`"},
 		},
 		"refused": {
 			holder:      &fakeHolder{},

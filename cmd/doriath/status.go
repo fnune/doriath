@@ -33,7 +33,7 @@ func sessionStatus(ctx context.Context, id string) (session.Status, error) {
 	for i, s := range sessions {
 		if id == "" || s.info.ID == id {
 			if target != nil && id == "" {
-				return st, fmt.Errorf("several sessions are running; to list them, run: %s", cli.Line("status"))
+				return st, fmt.Errorf("several sessions are running; to list them, run: %s", cli.Code(cli.Line("status")))
 			}
 			target = &sessions[i]
 		}

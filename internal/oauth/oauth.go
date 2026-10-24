@@ -25,6 +25,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/oauth2"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/secret"
 )
 
@@ -115,7 +116,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		s, err := load(path)
 		if errors.Is(err, os.ErrNotExist) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run doriath profiles login %s %s", name, profile, name)
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", profile, name)))
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -127,7 +128,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run doriath profiles login %s %s again", name, err, t.owner(name), name)
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.owner(name), name)))
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }

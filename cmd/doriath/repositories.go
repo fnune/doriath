@@ -75,7 +75,7 @@ func cmdRestore(args []string, w io.Writer) error {
 	path := filepath.Join(p.Backups(), args[0]+".json")
 	rec, err := vcs.Load(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("restore: no record of session %s, or doriath clean removed it", args[0])
+		return fmt.Errorf("restore: no record of session %s, or `doriath clean` removed it", args[0])
 	}
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func cmdRestore(args []string, w io.Writer) error {
 // moved branches. With --caches PROFILE it removes a profile's caches.
 func cmdClean(args []string, in io.Reader, w io.Writer) error {
 	if len(args) != 0 {
-		return errors.New("clean: usage: doriath clean (a profile's caches: doriath profiles clean NAME)")
+		return errors.New("clean: usage: doriath clean (for the caches of a profile: `doriath profiles clean NAME`)")
 	}
 	p, err := paths()
 	if err != nil {

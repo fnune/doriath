@@ -99,7 +99,7 @@ func Body(req approval.Request, now time.Time) string {
 	if !req.Expires.IsZero() {
 		fmt.Fprintf(&b, " Expires in %s.", req.Expires.Sub(now).Round(time.Second))
 	}
-	fmt.Fprintf(&b, " Or run: doriath approvals")
+	fmt.Fprintf(&b, " Or run: `doriath approvals`")
 	return b.String()
 }
 

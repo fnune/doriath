@@ -246,11 +246,11 @@ file = "`+private+`"
 		t.Errorf("doctor exits %d with problems", code)
 	}
 	for _, want := range []string{
-		"  ✕ secret app/open (file): " + open + " is readable by other users: run chmod 600 on it\n",
+		"  ✕ secret app/open (file): " + open + " is readable by other users: run `chmod 600 " + open + "`\n",
 		"  ✓ secret app/private (file)\n",
 		"  ✓ profile app\n",
 		"  ✕ profile broken: ",
-		"  · secrets: run doriath doctor --secrets",
+		"  · secrets: run `doriath doctor --secrets`",
 		"  · desktop notifications: unavailable",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -277,7 +277,7 @@ required = true
 	var out bytes.Buffer
 	cmdDoctor(nil, &out)
 	for _, want := range []string{
-		"  · secret app/linear (oauth): not signed in: run doriath profiles login app linear: sessions start without it\n",
+		"  · secret app/linear (oauth): not signed in: run `doriath profiles login app linear`: sessions start without it\n",
 		"  · secret app/token (command no-such-password-manager): ",
 		"  ✕ secret app/deploy (command no-such-password-manager): ",
 	} {

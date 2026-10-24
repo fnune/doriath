@@ -169,7 +169,7 @@ func findModule(p config.Paths, name string) (moduleSource, error) {
 		m.userPath = user
 	}
 	if m.builtin == nil && m.userPath == "" {
-		return m, fmt.Errorf("no module named %s; doriath modules list shows them", name)
+		return m, fmt.Errorf("no module named %s; `doriath modules list` shows them", name)
 	}
 	return m, nil
 }

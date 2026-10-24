@@ -41,7 +41,7 @@ func repository(opts Options) []Result {
 	prof, err := opts.Loader.Load(name)
 	if err != nil {
 		if from == "the default" {
-			return []Result{{Name: label, Level: Note, Detail: "no profile for it: add use doriath PROFILE to its .envrc, or run doriath doctor --profile NAME"}}
+			return []Result{{Name: label, Level: Note, Detail: "no profile for it: add `use doriath PROFILE` to its .envrc, or run `doriath doctor --profile NAME`"}}
 		}
 		return []Result{{Name: label, Level: Problem, Detail: fmt.Sprintf("profile %s, from %s: %v", name, from, err)}}
 	}

@@ -145,10 +145,10 @@ func overSSH() bool { return os.Getenv("SSH_CONNECTION") != "" }
 
 func openHint(addr string) string {
 	if !overSSH() {
-		return "Open it with: doriath web open\n"
+		return "Open it with: `doriath web open`\n"
 	}
 	_, port, _ := net.SplitHostPort(addr)
-	return fmt.Sprintf("You are on this machine over SSH. On your own machine, run:\n  ssh -L %s:127.0.0.1:%s %s\nThen run doriath web open here, and open its link in your own browser.\n", port, port, sshHost())
+	return fmt.Sprintf("You are on this machine over SSH. On your own machine, run:\n  ssh -L %s:127.0.0.1:%s %s\nThen run `doriath web open` here, and open its link in your own browser.\n", port, port, sshHost())
 }
 
 func sshHost() string {
@@ -169,7 +169,7 @@ func codeLink(addr, code, request string) string {
 func openPage(ctx context.Context, addr, token, request string, print bool, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with doriath web, or enable approvals.web in home-manager", addr)
+	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with `doriath web`, or enable approvals.web in home-manager", addr)
 	if !servesPage(ctx, addr, token) {
 		return notRunning
 	}
@@ -254,11 +254,11 @@ func webToken(path string) (string, error) {
 		return "", fmt.Errorf("read the page token: %w", err)
 	}
 	if info.Mode().Perm()&0o077 != 0 {
-		return "", fmt.Errorf("%s has mode %o; others could read the page token. Run: chmod 600 %s", path, info.Mode().Perm(), path)
+		return "", fmt.Errorf("%s has mode %o; others could read the page token. Run: `chmod 600 %s`", path, info.Mode().Perm(), path)
 	}
 	token := strings.TrimSpace(string(data))
 	if len(token) < 2*webTokenBytes {
-		return "", fmt.Errorf("%s holds a token that is too short; delete the file and run doriath web again", path)
+		return "", fmt.Errorf("%s holds a token that is too short; delete the file and run `doriath web` again", path)
 	}
 	return token, nil
 }

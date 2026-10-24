@@ -71,7 +71,7 @@ func TestForwardChecksItsArgumentsBeforeLookingForASession(t *testing.T) {
 		{[]string{"3000", "4000"}, "usage: doriath forward"},
 		{[]string{"http"}, `port "http": want a number from 1 to 65535`},
 		{[]string{"3000"}, "no running sessions"},
-		{[]string{"--session", "s9", "3000"}, "no running session s9; to list them, run: doriath status"},
+		{[]string{"--session", "s9", "3000"}, "no running session s9; to list them, run: `doriath status`"},
 	} {
 		if err := cmdForward(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("forward %q = %v, want %q", tc.args, err, tc.want)

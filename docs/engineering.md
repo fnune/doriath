@@ -85,6 +85,7 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 
 ### Operational discipline
 
+- Commands in messages. A command inside a sentence goes in backticks, through `cli.Code`, so that it does not read as part of the sentence, as in ``run `doriath doctor --secrets` to fetch them``. A command alone on its line, or after `usage:`, stays bare.
 - Error handling. No ignored errors. Wrap with context using `fmt.Errorf("start proxy for profile %q: %w", name, err)`. Distinguish errors the person can fix (a missing profile entry) from bugs. The CLI boundary decides what to show. Deeper layers return errors and trust the boundary.
 - Observability. Structured logs with `log/slog`. The audit log is JSON Lines, one record per grant, denial and approval, with the session and profile on every record.
 - Security baseline. Least privilege on every credential. Secrets never in code, never in committed files, never in logs.

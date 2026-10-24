@@ -274,7 +274,7 @@ func TestRevokedLoginAsksYouToSignInAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
-	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run doriath profiles login work notion again") {
+	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run `doriath profiles login work notion` again") {
 		t.Fatalf("err = %v", err)
 	}
 }

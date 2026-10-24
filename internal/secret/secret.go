@@ -224,7 +224,7 @@ func (c *Configured) Provide(name string, v Value) error {
 		return fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile, and start a new session", name, ErrUnknown, name)
 	}
 	if b.OAuth != nil {
-		return fmt.Errorf("secret %q is an OAuth login: run doriath profiles login on the host instead", name)
+		return fmt.Errorf("secret %q is an OAuth login: run `doriath profiles login` on the host instead", name)
 	}
 	if len(bytes.TrimSpace(v.b)) == 0 {
 		return fmt.Errorf("secret %q is empty", name)
@@ -283,7 +283,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 			return Value{}, fmt.Errorf("secret %q: %w", name, err)
 		}
 		if info.Mode().Perm()&0o077 != 0 {
-			return Value{}, fmt.Errorf("secret %q: %s is readable by other users (mode %04o): run chmod 600 on it", name, b.File, info.Mode().Perm())
+			return Value{}, fmt.Errorf("secret %q: %s is readable by other users (mode %04o): run `chmod 600 %s`", name, b.File, info.Mode().Perm(), b.File)
 		}
 		data, err := c.files.ReadFile(b.File)
 		if err != nil {

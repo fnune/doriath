@@ -25,7 +25,7 @@ import (
 func cmdRequest(args []string, w io.Writer) error {
 	broker := os.Getenv("DORIATH_BROKER")
 	if broker == "" {
-		return errors.New("request: DORIATH_BROKER is not set; doriath request runs inside a doriath session")
+		return errors.New("request: DORIATH_BROKER is not set; `doriath request` runs inside a doriath session")
 	}
 	ctx := context.Background()
 	switch {
@@ -63,7 +63,7 @@ func cmdRequest(args []string, w io.Writer) error {
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s", res.Pending, cli.Line("request", "wait", res.Pending))
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s", res.Pending, cli.Code(cli.Line("request", "wait", res.Pending)))
 	}
 	return reportDecision(w, res.Decision, path+" is writable now.")
 }
@@ -94,7 +94,7 @@ func requestEdit(ctx context.Context, broker string, args []string, in io.Reader
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s, then run doriath request edit again", res.Pending, cli.Line("request", "wait", res.Pending))
+		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run %s, then run `doriath request edit` again", res.Pending, cli.Code(cli.Line("request", "wait", res.Pending)))
 	}
 	if res.Changes == "" {
 		fmt.Fprintf(w, "%s already has that content.\n", path)

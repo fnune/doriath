@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/allowed"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/term"
 )
@@ -40,7 +41,7 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 	}
 	describeGrants(out, prof, key, seen, added)
 	if !terminal {
-		return fmt.Errorf("profile %s waits for your answer, and this session has no terminal to ask in. To allow it, run on the host: %s", prof.Name, allowCommand(key))
+		return fmt.Errorf("profile %s waits for your answer, and this session has no terminal to ask in. To allow it, run on the host: %s", prof.Name, cli.Code(allowCommand(key)))
 	}
 	fmt.Fprint(out, "\nAllow? [y/N] ")
 	answer, _ := bufio.NewReader(in).ReadString('\n')
@@ -60,7 +61,7 @@ func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen 
 	if !seen {
 		fmt.Fprintf(out, "You have not allowed profile %s%s yet. It gives the jail:\n", t.Bold(prof.Name), where)
 		summarizeProfile(t, out, prof, term.Width(out))
-		fmt.Fprintf(out, "\n%s\n", t.Dim("doriath profiles show "+prof.Name+" lists where each entry comes from."))
+		fmt.Fprintf(out, "\n%s\n", t.Dim(cli.Code(cli.Line("profiles", "show", prof.Name))+" lists where each entry comes from."))
 		return
 	}
 	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", t.Bold(prof.Name), where)

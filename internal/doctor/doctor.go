@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/landlock"
 	"github.com/fnune/doriath/internal/notify"
@@ -117,7 +118,7 @@ func Run(ctx context.Context, opts Options) []Result {
 	secretResults, secrets := checkSecrets(ctx, opts, profiles)
 	out = append(out, secretResults...)
 	if !opts.FetchSecrets && secrets > 0 {
-		note("secrets", "run doriath doctor --secrets to fetch each one once")
+		note("secrets", "run `doriath doctor --secrets` to fetch each one once")
 	}
 
 	if podman {
@@ -140,7 +141,7 @@ func Run(ctx context.Context, opts Options) []Result {
 	out = append(out, repository(opts)...)
 
 	if desktop, err := notify.NewDesktop(time.Now); err != nil {
-		note("desktop notifications", "unavailable; approvals work through doriath approvals only")
+		note("desktop notifications", "unavailable; approvals work through `doriath approvals` only")
 	} else {
 		caps, err := desktop.Capabilities()
 		_ = desktop.Close()
@@ -148,7 +149,7 @@ func Run(ctx context.Context, opts Options) []Result {
 		case err != nil:
 			note("desktop notifications", err.Error())
 		case !slices.Contains(caps, "actions"):
-			note("desktop notifications", "the notification server shows no buttons; decide with doriath approvals")
+			note("desktop notifications", "the notification server shows no buttons; decide with `doriath approvals`")
 		default:
 			check("desktop notifications with buttons", nil)
 		}
@@ -195,13 +196,13 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 			case b.OAuth != nil:
 				_, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(name), name))
 				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
+					err = fmt.Errorf("not signed in: run %s", cli.Code(cli.Line("profiles", "login", prof.Name, name)))
 				}
 				checkSecret(label+" (oauth)", b, err)
 			case b.File != "":
 				info, err := os.Stat(b.File)
 				if err == nil && info.Mode().Perm()&0o077 != 0 {
-					check(label+" (file)", fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File))
+					check(label+" (file)", fmt.Errorf("%s is readable by other users: run %s", b.File, cli.Code(cli.Words("chmod", "600", b.File))))
 					continue
 				}
 				checkSecret(label+" (file)", b, err)

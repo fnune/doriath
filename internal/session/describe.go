@@ -66,10 +66,10 @@ func (st Status) Describe() string {
 	b.WriteString("To reach a host that is not listed, make the request: doriath then asks the user whether to allow the host. " +
 		"Do not decide that a host is unreachable before you try it. " +
 		"The first request fails, often only as \"CONNECT tunnel failed, response 403\". " +
-		"To wait for the answer, run doriath request wait HOST, in the background if you can, then try again. " +
-		"To write a path that is read-only here, run doriath request write PATH --reason TEXT, which asks the user and waits. " +
-		"To change one read-only file, such as .git/config when git or jj cannot write it, write the whole new content to a file and run doriath request edit PATH --reason TEXT < FILE, then run the git or jj command again. git here records a branch's upstream itself, and asks the user before git remote add. " +
+		"To wait for the answer, run `doriath request wait HOST` in the background if you can, then try again. " +
+		"To write a path that is read-only here, run `doriath request write PATH --reason TEXT`, which asks the user and waits. " +
+		"To change one read-only file, such as .git/config when git or jj cannot write it, write the whole new content to a file and run `doriath request edit PATH --reason TEXT < FILE`, then run the git or jj command again. git here records a branch's upstream itself, and asks the user before `git remote add`. " +
 		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +
-		"If the user denies a request, tell them what was blocked and why the task needs it. Run doriath status to see this again.\n")
+		"If the user denies a request, tell them what was blocked and why the task needs it. Run `doriath status` to see this again.\n")
 	return b.String()
 }

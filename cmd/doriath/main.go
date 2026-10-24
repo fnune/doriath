@@ -237,7 +237,7 @@ func cmdRun(args []string) (int, error) {
 	}
 	command := flags.Args()
 	if len(command) == 0 {
-		return 2, errors.New("run: name the command to run, for example: doriath run -- claude")
+		return 2, errors.New("run: name the command to run, for example: `doriath run -- claude`")
 	}
 	if err := refuseRoot(os.Geteuid()); err != nil {
 		return 1, err
@@ -255,7 +255,7 @@ func cmdRun(args []string) (int, error) {
 		return 2, err
 	}
 	if *name == "" {
-		return 2, errors.New("run: name the profile, for example: doriath run --profile my-app -- claude")
+		return 2, errors.New("run: name the profile, for example: `doriath run --profile my-app -- claude`")
 	}
 	prof, err := loader(p, start).Load(*name)
 	if err != nil {
@@ -283,7 +283,7 @@ func cmdRun(args []string) (int, error) {
 	if user.Approvals.Desktop {
 		desktop, err := notify.NewDesktop(time.Now)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use doriath approvals\n", err)
+			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use `doriath approvals`\n", err)
 		} else {
 			defer func() { _ = desktop.Close() }()
 			desktop.Page = webPage{paths: p}

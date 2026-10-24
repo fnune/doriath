@@ -365,7 +365,7 @@ func recordConfig(ctx context.Context, broker, git, config string, settings []se
 	}
 	switch {
 	case res.Pending != "":
-		return fmt.Errorf("asked you to write %s into %s; once you answer, run: doriath request wait %s, then the git command again", describe(settings), config, res.Pending)
+		return fmt.Errorf("asked you to write %s into %s; once you answer, run `doriath request wait %s`, then the git command again", describe(settings), config, res.Pending)
 	case res.Decision.Verdict == approval.VerdictAllow:
 		return nil
 	case res.Decision.Verdict == approval.VerdictDeny:

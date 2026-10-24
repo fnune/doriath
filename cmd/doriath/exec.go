@@ -40,7 +40,7 @@ func cmdExec(args []string) (int, error) {
 	defer filter.Close()
 	nsenter, err := exec.LookPath("nsenter")
 	if err != nil {
-		return 1, fmt.Errorf("doriath exec needs nsenter from util-linux: %w", err)
+		return 1, fmt.Errorf("`doriath exec` needs nsenter from util-linux: %w", err)
 	}
 	if err := entry.CheckHelper(nsenter); err != nil {
 		return 1, err
@@ -109,7 +109,7 @@ func pickSession(sessions []liveSession, id, root string, commandFor func(id str
 				return filepath.Join(root, id), nil
 			}
 		}
-		return "", fmt.Errorf("no running session %s; to list them, run: %s", id, cli.Line("status"))
+		return "", fmt.Errorf("no running session %s; to list them, run: %s", id, cli.Code(cli.Line("status")))
 	}
 	switch len(sessions) {
 	case 0:
