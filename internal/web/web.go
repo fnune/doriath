@@ -214,8 +214,8 @@ const notSignedIn = "doriath: run doriath web open to open this page"
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	if t, c := q.Get("token"), q.Get("code"); t != "" || c != "" {
-		if !s.validToken(t) && !s.useCode(c) {
+	if c := q.Get("code"); c != "" {
+		if !s.useCode(c) {
 			http.Error(w, "doriath: this link is not valid or has expired; run doriath web open for a new one", http.StatusUnauthorized)
 			return
 		}

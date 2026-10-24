@@ -156,21 +156,20 @@ func TestTheLinkSignsTheBrowserIn(t *testing.T) {
 	if w := get(h, "/", false); w.Code != http.StatusUnauthorized {
 		t.Fatalf("without the cookie: status %d", w.Code)
 	}
-	if w := get(h, "/?token=wrong", false); w.Code != http.StatusUnauthorized || len(w.Result().Cookies()) != 0 {
-		t.Fatalf("a wrong token: status %d, cookies %v", w.Code, w.Result().Cookies())
-	}
-	w := get(h, "/?token="+testToken, false)
-	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/" {
-		t.Fatalf("status %d, location %q", w.Code, w.Header().Get("Location"))
-	}
-	cookies := w.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode || cookies[0].Value != testToken {
-		t.Fatalf("cookies %+v", cookies)
+	if w := get(h, "/?code=wrong", false); w.Code != http.StatusUnauthorized || len(w.Result().Cookies()) != 0 {
+		t.Fatalf("a wrong code: status %d, cookies %v", w.Code, w.Result().Cookies())
 	}
 	for _, path := range []string{"/main"} {
 		if w := get(h, path, false); w.Code != http.StatusUnauthorized {
 			t.Errorf("%s without the cookie: status %d", path, w.Code)
 		}
+	}
+}
+
+func TestTheTokenInALinkDoesNotSignIn(t *testing.T) {
+	_, h := setup(t)
+	if w := get(h, "/?token="+testToken, false); w.Code != http.StatusUnauthorized || len(w.Result().Cookies()) != 0 {
+		t.Fatalf("status %d, cookies %v", w.Code, w.Result().Cookies())
 	}
 }
 
@@ -440,6 +439,9 @@ func TestACodeSignsInOnceAndOnlyForTheTokenHolder(t *testing.T) {
 	first := get(h, "/?code="+code, false)
 	if first.Code != http.StatusSeeOther || !strings.Contains(first.Header().Get("Set-Cookie"), cookieName+"="+testToken) {
 		t.Fatalf("the code does not sign in: %d %v", first.Code, first.Header())
+	}
+	if cookies := first.Result().Cookies(); len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode {
+		t.Fatalf("cookies %+v", cookies)
 	}
 	if again := get(h, "/?code="+code, false); again.Code != http.StatusUnauthorized {
 		t.Fatalf("the code works twice: status %d", again.Code)
