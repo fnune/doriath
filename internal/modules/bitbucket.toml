@@ -129,6 +129,21 @@ path = "/**"
 action = "allow"
 
 [[http.rules]]
+method = "*"
+path = "/2.0/users/*/ssh-keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/2.0/users/*/gpg-keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/2.0/repositories/*/*/pipelines_config/ssh/**"
+action = "deny"
+
+[[http.rules]]
 method = "POST"
 path = "/2.0/repositories/*/*/pullrequests"
 action = "allow"

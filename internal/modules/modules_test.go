@@ -52,7 +52,7 @@ func TestEveryModuleLoads(t *testing.T) {
 		{"POST", "/repos/a/b/actions/runs/1/rerun-failed-jobs", "", "allow", ""},
 		{"PUT", "/repos/a/b/contents/README.md", "", "approve", ""},
 		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve", ""},
-		{"POST", "/user/keys", "", "approve", ""},
+		{"POST", "/user/keys", "", "deny", ""},
 		{"POST", "/gists", "", "approve", ""},
 		{"PUT", "/repos/a/b/environments/prod/secrets/X", "", "deny", ""},
 		{"POST", "/graphql", `{"query":"query { viewer { login } }"}`, "allow", ""},
@@ -183,6 +183,53 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 	gitlab, _ := p.Intercepted("gitlab.com")
 	if !gitlab.EncodedSlashes || gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge") != "/api/v4/projects/42" {
 		t.Errorf("gitlab.com: encoded slashes %v, repository %q", gitlab.EncodedSlashes, gitlab.Repository("/api/v4/projects/42/merge_requests/7/merge"))
+	}
+}
+
+func TestForgeModulesRefuseChangesToSecretsAndKeysButLetThemBeListed(t *testing.T) {
+	body := "modules = [\"github\", \"gitlab\", \"forgejo\", \"bitbucket\"]\n"
+	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
+	}
+	l := &profile.Loader{Profiles: fstest.MapFS{"f.toml": {Data: []byte(body)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ host, method, path, want string }{
+		{"api.github.com", "PUT", "/repos/a/b/dependabot/secrets/X", "deny"},
+		{"api.github.com", "PUT", "/repositories/1/dependabot/secrets/X", "deny"},
+		{"api.github.com", "PUT", "/repos/a/b/codespaces/secrets/X", "deny"},
+		{"api.github.com", "PUT", "/orgs/acme/actions/secrets/X", "deny"},
+		{"api.github.com", "POST", "/orgs/acme/hooks", "deny"},
+		{"api.github.com", "POST", "/repos/a/b/actions/variables", "approve"},
+		{"api.github.com", "POST", "/user/keys", "deny"},
+		{"api.github.com", "POST", "/user/gpg_keys", "deny"},
+		{"api.github.com", "POST", "/user/ssh_signing_keys", "deny"},
+		{"api.github.com", "GET", "/user/keys", "allow"},
+		{"gitlab.com", "POST", "/api/v4/users/7/keys", "deny"},
+		{"gitlab.com", "POST", "/api/v4/users/7/impersonation_tokens", "deny"},
+		{"gitlab.com", "POST", "/api/v4/users/7/personal_access_tokens", "deny"},
+		{"gitlab.com", "POST", "/api/v4/groups/acme/service_accounts/7/personal_access_tokens", "deny"},
+		{"gitlab.com", "POST", "/api/v4/service_accounts", "deny"},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/approvals", "deny"},
+		{"gitlab.com", "POST", "/api/v4/projects/42/approvals", "deny"},
+		{"gitlab.com", "GET", "/api/v4/projects/42/approvals", "allow"},
+		{"gitlab.com", "GET", "/api/v4/projects/42/secure_files/3/download", "deny"},
+		{"gitlab.com", "GET", "/api/v4/projects/42/secure_files", "allow"},
+		{"codeberg.org", "POST", "/api/v1/admin/users/x/keys", "deny"},
+		{"codeberg.org", "GET", "/api/v1/admin/users", "allow"},
+		{"api.bitbucket.org", "POST", "/2.0/users/x/ssh-keys", "deny"},
+		{"api.bitbucket.org", "PUT", "/2.0/repositories/ws/repo/pipelines_config/ssh/key_pair", "deny"},
+		{"api.bitbucket.org", "GET", "/2.0/users/x/ssh-keys", "allow"},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok {
+			t.Fatalf("%s is not inspected", c.host)
+		}
+		if r, _ := h.Decide(c.method, c.path, nil); string(r.Action) != c.want {
+			t.Errorf("%s %s%s: %s, want %s", c.method, c.host, c.path, r.Action, c.want)
+		}
 	}
 }
 

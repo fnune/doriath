@@ -28,7 +28,7 @@ GitLab verifies commits that are signed with an SSH key of the usage type Signin
 
 - Go through: reads, merge requests and their approvals, issues, notes, and retries or cancels of pipelines and jobs. Job artifacts download from `cdn.artifacts.gitlab-static.net`.
 - Wait for your answer: merges of merge requests, releases, tags, commits and file changes through the API, changes to project settings, pushes, Git LFS uploads, and the API requests that the module does not name, GraphQL included.
-- Refused: changes to webhooks, integrations, CI variables, triggers and runners, members, invitations and shares, deploy keys, deploy tokens, access tokens, protected branches and tags, push rules, remote mirrors, transfers and the deletion of the project. Personal access tokens, SSH keys and GPG keys of the user are refused too.
+- Refused: changes to webhooks, integrations, CI variables, triggers and runners, members, invitations and shares, deploy keys, deploy tokens, access tokens, protected branches and tags, push rules, remote mirrors, transfers and the deletion of the project. Personal access tokens, SSH keys and GPG keys of the user are refused too. So are changes to the keys and tokens of other users and service accounts, and to approval rules. Downloads of secure files are refused.
 
 Branch rules, such as no force push to `main`, belong in the protected branches of the project.
 

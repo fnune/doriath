@@ -208,6 +208,11 @@ credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", b
 
 [[http.rules]]
 method = "GET"
+path = "/api/v4/projects/*/secure_files/*/download"
+action = "deny"
+
+[[http.rules]]
+method = "GET"
 path = "/api/**"
 action = "allow"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
@@ -217,6 +222,46 @@ method = "HEAD"
 path = "/api/**"
 action = "allow"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/users/*/keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/users/*/gpg_keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/users/*/impersonation_tokens/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/users/*/personal_access_tokens/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/**/service_accounts/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/service_accounts/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/approvals"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/approval_rules/**"
+action = "deny"
 
 [[http.rules]]
 method = "POST"

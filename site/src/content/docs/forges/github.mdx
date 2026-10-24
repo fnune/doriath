@@ -24,6 +24,6 @@ Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub
 
 - Go through: reads, pull requests, issues, comments and reruns of CI.
 - Wait for your answer: merges, releases, pushes, Git LFS uploads, and the API requests that the module does not name.
-- Refused: changes to webhooks, Actions secrets, collaborators and deploy keys.
+- Refused: changes to webhooks, Actions, Dependabot and Codespaces secrets, collaborators and deploy keys. Changes to the webhooks and Actions secrets of organizations, and to the SSH, GPG and signing keys of the user, are refused too.
 
 Branch rules, such as no force push to `main`, belong in the branch protection rules or rulesets of the repository.

@@ -156,6 +156,11 @@ action = "allow"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
+method = "*"
+path = "/api/v1/admin/**"
+action = "deny"
+
+[[http.rules]]
 method = "POST"
 path = "/api/v1/repos/*/*/pulls"
 action = "allow"

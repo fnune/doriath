@@ -130,6 +130,51 @@ path = "/**"
 action = "allow"
 
 [[http.rules]]
+method = "*"
+path = "/repos/*/*/dependabot/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repos/*/*/codespaces/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/dependabot/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/codespaces/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/orgs/*/actions/secrets/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/orgs/*/hooks/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/user/keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/user/gpg_keys/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/user/ssh_signing_keys/**"
+action = "deny"
+
+[[http.rules]]
 method = "POST"
 path = "/repos/*/*/pulls"
 action = "allow"
