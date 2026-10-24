@@ -41,31 +41,36 @@ func cmdRequest(args []string, w io.Writer) error {
 		return reportDecision(w, d, args[1]+" is allowed.")
 	case len(args) >= 2 && args[0] == "edit":
 		return requestEdit(ctx, broker, args[1:], os.Stdin, w)
-	case len(args) >= 2 && args[0] == "write":
+	case len(args) >= 2 && (args[0] == "write" || args[0] == "read"):
 	default:
-		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request edit PATH [--reason TEXT] < NEW_CONTENT | doriath request wait ID|HOST|PATH")
+		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request read PATH [--reason TEXT] | doriath request edit PATH [--reason TEXT] < NEW_CONTENT | doriath request wait ID|HOST|PATH")
 	}
-	flags := flag.NewFlagSet("request write", flag.ContinueOnError)
-	reason := flags.String("reason", "", "why the agent needs to write there, shown to you")
+	verb := args[0]
+	flags := flag.NewFlagSet("request "+verb, flag.ContinueOnError)
+	reason := flags.String("reason", "", "why the agent needs the path, shown to you")
 	operands, err := parseInterspersed(flags, args[1:])
 	if err != nil {
 		return err
 	}
 	if len(operands) != 1 {
-		return errors.New("request write: usage: doriath request write PATH [--reason TEXT]")
+		return fmt.Errorf("request %s: usage: doriath request %s PATH [--reason TEXT]", verb, verb)
 	}
 	path, err := filepath.Abs(operands[0])
 	if err != nil {
 		return err
 	}
+	method, params, granted := session.MethodRequestWrite, any(session.RequestWriteParams{Path: path, Reason: *reason}), path+" is writable now."
+	if verb == "read" {
+		method, params, granted = session.MethodRequestRead, session.RequestReadParams{Path: path, Reason: *reason}, path+" is readable now."
+	}
 	var res session.RequestWriteResult
-	if err := control.Call(ctx, broker, session.MethodRequestWrite, session.RequestWriteParams{Path: path, Reason: *reason}, &res); err != nil {
+	if err := control.Call(ctx, broker, method, params, &res); err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
 	if res.Pending != "" {
-		return fmt.Errorf("request: approval %s is pending. To wait for the answer, run: %s", res.Pending, cli.Code(cli.Line("request", "wait", res.Pending)))
+		return fmt.Errorf("request: approval %s is pending. The user sees it on the approvals page. To wait for the answer, run: %s", res.Pending, cli.Code(cli.Line("request", "wait", res.Pending)))
 	}
-	return reportDecision(w, res.Decision, path+" is writable now.")
+	return reportDecision(w, res.Decision, granted)
 }
 
 func requestEdit(ctx context.Context, broker string, args []string, in io.Reader, w io.Writer) error {

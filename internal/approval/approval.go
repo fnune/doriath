@@ -23,6 +23,12 @@ const (
 	// lasts for the session: a write has no natural "once", and keeping it
 	// is an edit to the profile.
 	KindPath Kind = "path"
+	// KindRead asks to show a path the jail does not show, read-only. An
+	// allow lasts for the session.
+	KindRead Kind = "read"
+	// KindSecret tells that a secret of the session is unavailable. An
+	// allow tries its source again, and a deny stops the cards for it.
+	KindSecret Kind = "secret"
 	// KindEdit asks to change a file that is read-only in the jail. doriath
 	// writes the change once.
 	KindEdit Kind = "edit"
@@ -33,7 +39,7 @@ const (
 
 // AllowsOnce says whether an allow can cover one request only. A host or a
 // write stays reachable once allowed, so those last for the session.
-func (k Kind) AllowsOnce() bool { return k != KindHost && k != KindPath }
+func (k Kind) AllowsOnce() bool { return k != KindHost && k != KindPath && k != KindRead }
 
 type Request struct {
 	ID      string `json:"id"`
@@ -48,7 +54,10 @@ type Request struct {
 	Note string `json:"note,omitempty"`
 	// Keep holds the profile lines that would keep an allow after the
 	// session ends.
-	Keep    string    `json:"keep,omitempty"`
+	Keep string `json:"keep,omitempty"`
+	// Command is what the person can run on the host instead of an answer,
+	// such as the command that gives the session a secret.
+	Command string    `json:"command,omitempty"`
 	URL     string    `json:"url,omitempty"`
 	Scope   string    `json:"scope"`
 	Created time.Time `json:"created"`

@@ -23,15 +23,19 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 	if err != nil {
 		return RequestWriteResult{}, err
 	}
+	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends."
 	if !s.visible(path) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the agent can ask to write only what it already sees; to add it, run on the host: %s", path, cli.Code(cli.Line("approvals", "grant", "--session", s.id, path)))
+		if err := requireDirectory(path); err != nil {
+			return RequestWriteResult{}, err
+		}
+		details = "The agent asks to write " + path + ", which the jail does not show. An allow shows it, writable, until the session ends."
 	}
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindPath,
 		Summary: "Let the agent write " + path,
-		Details: "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends.",
+		Details: details,
 		Note:    reason,
 		Keep:    s.mountLines(path),
 		Scope:   "path write " + path,

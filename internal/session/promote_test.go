@@ -95,11 +95,30 @@ func TestProfileHintNamesPathsInsideTheRepositoryRelatively(t *testing.T) {
 	}
 }
 
-func TestRequestWriteRefusesWhatTheAgentCannotSee(t *testing.T) {
+func TestRequestWriteOfAPathTheAgentCannotSeeAsksYou(t *testing.T) {
+	allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession}
+	notifier := &answering{seen: make(chan approval.Request, 1), decision: &allow}
+	s := newTestSession(t, notifier)
+	s.peers.init.Store(1)
+	videos := filepath.Join(s.home, "videos")
+	mkdirAll(t, videos)
+	if _, err := s.requestWrite(videos, "the renders"); err != nil {
+		t.Fatal(err)
+	}
+	req := <-notifier.seen
+	if req.Kind != approval.KindPath || !strings.Contains(req.Details, "which the jail does not show") || req.Note != "the renders" {
+		t.Errorf("request = %+v", req)
+	}
+	if len(s.promoted.requests) != 1 || s.promoted.requests[0].Visible {
+		t.Errorf("promotions = %+v", s.promoted.requests)
+	}
+}
+
+func TestRequestWriteOfAMissingPathAsksTheUserToCreateItFirst(t *testing.T) {
 	notifier := &answering{seen: make(chan approval.Request, 1)}
 	s := newTestSession(t, notifier)
 	_, err := s.requestWrite(filepath.Join(s.home, "videos"), "")
-	if err == nil || !strings.Contains(err.Error(), "run on the host: `doriath approvals grant --session s1 "+filepath.Join(s.home, "videos")+"`") {
+	if err == nil || !strings.Contains(err.Error(), "does not exist: ask the user to create it") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(notifier.seen) != 0 {

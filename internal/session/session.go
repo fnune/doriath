@@ -68,6 +68,7 @@ type Secrets interface {
 	secret.Store
 	Unavailable() map[string]error
 	Provide(name string, v secret.Value) error
+	Retry(name string)
 }
 
 type Deps struct {
@@ -114,6 +115,8 @@ type Deps struct {
 	UpstreamRoots *x509.CertPool
 	// Promote makes a path writable in the running jail.
 	Promote func(context.Context, promote.Request) error
+	// Read shows a host directory read-only in the running jail.
+	Read func(context.Context, promote.Request) error
 	// Clipboard is your clipboard, for profiles that let the agent ask for
 	// its images. Nil when doriath runs outside a desktop session.
 	Clipboard clipboard.Source
@@ -170,9 +173,10 @@ type Session struct {
 	repository      string
 	containerBroker *containers.Broker
 
-	mu       sync.Mutex
-	listings *listingCache
-	vcsEnv   map[string]string
+	mu               sync.Mutex
+	listings         *listingCache
+	dismissedSecrets map[string]bool
+	vcsEnv           map[string]string
 	// clipboardEnv points clipboard tools at the jail's Wayland display.
 	clipboardEnv map[string]string
 	roots        *vcs.RootGuard
@@ -209,7 +213,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, listings: listings}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, listings: listings, dismissedSecrets: map[string]bool{}}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -435,7 +439,7 @@ func (s *Session) startProxy() error {
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
 		Holder:        s,
-	}, s.policy, s.manager, s.deps.Secrets, issuer, s.upstreamDialer(), s.egress)
+	}, s.policy, s.manager, carding{s}, issuer, s.upstreamDialer(), s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {
 		return err
@@ -512,6 +516,7 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 			return err
 		default:
 			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", err, strings.Join(secretUsers(p, name), ", "))})
+			s.secretCard(name, err)
 		}
 	}
 	return nil

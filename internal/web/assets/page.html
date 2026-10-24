@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/assets/page.css">
 <script src="/assets/vendor/htmx.min.js" defer></script>
 <script src="/assets/vendor/idiomorph-ext.min.js" defer></script>
+<script src="/assets/page.js" defer></script>
 <noscript><meta http-equiv="refresh" content="3"></noscript>
 </head>
 <body class="doriath-ui" hx-ext="morph">
@@ -194,6 +195,12 @@
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
   {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}
 </dl>
+{{with .Command}}
+<div class="keep">
+  <p class="caption">Or run on the host:</p>
+  <div class="command"><code>{{.}}</code><button type="button" class="btn copy" data-copy="{{.}}">Copy</button></div>
+</div>
+{{end}}
 {{with .Keep}}
 <div class="keep">
   <p class="caption">To keep it after this session, add to profile {{$.Session.Profile}}:</p>
@@ -203,10 +210,12 @@
 <form class="actions" method="post" action="/decide" hx-post="/decide" hx-target="#main" hx-swap="morph:outerHTML">
   <input type="hidden" name="session" value="{{.Session.ID}}">
   <input type="hidden" name="id" value="{{.ID}}">
-  {{if .AllowsOnce}}<button class="btn primary" name="answer" value="once">Allow once</button>
+  {{if eq .Kind "secret"}}<button class="btn primary" name="answer" value="once">Try again</button>
+  <button class="btn deny" name="answer" value="deny">Dismiss</button>
+  {{else}}{{if .AllowsOnce}}<button class="btn primary" name="answer" value="once">Allow once</button>
   <button class="btn secondary" name="answer" value="session">Allow for this session</button>
   {{else}}<button class="btn primary" name="answer" value="session">Allow for this session</button>{{end}}
-  <button class="btn deny" name="answer" value="deny">Deny</button>
+  <button class="btn deny" name="answer" value="deny">Deny</button>{{end}}
 </form>
 {{end}}
 

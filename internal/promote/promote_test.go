@@ -75,7 +75,7 @@ func TestPromotionRefusesASymlinkAsTheTarget(t *testing.T) {
 	if err := os.Symlink(t.TempDir(), link); err != nil {
 		t.Fatal(err)
 	}
-	for name, op := range map[string]func(string) error{"writable": writableInPlace, "open": sendTree, "attach": attach} {
+	for name, op := range map[string]func(string) error{"writable": writableInPlace, "open": sendTree, "attach": func(p string) error { return attach(p, false) }, "attach-read": func(p string) error { return attach(p, true) }} {
 		if err := op(link); !errors.Is(err, unix.ELOOP) {
 			t.Errorf("%s: err = %v, want ELOOP", name, err)
 		}
@@ -185,7 +185,7 @@ func TestSendTreeAndAttachMountAHostDirectory(t *testing.T) {
 		}
 		_ = unix.Close(tree)
 		target := filepath.Join(realTempDir(t), "a", "videos")
-		if err := attach(target); err != nil {
+		if err := attach(target, false); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = unix.Unmount(target, unix.MNT_DETACH) })
@@ -319,4 +319,39 @@ func realTempDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+func TestAttachReadOnlyShowsAHostDirectoryThatTheJailCannotWrite(t *testing.T) {
+	inMountNamespace(t, func(t *testing.T) {
+		dir := realTempDir(t)
+		if err := os.WriteFile(filepath.Join(dir, "notes"), []byte("host"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		ours, theirs := socketpair(t)
+		if err := unix.Dup3(theirs, 3, 0); err != nil {
+			t.Fatal(err)
+		}
+		if err := sendTree(dir); err != nil {
+			t.Fatal(err)
+		}
+		tree, err := receive(ours)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Dup3(tree, 4, 0); err != nil {
+			t.Fatal(err)
+		}
+		_ = unix.Close(tree)
+		target := filepath.Join(realTempDir(t), "a", "notes")
+		if err := attach(target, true); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = unix.Unmount(target, unix.MNT_DETACH) })
+		if data, err := os.ReadFile(filepath.Join(target, "notes")); err != nil || string(data) != "host" {
+			t.Fatalf("attached directory: %q, %v", data, err)
+		}
+		if err := os.WriteFile(filepath.Join(target, "new"), []byte("x"), 0o600); !errors.Is(err, unix.EROFS) {
+			t.Errorf("write = %v, want EROFS", err)
+		}
+	})
 }

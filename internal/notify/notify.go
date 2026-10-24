@@ -47,8 +47,10 @@ func Actions(req approval.Request) []string {
 	switch req.Kind {
 	case approval.KindHost:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Ignore"}
-	case approval.KindPath:
+	case approval.KindPath, approval.KindRead:
 		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
+	case approval.KindSecret:
+		return []string{actionAllowOnce, "Try again", actionDeny, "Dismiss"}
 	}
 	return []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
 }

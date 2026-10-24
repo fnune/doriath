@@ -25,6 +25,7 @@ const (
 	MethodInform       = "inform"
 	MethodStatus       = "status"
 	MethodRequestWrite = "path.request_write"
+	MethodRequestRead  = "path.request_read"
 	MethodWait         = "approval.wait"
 )
 
@@ -135,6 +136,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.requestWrite(p.Path, p.Reason)
 		},
+		MethodRequestRead: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestReadParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestRead(p.Path, p.Reason)
+		},
 		MethodRequestEdit: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestEditParams](raw)
 			if err != nil {
@@ -151,6 +159,10 @@ func (s *Session) startBroker(ctx context.Context) error {
 			case p.Host != "":
 				return s.manager.WaitScope(ctx, "host egress "+strings.ToLower(p.Host))
 			case p.Path != "":
+				read := "path read " + filepath.Clean(p.Path)
+				if slices.ContainsFunc(s.manager.Pending(), func(r approval.Request) bool { return r.Scope == read }) {
+					return s.manager.WaitScope(ctx, read)
+				}
 				return s.manager.WaitScope(ctx, "path write "+filepath.Clean(p.Path))
 			}
 			return s.manager.Wait(ctx, p.ID)

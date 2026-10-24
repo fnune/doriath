@@ -148,3 +148,48 @@ echo done
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+func TestTheAgentAsksToReadAndWriteFoldersTheJailDoesNotShow(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	docs := filepath.Join(e.home, "docs")
+	renders := filepath.Join(e.home, "renders")
+	for _, d := range []string{docs, renders} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(docs, "design.md"), []byte("the plan\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out := e.run(e.profile(""), fmt.Sprintf(`
+set -u
+G=/run/doriath-bin/doriath
+cat %[1]s/design.md 2>/dev/null && echo "FAIL readable before the request"
+$G request read %[1]s --reason "the design docs" || echo "FAIL read request"
+grep -q 'the plan' %[1]s/design.md || echo "FAIL not readable after the allow"
+touch %[1]s/new 2>/dev/null && echo "FAIL a read grant is writable"
+$G request write %[2]s --reason "store renders" || echo "FAIL write request"
+touch %[2]s/frame || echo "FAIL not writable after the allow"
+$G request read $HOME/.ssh 2>&1 | grep -q 'does not exist\|does not show' || echo "FAIL ssh was not refused"
+$G request read %[1]s-missing 2>&1 | grep -q 'ask the user to create it' || echo "FAIL a missing folder was not refused"
+echo done
+`, docs, renders), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		if req := e.decideNext(allow); req.Kind != approval.KindRead || req.Note != "the design docs" {
+			t.Errorf("read request: %+v", req)
+		}
+		if req := e.decideNext(allow); req.Kind != approval.KindPath || !strings.Contains(req.Details, "does not show") {
+			t.Errorf("write request: %+v", req)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(renders, "frame")); err != nil {
+		t.Errorf("the write did not reach the host: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(docs, "new")); err == nil {
+		t.Error("the read grant let a write through")
+	}
+}

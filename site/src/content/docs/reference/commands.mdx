@@ -199,7 +199,15 @@ Prints the version.
 doriath request write PATH [--reason TEXT]
 ```
 
-Asks you to make a path writable.
+Asks you to make a path writable. The path can be a folder that the jail does not show yet, if it exists.
+
+### `doriath request read`
+
+```txt frame="none"
+doriath request read PATH [--reason TEXT]
+```
+
+Asks you to show a folder that the jail does not show, read-only, until the session ends.
 
 ### `doriath request edit`
 

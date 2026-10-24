@@ -76,6 +76,7 @@ type requestView struct {
 	URL        string
 	Scope      string
 	Keep       string
+	Command    string
 	Session    sessionView
 	Timer      string
 	Pace       string
@@ -237,10 +238,16 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		URL:        session.Printable(r.URL),
 		Scope:      session.Printable(r.Scope),
 		Keep:       session.Printable(r.Keep),
+		Command:    session.Printable(r.Command),
 		Session:    sv,
 		AllowsOnce: r.Kind.AllowsOnce(),
 		ByAgent:    r.Kind == approval.KindTool,
 		created:    r.Created,
+	}
+	if r.Kind == approval.KindSecret {
+		v.Timer, v.Pace, v.Fill = "", "parked", "0%"
+		v.Status = "What needs this secret fails until it works. Try again once you have fixed its source."
+		return v
 	}
 	waits := r.AgentWaits
 	if waits.IsZero() {
@@ -280,14 +287,18 @@ func answeredOf(a Answered, now time.Time) answeredView {
 		Kind:    string(a.Request.Kind),
 		Profile: sessionView{Profile: a.Request.Profile, Hue: hue(a.Request.Profile)},
 		Verdict: string(a.Decision.Verdict),
-		Label:   verdictLabel(a.Decision),
+		Label:   verdictLabel(a.Request.Kind, a.Decision),
 		Ago:     ago(now.Sub(a.Time)),
 		By:      byLabel(a.Decision.By),
 	}
 }
 
-func verdictLabel(d approval.Decision) string {
+func verdictLabel(kind approval.Kind, d approval.Decision) string {
 	switch {
+	case kind == approval.KindSecret && d.Verdict == approval.VerdictAllow:
+		return "Tried again"
+	case kind == approval.KindSecret && d.Verdict == approval.VerdictDeny:
+		return "Dismissed"
 	case d.Verdict == approval.VerdictAllow && d.Lasting == approval.LastingOnce:
 		return "Allowed once"
 	case d.Verdict == approval.VerdictAllow && d.Lasting == approval.LastingUntil:

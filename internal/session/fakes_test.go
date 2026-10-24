@@ -58,11 +58,17 @@ func denying() *answering {
 
 type promotions struct {
 	requests []promote.Request
+	reads    []promote.Request
 	err      error
 }
 
 func (p *promotions) Writable(_ context.Context, r promote.Request) error {
 	p.requests = append(p.requests, r)
+	return p.err
+}
+
+func (p *promotions) Readable(_ context.Context, r promote.Request) error {
+	p.reads = append(p.reads, r)
 	return p.err
 }
 
@@ -90,15 +96,16 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	log := audit.New(&buf, stillClock{}.Now, "s1", "p")
 	promoted := &promotions{}
 	s := &Session{
-		deps:     Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable},
-		req:      Request{Profile: &profile.Profile{Name: "p"}},
-		id:       "s1",
-		log:      log,
-		peers:    newHostPeers(""),
-		entry:    Entry{Writable: []string{home}},
-		manager:  approval.NewManager(stillClock{}, notifier, log, randomIDs{}),
-		listings: newListingCache(),
-		links:    newLinkKeeper(func(string, string) {}),
+		deps:             Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable, Read: promoted.Readable},
+		req:              Request{Profile: &profile.Profile{Name: "p"}},
+		id:               "s1",
+		log:              log,
+		peers:            newHostPeers(""),
+		entry:            Entry{Writable: []string{home}},
+		manager:          approval.NewManager(stillClock{}, notifier, log, randomIDs{}),
+		listings:         newListingCache(),
+		links:            newLinkKeeper(func(string, string) {}),
+		dismissedSecrets: map[string]bool{},
 	}
 	s.egress = newEgressLog(log)
 	s.policy = newLivePolicy(s.req.Profile, false)

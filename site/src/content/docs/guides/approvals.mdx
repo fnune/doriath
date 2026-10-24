@@ -96,15 +96,28 @@ Open the printed link in your local browser within a minute. If you use another 
   its own name to 127.0.0.1, the page does not answer it in your browser.
 </Aside>
 
-## Writable paths
+## Paths
 
-To ask for a writable path from inside the jail, run `doriath request write PATH --reason TEXT`. To wait for your answer, run `doriath request wait ID`. The agent can ask only for paths that it sees. doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
+To ask for a writable path from inside the jail, run `doriath request write PATH --reason TEXT`. To ask to read a folder that the jail does not show, run `doriath request read PATH --reason TEXT`. Each request waits for you on the approvals page, and an allow lasts until the session ends. To wait for your answer, run `doriath request wait ID`.
+
+- A folder that the jail does not show must exist. Otherwise doriath tells the agent to ask you to create it.
+- A read shows the whole folder read-only. doriath refuses a folder that holds a path the profile hides.
+- doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
 
 doriath tells the agent to plan its changes first and ask once, for the narrowest file or directory that covers them all, because each edit request below asks you again.
 
 Where `request write` refuses, such as `.git/config`, the agent runs `doriath request edit PATH --reason TEXT` with the new content as input. The request shows what changes, and doriath writes it once. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
 
 On the host, `doriath approvals grant PATH` makes a path writable in the running session. It can also attach a directory that the jail does not see yet. It refuses a path that does not exist, so a typo does not create a folder.
+
+## Secrets
+
+When a secret is unavailable, such as an expired login, the page shows a card for it. The card names the error and what fails without the secret. It holds the command that gives the session a value, [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide), with a button that copies it. For an OAuth login, it holds `doriath profiles login` instead.
+
+- **Try again** reads the secret's source at once, such as after you log in again.
+- **Dismiss** stops the cards for that secret until the session ends. Requests that need it still fail.
+
+The agent gets the request's id in its error, and waits for the card with `doriath request wait ID`.
 
 ## Clipboard images
 

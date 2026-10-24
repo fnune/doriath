@@ -31,7 +31,7 @@ func TestRequestNeedsASession(t *testing.T) {
 
 func TestRequestUsage(t *testing.T) {
 	startBroker(t)
-	for _, args := range [][]string{nil, {"write"}, {"wait"}, {"wait", "a", "b"}, {"read", "/tmp"}} {
+	for _, args := range [][]string{nil, {"write"}, {"wait"}, {"wait", "a", "b"}, {"read"}} {
 		if _, err := request(t, args...); err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("request %q = %v", args, err)
 		}
@@ -66,7 +66,7 @@ func TestRequestWriteReportsTheDecision(t *testing.T) {
 		"denied":            {decision: approval.Decision{Verdict: approval.VerdictDeny}, want: "request: denied"},
 		"denied for reason": {decision: approval.Decision{Verdict: approval.VerdictDeny, Reason: "not there"}, want: "request: denied: not there"},
 		"expired":           {decision: approval.Decision{Verdict: approval.VerdictNone}, want: "nobody decided before the request expired"},
-		"pending":           {pending: "s1-r4", want: "approval s1-r4 is pending. To wait for the answer, run: `doriath request wait s1-r4`"},
+		"pending":           {pending: "s1-r4", want: "approval s1-r4 is pending. The user sees it on the approvals page. To wait for the answer, run: `doriath request wait s1-r4`"},
 		"broker error":      {fail: errors.New("path is hidden"), want: "path is hidden"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -182,5 +182,23 @@ func TestFlagsParseAfterTheOperandThoughTheFlagPackageStopsThere(t *testing.T) {
 		if err != nil || !slices.Equal(got, want) {
 			t.Errorf("%s = %q, %v, want %q", args, got, err, want)
 		}
+	}
+}
+
+func TestRequestReadSendsTheAbsolutePathAndReason(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	out, err := request(t, "read", "notes", "--reason", "the design docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, _ := os.Getwd()
+	if len(b.reads) != 1 || b.reads[0].Path != filepath.Join(cwd, "notes") || b.reads[0].Reason != "the design docs" {
+		t.Errorf("reads = %+v", b.reads)
+	}
+	if !strings.Contains(out, "is readable now") {
+		t.Errorf("out = %q", out)
 	}
 }

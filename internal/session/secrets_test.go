@@ -5,7 +5,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -54,16 +56,17 @@ func TestARequiredSecretStopsTheSession(t *testing.T) {
 
 func TestAProvidedSecretLeavesTheStatusAndTheAuditLogNamesIt(t *testing.T) {
 	s := sessionWithSecrets(t, map[string]secret.Backend{"acme": {Command: []string{"acme-token"}}})
+	s.dismissedSecrets["acme"] = true
 	if err := s.fetchSecrets(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.provide("acme", secret.NewValue([]byte("tok"))); err != nil {
+	if err := s.provide("acme", secret.NewValue([]byte("s3cr3t-v4lue"))); err != nil {
 		t.Fatal(err)
 	}
 	if st := s.status(); len(st.Unavailable) != 0 {
 		t.Errorf("unavailable after provide = %+v", st.Unavailable)
 	}
-	if log := s.audit.String(); !strings.Contains(log, `"secret-provided"`) || strings.Contains(log, "tok") {
+	if log := s.audit.String(); !strings.Contains(log, `"secret-provided"`) || strings.Contains(log, "s3cr3t-v4lue") {
 		t.Errorf("audit log = %s", log)
 	}
 }
@@ -73,5 +76,50 @@ func TestTheSigningKeyCannotBeProvided(t *testing.T) {
 	s.req.Profile.SigningKey = "signing"
 	if err := s.provide("signing", secret.NewValue([]byte("key"))); err == nil || !strings.Contains(err.Error(), "signing key") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestAFailingSecretShowsOneCardAndTellsTheAgentWhatToWaitFor(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"acme": {Command: []string{"acme-token"}}})
+	for range 2 {
+		_, err := carding{s.Session}.Get(context.Background(), "acme")
+		if err == nil || !strings.Contains(err.Error(), "doriath asked the user to fix it on the approvals page") || !strings.Contains(err.Error(), "`doriath request wait ") {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	pending := s.manager.Pending()
+	if len(pending) != 1 || pending[0].Kind != approval.KindSecret || pending[0].Command != "doriath secrets provide --session s1 acme" {
+		t.Fatalf("pending = %+v", pending)
+	}
+}
+
+func TestDismissingASecretCardStopsTheCardsForIt(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"acme": {Command: []string{"acme-token"}}})
+	_, _ = carding{s.Session}.Get(context.Background(), "acme")
+	card := s.manager.Pending()[0]
+	if err := s.manager.Decide(card.ID, approval.Decision{Verdict: approval.VerdictDeny}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		done := s.dismissedSecrets["acme"]
+		s.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	_, err := carding{s.Session}.Get(context.Background(), "acme")
+	if err == nil || strings.Contains(err.Error(), "approvals page") || len(s.manager.Pending()) != 0 {
+		t.Errorf("after dismiss: err = %v, pending = %+v", err, s.manager.Pending())
+	}
+}
+
+func TestAnOAuthCardNamesTheLoginCommand(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"linear": {OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}})
+	s.secretCard("linear", errors.New("not signed in"))
+	if p := s.manager.Pending(); len(p) != 1 || p[0].Command != "doriath profiles login deploy linear" {
+		t.Errorf("pending = %+v", p)
 	}
 }

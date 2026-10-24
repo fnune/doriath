@@ -77,6 +77,7 @@ Setup:
 Inside a jail:
   doriath status
   doriath request write PATH [--reason TEXT]
+  doriath request read PATH [--reason TEXT]
   doriath request wait ID|HOST|PATH
 `
 
@@ -318,6 +319,7 @@ func cmdRun(args []string) (int, error) {
 		HostWait:    hostWait(user.Approvals, notifier),
 		SystemdRun:  lookPath("systemd-run"),
 		Promote:     promote.Writable,
+		Read:        promote.Readable,
 		Clipboard:   hostClipboard(os.Getenv, lookPath("wl-paste")),
 	}
 	finishInterrupted(p, deps.Stderr)

@@ -551,7 +551,7 @@ func TestAMissingSecretFailsClosedAndTellsTheAgentWhoFixesIt(t *testing.T) {
 	if rec.Code != http.StatusBadGateway || h.upstream.count() != 0 {
 		t.Fatalf("status %d, upstream %d", rec.Code, h.upstream.count())
 	}
-	if msg := deniedMessage(t, rec); !strings.Contains(msg, "Ask the user to fix the secret on the host") {
+	if msg := deniedMessage(t, rec); !strings.Contains(msg, "doriath tries again within 30 seconds") {
 		t.Errorf("message = %q", msg)
 	}
 }

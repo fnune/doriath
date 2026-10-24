@@ -457,3 +457,39 @@ func TestACodeLinkOpensItsRequest(t *testing.T) {
 		t.Errorf("redirect = %q", got)
 	}
 }
+
+func TestASecretCardOffersTheCommandToCopyAndToTryAgain(t *testing.T) {
+	card := request("a1", approval.KindSecret, "Secret acme is unavailable")
+	card.Command = "doriath secrets provide --session s1 acme"
+	sessions, h := setup(t, card)
+	body := get(h, "/?request=s1/a1", true).Body.String()
+	for _, want := range []string{
+		`<script src="/assets/page.js" defer></script>`,
+		`<code>doriath secrets provide --session s1 acme</code>`,
+		`data-copy="doriath secrets provide --session s1 acme"`,
+		`value="once">Try again</button>`,
+		`value="deny">Dismiss</button>`,
+		"What needs this secret fails until it works.",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if strings.Contains(body, "Allow for this session") {
+		t.Error("a secret card offers an allow")
+	}
+	if w := post(h, url.Values{"session": {"s1"}, "id": {"a1"}, "answer": {"once"}}, "http://"+testAddr, false); w.Code >= 400 {
+		t.Fatalf("try again: status %d", w.Code)
+	}
+	if len(sessions.decided) != 1 {
+		t.Errorf("decided %+v", sessions.decided)
+	}
+}
+
+func TestThePageScriptIsServed(t *testing.T) {
+	_, h := setup(t)
+	w := get(h, "/assets/page.js", false)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "navigator.clipboard.writeText") {
+		t.Errorf("status %d: %s", w.Code, w.Body.String())
+	}
+}

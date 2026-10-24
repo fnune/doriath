@@ -55,6 +55,17 @@ func Writable(ctx context.Context, r Request) error {
 	return enter(ctx, r, []*os.File{tree}, "attach", r.Path)
 }
 
+// Readable shows r.Path, a host directory the jail cannot see, read-only in
+// the jail.
+func Readable(ctx context.Context, r Request) error {
+	tree, err := openHostTree(ctx, r)
+	if err != nil {
+		return err
+	}
+	defer tree.Close()
+	return enter(ctx, r, []*os.File{tree}, "attach-read", r.Path)
+}
+
 func enter(ctx context.Context, r Request, extra []*os.File, args ...string) error {
 	userNS, err := os.Open("/proc/" + strconv.Itoa(r.Reaper) + "/ns/user")
 	if err != nil {
@@ -125,7 +136,12 @@ func Inner(args []string) error {
 		if len(guards) > 0 {
 			return errors.New("__promote: attach takes its guards from the tree it receives")
 		}
-		return attach(path)
+		return attach(path, false)
+	case "attach-read":
+		if len(guards) > 0 {
+			return errors.New("__promote: attach-read takes no guards")
+		}
+		return attach(path, true)
 	}
 	return fmt.Errorf("__promote: unknown operation %q", op)
 }
@@ -238,13 +254,19 @@ func receive(sock int) (int, error) {
 	return fds[0], nil
 }
 
-func attach(path string) error {
+func attach(path string, readOnly bool) error {
 	target, err := mkdirNoSymlinks(path)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = unix.Close(target) }()
-	_ = unix.MountSetattr(4, "", unix.AT_EMPTY_PATH, &clearReadOnly)
+	if readOnly {
+		if err := unix.MountSetattr(4, "", unix.AT_EMPTY_PATH|unix.AT_RECURSIVE, &setReadOnly); err != nil {
+			return fmt.Errorf("make %s read-only: %w", path, err)
+		}
+	} else {
+		_ = unix.MountSetattr(4, "", unix.AT_EMPTY_PATH, &clearReadOnly)
+	}
 	return unix.MoveMount(4, "", target, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH)
 }
 

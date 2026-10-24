@@ -142,7 +142,7 @@ doriath holds each push for your approval, but it does not decide which branches
 - One session can plant files in caches and container storage that later sessions of the same profile trust. This includes a program at a writable path that `binaries` names, which the next session pins with its credential.
 - `doriath approvals grant` on the host can attach a directory that the jail does not see, and so lets the agent read it. A grant lasts until the session ends, because an open file stays open after doriath removes a mount.
 
-These paths let you resume sessions, read output, reuse build caches and add writable paths without a restart. The helper that applies each grant has full capabilities over the mounts. It runs doriath's own read-only binary and never follows symlinks.
+These paths let you resume sessions, read output, reuse build caches and add writable paths and readable folders without a restart. The helper that applies each grant has full capabilities over the mounts. It runs doriath's own read-only binary and never follows symlinks.
 
 ### Other trust
 

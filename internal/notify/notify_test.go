@@ -103,3 +103,13 @@ func TestThePageBodyNamesTheProfileAndLeavesTheRestToThePage(t *testing.T) {
 		t.Errorf("body = %q", got)
 	}
 }
+
+func TestASecretCardOffersToTryAgainOrDismiss(t *testing.T) {
+	got := Actions(approval.Request{Kind: approval.KindSecret})
+	if len(got) != 4 || got[1] != "Try again" || got[3] != "Dismiss" {
+		t.Errorf("actions = %v", got)
+	}
+	if got := Actions(approval.Request{Kind: approval.KindRead}); got[1] != "Allow for this session" {
+		t.Errorf("read actions = %v", got)
+	}
+}

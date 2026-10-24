@@ -236,6 +236,14 @@ func (c *Configured) Provide(name string, v Value) error {
 	return nil
 }
 
+// Retry forgets that a secret failed, so that the next Get reads its source
+// at once.
+func (c *Configured) Retry(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.failed, name)
+}
+
 // Unavailable returns the last error of each secret that doriath has not
 // read since it failed.
 func (c *Configured) Unavailable() map[string]error {

@@ -476,7 +476,7 @@ func (s *Server) credentialHeader(ctx context.Context, c profile.Credential) (st
 }
 
 func unavailable(err error) error {
-	return fmt.Errorf("%w. Ask the user to fix the secret on the host, where `doriath secrets provide` gives the session a value. doriath tries again within 30 seconds", err)
+	return fmt.Errorf("%w. doriath tries again within 30 seconds", err)
 }
 
 func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {
