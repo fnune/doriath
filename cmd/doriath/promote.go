@@ -67,7 +67,7 @@ func cmdRequest(args []string, w io.Writer) error {
 	if verb == "read" {
 		method, params, granted = session.MethodRequestRead, session.RequestReadParams{Path: path, Reason: *reason}, path+" is readable now."
 	}
-	var res session.RequestWriteResult
+	var res session.RequestResult
 	if err := control.Call(ctx, broker, method, params, &res); err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
@@ -87,7 +87,7 @@ func requestHost(ctx context.Context, broker string, args []string, w io.Writer)
 	if len(operands) != 1 {
 		return errors.New("request host: usage: doriath request host HOST [--reason TEXT]")
 	}
-	var res session.RequestWriteResult
+	var res session.RequestResult
 	if err := control.Call(ctx, broker, session.MethodRequestHost, session.RequestHostParams{Host: operands[0], Reason: *reason}, &res); err != nil {
 		return fmt.Errorf("request: %w", err)
 	}

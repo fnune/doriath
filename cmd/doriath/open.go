@@ -24,7 +24,7 @@ func requestOpen(ctx context.Context, broker string, args []string, w io.Writer)
 	if len(operands) != 1 {
 		return errors.New("request open: usage: doriath request open URL [--reason TEXT]")
 	}
-	var res session.RequestWriteResult
+	var res session.RequestResult
 	if err := control.Call(ctx, broker, session.MethodRequestOpen, session.RequestOpenParams{URL: operands[0], Reason: *reason}, &res); err != nil {
 		return fmt.Errorf("request: %w", err)
 	}

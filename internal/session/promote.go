@@ -18,15 +18,15 @@ import (
 
 // requestWrite asks you whether the agent may write path, and makes it
 // writable when you allow it.
-func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) {
+func (s *Session) requestWrite(path, reason string) (RequestResult, error) {
 	path, err := s.checkPromotion(path)
 	if err != nil {
-		return RequestWriteResult{}, err
+		return RequestResult{}, err
 	}
 	details := "The agent asks to write " + path + ", which is read-only in the jail. An allow lasts until the session ends."
 	if !s.visible(path) {
 		if err := requireDirectory(path); err != nil {
-			return RequestWriteResult{}, err
+			return RequestResult{}, err
 		}
 		details = "The agent asks to write " + path + ", which the jail does not show. An allow shows it, writable, until the session ends."
 	}
@@ -40,16 +40,20 @@ func (s *Session) requestWrite(path, reason string) (RequestWriteResult, error) 
 		Keep:    s.mountLines(path),
 		Scope:   "path write " + path,
 	}
+	return s.holdAndGrant(req, func() error { return s.grantWrite(context.Background(), path) })
+}
+
+func (s *Session) holdAndGrant(req approval.Request, grant func() error) (RequestResult, error) {
 	granted := make(chan error, 1)
 	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
 		if d.Verdict == approval.VerdictAllow {
-			granted <- s.grantWrite(context.Background(), path)
+			granted <- grant()
 		}
 	})
-	res := RequestWriteResult{Decision: d}
+	res := RequestResult{Decision: d}
 	switch {
 	case d.Verdict == approval.VerdictAllow && id == "":
-		return res, nil
+		return res, grant()
 	case d.Verdict == approval.VerdictAllow:
 		return res, <-granted
 	case d.Verdict == approval.VerdictNone:
@@ -129,9 +133,24 @@ func (s *Session) mountLines(path string) string {
 	return fmt.Sprintf("[[mounts]]\npath = %q\nmode = \"write\"", s.profilePath(path))
 }
 
-// checkPromotion returns the clean path, or why doriath does not make it
-// writable during a session.
 func (s *Session) checkPromotion(path string) (string, error) {
+	return s.checkGrant(path, true)
+}
+
+func (s *Session) checkRead(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		if err := requireDirectory(filepath.Clean(path)); err != nil {
+			return "", err
+		}
+	}
+	return s.checkGrant(path, false)
+}
+
+func (s *Session) checkGrant(path string, write bool) (string, error) {
+	verb := "show"
+	if write {
+		verb = "make writable"
+	}
 	if !filepath.IsAbs(path) {
 		return "", fmt.Errorf("%s: name an absolute path", path)
 	}
@@ -145,34 +164,40 @@ func (s *Session) checkPromotion(path string) (string, error) {
 		return "", fmt.Errorf("%s: %w", path, err)
 	}
 	for _, private := range s.privatePaths() {
-		if within(path, private) {
-			return "", fmt.Errorf("%s: doriath does not make %s writable: it holds keys, logins, config that names programs the host runs, or doriath's own state", path, private)
+		if within(path, private) || !write && within(private, path) {
+			return "", fmt.Errorf("%s: doriath does not %s %s: it holds keys, logins, config that names programs the host runs, or doriath's own state", path, verb, private)
 		}
 	}
-	if profile.UnderTrustedRoot(path + "/") {
+	if write && profile.UnderTrustedRoot(path+"/") {
 		return "", fmt.Errorf("%s: credentials and egress programs trust programs under it by name", path)
 	}
 	for _, system := range []string{"/dev", "/proc", "/sys", "/run", "/var/tmp"} {
 		if within(path, system) {
-			return "", fmt.Errorf("%s: doriath does not make system paths writable", path)
+			return "", fmt.Errorf("%s: doriath does not %s system paths during a session", path, verb)
 		}
 	}
 	for _, part := range strings.Split(path, "/") {
-		if part == ".git" || part == ".jj" {
-			return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with vcs-readwrite or vcs-readonly they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s", path, cli.Code(cli.Line("request", "edit", "PATH", "--reason", "TEXT")+" < NEW_CONTENT"))
+		if part != ".git" && part != ".jj" {
+			continue
 		}
+		if !write {
+			return "", fmt.Errorf("%s: doriath does not show paths inside .git or .jj on their own", path)
+		}
+		return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with vcs-readwrite or vcs-readonly they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s", path, cli.Code(cli.Line("request", "edit", "PATH", "--reason", "TEXT")+" < NEW_CONTENT"))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, m := range s.req.Profile.Mounts {
-		if m.Mode == profile.ModeHide && within(path, m.Path) {
+		switch {
+		case m.Mode == profile.ModeHide && (within(path, m.Path) || !write && within(m.Path, path)):
 			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
-		}
-		if m.Mode == profile.ModeWrite && within(path, m.Path) {
+		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
 			return "", fmt.Errorf("%s is already writable", path)
+		case !write && m.Mode != profile.ModeHide && within(path, m.Path):
+			return "", fmt.Errorf("%s is already readable", path)
 		}
 	}
-	if !slices.ContainsFunc(s.entry.Writable, func(root string) bool { return within(path, root) }) {
+	if write && !slices.ContainsFunc(s.entry.Writable, func(root string) bool { return within(path, root) }) {
 		return "", fmt.Errorf("%s: only paths under %s can become writable during a session, because Landlock fixes its rules when the jail starts; add it to [[mounts]] with mode = \"write\" instead", path, strings.Join(s.entry.Writable, ", "))
 	}
 	return path, nil

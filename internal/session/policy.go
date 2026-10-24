@@ -188,24 +188,24 @@ type RequestHostParams struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-func (s *Session) requestHost(host, reason string) (RequestWriteResult, error) {
+func (s *Session) requestHost(host, reason string) (RequestResult, error) {
 	pattern, err := profile.ParseHostPattern(host)
 	if err != nil || strings.ContainsAny(string(pattern), "*/") {
-		return RequestWriteResult{}, fmt.Errorf("%s: name one host, such as registry.npmjs.org", host)
+		return RequestResult{}, fmt.Errorf("%s: name one host, such as registry.npmjs.org", host)
 	}
 	host = string(pattern)
 	if s.policy.AllowsHostFor(host, "") {
-		return RequestWriteResult{Decision: approval.Decision{Verdict: approval.VerdictAllow, Reason: "the profile already allows it"}}, nil
+		return RequestResult{Decision: approval.Decision{Verdict: approval.VerdictAllow, Reason: "the profile already allows it"}}, nil
 	}
 	if s.policy.Refuses(host) {
-		return RequestWriteResult{}, fmt.Errorf("%s: the profile refuses it, so doriath does not ask the user", host)
+		return RequestResult{}, fmt.Errorf("%s: the profile refuses it, so doriath does not ask the user", host)
 	}
 	details := fmt.Sprintf("The agent asks to reach %s, which the profile does not allow. An allow lasts until the session ends.%s", host, uploadWarning(host))
 	if note := s.req.Profile.HostNote(host); note != "" {
 		details = host + ": " + note + "\n\n" + details
 	}
 	d, id := s.holdHost(host, details, reason)
-	res := RequestWriteResult{Decision: d}
+	res := RequestResult{Decision: d}
 	if d.Verdict == approval.VerdictNone {
 		res.Pending = id
 	}

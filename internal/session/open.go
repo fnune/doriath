@@ -28,10 +28,10 @@ const (
 	signInDuration = 5 * time.Minute
 )
 
-func (s *Session) requestOpen(raw, reason string) (RequestWriteResult, error) {
+func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 	u, err := checkLink(raw)
 	if err != nil {
-		return RequestWriteResult{}, err
+		return RequestResult{}, err
 	}
 	host := strings.ToLower(u.Hostname())
 	rule, ok := s.req.Profile.OpenRule(host, linkPath(u))
@@ -40,9 +40,9 @@ func (s *Session) requestOpen(raw, reason string) (RequestWriteResult, error) {
 	}
 	switch rule.Action {
 	case profile.ActionDeny:
-		return RequestWriteResult{}, fmt.Errorf("%s: the profile refuses to open links to %s", raw, host)
+		return RequestResult{}, fmt.Errorf("%s: the profile refuses to open links to %s", raw, host)
 	case profile.ActionAllow:
-		return RequestWriteResult{Decision: approval.Decision{Verdict: approval.VerdictAllow}}, s.openLink(u, rule.ForwardRedirect)
+		return RequestResult{Decision: approval.Decision{Verdict: approval.VerdictAllow}}, s.openLink(u, rule.ForwardRedirect)
 	}
 	req := approval.Request{
 		Session: s.id,
@@ -54,22 +54,7 @@ func (s *Session) requestOpen(raw, reason string) (RequestWriteResult, error) {
 		URL:     u.String(),
 		Scope:   "open " + host,
 	}
-	opened := make(chan error, 1)
-	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
-		if d.Verdict == approval.VerdictAllow {
-			opened <- s.openLink(u, true)
-		}
-	})
-	res := RequestWriteResult{Decision: d}
-	switch {
-	case d.Verdict == approval.VerdictAllow && id == "":
-		return res, s.openLink(u, true)
-	case d.Verdict == approval.VerdictAllow:
-		return res, <-opened
-	case d.Verdict == approval.VerdictNone:
-		res.Pending = id
-	}
-	return res, nil
+	return s.holdAndGrant(req, func() error { return s.openLink(u, true) })
 }
 
 func checkLink(raw string) (*url.URL, error) {

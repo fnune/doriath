@@ -259,7 +259,7 @@ func startBroker(t *testing.T) *fakeBroker {
 			if b.fail != nil {
 				return nil, b.fail
 			}
-			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+			return session.RequestResult{Decision: b.decision, Pending: b.pending}, nil
 		},
 		session.MethodRequestOpen: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.RequestOpenParams](raw)
@@ -269,7 +269,7 @@ func startBroker(t *testing.T) *fakeBroker {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			b.opens = append(b.opens, params)
-			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+			return session.RequestResult{Decision: b.decision, Pending: b.pending}, nil
 		},
 		session.MethodRequestHost: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.RequestHostParams](raw)
@@ -279,7 +279,7 @@ func startBroker(t *testing.T) *fakeBroker {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			b.hosts = append(b.hosts, params)
-			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+			return session.RequestResult{Decision: b.decision, Pending: b.pending}, nil
 		},
 		session.MethodRequestRead: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.RequestReadParams](raw)
@@ -292,7 +292,7 @@ func startBroker(t *testing.T) *fakeBroker {
 			if b.fail != nil {
 				return nil, b.fail
 			}
-			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+			return session.RequestResult{Decision: b.decision, Pending: b.pending}, nil
 		},
 		session.MethodRequestEdit: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.RequestEditParams](raw)

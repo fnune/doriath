@@ -39,9 +39,9 @@ type WaitParams struct {
 	Path string `json:"path,omitempty"`
 }
 
-// RequestWriteResult is the decision, or the id of the request that is
+// RequestResult is the decision, or the id of the request that is
 // still pending once the wait is over.
-type RequestWriteResult struct {
+type RequestResult struct {
 	Decision approval.Decision `json:"decision"`
 	Pending  string            `json:"pending,omitempty"`
 }

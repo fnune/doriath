@@ -60,3 +60,16 @@ func TestReadRequestsThatDoriathRefusesBeforeAsking(t *testing.T) {
 		t.Error("a request that doriath refuses must not interrupt you")
 	}
 }
+
+func TestAReadAttachesTheWholeFolderSoOneThatHoldsAHiddenPathIsRefused(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	project := filepath.Join(s.home, "project")
+	mkdirAll(t, filepath.Join(project, "secrets"))
+	s.req.Profile.Mounts = []profile.Mount{{Path: filepath.Join(project, "secrets"), Mode: profile.ModeHide}}
+	if _, err := s.requestRead(project, ""); err == nil || !strings.Contains(err.Error(), "hides") {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := s.checkPromotion(project); err != nil && strings.Contains(err.Error(), "hides") {
+		t.Errorf("a write keeps the hiding mount on top, so it needs no refusal: %v", err)
+	}
+}
