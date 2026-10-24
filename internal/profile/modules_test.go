@@ -34,6 +34,8 @@ func TestClaudeRefusesAPIKeysInEitherHeader(t *testing.T) {
 		"bearer api key":  {http.Header{"Authorization": {"Bearer sk-ant-api03-abc"}}, profile.ActionDeny},
 		"lowercase":       {http.Header{"Authorization": {"bearer SK-ANT-API03-abc"}}, profile.ActionDeny},
 		"admin key":       {http.Header{"Authorization": {"Bearer sk-ant-admin01-abc"}}, profile.ActionDeny},
+		"two spaces":      {http.Header{"Authorization": {"Bearer  sk-ant-api03-abc"}}, profile.ActionDeny},
+		"a tab":           {http.Header{"Authorization": {" Bearer\tsk-ant-api03-abc"}}, profile.ActionDeny},
 		"key after login": {http.Header{"Authorization": {"Bearer sk-ant-oat01-abc", "Bearer sk-ant-api03-abc"}}, profile.ActionDeny},
 	} {
 		if r, _ := h.DecideRequest("POST", "/v1/messages", tc.header, nil); r.Action != tc.want {

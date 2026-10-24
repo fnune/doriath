@@ -108,3 +108,15 @@ func TestOperationRulesNeedTheirParts(t *testing.T) {
 		}
 	}
 }
+
+func TestAHeaderPrefixMatchesHoweverTheValueIsSpaced(t *testing.T) {
+	h := HTTPHost{Default: ActionAllow, Rules: []Rule{{Method: "*", Path: "/**", Header: "Authorization", HeaderPrefix: "Bearer key-", Action: ActionDeny}}}
+	for _, v := range []string{"Bearer key-1", "Bearer  key-1", "Bearer\tkey-1", " bearer \t key-1"} {
+		if r, _ := h.DecideRequest("GET", "/", http.Header{"Authorization": {v}}, nil); r.Action != ActionDeny {
+			t.Errorf("%q: %s, want deny", v, r.Action)
+		}
+	}
+	if r, _ := h.DecideRequest("GET", "/", http.Header{"Authorization": {"Bearerkey-1"}}, nil); r.Action != ActionAllow {
+		t.Errorf("a value without the space matched: %s", r.Action)
+	}
+}

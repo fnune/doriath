@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -985,7 +986,8 @@ func (r Rule) matchHeader(header http.Header) bool {
 				return true
 			}
 		case r.HeaderPrefix != "":
-			if len(v) >= len(r.HeaderPrefix) && strings.EqualFold(v[:len(r.HeaderPrefix)], r.HeaderPrefix) {
+			v, prefix := collapseSpace(v), collapseSpace(r.HeaderPrefix)
+			if len(v) >= len(prefix) && strings.EqualFold(v[:len(prefix)], prefix) {
 				return true
 			}
 		case v != "":
@@ -993,6 +995,26 @@ func (r Rule) matchHeader(header http.Header) bool {
 		}
 	}
 	return false
+}
+
+func collapseSpace(s string) string {
+	var b strings.Builder
+	space := false
+	for _, c := range strings.TrimLeftFunc(s, unicode.IsSpace) {
+		if unicode.IsSpace(c) {
+			space = true
+			continue
+		}
+		if space {
+			b.WriteByte(' ')
+			space = false
+		}
+		b.WriteRune(c)
+	}
+	if space {
+		b.WriteByte(' ')
+	}
+	return b.String()
 }
 
 func (r Rule) matchForm(form func() url.Values) bool {
