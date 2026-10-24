@@ -147,3 +147,40 @@ func Added(approved, now []string) []string {
 	}
 	return out
 }
+
+// Removed returns the grants in approved that now lacks and that held the
+// jail back: a deny or approve rule, a hidden path, the programs or hosts
+// a credential is limited to, a host default, or an agent's own refusals.
+// Without them the profile gives more, although no line was added.
+func Removed(approved, now []string) []string {
+	var out []string
+	for _, g := range approved {
+		if _, found := slices.BinarySearch(now, g); !found && Restrictive(g) {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+var restrictiveSuffixes = []string{".Mode: hide", `"Action":"deny"`, `"Action":"approve"`, ".Default: deny", ".Default: approve"}
+
+var restrictiveKeys = []string{".Credential.Binaries: ", ".Only: ", "Claude.Deny: ", "Claude.Ask: ", "Claude.DeniedMCPServers: ", "Claude.AllowedMCPServers: ", "Limits."}
+
+// Restrictive says whether a grant line limits what the jail can do, so
+// that dropping it widens the profile.
+func Restrictive(line string) bool {
+	if strings.Contains(line, OrderSuffix) {
+		return false
+	}
+	for _, s := range restrictiveSuffixes {
+		if strings.Contains(line, s) {
+			return true
+		}
+	}
+	for _, k := range restrictiveKeys {
+		if strings.Contains(line, k) {
+			return true
+		}
+	}
+	return false
+}

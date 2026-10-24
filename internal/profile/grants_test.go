@@ -107,3 +107,61 @@ func TestARefusedHostGivesTheJailNothing(t *testing.T) {
 		t.Errorf("dropping a refusal counts as more, though the host still asks: %v", added)
 	}
 }
+
+func TestDroppingARestrictionIsARemovedGrant(t *testing.T) {
+	const binaries = `
+[[http]]
+host = "cred.example"
+credential = { secret = "token", binaries = ["gh"] }
+only = ["cred.example"]
+default = "deny"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "approve"
+`
+	const claude = `
+[claude]
+deny = ["WebFetch"]
+`
+	const hidden = `
+[[mounts]]
+path = "/home/u/notes/.env"
+mode = "hide"
+`
+	base := grantsOf(t, grantsBase+binaries+claude+hidden)
+	for _, tc := range []struct{ name, from, to, want string }{
+		{"a deny rule", denyAdmin, "", `HTTP[api.example].Rules: {"Action":"deny","Method":"*","Path":"/admin/**"}`},
+		{"an approve rule", "action = \"approve\"\n", "action = \"allow\"\n", `HTTP[cred.example].Rules: {"Action":"approve","Method":"GET","Path":"/**"}`},
+		{"the programs of a credential", `, binaries = ["gh"]`, "", "HTTP[cred.example].Credential.Binaries: gh"},
+		{"the hosts a wildcard is limited to", "only = [\"cred.example\"]\n", "", "HTTP[cred.example].Only: cred.example"},
+		{"a host default", "default = \"deny\"\n", "", "HTTP[cred.example].Default: deny"},
+		{"a hidden path", hidden, "", "Mounts[/home/u/notes/.env].Mode: hide"},
+		{"an agent refusal", claude, "", "Claude.Deny: WebFetch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := grantsOf(t, strings.Replace(grantsBase+binaries+claude+hidden, tc.from, tc.to, 1))
+			removed := Removed(base, now)
+			if !slices.Contains(removed, tc.want) {
+				t.Errorf("removed = %q, want %q in it", removed, tc.want)
+			}
+		})
+	}
+}
+
+func TestNarrowingRemovesNoRestriction(t *testing.T) {
+	base := grantsOf(t, grantsBase)
+	for name, narrower := range map[string]string{
+		"a host":        strings.Replace(grantsBase, `allow = ["a.example"]`, `allow = []`, 1),
+		"a mount":       strings.Replace(grantsBase, "[[mounts]]\npath = \"/home/u/notes\"\n", "", 1),
+		"an allow rule": strings.Replace(grantsBase, allowReads, "", 1),
+	} {
+		if removed := Removed(base, grantsOf(t, narrower)); len(removed) != 0 {
+			t.Errorf("%s: removed = %q", name, removed)
+		}
+	}
+	if Restrictive("HTTP[api.example].Rules" + OrderSuffix + "abcd") {
+		t.Error("a new order of rules is an added grant, not a removed restriction")
+	}
+}

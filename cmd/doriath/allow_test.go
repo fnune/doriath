@@ -161,3 +161,27 @@ func TestALongListWrapsUnderItsLabel(t *testing.T) {
 		t.Errorf("got %q, want %q", out.String(), want)
 	}
 }
+
+func TestADroppedRestrictionAsksAndShowsTheLine(t *testing.T) {
+	withDeny := appProfile("a.example")
+	withDeny.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionApprove, Rules: []profile.Rule{{Method: "*", Path: "/admin/**", Action: profile.ActionDeny}}}}
+	store := memoryGrants{}
+	if _, err := confirm(t, store, withDeny, "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	withoutDeny := appProfile("a.example")
+	withoutDeny.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionApprove}}
+	out, err := confirm(t, store, withoutDeny, "n\n", true)
+	if err == nil {
+		t.Fatal("a profile without the deny rule started without a question")
+	}
+	if !strings.Contains(out, "gives the jail more than when you allowed it") || !strings.Contains(out, `- HTTP[api.example].Rules: {"Action":"deny","Method":"*","Path":"/admin/**"}`) {
+		t.Errorf("output:\n%s", out)
+	}
+	if _, err := confirm(t, store, withoutDeny, "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := confirm(t, store, withoutDeny, "", true); err != nil || out != "" {
+		t.Errorf("the allowed profile asked again: %v\n%s", err, out)
+	}
+}

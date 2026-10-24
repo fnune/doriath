@@ -311,7 +311,7 @@ You have not allowed profile my-app in /home/me/src/my-app yet. It gives the jai
 Allow? [y/N]
 ```
 
-doriath keeps what you allowed. When the profile later gives more, the next session shows only the new lines and asks again. This covers your own edits, a profile from a pull or a merge, and a new version of a built-in module. A profile that gives less starts without a question.
+doriath keeps what you allowed. When the profile later gives more, the next session shows only the changed lines and asks again. This covers your own edits, a profile from a pull or a merge, and a new version of a built-in module. A profile gives more when it adds a line, and also when it loses a line that held the agent back: a `deny` or `approve` rule, a hidden path, the `binaries` or `only` of a credential, a host `default`, or an agent's own refusals. Such lines show with a `-`. A profile that only loses hosts, mounts or allow rules starts without a question.
 
 ```txt
 Profile my-app in /home/me/src/my-app gives the jail more than when you allowed it:

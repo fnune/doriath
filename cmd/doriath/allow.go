@@ -33,13 +33,14 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 		return err
 	}
 	added := profile.Added(approved, grants)
-	if seen && len(added) == 0 {
+	removed := profile.Removed(approved, grants)
+	if seen && len(added) == 0 && len(removed) == 0 {
 		if slices.Equal(approved, grants) {
 			return nil
 		}
 		return store.Allow(key, grants)
 	}
-	describeGrants(out, prof, key, seen, added)
+	describeGrants(out, prof, key, seen, added, removed)
 	if !terminal {
 		return fmt.Errorf("profile %s waits for your answer, and this session has no terminal to ask in. To allow it, run on the host: %s", prof.Name, cli.Code(allowCommand(key)))
 	}
@@ -52,7 +53,7 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 	return errors.New("you did not allow profile " + prof.Name)
 }
 
-func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen bool, added []string) {
+func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen bool, added, removed []string) {
 	t := term.New(out)
 	where := ""
 	if key.Repository != "" {
@@ -67,6 +68,12 @@ func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen 
 	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", t.Bold(prof.Name), where)
 	for _, line := range readableAdditions(added) {
 		fmt.Fprintln(out, "  "+t.Tint(term.Warn, "+")+" "+line)
+	}
+	if len(removed) > 0 {
+		fmt.Fprintf(out, "\nIt lost lines that held the agent back:\n\n")
+	}
+	for _, line := range removed {
+		fmt.Fprintln(out, "  "+t.Tint(term.Problem, "-")+" "+line)
 	}
 }
 
@@ -108,8 +115,9 @@ func profilesAllow(l *profile.Loader, store grantStore, name, dir string, out io
 	if err != nil {
 		return err
 	}
-	if added := profile.Added(approved, grants); !seen || len(added) > 0 {
-		describeGrants(out, prof, key, seen, added)
+	added, removed := profile.Added(approved, grants), profile.Removed(approved, grants)
+	if !seen || len(added) > 0 || len(removed) > 0 {
+		describeGrants(out, prof, key, seen, added, removed)
 	}
 	if err := store.Allow(key, grants); err != nil {
 		return err
