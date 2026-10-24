@@ -10,6 +10,8 @@ import (
 
 const refCommandsLimit = 64 << 10
 
+const unreadRefs = "refs doriath could not read"
+
 const zeroID = "0000000000000000000000000000000000000000"
 
 type refUpdate struct {
@@ -45,9 +47,9 @@ func abbrev(id string) string {
 	return id
 }
 
-func pushedRefs(r *http.Request) []refUpdate {
+func pushedRefs(r *http.Request) ([]refUpdate, bool) {
 	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/git-receive-pack") || r.Body == nil || !identityEncoding(r.Header.Get("Content-Encoding")) {
-		return nil
+		return nil, false
 	}
 	buffered := bufio.NewReaderSize(r.Body, refCommandsLimit)
 	ahead, _ := buffered.Peek(refCommandsLimit)
@@ -58,21 +60,40 @@ func pushedRefs(r *http.Request) []refUpdate {
 	return parseRefCommands(ahead)
 }
 
-func parseRefCommands(data []byte) []refUpdate {
-	var out []refUpdate
-	for len(data) >= 4 {
+func parseRefCommands(data []byte) (refs []refUpdate, unread bool) {
+	for {
+		if len(data) < 4 {
+			return refs, true
+		}
 		size, err := strconv.ParseUint(string(data[:4]), 16, 16)
-		if err != nil || size == 0 || size < 4 || int(size) > len(data) {
-			break
+		if err == nil && size == 0 {
+			return refs, unread
+		}
+		if err != nil || size < 4 || int(size) > len(data) {
+			return refs, true
 		}
 		line := string(data[4:size])
 		data = data[size:]
 		line, _, _ = strings.Cut(line, "\x00")
 		fields := strings.Fields(line)
-		if len(fields) != 3 || len(fields[0]) != len(zeroID) || len(fields[1]) != len(zeroID) || !strings.HasPrefix(fields[2], "refs/") {
-			break
+		switch {
+		case len(fields) == 2 && fields[0] == "shallow":
+		case len(fields) == 3 && objectID(fields[0]) && len(fields[1]) == len(fields[0]) && objectID(fields[1]) && strings.HasPrefix(fields[2], "refs/"):
+			refs = append(refs, refUpdate{old: fields[0], new: fields[1], ref: fields[2]})
+		default:
+			unread = true
 		}
-		out = append(out, refUpdate{old: fields[0], new: fields[1], ref: fields[2]})
 	}
-	return out
+}
+
+func objectID(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			return false
+		}
+	}
+	return true
 }

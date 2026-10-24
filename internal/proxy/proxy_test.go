@@ -360,6 +360,9 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	if c := at("/fnune/other/git-receive-pack"); c == a {
 		t.Error("a push grant for one repository must not answer a push to another")
 	}
+	if e := at("/fnune/project.git/git-receive-pack/"); e != a {
+		t.Errorf("a trailing slash must keep the repository in the scope: %q", e)
+	}
 	if d := at("/group/sub/proj.git/git-receive-pack"); !strings.HasSuffix(d, " in /group/sub/proj") {
 		t.Errorf("a repository in a subgroup must be named whole: %q", d)
 	}
@@ -850,8 +853,8 @@ func TestParseRefCommands(t *testing.T) {
 	data := pktLine(old+" "+next+" refs/heads/main\x00report-status side-band-64k\n") +
 		pktLine(zeroID+" "+next+" refs/heads/feature/x\n") +
 		pktLine(old+" "+zeroID+" refs/tags/v1\n") + "0000PACK..."
-	got := parseRefCommands([]byte(data))
-	if len(got) != 3 {
+	got, unread := parseRefCommands([]byte(data))
+	if len(got) != 3 || unread {
 		t.Fatalf("got %+v", got)
 	}
 	shorts := []string{got[0].short(), got[1].short(), got[2].short()}
@@ -862,9 +865,27 @@ func TestParseRefCommands(t *testing.T) {
 		t.Errorf("lines %q, %q, %q", got[0].line(), got[1].line(), got[2].line())
 	}
 	for _, junk := range []string{"", "zzzz", "0005x", "0010short\n", "PACK"} {
-		if refs := parseRefCommands([]byte(junk)); len(refs) != 0 {
+		if refs, _ := parseRefCommands([]byte(junk)); len(refs) != 0 {
 			t.Errorf("%q gave %+v", junk, refs)
 		}
+	}
+}
+
+func TestAPushSaysWhichRefsItCouldNotRead(t *testing.T) {
+	old, next := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	sha256 := strings.Repeat("c", 64)
+	data := pktLine(old+" "+next+" HEAD\x00report-status\n") +
+		pktLine(old+" "+next+" refs/heads/main\n") +
+		pktLine(sha256+" "+strings.Repeat("d", 64)+" refs/heads/next\n") + "0000PACK..."
+	got, unread := parseRefCommands([]byte(data))
+	if len(got) != 2 || got[0].ref != "refs/heads/main" || got[1].ref != "refs/heads/next" || !unread {
+		t.Errorf("got %+v, unread %v", got, unread)
+	}
+	if _, unread := parseRefCommands([]byte(pktLine(old + " " + next + " refs/heads/main\n"))); !unread {
+		t.Error("commands cut off before the flush packet read as complete")
+	}
+	if _, unread := parseRefCommands([]byte(pktLine("shallow "+old+"\n") + pktLine(old+" "+next+" refs/heads/main\n") + "0000")); unread {
+		t.Error("a push from a shallow clone has refs doriath could not read")
 	}
 }
 

@@ -353,6 +353,7 @@ func gitRepository(path string) string {
 	if i := strings.IndexAny(path, "?#"); i >= 0 {
 		path = path[:i]
 	}
+	path = strings.TrimSuffix(path, "/")
 	for _, e := range gitEndpoints {
 		if repo, ok := strings.CutSuffix(path, e); ok && repo != "" {
 			return strings.TrimSuffix(strings.ToLower(repo), ".git")

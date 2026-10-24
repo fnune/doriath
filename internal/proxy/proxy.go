@@ -337,11 +337,15 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			summary += " " + tools
 		}
 		details := fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body))
-		if refs := pushedRefs(r); len(refs) > 0 {
-			names := make([]string, len(refs))
-			for i, u := range refs {
-				names[i] = u.short()
+		if refs, unread := pushedRefs(r); len(refs) > 0 || unread {
+			var names []string
+			for _, u := range refs {
+				names = append(names, u.short())
 				details += "\n" + u.line()
+			}
+			if unread {
+				names = append(names, unreadRefs)
+				details += "\n" + unreadRefs
 			}
 			summary += ": " + strings.Join(names, ", ")
 		}
