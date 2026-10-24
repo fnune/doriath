@@ -14,11 +14,11 @@ doriath starts Claude with settings that it generates:
 - The `.claude/settings.json` of the repository stays as it was at session start, so the agent cannot loosen its own permissions.
 - At session start, Claude learns what the jail allows, what `doriath:` errors mean, and how to ask for a host or a writable path.
 - Permission prompts go to the [approval queue](/guides/approvals/). If you do not answer in time, Claude shows its own prompt. A question that Claude asks you, such as a choice between options or a plan to approve, stays in Claude.
-- Claude's notifications reach your desktop through doriath, except its notice that it waits for your next message, which Claude does not show on the desktop either.
+- Claude's notifications reach your desktop through doriath.
 - MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. Your own MCP servers stay outside the jail.
 - When the session ends, doriath copies the transcripts back to your `~/.claude`, so you can resume outside the jail.
 
-Set the adapter under `[claude]` in the profile. How long a permission prompt waits for you before Claude shows its own is `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys).
+Set the adapter under `[claude]` in the profile. `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) sets how long a permission prompt waits for you before Claude shows its own.
 
 ```toml
 [claude]
@@ -40,15 +40,13 @@ allowed_mcp_servers = ["https://mcp.example.com/mcp"]
 allow = ["mcp-proxy.anthropic.com"]
 ```
 
-Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `claude` module refuses without asking you while connectors are off.
-
-`/mcp` in a session outside doriath shows the name and URL of each connector.
+Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `claude` module refuses while connectors are off. To find the name and URL of each connector, run `/mcp` in a session outside doriath.
 
 ## Remote Control
 
 To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. The `claude` module keeps the feature-flag fetch that Remote Control needs, and turns off telemetry, error reports, feedback and updates.
 
-Permission prompts go to the doriath queue first, and to your phone only if you do not answer in time. After an answer from the phone, the command still goes through the proxy and its rules. Anyone with the claude.ai login of the profile can control the session. The jail rules stay the same for that person.
+Permission prompts go to the doriath queue first, and to your phone if you do not answer in time. A command that you allow from the phone still goes through the proxy and its rules. Anyone with the claude.ai login of the profile can control the session, within the same jail.
 
 ## Sharing your login
 

@@ -81,7 +81,7 @@ doriath doctor
 
 Without an installation, `nix run github:fnune/doriath -- doctor` does the same check.
 
-doriath needs Linux with unprivileged user namespaces. macOS is out of scope for now. The [`podman` module](/reference/modules/#podman) also needs podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user. `grep $USER /etc/subuid /etc/subgid` shows these ids.
+doriath needs Linux with unprivileged user namespaces. The [`podman` module](/reference/modules/#podman) also needs podman, util-linux `unshare` and `nsenter`, and subordinate ids for your user. `grep $USER /etc/subuid /etc/subgid` shows these ids.
 
 ## Write a profile
 
@@ -92,9 +92,7 @@ description = "My app"
 modules = ["vcs-readwrite", "docs", "go", "node", "claude"]
 ```
 
-To let an agent read the project and write the profile with you, see [profiles with an agent](/guides/profile-setup/).
-
-For another agent, use its module instead of `claude`, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
+For another agent, use its module instead of `claude`, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and the module behind each part. An agent can also write the profile with you, as [profiles with an agent](/guides/profile-setup/) describes.
 
 With `vcs-readwrite`, the agent edits and commits in your checkout. For sessions side by side, it works in worktrees: the `claude` module puts them in `.claude/worktrees`. To use another folder, add it as a mount:
 
@@ -106,9 +104,7 @@ mode = "write"
 
 ## Create credentials for the profile
 
-Make new credentials for each profile. Then a token can reach only the repositories of its profile, and you can revoke it alone. The agent never reads the credentials, because doriath adds them outside the jail.
-
-These steps are for GitHub. [Forges](/forges/) has the steps for GitLab, Forgejo and Bitbucket.
+Make new credentials for each profile, so that a token reaches only the repositories of its profile, and you can revoke it alone. The agent never reads them, because the proxy adds them outside the jail. These steps are for GitHub, and [forges](/forges/) has the steps for the other forges.
 
 1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
 2. Keep the token in your password manager under a name such as `github-my-app`.
@@ -140,7 +136,7 @@ The `github` module asks for the secret `github`, so that name is fixed. You cho
 
 ## Find the hosts of a build
 
-A first build usually needs hosts that the modules do not name. In learning mode, every public host is reachable for one session. At the end, doriath prints the `[egress]` lines to add to the profile:
+A first build often needs hosts that the modules do not name. In learning mode, every public host is reachable for one session, and at the end doriath prints the `[egress]` lines to add to the profile:
 
 ```sh
 doriath run --profile my-app --learn -- make build
@@ -164,4 +160,4 @@ The first session of a profile in a repository shows what the profile gives the 
 
 Held requests show as desktop notifications. Without a desktop, use `doriath web open` or `doriath approvals`, as [answering requests](/guides/approvals/) describes.
 
-A plain `claude` still runs outside the jail. To start it in the jail, use an alias such as `alias claude-app='doriath run --profile my-app -- claude'`. For a whole project, use a line in its `.envrc`, as [projects with direnv](/guides/direnv/) describes.
+A plain `claude` still runs outside the jail. To start the jail each time, use an alias such as `alias claude-app='doriath run --profile my-app -- claude'`, or a line in the project's `.envrc`, as [projects with direnv](/guides/direnv/) describes.

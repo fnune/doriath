@@ -3,6 +3,12 @@ import starlight from "@astrojs/starlight";
 
 export default defineConfig({
   site: "https://doriath.fnune.com",
+  redirects: {
+    "/forges/github": "/forges/#github",
+    "/forges/gitlab": "/forges/#gitlab",
+    "/forges/forgejo": "/forges/#forgejo-gitea-and-codeberg",
+    "/forges/bitbucket": "/forges/#bitbucket",
+  },
   image: {
     service: passthroughImageService(),
   },
@@ -67,16 +73,7 @@ export default defineConfig({
             { label: "Looking inside a session", slug: "guides/inside-a-session" },
           ],
         },
-        {
-          label: "Forges",
-          items: [
-            { label: "Overview", slug: "forges" },
-            { label: "GitHub", slug: "forges/github" },
-            { label: "GitLab", slug: "forges/gitlab" },
-            { label: "Forgejo and Codeberg", slug: "forges/forgejo" },
-            { label: "Bitbucket", slug: "forges/bitbucket" },
-          ],
-        },
+        { label: "Forges", slug: "forges" },
         {
           label: "Agents",
           items: [

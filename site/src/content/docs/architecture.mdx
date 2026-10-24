@@ -49,23 +49,17 @@ A request waits for your answer in these cases:
 - The agent runs `doriath request write` for a path.
 - An agent with an [adapter](/agents/#adapters), such as Claude Code, shows a permission prompt.
 
-doriath holds the request while you decide, so an allow lets the first try through. No allow lasts longer than the session. Answers come only from your desktop session, your terminal or the approvals page, which the jail cannot reach. [Answering requests](/guides/approvals/) has the details.
+doriath holds the request while you decide, so an allow lets the first try through. No allow lasts longer than the session. Answers come only from your desktop, your terminal or the approvals page, which the jail cannot reach. See [answering requests](/guides/approvals/).
 
 ## Repositories
 
 With the [`vcs-readwrite` module](/reference/modules/#vcs-readwrite), the agent edits your checkout, commits, makes branches and adds worktrees. Files that your machine runs on its own stay read-only. With `vcs-readonly`, the whole checkout stays read-only, and the agent works in worktrees. Either way the git and jj store is writable. The files that decide what git and jj run stay read-only: config, hooks, `info`, `commondir` and the jj store pointers.
 
-When a session starts, doriath records your branches and bookmarks and copies the loose objects. When it ends, doriath does these steps:
-
-- It keeps the old position of each branch that the agent moved.
-- It removes objects that git cannot verify.
-- It points each worktree that the agent added to your repository again.
-
-`doriath restore SESSION` puts the moved branches where they were, or only the ones that you name. [Repositories](/reference/configuration/#repositories) has the details.
+When a session starts, doriath records your branches and bookmarks, and copies the loose objects. When it ends, doriath keeps the old position of each branch that the agent moved, removes objects that git cannot verify, and repairs the worktrees that the agent added. `doriath restore SESSION` puts moved branches back. [Repositories](/reference/configuration/#repositories) has the details.
 
 ## Containers and MCP servers
 
-The `podman` module starts podman in its own user namespace, behind a broker that checks each API call, against the images and mounts of the profile. [Containers](/reference/configuration/#containers) has the details.
+The `podman` module starts podman in its own user namespace. A broker checks each API call against the images and mounts of the profile. See [containers](/reference/configuration/#containers).
 
 MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. For a remote server, doriath holds or refuses tools by name.
 

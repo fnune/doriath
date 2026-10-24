@@ -6,10 +6,15 @@
 - Prose you write, in docs, the site, comments, commit messages and error messages, follows [site/STYLE.md](site/STYLE.md). Its list of patterns that read as generated applies everywhere: no sentences in matching pairs or triplets, no "not X, but Y", no question headings, and none of the listed words.
 - Keep generic code free of agent and forge names. An agent's specifics live in its module, and in its adapter under `internal/agents/` only where data cannot express them. A forge's specifics live in its module, as `[[http]]` entries and rules. Choose behaviour from the profile's modules, never from a command name or a host name in Go.
 - Before you add a case for Claude Code or GitHub, check how a second agent (Codex, Gemini CLI) or a second forge (GitLab, Forgejo) would need the same thing, and build the general mechanism.
-- In docs, describe a generic feature in neutral words, and name Claude Code or GitHub only as an example. Detail that applies to one agent or one forge goes on its own page.
+- In docs, describe a generic feature in neutral words, and name Claude Code or GitHub only as an example. Detail for one agent goes on its own page, and detail for one forge goes in its section of the Forges page.
 - The approvals page and the documentation site share their look through `internal/ui`. Change it there, and check both.
 - User documentation lives in `site/src/content/docs` and is published at https://doriath.fnune.com. Link there from Markdown in the repository instead of repeating it. `docs/` holds only what contributors need.
 - [site/STYLE.md](site/STYLE.md) also sets how pages are structured: cross-link keys, modules and commands to their reference, introduce examples, explain outside tools before using them, cover remote hosts, and give real reasons instead of labels. Apply the same habits to READMEs and to Markdown elsewhere in the repository.
 - Docs describe doriath as it is meant to work. Track where the code falls short in the todo list, and remove an item when a change closes it.
 - When a change opens or closes a gap, update the limits on the threat model page with it. Escape scripts marked `expect: gap` fail until it matches.
+- Shipped modules keep the two rules in the profiles section of the [threat model](site/src/content/docs/threat-model.mdx). Most profiles only combine modules, so a module that breaks a rule breaks most sessions.
+    - Do not make a path writable if the host runs files from it on its own, such as shell startup files, `~/.local/bin` or git hooks. Put agent state in `[[caches]]`, which are copies for each profile, and never in a writable mount of the home.
+    - If a tool in a repository loads a file on its own, add that file to the read-only list of `vcs-readwrite`. Examples are files that direnv, a hook manager or an editor loads.
+    - A host with a `credential` must not allow every request. Allow reads and named writes, deny admin and secret endpoints, and let `default = "approve"` hold the rest. Extend the module tests, such as `TestForgeModulesHoldWritesAndRefuseSecrets`, with each new host.
+    - If a module must break a rule, as `nix-daemon` does, say so in its `description` and in the limits on the threat model page.
 - Examples in TOML code blocks on the site must load: `TestDocExamplesLoad` checks each one.

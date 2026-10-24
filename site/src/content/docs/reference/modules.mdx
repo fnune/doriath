@@ -5,15 +5,13 @@ description: The built-in modules a profile can list, and what each one allows.
 
 import ModuleSource from "../../../components/ModuleSource.astro";
 
-A module holds the mounts, caches, hosts, environment and request rules of one toolchain or service. A profile lists modules in `modules`, as [configuration](/reference/configuration/) describes. Each section on this page shows the file that doriath ships.
-
-These commands show the modules on your machine:
+A module holds the mounts, caches, hosts, environment and request rules of one tool or service. A profile lists modules in `modules`, as [configuration](/reference/configuration/#profiles-and-modules) describes. Each section on this page shows the file that doriath ships.
 
 - `doriath modules list` shows each module and where it comes from.
-- `doriath modules show NAME` prints a module, and `--path` prints its path for an editor.
+- `doriath modules show NAME` prints a module, and `--path` prints its path.
 - `doriath profiles show NAME` names the module behind each mount, host and rule of a profile.
 
-To change a built-in module, save your own copy in `~/.config/doriath/modules/` with a new name, such as `my-github`, and list that name in place of the built-in one. `doriath modules show NAME` prints the built-in module to start from. A copy with the name of the built-in module is an error, so that no module changes what a profile loads without notice. A module lists the secrets it uses in `uses_secrets`, and the profile gives their sources, as [profiles and modules](/reference/configuration/#profiles-and-modules) describes.
+To change a built-in module, save a copy in `~/.config/doriath/modules/` with a new name, such as `my-github`, and list that name in its place. A copy with the name of a built-in module is an error, so that no module changes what a profile loads without notice.
 
 ## Modules in every profile
 
@@ -57,126 +55,126 @@ doriath loads these modules into every profile, before the profile's own modules
 
 ## vcs-readwrite
 
-With `vcs-readwrite`, the agent edits the repository that you start in, commits, branches and adds git worktrees or jj workspaces. The checkout and the store become writable. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files of mise and of agents, such as `mise.toml` and `.claude/settings.json`, and the files that the [modules in every profile](#modules-in-every-profile) hold, such as `.envrc` and `.vscode`. The agent reads them, and changes one with `doriath request edit`, which shows you the new content first.
+The agent edits and commits in the repository that you start in, and adds git worktrees or jj workspaces. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files of mise and of agents, such as `mise.toml` and `.claude/settings.json`, and the files that the [modules in every profile](#modules-in-every-profile) hold, such as `.envrc` and `.vscode`. The agent changes one of them with [`doriath request edit`](/reference/configuration/#edits), which shows you the new content first.
 
 <ModuleSource name="vcs-readwrite" />
 
 ## vcs-readonly
 
-`vcs-readonly` is `vcs-readwrite` with a read-only checkout. The agent commits, branches and adds worktrees, but cannot change your files. Use it for a session that reviews or answers questions. Where both modules are listed, the read-only checkout holds.
+`vcs-readwrite` with a read-only checkout. The agent commits, branches and adds worktrees, and cannot change your files. Use it for a session that reviews or answers questions. If a profile lists both modules, the checkout stays read-only.
 
 <ModuleSource name="vcs-readonly" />
 
 ## docs
 
-With `docs`, the agent can read documentation sites without an approval. No host in it accepts writes without a login, thus the agent cannot send data to these hosts.
+Documentation sites that the agent reads without an approval. No host in this list accepts writes without a login.
 
 <ModuleSource name="docs" />
 
 ## github
 
-`github` adds your token to requests from `gh` and `git`, and the agent never sees the token. Give its source under `[secrets.github]` in the profile. [GitHub](/forges/github/) tells which requests go through, wait or are refused.
+Your token for `gh` and `git`, from `[secrets.github]`. See [GitHub](/forges/#github).
 
 <ModuleSource name="github" />
 
 ## gitlab
 
-`gitlab` adds your token to requests from `git` and `glab` on `gitlab.com`, and reads the encoded project paths of the GitLab API. [GitLab](/forges/gitlab/) tells which requests go through, wait or are refused.
+Your token for `git` and `glab` on `gitlab.com`, from `[secrets.gitlab]`. See [GitLab](/forges/#gitlab).
 
 <ModuleSource name="gitlab" />
 
 ## forgejo
 
-`forgejo` covers Codeberg, and Forgejo or Gitea on a host of your own. It adds your token to requests from `git`, `tea`, `fj` and `berg`. See [Forgejo, Gitea and Codeberg](/forges/forgejo/).
+Your token for `git`, `tea`, `fj` and `berg` on Codeberg, from `[secrets.forgejo]`. See [Forgejo, Gitea and Codeberg](/forges/#forgejo-gitea-and-codeberg).
 
 <ModuleSource name="forgejo" />
 
 ## bitbucket
 
-`bitbucket` adds your token to requests from `git` on `bitbucket.org` and from `curl` on `api.bitbucket.org`. See [Bitbucket](/forges/bitbucket/).
+Your token for `git` on `bitbucket.org` and `curl` on `api.bitbucket.org`, from `[secrets.bitbucket]`. See [Bitbucket](/forges/#bitbucket).
 
 <ModuleSource name="bitbucket" />
 
 ## aws
 
-`aws` gives the jail placeholder AWS keys, and the proxy signs each request again with the credentials of `[secrets.aws]`, which stay on your machine. Reads go through, other calls wait for your answer, and calls that return credentials are refused. See [Cloud credentials](/guides/cloud/).
+Placeholder AWS keys in the jail. The proxy signs each request again with the credentials of `[secrets.aws]`. See [cloud credentials](/guides/cloud/#aws).
 
 <ModuleSource name="aws" />
 
 ## claude
 
-For Claude Code, `claude` gives the profile its own `~/.claude` and its own login. Your `CLAUDE.md`, settings, skills and plugins are mounted read-only. Connectors are off, and doriath refuses all requests with an `x-api-key` header. See [Claude Code](/agents/claude-code/).
+Claude Code with its own `~/.claude` and login for the profile, and your settings read-only. See [Claude Code](/agents/claude-code/).
 
 <ModuleSource name="claude" />
 
 ## codex
 
-For OpenAI's Codex CLI, `codex` gives the profile its own `~/.codex` and its own login. Your `AGENTS.md`, skills and prompts are mounted read-only. The adapter writes the config of the session. See [Codex](/agents/codex/).
+OpenAI's Codex CLI with its own `~/.codex` and login for the profile. See [Codex](/agents/codex/).
 
 <ModuleSource name="codex" />
 
 ## gemini
 
-For Google's Gemini CLI, `gemini` gives the profile its own `~/.gemini` and its own login. Your commands, skills, agents and policies are mounted read-only, and your `GEMINI.md` comes with the session text. See [Gemini CLI](/agents/gemini-cli/).
+Google's Gemini CLI with its own `~/.gemini` and login for the profile. See [Gemini CLI](/agents/gemini-cli/).
 
 <ModuleSource name="gemini" />
 
 ## opencode
 
-For opencode, `opencode` gives the profile its own data, state and cache folders, and mounts your `~/.config/opencode` read-only. Allow the hosts of your provider in the profile. See [opencode](/agents/opencode/).
+opencode with its own data, state and cache folders for the profile. See [opencode](/agents/opencode/).
 
 <ModuleSource name="opencode" />
 
 ## go
 
-With `go`, Go builds can reach the module proxy and the checksum database. The build, module and golangci-lint caches stay in the profile.
+The Go module proxy and checksum database, and caches for builds, modules and golangci-lint.
 
 <ModuleSource name="go" />
 
 ## node
 
-`node` allows the npm and Yarn registries and the Node.js downloads. It adds caches for npm, pnpm and node-gyp.
+The npm and Yarn registries and the Node.js downloads, and caches for npm, pnpm and node-gyp.
 
 <ModuleSource name="node" />
 
 ## maven
 
-`maven` allows Maven Central and keeps the local repository in a cache of the profile. doriath gives every JVM the address of its proxy in `JAVA_TOOL_OPTIONS`, because Java ignores `HTTPS_PROXY`. Maven uses that address only with the flag that this module sets in `MAVEN_OPTS`.
+Maven Central, and a cache for the local repository. Java ignores `HTTPS_PROXY`, so doriath gives every JVM the proxy in `JAVA_TOOL_OPTIONS`. Maven uses it only with the flag that this module sets in `MAVEN_OPTS`.
 
 <ModuleSource name="maven" />
 
 ## playwright
 
-With `playwright`, Playwright downloads its browsers into a cache of the profile.
+A cache for the browsers that Playwright downloads.
 
 <ModuleSource name="playwright" />
 
 ## pre-commit
 
-With `pre-commit`, pre-commit builds hook environments in a cache of the profile, from PyPI and the hook repositories.
+PyPI and the hook repositories, and a cache for hook environments.
 
 <ModuleSource name="pre-commit" />
 
 ## nix
 
-`nix` gives caches and hosts to the Nix tools in the jail. To reach the daemon, add the `nix-daemon` module.
+Caches and hosts for the Nix tools in the jail. For the daemon, add `nix-daemon`.
 
 <ModuleSource name="nix" />
 
 ## nix-daemon
 
-`nix-daemon` connects the jail to the nix daemon of your system, for `nix-shell -p`, `nix build` and `nix develop`. The builds then run outside the jail, and reach the network without the allowlist. To keep more inside the jail, enter a dev shell before `doriath run`.
+The nix daemon of your system, for `nix-shell -p`, `nix build` and `nix develop`. The builds run outside the jail, and reach the network without the allowlist. To keep more in the jail, enter a dev shell before `doriath run`.
 
 <ModuleSource name="nix-daemon" />
 
 ## podman
 
-`podman` starts a podman service for the session in its own user namespace, behind a broker that checks each API call. Containers share the network of the session. Thus they reach the internet only through the proxy, and the agent reaches their ports on localhost. [Containers](/reference/configuration/#containers) describes images and binds.
+A podman service for the session, behind a broker that checks each API call. Containers share the network of the session, so they reach the internet only through the proxy. See [containers](/reference/configuration/#containers).
 
 <ModuleSource name="podman" />
 
 ## clipboard
 
-`clipboard` lets you paste images, such as screenshots, into the agent. The jail gets a Wayland display that offers only the images in your clipboard, so agents read them the way they would outside the jail, whether through `wl-paste` or the Wayland protocol. Each read asks you, [once or for the session](/guides/approvals/). Text in your clipboard never reaches the jail through this display, and the agent cannot set your clipboard through it. The agent can still set the clipboard with an escape sequence in its terminal output, as the [threat model](/threat-model/#trust-that-returns-to-the-host) says. doriath reads the clipboard with `wl-paste` on your machine, so the module needs a Wayland session and wl-clipboard.
+Images from your clipboard, such as screenshots, after you [allow each read](/guides/approvals/#clipboard-images). The jail gets a Wayland display that offers only those images, so `wl-paste` and the Wayland protocol work as outside the jail. Text never reaches the jail through this display, and the agent cannot set your clipboard through it. The agent can still set the clipboard with an escape sequence in its terminal output, as the [threat model](/threat-model/#trust-that-returns-to-the-host) says. The module needs a Wayland session and wl-clipboard on your machine.
 
 <ModuleSource name="clipboard" />

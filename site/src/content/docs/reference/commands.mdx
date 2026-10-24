@@ -3,7 +3,7 @@ title: Commands
 description: Every doriath command, on the host and inside a jail.
 ---
 
-You give the values of arguments in capitals. Arguments in brackets are optional. A command that works on one session takes `--session ID`, which you need only when more than one session runs.
+Arguments in capitals are values that you give. Arguments in brackets are optional. A command for one session takes `--session ID`, which you need only when more than one session runs.
 
 ## Sessions
 
@@ -13,7 +13,9 @@ You give the values of arguments in capitals. Arguments in brackets are optional
 doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
 ```
 
-Runs a command in a jail for the profile. `NAME` can join several profiles with `+`, as [composed profiles](/reference/configuration/#composed-profiles) describes, such as `my-app+repo:dev` with a [repository profile](/reference/configuration/#repository-profiles). `--current DIR` sets the folder of the session, in place of the working folder. Before the first session of a profile, and when it gives more than you allowed, `run` asks you; see [allowed profiles](/reference/configuration/#allowed-profiles). `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
+Runs a command in a jail for the profile. `NAME` can join profiles with `+`, such as `my-app+repo:dev`, as [composed profiles](/reference/configuration/#composed-profiles) and [repository profiles](/reference/configuration/#repository-profiles) describe. `--current DIR` sets the folder of the session in place of the working folder.
+
+`--learn` makes all public hosts reachable, and prints the hosts that the session used, as [install](/install/#find-the-hosts-of-a-build) describes. Before the first session of a profile, and when the profile gives more than you allowed, `run` asks you. See [allowed profiles](/reference/configuration/#allowed-profiles).
 
 ### `doriath exec`
 
@@ -81,7 +83,9 @@ Denies a request. The agent sees the reason.
 doriath secrets provide [--session ID] NAME
 ```
 
-Gives a running session the value of one of its secrets, such as a token that its source could not give. In a terminal, it asks for the value without echo. Otherwise it reads the value from standard input, such as `rbw get my-token | doriath secrets provide acme`. The session uses the value until it ends, and does not read the source again. The profile must name the secret. The signing key and OAuth logins cannot be provided this way.
+Gives a running session the value of one of its secrets, such as a token that its source did not give. The profile must name the secret. In a terminal, the command asks for the value without echo. Otherwise it reads the value from standard input, such as `rbw get my-token | doriath secrets provide acme`.
+
+The session uses the value until it ends, and does not read the source again. This command cannot give the signing key or an OAuth login.
 
 ### `doriath web`
 
@@ -97,7 +101,7 @@ Serves the [approvals page](/guides/approvals/#the-approvals-page). The home-man
 doriath web open [--listen HOST:PORT] [--print]
 ```
 
-Opens the approvals page with a link that works one time. `--print` prints the link, for a browser on another machine. Over SSH, the command prints the link and the tunnel to make.
+Opens the approvals page with a link that works one time. `--print` prints the link for a browser on another machine. Over SSH, the command prints the link and the SSH tunnel for it.
 
 ## Configuration
 
@@ -109,9 +113,9 @@ doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current 
 
 - `list` and `show` list the profiles and show one. `show` names the module behind each mount, host and rule, and `--json` prints the whole profile for scripts.
 - `edit` opens a profile in your editor, and checks it when you save.
-- `allow` allows a profile for sessions in the repository of `--current DIR`, or of the working folder, and shows what it gives. Use it where a session has no terminal to ask in. See [allowed profiles](/reference/configuration/#allowed-profiles).
+- `allow` shows what a profile gives, and allows it for sessions in the repository of `--current DIR` or of the working folder. Use it for a session without a terminal. See [allowed profiles](/reference/configuration/#allowed-profiles).
 - `login` signs in to the OAuth secrets of a profile. See [OAuth logins](/reference/configuration/#oauth-logins).
-- `clean` removes the caches of a profile, when none of its sessions runs.
+- `clean` removes the caches of a profile. No session of the profile can run at that time.
 
 ### `doriath modules`
 
@@ -119,7 +123,7 @@ doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current 
 doriath modules [list | show NAME [--path]]
 ```
 
-Lists the modules and their sources, or prints a module or the path to it. See [modules](/reference/modules/).
+Lists the modules and their sources. `show` prints a module, and `--path` prints its path. See [modules](/reference/modules/).
 
 ## Repositories
 
@@ -129,7 +133,7 @@ Lists the modules and their sources, or prints a module or the path to it. See [
 doriath restore SESSION [BRANCH...]
 ```
 
-Puts back the branches and bookmarks that moved while a session ran, or only the ones that you name. Another program can move a branch during a session too, so check the list first. See [repositories](/reference/configuration/#repositories).
+Puts back the branches and bookmarks that moved during a session, or only the ones that you name. Another program can also move a branch during a session, so read the list first. See [repositories](/reference/configuration/#repositories).
 
 ### `doriath clean`
 
@@ -137,7 +141,7 @@ Puts back the branches and bookmarks that moved while a session ran, or only the
 doriath clean
 ```
 
-After you confirm, removes old backups and the agent worktrees that are already in the default branch.
+Removes old backups, and the agent worktrees whose commits are in the default branch. It asks you first.
 
 ## Setup
 
@@ -147,9 +151,9 @@ After you confirm, removes old backups and the agent worktrees that are already 
 doriath doctor [--secrets] [--profile NAME]
 ```
 
-Checks the machine. `--secrets` also gets each secret one time, and can ask you to unlock a password manager. Before it runs the secret commands of a profile, it asks you as `run` does; see [allowed profiles](/reference/configuration/#allowed-profiles).
+Checks the machine. `--secrets` also reads each secret one time, and a password manager can ask you to unlock it. Before doctor runs the secret commands of a profile, it asks you as `run` does. See [allowed profiles](/reference/configuration/#allowed-profiles).
 
-In a repository, doctor also checks it with the profile that its `.envrc` names in `use doriath PROFILE`, or with `--profile`, or with a profile named `default`. It tells whether the jail shows the repository, whether the agent can commit there, and whether the commits can be signed as your git or jj config asks.
+In a repository, doctor also checks the repository with a profile: the one in `--profile`, the one that `use doriath` names in `.envrc`, or a profile named `default`. It tells whether the jail shows the repository, whether the agent can commit there, and whether it can sign as your git or jj config asks.
 
 ### `doriath direnv`
 
@@ -191,7 +195,7 @@ Prints the version.
 doriath request write PATH [--reason TEXT]
 ```
 
-Asks you to make a path writable. The path can be a folder that the jail does not show yet, if it exists.
+Asks you to make a path writable until the session ends. The path can be a folder that the jail does not show, if the folder exists.
 
 ### `doriath request module`
 
@@ -217,7 +221,7 @@ Asks to open a link in your browser, as [links](/reference/configuration/#links)
 doriath request host HOST [--reason TEXT]
 ```
 
-Asks you to let the jail reach a host that the profile does not allow, with the agent's reason, until the session ends.
+Asks you to let the jail reach a host that the profile does not allow, until the session ends. The request shows the reason.
 
 ### `doriath request read`
 
@@ -233,7 +237,7 @@ Asks you to show a folder that the jail does not show, read-only, until the sess
 doriath request edit PATH [--reason TEXT] < NEW_CONTENT
 ```
 
-Asks you to change a read-only file to the new content, and writes the change once. Changes that the profile marks as safe need no answer. See [edits](/reference/configuration/#edits).
+Asks you to change a read-only file to the new content. doriath writes the change once. A change that the profile marks as safe needs no answer. See [edits](/reference/configuration/#edits).
 
 ### `doriath request wait`
 
@@ -243,4 +247,4 @@ doriath request wait ID|HOST|PATH
 
 Waits for the answer to a request.
 
-doriath also runs some commands of its own inside the jail. Their names start with `__`, and you do not type them.
+doriath also runs commands of its own in the jail. Their names start with `__`. Do not type them.

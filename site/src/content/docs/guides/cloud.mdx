@@ -3,7 +3,7 @@ title: Cloud credentials
 description: Give the agent AWS, Google Cloud or Azure access with credentials that stay on your machine.
 ---
 
-Cloud tools in the jail have no credentials of their own. Your `~/.aws`, `~/.config/gcloud` and `~/.azure` stay hidden, because they hold logins that can mint credentials for every account you can reach. Instead, a command on your machine prints a short-lived credential, and the proxy adds it to each request. The agent never holds it.
+Cloud tools in the jail have no credentials of their own. Your `~/.aws`, `~/.config/gcloud` and `~/.azure` stay hidden, because their logins can make credentials for each account that you can reach. A command on your machine prints a short-lived credential, and the proxy adds it to each request. The agent never holds it.
 
 A cloud command, such as `aws configure export-credentials`, runs outside the jail. Keep its program at a path that the agent cannot write, such as the Nix store, as [secrets](/reference/configuration/#secrets) describes.
 
@@ -44,7 +44,7 @@ host = "*.amazonaws.com"
 only = ["sts.us-west-2.amazonaws.com", "cloudformation.us-west-2.amazonaws.com", "*.s3.us-west-2.amazonaws.com"]
 ```
 
-kubectl to EKS does not work yet. `aws eks get-token` signs a token in the jail, and kubectl trusts only the cluster's own certificate authority, so the proxy cannot sign the token again.
+kubectl to EKS does not work. `aws eks get-token` signs a token in the jail, and kubectl trusts only the cluster's own certificate authority, so the proxy cannot sign the token again.
 
 ## Google Cloud and Azure
 
@@ -70,4 +70,4 @@ For Azure, the command is `az account get-access-token --query accessToken --out
 
 ## Limits
 
-The agent cannot take the credentials out of the jail, but it can use them through the proxy within the rules. The role's permissions bound what it can do, so give the command a role for this work only. An allowed read can still carry data out, such as a `GET` to a bucket that someone else owns.
+The role's permissions bound what the agent can do through the proxy, so give the command a role for this work only. The [threat model](/threat-model/#cloud-credentials) lists what stays open.

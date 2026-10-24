@@ -11,26 +11,19 @@ import RequestExample from "../../components/RequestExample.astro";
 import Flourish from "../../components/Flourish.astro";
 
 <Aside type="caution">
-  Doriath runs on Linux. A macOS version is possible, but it is out of scope:
-  for now, I build doriath for my own use. Read the [threat
-  model](/threat-model/), with what stays open, before you rely on it.
+  Doriath runs on Linux only. Read the [threat model](/threat-model/), with the
+  limits that stay open, before you rely on it.
 </Aside>
 
 ## Motivation
 
-I build doriath because I want to run coding agents on a remote server, without watching them all the time. An agent with access to my whole file system, my keys and my logins is not safe to leave alone. It is not safe when I watch it either: I read fast, and one prompt injection in a web page or an issue is enough. doriath gives each agent only what its task needs, and holds the actions that matter until I answer, from wherever I am.
+I build doriath because I want to run coding agents on a remote server, without watching them all the time. An agent with access to my files, my keys and my logins is not safe to leave alone. It is not safe when I watch it either: I read fast, and one prompt injection in a web page or an issue is enough.
 
 ## Scope
 
-Doriath guards against an agent that acts against your intent, for example after a prompt injection in a web page or an issue. The agent uses your toolchain and checkouts on your kernel, so a session starts in under a second. A container or a virtual machine with its own image isolates more.
+doriath gives the agent only what its task needs, and holds the actions that matter until you answer. The agent sees the repository and the paths that the profile names. It reaches the hosts that the profile allows, and never reads the tokens that the proxy adds for it. Merges, releases, pushes and other hosts wait for you. Thus the profile decides what a session can do, as the [threat model](/threat-model/#profiles) describes.
 
-In the jail, the agent has these limits:
-
-- The agent edits and commits in the repository that you start in, but the files your machine runs on its own, such as `.envrc` and editor tasks, stay read-only. With `vcs-readonly`, the whole checkout does.
-- Your home directory, SSH keys and other projects are absent.
-- Loopback is the only network. A proxy outside the jail forwards the requests that the profile allows.
-- The proxy adds tokens for the programs that can use them, such as `gh`. The agent never reads the tokens.
-- Merges, releases, pushes and unknown hosts wait for your answer. Nothing in the jail can give that answer.
+The agent uses your toolchain on your kernel, so a session starts in under a second. A virtual machine isolates more. [Architecture](/architecture/) describes each part.
 
 ## A held request
 

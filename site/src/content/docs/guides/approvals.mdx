@@ -6,7 +6,7 @@ description: Answer requests from desktop notifications, the approvals page or t
 import { Aside } from "@astrojs/starlight/components";
 import RequestExample from "../../../components/RequestExample.astro";
 
-A request waits for your answer when the agent reaches a host that the profile does not name, or [asks to write a path](#writable-paths). An [`[[http]]` rule](/reference/configuration/#profile-keys) and the permission prompts of an agent with an [adapter](/agents/#adapters) also make requests. All requests go into one queue, and you can answer from any place on this page.
+A request waits for your answer when the agent reaches a host that the profile does not name, or [asks to write a path](#paths). An [`[[http]]` rule](/reference/configuration/#profile-keys) and the permission prompts of an agent with an [adapter](/agents/#adapters) also make requests. All requests go into one queue, and you can answer from each place on this page.
 
 ## Reading a request
 
@@ -46,11 +46,9 @@ When the timer ends, the agent gets an error and the request is parked. If you a
 
 ## Answers
 
-| Answer                 | Effect                                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| Allow once             | Lets this request through. The next identical request asks again.                                  |
-| Allow for this session | Lets identical requests through until the session ends. "An allow covers" shows what is identical. |
-| Deny                   | Refuses the request. The agent gets an error.                                                      |
+- Allow once lets this request through. The next identical request asks again.
+- Allow for this session lets identical requests through until the session ends. The line "An allow covers" on the request shows what is identical.
+- Deny refuses the request, and the agent gets an error.
 
 Hosts and writable paths have no "once", because the first allow opens them for the session. To keep an allow after the session, add the profile lines from the request to the [profile](/reference/configuration/). doriath does not edit profiles, because a profile can come from Nix.
 
@@ -58,7 +56,7 @@ A request with a warning from doriath offers only Allow once and Deny, also for 
 
 ## Desktop notifications
 
-On a machine with a desktop session, each request shows as a notification, with the same answers as buttons as the [approvals page](#the-approvals-page). While the page runs, a click on the notification itself opens the page at that request. They are on by default, through `[approvals] desktop = true` in `config.toml`. Without a desktop session, doriath turns them off at session start and tells you. For that case, see [remote hosts](#remote-hosts).
+On a machine with a desktop session, each request shows as a notification, through `[approvals] desktop = true` in `config.toml`. The notification has the same answers as buttons as the [approvals page](#the-approvals-page). While the page runs, a click on the notification itself opens the page at that request. Without a desktop session, doriath turns notifications off and tells you, as [remote hosts](#remote-hosts) describes.
 
 ## The approvals page
 
@@ -70,7 +68,7 @@ The page shows the requests of all running sessions and the answers of the last 
 
 `doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests.
 
-The page runs as a systemd user service when you set `programs.doriath.approvals.web.enable = true` in [home-manager](/guides/home-manager/#the-module). Without the service, start the page with `doriath web`.
+To run the page as a systemd user service, set `programs.doriath.approvals.web.enable = true` in [home-manager](/guides/home-manager/#the-module). Without the service, start it with `doriath web`.
 
 ## The terminal
 
@@ -107,26 +105,26 @@ Open the printed link in your local browser within a minute. If you use another 
 
 ## Paths
 
-To ask for a writable path from inside the jail, run `doriath request write PATH --reason TEXT`. To ask to read a folder that the jail does not show, run `doriath request read PATH --reason TEXT`. Each request waits for you on the approvals page, and an allow lasts until the session ends. To wait for your answer, run `doriath request wait ID`.
+The agent asks for a path from inside the jail:
 
-- A folder that the jail does not show must exist. Otherwise doriath tells the agent to ask you to create it.
-- A read shows the whole folder read-only. doriath refuses a folder that holds a path the profile hides.
-- doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
+- `doriath request write PATH --reason TEXT` makes a path writable.
+- `doriath request read PATH --reason TEXT` shows a folder that the jail does not show, read-only.
+- `doriath request edit PATH --reason TEXT` changes one read-only file, such as `.git/config`, with the new content as input. You see what changes, and doriath writes it once.
+
+An allow lasts until the session ends. A folder that the jail does not show must exist. doriath refuses some paths before it asks you, such as `.git`, `.ssh`, the paths that the profile hides and its own configuration, as [approvals](/reference/configuration/#approvals) lists. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
 
 To commit in another repository, the agent runs [`doriath request module MODULE PATH --reason TEXT`](/reference/commands/#doriath-request-module), such as with `vcs-readwrite`. The module applies there as in a session that starts there. A write request covers files only: git and jj cannot write the store of another repository with it.
 
-doriath tells the agent to plan its changes first, its commits too, and ask once. It asks for a module where it will commit, and otherwise for the narrowest file or directory that covers all changes. Each edit request below asks you again.
-
-Where `request write` refuses, such as `.git/config`, the agent runs `doriath request edit PATH --reason TEXT` with the new content as input. The request shows what changes, and doriath writes it once. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
+doriath tells the agent to plan its changes first, its commits too, and ask once: for a module where it will commit, and otherwise for the narrowest path that covers them all.
 
 ## Secrets
 
-When a secret is unavailable, such as an expired login, the page shows a card for it. The card names the error and what fails without the secret. It holds the command that gives the session a value, [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide), with a button that copies it. For an OAuth login, it holds `doriath profiles login` instead.
+When a secret is unavailable, such as after a login expires, the page shows a card for it. The card names the error and what fails without the secret. It holds the command that gives the session a value, [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide), or `doriath profiles login` for an OAuth login.
 
-- **Try again** reads the secret's source at once, such as after you log in again.
-- **Dismiss** stops the cards for that secret until the session ends. Requests that need it still fail.
+- Try again reads the secret's source at once, such as after you sign in again.
+- Dismiss stops the cards for that secret until the session ends. Requests that need it still fail.
 
-The agent gets the request's id in its error, and waits for the card with `doriath request wait ID`.
+The agent gets the id of the card in its error, and waits for it with `doriath request wait ID`.
 
 ## Links
 
@@ -134,4 +132,4 @@ When the agent opens a link that no rule allows, the page asks you: "Open a link
 
 ## Clipboard images
 
-With the [clipboard module](/reference/modules/#clipboard), pasting an image into the agent asks you first: "Let the agent read the image in your clipboard". Allow it once for each paste, or for the session. The agent can ask whenever it likes, not only when you paste, so an unexpected request means the agent wants your clipboard on its own. Text is never offered.
+With the [clipboard module](/reference/modules/#clipboard), a paste of an image into the agent asks you first: "Let the agent read the image in your clipboard". Allow it once for each paste, or for the session. The agent can also ask when you did not paste, so a request that you did not expect means that the agent wants your clipboard on its own. Text is never offered.

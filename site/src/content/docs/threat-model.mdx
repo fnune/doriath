@@ -8,11 +8,11 @@ import Cover from "../../components/Cover.astro";
 
 ## Assumptions
 
-doriath assumes an agent that acts against your intent, because of a prompt injection or a mistake. The agent runs any program that the jail sees, writes any file that it can write, and tries all that the kernel allows. [Architecture](/architecture/) describes the parts behind each guard.
+doriath assumes an agent that acts against your intent, after a prompt injection or a mistake. The agent runs each program that the jail shows, writes each file that it can write, and tries all that the kernel allows. [Architecture](/architecture/) describes the parts behind each guard.
 
 ## Other sandboxes
 
-doriath is not the strictest of these tools. It shares your kernel, and its code is young and not audited. It makes it easy to choose how much each project can reach, with requests that wait for your answer. Each cell gives the default or documented setup of the tool, read in October 2026.
+doriath shares your kernel, and nobody has audited its code. Its profiles set what each project can reach, and requests wait for your answer. Each cell gives the default or documented setup of the tool, read in October 2026.
 
 <Cover level="yes" /> Covered, <Cover level="part" /> partly covered or
 optional, <Cover level="no" /> not covered, <Cover level="unknown" /> not
@@ -36,7 +36,7 @@ documented.
 
 </div>
 
-If a kernel exploit is the threat that matters most, run doriath in a VM, or use a microVM tool and accept its coarser rules.
+If a kernel exploit is your main threat, run doriath in a VM, or use a microVM tool with its coarser rules.
 
 <details>
 <summary>Sources</summary>
@@ -67,6 +67,17 @@ If a kernel exploit is the threat that matters most, run doriath in a VM, or use
 | Read your clipboard or screen                        | The jail has no display. With the `clipboard` module it gets a display that offers only clipboard images, each after you allow it.                                |
 | Reach more through containers                        | A broker checks each podman API call. It permits only allowed images and the profile's mounts, nothing privileged, and no host namespace other than the network.  |
 
+## Profiles
+
+Without doriath, an agent can do all that you can do. A profile replaces that with a list of grants that you can read. The safety of a session thus depends on its profile, and most profiles combine the [shipped modules](/reference/modules/).
+
+Two kinds of grant let the agent act outside the jail:
+
+- A writable path that your machine runs later, such as shell startup files, `~/.local/bin`, git hooks or `.envrc`. At your next login or commit, code that the agent wrote runs as you, outside the jail.
+- A rule that allows every request with a credential of broad scope. The proxy keeps the token, and the agent can still send any request that the token permits.
+
+A profile without these grants still keeps `~/.ssh`, keyrings, other repositories and raw tokens out of the jail, also if it allows many hosts and paths.
+
 ## Limits
 
 <Aside type="caution">
@@ -74,88 +85,95 @@ If a kernel exploit is the threat that matters most, run doriath in a VM, or use
   receive all that the agent reads.
 </Aside>
 
-No limit below lets an agent leave the jail, take a credential or reach a host that the profile does not name. To make the limits smaller, mount only the project, allow only the hosts that the task needs, and do not put secrets in world-readable paths.
+These limits stay open with a profile that has neither grant from [profiles](#profiles). To make them smaller, mount only the project, allow only the hosts that the task needs, and keep secrets out of world-readable paths.
 
 ### Allowed hosts
 
 Each allowed host can receive data, because work needs writes. The shipped modules allow dozens of hosts.
 
-- The agent can send its own API key to api.anthropic.com. The `claude` module refuses requests that carry `x-api-key`.
-- The `github` module lets `gh` post comments. doriath cannot hold comments outside your repositories, because GraphQL names the repository by an opaque ID.
-- For a host without an `[[http]]` entry, doriath checks only the host and the TLS server name. Behind a CDN, the request can name any site on that CDN, and Encrypted Client Hello can hide the server name.
+- The agent can send its own API key to api.anthropic.com. The `claude` module refuses requests with an `x-api-key` header.
+- The `github` module lets `gh` post comments. doriath cannot hold comments outside your repositories, because GraphQL names a repository by an opaque ID.
+- For a host without an `[[http]]` entry, doriath checks only the host and the TLS server name. Behind a CDN, a request can name any site on that CDN. Encrypted Client Hello can hide the server name.
 
 ### Allowed programs
 
-Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`. doriath pins each program that `binaries` names by path when the session starts, with the files in its folder. It also pins the library folders that the program names relative to itself in its ELF `RUNPATH`, such as `$ORIGIN/../lib` in a JDK, if they stay inside the folder above the program. A program gets nothing if it runs another file at that path, the same file after a change, or code from a file that is outside the system paths and was not pinned. This covers `LD_PRELOAD` and libraries that the program loads later, and also a program that the session builds.
+Credentials and `[[egress.programs]]` hosts go only to named programs. A bare name matches only a program under a system path, such as `/nix/store`.
 
-These checks stop stray programs and programs the agent changed. The agent can still:
+When the session starts, doriath pins each program that `binaries` names, with the files in its folder. It also pins the library folders in the program's ELF `RUNPATH`, such as `$ORIGIN/../lib` in a JDK, if they stay inside the folder above the program. A program gets nothing in these cases:
 
-- run a named program with any arguments, or steer it through writable config such as `~/.config/gh`.
-- give a TCP socket to a named program after another program writes the request, because doriath names the program when the connection opens.
-- put its own program at a writable path that `binaries` names. The program gets nothing in that session, but the next session pins the file that it finds there and gives it the credential. doriath warns about each such path at session start.
+- It runs another file at that path, or the same file after a change.
+- It runs code from a file outside the system paths that doriath did not pin. This includes `LD_PRELOAD`, libraries that it loads later, and programs that the session builds.
 
-Request rules and approvals decide what named programs can do, because the agent needs them.
+The agent can still do these things:
+
+- Run a named program with any arguments, or control it through writable config, such as `~/.config/gh`.
+- Give a TCP socket to a named program after another program writes the request. doriath names the program when the connection opens.
+- Put its own program at a writable path that `binaries` names. The program gets nothing in that session. The next session pins the file that it finds there and gives it the credential. doriath warns about each such path at session start.
+
+Request rules and approvals decide what named programs can do.
 
 ### Cloud credentials
 
-The credentials of the [`aws` module](/guides/cloud/) never enter the jail, but the agent can use them through the proxy within the rules. The rules refuse calls that return credentials. A call that returns other secrets, such as a database password in a stack output or a function's settings, reaches the agent if a rule lets it through. An allowed read can also carry data out, such as a request to a bucket that someone else owns.
+The credentials of the [`aws` module](/guides/cloud/) never enter the jail, but the agent can use them through the proxy within the rules. The rules refuse calls that return credentials. A call that returns other secrets, such as a database password in a stack output, reaches the agent if a rule allows it. An allowed read can also carry data out, such as a request to a bucket that someone else owns.
 
 ### System paths and kernel calls
 
-The agent can read each world-readable file in `/etc`, `/nix/store`, `/usr`, `/sys` and other system paths, including secrets in the nix store. A read allowlist would break the host toolchain, which reads widely.
+The agent can read each world-readable file in `/etc`, `/nix/store`, `/usr`, `/sys` and other system paths, also secrets in the Nix store. A read allowlist would break the host toolchain, which reads many paths.
 
-seccomp allows netlink beyond routing, nested seccomp filters and `memfd_create`, because Chromium, .NET and `ss` break without them. Code in memory gives the agent nothing new, because a file that it writes can also run.
+seccomp allows netlink beyond routing, nested seccomp filters and `memfd_create`, because Chromium, .NET and `ss` need them. Code in memory gives the agent nothing new, because a file that it writes can also run.
 
 ### Shared kernel and user
 
-The jail runs as your UID on the host kernel, so a kernel or bubblewrap bug lets the agent escape as your user. Only a virtual machine isolates more. In exchange, the agent's files belong to you, and a session starts in less than a second on your toolchain.
+The jail runs as your UID on the host kernel. A kernel or bubblewrap bug lets the agent escape as your user. Only a virtual machine isolates more.
 
-- The podman service runs as root in a subordinate user namespace, without its own seccomp filter. A container runtime escape gets that access, but the agent reaches only the broker.
+- The podman service runs as root in a subordinate user namespace, without its own seccomp filter. An escape from the container runtime gets that access. The agent reaches only the broker.
 - doriath does not check or pin the base images that a build pulls in podman.
 - The agent can send signals to doriath's init, which is non-dumpable. A kill ends the session. A stop holds new proxy connections, so the agent chooses when doriath names the program behind each one.
 
 ### Writable repositories
 
-With `vcs-readwrite` or `vcs-readonly`, the agent creates, moves and deletes branches and adds worktrees. At the end, doriath repairs the store and its submodules as the guarded actions describe.
+With `vcs-readwrite` or `vcs-readonly`, the agent creates, moves and deletes branches and adds worktrees. At the end, doriath repairs the store and its submodules, as [guarded actions](#guarded-actions) describes.
 
-git on your machine follows the `.git` file and admin directory of an agent worktree, so `git status` there can run hooks that the agent wrote. doriath resets these files in milliseconds, again at the end or at the next `doriath run`, and reports each change. These cases stay open:
+git on your machine follows the `.git` file and admin directory of an agent worktree. Thus `git status` there can run hooks that the agent wrote. doriath resets these files in milliseconds, again at the end or at the next `doriath run`, and reports each change. These cases stay open:
 
-- doriath only reports a worktree that claims a path outside the writable mounts, or reaches outside them through a symlink.
-- git on your machine follows the config and hooks of a `.git` directory that the agent creates elsewhere in a write mount, as with an `.envrc`.
-- In the session's repository, and in a repository where the agent uses a module after [`doriath request module`](/reference/commands/#doriath-request-module), the [modules in every profile](/reference/modules/#modules-in-every-profile) keep the files of known tools read-only. They cover three triggers: git events, entering the folder and opening the editor. Where such a file is missing, doriath moves out what the agent creates there, through inotify. Between the creation and the move, a tool on your machine can read the file. Without inotify, doriath moves it only at the start and the end of the session. `vcs-readwrite` also keeps the files of mise and agents. A tool that no module lists, or a mount of a checkout that you write yourself, leaves such files writable. A missing file that no module holds can be created: mise asks you before it runs a new one, but a tool that does not ask runs it.
+- doriath only reports a worktree that claims a path outside the writable mounts, or that reaches outside them through a symlink.
+- git on your machine follows the config and hooks of a `.git` directory that the agent creates elsewhere in a write mount. The same applies to an `.envrc`.
+- In the session's repository, and in a repository where the agent uses a module after [`doriath request module`](/reference/commands/#doriath-request-module), the [modules in every profile](/reference/modules/#modules-in-every-profile) keep the files of known tools read-only. They cover three triggers: git events, entering the folder and opening the editor. `vcs-readwrite` also keeps the files of mise and agents. A tool that no module lists, or a checkout that you mount writable yourself, leaves such files writable.
+- Where such a file is missing, doriath moves out what the agent creates there, through inotify. Between the creation and the move, a tool on your machine can read the file. Without inotify, doriath moves it only at the start and the end of the session.
+- The agent can create a missing file that no module holds. mise asks you before it runs a new file. A tool that does not ask runs it.
 - A guarded file that is a symlink in a writable checkout, such as a `.pre-commit-config.yaml` from git-hooks.nix, cannot be mounted read-only. doriath puts the link back in milliseconds when the jail changes it. A git command that you run on your machine in that moment can read the agent's version.
-- The agent can write a `commondir` into a store whose root it can write, which sends git on your machine to another repository. doriath removes it in milliseconds, and again at the end.
-- While the session runs, a rebase or cherry-pick that the agent left in a store can hold `exec` lines, which git on your machine runs if you continue it. doriath moves this state aside only at the end.
+- The agent can write a `commondir` into a store whose root it can write. This sends git on your machine to another repository. doriath removes the file in milliseconds, and again at the end.
+- While the session runs, a rebase or cherry-pick that the agent left in a store can hold `exec` lines. git on your machine runs them if you continue it. doriath moves this state aside only at the end.
 - The agent can change what your index stages and which branch `HEAD` names. Neither runs code.
 
-`doriath request edit` changes a guarded file without asking when every change is on the profile's safe list. That list is part of what you trust: a module that marks a setting as safe lets the agent change it in your repository. `vcs-readwrite` lists only upstream tracking, and refuses a remote's URL as a branch's remote.
+`doriath request edit` changes a guarded file without a question when each change is on the profile's safe list. You trust that list: a module that marks a setting as safe lets the agent change it in your repository. `vcs-readwrite` lists only upstream tracking, and refuses a remote's URL as a branch's remote.
 
-Review the files of an agent worktree as you review a pull request. Worktrees let agents work in parallel, and a copy for each session would cost disk, time and a step to land the work.
+Review the files of an agent worktree as you review a pull request. A copy of the repository for each session would cost disk, time and a step to land the work.
 
-doriath holds each push for your approval, but it does not decide which branches a push can change. Rules such as the refusal of a force push to main belong in the forge's branch protection, which you set in the repository.
+doriath holds each push for your approval, but it does not limit which branches a push changes. Set rules such as no force push to `main` in the branch protection of the forge.
 
 ### Trust that returns to the host
 
-- Claude's transcripts return to `~/.claude/projects`, so a session that you resume outside the jail reads history that the agent wrote.
-- The agent reads the project's earlier transcripts, also text that you pasted into a session outside the jail.
-- Escape sequences in agent output can change your terminal title or state, and can set your terminal's clipboard. The terminal bar drops requests to read the clipboard. With [`bar = false`](/reference/configuration/#configtoml-keys) they reach your terminal, and some terminals answer with the clipboard contents.
-- One session can plant files in caches and container storage that later sessions of the same profile trust. This includes a program at a writable path that `binaries` names, which the next session pins with its credential.
-- A link that the agent opens runs in your browser, where you are signed in. Its site receives the whole link, and a page that acts on a GET request acts as you. doriath opens a link without asking only where a rule allows its host and path, such as an agent's sign-in page or a forge that the profile already reaches. Sign-in, account, settings and app pages of a forge ask you first.
-- A sign-in forward lets programs on your machine reach one port in the jail for five minutes.
-- doriath cannot know each path that your machine runs files from. It refuses requests for your keys and logins, and warns on the paths it knows, such as `~/.local/bin`, `~/.config/systemd` and `/tmp`. A request for another such path asks you without a warning, and code that the agent writes there after your allow runs outside the jail.
-- A write or read request that you allow can attach a directory that the jail does not see, and so lets the agent read it. A grant lasts until the session ends, because an open file stays open after doriath removes a mount.
+These paths let you resume sessions, read output, reuse build caches and add paths without a restart. Each one carries data from the jail back to you.
 
-These paths let you resume sessions, read output, reuse build caches and add writable paths and readable folders without a restart. The helper that applies each grant has full capabilities over the mounts. It runs doriath's own read-only binary and never follows symlinks.
+- Claude's transcripts return to `~/.claude/projects`. A session that you resume outside the jail reads history that the agent wrote.
+- The agent reads the project's earlier transcripts, also text that you pasted into a session outside the jail.
+- Escape sequences in agent output can change the title or state of your terminal, and can set the clipboard of your terminal. The terminal bar drops requests to read the clipboard. With [`bar = false`](/reference/configuration/#configtoml-keys) they reach your terminal, and some terminals answer with the clipboard contents.
+- One session can plant files in caches and container storage that later sessions of the same profile trust. This includes a program at a writable path that `binaries` names, which the next session pins with its credential.
+- A link that the agent opens runs in your browser, where you are signed in. Its site receives the whole link, and a page that acts on a GET request acts as you. doriath opens a link without a question only where a rule allows its host and path, such as an agent's sign-in page or the forge that the profile already reaches. Sign-in, account, settings and app pages of a forge ask you first.
+- A sign-in forward lets programs on your machine reach one port in the jail for five minutes.
+- doriath cannot know each path that your machine runs files from. It refuses requests for your keys and logins, and warns on the paths that it knows, such as `~/.local/bin`, `~/.config/systemd` and `/tmp`. A request for another such path asks you without a warning, and code that the agent writes there after your allow runs outside the jail.
+- A write or read request that you allow can attach a directory that the jail does not show, and the agent can then read it. The grant lasts until the session ends, because an open file stays open after doriath removes a mount. The helper that applies each grant has full capabilities over the mounts. It runs doriath's own read-only binary and never follows symlinks.
 
 ### Other trust
 
 - `doriath run --learn` reaches every public host for that session. Use it only for builds that you start, and never give it to an agent.
-- `doriath forward` listens on the host's loopback, which every local user can reach, also on a shared server.
-- The `nix-daemon` module's builds run outside the jail, without the allowlist.
-- With the `clipboard` module, an allowed read gives the agent the image you copied last, whatever it shows. An allow for the session covers every later read, also those you did not start with a paste.
-- A secret given as a command runs on the host with your environment, so it trusts the author of the profile.
-- A profile can change without your edit, such as a module after an upgrade. doriath asks before the first session of each profile in each repository, and again when a profile gives more than you allowed. Read the lines it shows before you answer.
-- OAuth refresh tokens stay in doriath's state directory, which your user can read outside the jail, as with your other logins.
-- Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session and answer Claude's permission prompts. The jail and the proxy rules still apply.
-- Tool requests carry text that the agent wrote, and the notification says so. A long run of requests invites a click on allow, so doriath refuses new requests while 32 wait. It shows other notifications 10 at once, then one a minute.
-- Sessions have task and memory limits but no CPU quota by default. `[limits] cpu` sets one.
+- `doriath forward` listens on the host's loopback address, which every local user can reach, also on a shared server.
+- Builds of the `nix-daemon` module run outside the jail, without the allowlist.
+- With the `clipboard` module, an allowed read gives the agent the image that you copied last, whatever it shows. An allow for the session covers every later read, also reads that you did not start with a paste.
+- A secret given as a command runs on the host with your environment. You trust the author of the profile.
+- A profile can change without your edit, such as a module after an upgrade. doriath asks before the first session of each profile in each repository, and again when a profile gives more than you allowed. Read the lines that it shows before you answer.
+- OAuth refresh tokens stay in doriath's state directory. Your user can read them outside the jail, as with your other logins.
+- Claude's Remote Control lets each person signed in to the profile's claude.ai account control the session and answer Claude's permission prompts. The jail and the proxy rules still apply.
+- Tool requests carry text that the agent wrote, and the notification says so. Many requests in a row make a click on allow likely. Thus doriath refuses new requests while 32 wait. It shows 10 other notifications at once, then one each minute.
+- Sessions have task and memory limits, but no CPU quota by default. `[limits] cpu` sets one.

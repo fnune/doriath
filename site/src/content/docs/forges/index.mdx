@@ -1,23 +1,32 @@
 ---
 title: Forges
-description: How a forge module gives the agent git and the forge's API with a token it never sees.
+description: The forge modules give the agent git and the forge's API with a token that it never sees.
 ---
 
-A forge hosts git repositories, such as GitHub, GitLab, Forgejo or Bitbucket. doriath has a [module](/reference/modules/) for each of these forges. In the profile, list the module of each forge that the agent uses.
+A forge hosts git repositories, such as GitHub, GitLab, Forgejo or Bitbucket. doriath has a [module](/reference/modules/) for each of these forges. List the module of each forge that the agent uses.
 
-A forge module holds the hosts of the forge, the credential that the proxy adds, and the request rules. It also tells the proxy how the forge names a repository, so that an allow for the session covers one repository.
+A forge module names the hosts of the forge, the credential that the proxy adds and the request rules. It also tells the proxy how the forge names a repository, so that an allow for the session covers one repository.
 
 ## Tokens
 
-Each forge module needs a secret with the name of the module, such as `[secrets.gitlab]`. Make a token for each profile, as [install](/install/#create-credentials-for-the-profile) describes. Give it access only to the repositories of that profile.
+Each forge module needs a secret with the name of the module, such as `[secrets.gitlab]`. Make a new token for each profile, and give it access only to the repositories of that profile. The section of each forge tells which token to make.
 
-The proxy adds the token only for the programs of the module, such as `git` and the client of the forge.
+```toml
+[secrets.gitlab]
+command = ["rbw", "get", "gitlab-my-app"]
+```
+
+The proxy adds the token only for the programs of the module, such as `git`, `git-lfs` and the client of the forge. A client that needs a token to start, such as `gh` or `glab`, gets a placeholder, and the proxy puts the token in its place on each request.
 
 ## Requests
 
-Reads and routine work go through. Approvals of pull requests, merges, releases, pushes and other writes wait for [your answer](/guides/approvals/). doriath refuses changes to webhooks, CI secrets and deploy keys. Each forge page lists its rules.
+Each forge module sorts requests in the same way:
 
-doriath holds each push for your approval. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
+- Go through: reads, pull requests, issues and comments.
+- Wait for [your answer](/guides/approvals/): approvals of pull requests, merges, releases, pushes, Git LFS uploads, and the API requests that the module does not name.
+- Refused: changes to webhooks, CI secrets, deploy keys and the people who can reach the repository.
+
+The section of each forge lists what it adds. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
 
 ## Branches for the agent
 
@@ -48,11 +57,13 @@ The agent can open pages of the forge in your browser without a question, such a
 
 ## git over SSH
 
-The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes. Thus git goes through the proxy. Your git configuration outside the jail does not change. If the forge serves SSH on another host, such as `ssh.bitbucket.org`, the module names it under `ssh.hosts`. If git tries SSH to a host that no module of the profile names, doriath stops it with an error that names the host, and you push from outside the jail or add the forge's module.
+The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes, so that git goes through the proxy. Your git configuration outside the jail does not change.
+
+If the forge serves SSH on another host, such as `ssh.bitbucket.org`, the module names it under `ssh.hosts`. If git tries SSH to a host that no module names, doriath stops it with an error that names the host. Then push from outside the jail, or add the module of the forge.
 
 ## Git LFS
 
-Each forge module gives the token to `git-lfs` too. Downloads go through. An upload waits for your answer at the batch request, where `git-lfs` names the objects that it sends. The push of the commits that name these objects waits as well.
+Downloads go through. An upload waits for your answer at the batch request, where `git-lfs` names the objects that it sends. The push of the commits that name these objects waits too.
 
 ## Self-hosted forges
 
@@ -62,11 +73,65 @@ A module names the hosts of the public service, such as `gitlab.com` or `codeber
 doriath modules show gitlab > ~/.config/doriath/modules/gitlab-acme.toml
 ```
 
-In the copy, change `host = "gitlab.com"` to the host of your instance. Then list `gitlab-acme` in the profile. If the instance does not use port 443, add the port to the host, such as `git.acme.example:8443`.
+In the copy, change `host = "gitlab.com"` to the host of your instance, and list `gitlab-acme` in the profile. If the instance does not use port 443, add the port to the host, such as `git.acme.example:8443`.
 
-## Pages
+## GitHub
 
-- [GitHub](/forges/github/)
-- [GitLab](/forges/gitlab/)
-- [Forgejo, Gitea and Codeberg](/forges/forgejo/)
-- [Bitbucket](/forges/bitbucket/)
+The [`github` module](/reference/modules/#github) gives your token to `git`, `git-lfs` and `gh` on `github.com`, `api.github.com` and `uploads.github.com`.
+
+Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of the profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
+
+For verified commits, create an SSH key for the profile and add it to GitHub as a signing key. [Install](/install/#create-credentials-for-the-profile) shows the commands.
+
+The module adds these rules:
+
+- Go through: reviews that comment or request changes, and reruns of CI.
+- Refused: Actions, Dependabot and Codespaces secrets. The webhooks and Actions secrets of organizations, and the SSH, GPG and signing keys of the user, are refused too.
+
+doriath does not read the arguments of a GraphQL mutation. Thus a mutation or review with the text `APPROVE` anywhere in it waits for your answer too, also when it only comments.
+
+## GitLab
+
+The [`gitlab` module](/reference/modules/#gitlab) gives your token to `git`, `git-lfs` and `glab` on `gitlab.com`. `git` sends it with basic auth, and `glab` in the `PRIVATE-TOKEN` header.
+
+Create a project access token or a group access token for the projects of the profile. Give it the Developer role, an expiry, and the scopes `api` and `write_repository`. The `api` scope does not cover git over HTTPS, and `write_repository` covers fetches and pushes.
+
+On gitlab.com, project and group access tokens need the Premium or Ultimate tier. On the Free tier, a personal access token works, but it reaches all your projects. The module refuses requests that create or rotate tokens and keys, so the agent cannot get a token of its own.
+
+A token with the Developer role cannot push or merge to the default branch, because GitLab protects it. To let the agent merge after your approval, allow Developers to merge in the protected branch settings, or give the token the Maintainer role.
+
+GitLab verifies commits that an SSH key of the usage type Signing signs. Add the key of the profile, as [install](/install/#create-credentials-for-the-profile) shows.
+
+The module adds these rules:
+
+- Go through: the removal of an approval, and retries or cancels of pipelines and jobs. Job artifacts download from `cdn.artifacts.gitlab-static.net`.
+- Wait for your answer: tags, commits and file changes through the API, changes to project settings, and GraphQL requests.
+- Refused: integrations, CI variables, triggers and runners, members, invitations and shares, deploy tokens, access tokens, protected branches and tags, push rules, remote mirrors, transfers and the deletion of the project. The personal access tokens, SSH keys and GPG keys of the user are refused too. So are changes to the keys and tokens of other users and service accounts, and to approval rules. Downloads of secure files are refused.
+
+The GitLab API names a project by its ID or by its path, such as `group%2Fsub%2Fproject`. The proxy reads these paths, so an allow for the session covers one project.
+
+## Forgejo, Gitea and Codeberg
+
+The [`forgejo` module](/reference/modules/#forgejo) gives your token to `git`, `git-lfs` and the clients `tea`, `fj` and `berg` on `codeberg.org`. Forgejo and Gitea serve git and the API on one host. For another instance, copy the module, as [self-hosted forges](#self-hosted-forges) describes.
+
+Create an access token in the settings of your account. Limit it to the repositories of the profile, and give it the scopes `write:repository` and `write:issue`. A token for some repositories cannot have `read:user`, so `fj` commands that read your account, such as `fj whoami`, fail.
+
+`tea` and `berg` get a placeholder in `GITEA_TOKEN` and `BERG_TOKEN`.
+
+The module adds these rules:
+
+- Go through: reviews that comment or request changes.
+- Wait for your answer: reviews that approve a pull request, tags, and changes to files through the API.
+- Refused: Actions variables and runners, teams, branch protections, push mirrors and transfers. The webhooks and Actions settings of organizations and of the user, and the keys and tokens of the user, are refused too. Changes through the admin API are refused.
+
+## Bitbucket
+
+The [`bitbucket` module](/reference/modules/#bitbucket) gives your token to `git` and `git-lfs` on `bitbucket.org`, and to `curl` on `api.bitbucket.org`. git in the jail sends remotes on `ssh.bitbucket.org`, the host of Bitbucket's clone links, over HTTPS to `bitbucket.org`.
+
+Create a repository access token or a workspace access token with the permissions Repositories: Write (`repository:write`) and Pull requests: Write (`pullrequest:write`). Workspace access tokens need the Premium plan. A personal API token also works, but it reaches all the repositories that you can reach.
+
+The module adds these rules:
+
+- Go through: the removal of an approval, requests for changes and declines of pull requests.
+- Wait for your answer: changes to repository settings.
+- Refused: Pipelines and deployment variables, branch restrictions and permissions, also on the workspace and its projects, Pipelines SSH keys, the SSH and GPG keys of users, and the deletion of the repository.
