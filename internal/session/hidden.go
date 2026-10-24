@@ -127,8 +127,12 @@ func (s *Session) holdMissingPaths() error {
 			}
 			created = append([]string{dir}, created...)
 		}
-		content := placeholderContent(m.Path)
-		if err := writePlaceholder(jail.Placeholder{Path: m.Path, Content: content}); err != nil {
+		folder := p.PathRules.HoldsFolder(m.Path)
+		content := ""
+		if !folder {
+			content = placeholderContent(m.Path)
+		}
+		if err := writePlaceholder(jail.Placeholder{Path: m.Path, Content: content, Dir: folder}); err != nil {
 			return err
 		}
 		created = append(created, m.Path)

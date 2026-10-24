@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-var notGrants = []string{"Name", "Description", "Modules", "Sources", "SecretOwners"}
+var notGrants = []string{"Name", "Description", "Modules", "Sources", "SecretOwners", "PathRules"}
 
 // Grants lists what the profile gives the jail, one line per setting, so
 // that two versions of a profile compare line by line. An entry of a list

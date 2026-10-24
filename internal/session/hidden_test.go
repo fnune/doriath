@@ -236,3 +236,25 @@ func TestAHeldFileThatSomeoneWroteStaysAfterTheSession(t *testing.T) {
 		t.Errorf("a file you wrote went: %v", err)
 	}
 }
+
+func TestAHeldFolderIsAnEmptyFolderSoThatYourToolsCanStillWriteIntoIt(t *testing.T) {
+	s := newTestSession(t, nil)
+	work := filepath.Join(s.home, "work")
+	mkdirAll(t, work)
+	held := filepath.Join(work, ".idea")
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: work, Mode: profile.ModeWrite},
+		{Path: held, Mode: profile.ModeRead, Missing: profile.MissingHold},
+	}
+	s.req.Profile.PathRules.Hold = []profile.PathHold{{Path: held, Reason: "r", Missing: profile.MissingHold, Folder: true}}
+	if err := s.holdMissingPaths(); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(held); err != nil || !info.IsDir() {
+		t.Fatalf("placeholder: %v, %v", info, err)
+	}
+	s.cleanup()
+	if _, err := os.Lstat(held); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s stays after the session: %v", held, err)
+	}
+}

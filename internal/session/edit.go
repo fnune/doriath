@@ -54,7 +54,8 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 		return res, nil
 	}
 	apply := func() error { return edit.Apply(ctx, s.deps.Git, path, rule.Format, []byte(content), changes) }
-	if !slices.ContainsFunc(changes, func(c edit.Change) bool { return !edit.Safe(c, rule.Safe) }) {
+	_, warned := s.req.Profile.PathRules.Warning(path, false)
+	if !warned && !slices.ContainsFunc(changes, func(c edit.Change) bool { return !edit.Safe(c, rule.Safe) }) {
 		s.log.Write("edit", map[string]any{"path": path, "changes": described, "by": "rule"})
 		res.Decision = approval.Decision{Verdict: approval.VerdictAllow, By: "doriath"}
 		return res, apply()
@@ -69,6 +70,7 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 		Note:    reason,
 		Scope:   "edit " + path + " " + hex.EncodeToString(sum[:8]),
 	}
+	s.warn(&req, path, false)
 	applied := make(chan error, 1)
 	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
 		if d.Verdict == approval.VerdictAllow {

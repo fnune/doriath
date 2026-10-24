@@ -30,10 +30,12 @@ type layer struct {
 	Limits      *limitsLayer           `toml:"limits"`
 	Agent       *agentLayer            `toml:"agent"`
 	Claude      *claudeLayer           `toml:"claude"`
+	Paths       *pathsLayer            `toml:"paths"`
 	Secrets     map[string]secretLayer `toml:"secrets"`
 	UsesSecrets []string               `toml:"uses_secrets"`
 	source      string
 	stateName   string
+	builtin     bool
 }
 
 // secretRefs names each secret that the layer hands to something: a

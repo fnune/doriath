@@ -33,6 +33,7 @@ func (s *Session) requestRead(path, reason string) (RequestResult, error) {
 		Keep:    fmt.Sprintf("[[mounts]]\npath = %q", s.profilePath(path)),
 		Scope:   "path read " + path,
 	}
+	s.warn(&req, path, true)
 	return s.holdAndGrant(req, func() error { return s.grantRead(context.Background(), path) })
 }
 

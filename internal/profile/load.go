@@ -25,7 +25,9 @@ import (
 // of Modules only, so that no module replaces another without notice.
 // Repository holds the profiles named with RepoPrefix, and is nil outside a
 // repository. Private holds the paths that a repository profile cannot
-// mount, such as your keys and doriath's own state.
+// mount, such as doriath's own state, besides the refuse lists of the
+// modules. Builtins name the modules that every profile loads before its
+// own layers.
 type Loader struct {
 	Profiles       fs.FS
 	Modules        []fs.FS
@@ -33,6 +35,7 @@ type Loader struct {
 	RepositoryRoot string
 	Home           string
 	Private        []string
+	Builtins       []string
 }
 
 // RepoPrefix names a profile of the repository that holds {current}, read
@@ -141,6 +144,12 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	var tops []layer
 	var stateNames []string
 	done := map[string]bool{}
+	if err := l.collect(l.Builtins, &layers, nil, done); err != nil {
+		return nil, err
+	}
+	for i := range layers {
+		layers[i].builtin = true
+	}
 	for i, n := range names {
 		if !namePattern.MatchString(strings.TrimPrefix(n, RepoPrefix)) {
 			return nil, fmt.Errorf("profile name %q: use lowercase letters, digits and dashes", n)
@@ -355,6 +364,9 @@ func (l *Loader) repoProfileData(name string) ([]byte, error) {
 type builder struct {
 	home        string
 	private     []string
+	refuse      []string
+	warn        []warnLayer
+	hold        []holdLayer
 	deny        []string
 	mounts      []mountLayer
 	caches      []string
@@ -398,7 +410,7 @@ func (b *builder) from(source, key string) {
 }
 
 func (b *builder) apply(l layer) {
-	if !strings.HasPrefix(l.source, "profile") && l.source != defaultsSource {
+	if !strings.HasPrefix(l.source, "profile") && l.source != defaultsSource && !l.builtin {
 		b.modules = append(b.modules, l.source)
 	}
 	b.record(l)
@@ -407,6 +419,7 @@ func (b *builder) apply(l layer) {
 		b.errs = append(b.errs, b.repositoryMounts(l)...)
 	}
 	b.mounts = append(b.mounts, l.Mounts...)
+	b.applyPaths(l.Paths)
 	for _, m := range l.MCP {
 		if i := slices.IndexFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }); i >= 0 {
 			b.mcp[i] = m
@@ -580,7 +593,7 @@ func (b *builder) repositoryMounts(l layer) []error {
 		if err != nil {
 			continue
 		}
-		for _, private := range b.private {
+		for _, private := range b.privatePaths() {
 			if within(path, private) || within(private, path) {
 				errs = append(errs, fmt.Errorf("mount %s: a repository profile cannot show %s, because it holds keys, logins, config that names programs your machine runs, or the state of doriath. Put the mount in a profile of your own", m.Path, private))
 				break
@@ -588,6 +601,19 @@ func (b *builder) repositoryMounts(l layer) []error {
 		}
 	}
 	return errs
+}
+
+func (b *builder) privatePaths() []string {
+	out := slices.Clone(b.private)
+	for _, raw := range b.refuse {
+		if _, placeholder := placeholderPath(raw); placeholder {
+			continue
+		}
+		if path, err := b.expand(raw); err == nil {
+			out = append(out, path)
+		}
+	}
+	return out
 }
 
 var gitKeysThatRunOrSend = []string{
@@ -1090,6 +1116,9 @@ func (b *builder) build(top layer) (*Profile, error) {
 	}
 	p.Agent = agent
 	p.Claude = b.buildClaude()
+	rules, pathErrs := b.buildPaths()
+	errs = append(errs, pathErrs...)
+	p.PathRules = rules
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}

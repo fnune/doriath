@@ -94,6 +94,20 @@ edit = { format = "text" }
 [[caches]]
 path = "~/.cache/go-build"
 
+# Paths that requests for a path refuse, or warn on. A hold also stays
+# read-only in each writable mount. See "Path lists".
+[paths]
+refuse = ["~/.config/rclone"]
+
+[[paths.warn]]
+path = "~/.config/hypr"
+reason = "Hyprland runs the commands in its config when you log in."
+
+[[paths.hold]]
+path = "{repository}/.mise.local.toml"
+reason = "mise runs its hooks when you enter the folder."
+missing = "hold"
+
 [env]
 # Host variables that the jail sees. doriath drops all others, but always
 # passes PATH and the terminal and locale variables.
@@ -419,6 +433,16 @@ A guarded path that is itself a symlink is an exception, because tools make such
 
 doriath also refuses `/`, the home directory and the directories above it, in all modes. It refuses writable mounts under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, because programs there get credentials by name.
 
+## Path lists
+
+`[paths]` holds lists that only restrict the agent. Each layer adds to them, and no layer can remove an entry. A change to them does not ask you to [allow the profile](#allowed-profiles) again, because they give the jail nothing.
+
+An entry is an absolute path, a path under `~`, or a path under `{repository}`, without `..` or a trailing slash. A request matches an entry when it names the path, a folder above it, or a path inside it.
+
+- `refuse`: doriath refuses a request for the path before it asks you, as it does for your keys.
+- `warn`: a request still asks you, with the `reason` as a warning from doriath. You can allow it once only, and the request shows no profile lines to keep. With `read = true`, a request to read the path also warns.
+- `hold`: doriath keeps the path read-only in each writable mount that holds it, and warns on a request for it as `warn` does. `missing` is required. `hold` puts an empty file at a missing path, so that the agent cannot create it, as for [mounts](#mounts). With `folder = true`, doriath puts an empty folder there instead, so that your own tools can still write into it. `skip` keeps the path only when it exists.
+
 ## Home
 
 The home directory in the jail is an empty folder on disk for each session, under `~/.cache/doriath/agents/<profile>/scratch/`. Mounts and caches show through it, and nothing else of your home does: tools in `~/.nix-profile` or `~/.local/bin` need a mount. Files that the agent writes anywhere else in the home stay for the session only, and doriath deletes them at the end.
@@ -490,6 +514,8 @@ doriath refuses these paths before it asks you:
 - `.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.claude`, `.local/share/keyrings` and `.password-store`
 - the config of git and jj: `.gitconfig`, `.config/git` and `.config/jj`
 - the nix and home-manager profiles under `.local/state`, and the configuration, state and cache of doriath
+
+doriath also refuses the paths on the profile's `refuse` lists. A request for a path on a `warn` or `hold` list asks you with a warning, and you can allow it once only. See [path lists](#path-lists).
 
 Repositories in a granted path keep the read-only control files of a `write` mount. Containers that start after a grant can bind the path as writable.
 

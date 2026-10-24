@@ -40,6 +40,7 @@ func (s *Session) requestWrite(path, reason string) (RequestResult, error) {
 		Keep:    s.mountLines(path),
 		Scope:   "path write " + path,
 	}
+	s.warn(&req, path, false)
 	return s.holdAndGrant(req, func() error { return s.grantWrite(context.Background(), path) })
 }
 
@@ -216,11 +217,20 @@ func deepestExisting(path string) string {
 	}
 }
 
-// privatePaths add the profile's caches to the paths doriath keeps private,
-// because a module layers read-only files there, such as an agent's state,
-// that a grant would make writable on the host.
+func (s *Session) warn(req *approval.Request, path string, read bool) {
+	w, ok := s.req.Profile.PathRules.Warning(path, read)
+	if !ok {
+		return
+	}
+	req.Warning = "The request touches " + w.Path + ". " + w.Reason
+	req.Keep = ""
+}
+
+// privatePaths add the profile's refused paths and its caches to the paths
+// doriath keeps private. A module layers read-only files in a cache, such
+// as an agent's state, that a grant would make writable on the host.
 func (s *Session) privatePaths() []string {
-	out := s.deps.Paths.Private()
+	out := append(s.deps.Paths.Private(), s.req.Profile.PathRules.Refuse...)
 	for _, c := range s.req.Profile.Caches {
 		out = append(out, c.Path)
 	}

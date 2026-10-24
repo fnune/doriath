@@ -291,3 +291,52 @@ func TestAJoinedIdenticalRequestGetsTheDecision(t *testing.T) {
 		t.Errorf("the grant ran %d times", n)
 	}
 }
+
+func TestARequestThatTouchesAWarnedPathAsksWithTheWarningAndOnlyOnce(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 3)}
+	s := newTestSession(t, notifier)
+	s.deps.HostWait = 0
+	bin := filepath.Join(s.home, ".local", "bin")
+	repo := filepath.Join(s.home, "repo")
+	envrc := filepath.Join(repo, ".envrc")
+	mkdirAll(t, bin, repo)
+	if err := os.WriteFile(envrc, []byte("use flake\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.req.Profile.Mounts = []profile.Mount{{Path: repo, Mode: profile.ModeWrite}, {Path: envrc, Mode: profile.ModeRead}}
+	s.req.Profile.PathRules = profile.PathRules{
+		Warn: []profile.PathWarning{{Path: bin, Reason: "Your shells run programs from it."}},
+		Hold: []profile.PathHold{{Path: envrc, Reason: "direnv runs it.", Missing: profile.MissingHold}},
+	}
+	if _, err := s.requestWrite(filepath.Join(s.home, ".local"), "a helper"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.requestRead(bin, "look"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.requestEdit(envrc, "use flake\necho hi\n", "add a line"); err != nil {
+		t.Fatal(err)
+	}
+	write, read, edit := <-notifier.seen, <-notifier.seen, <-notifier.seen
+	if write.Warning != "The request touches "+bin+". Your shells run programs from it." || write.Keep != "" || write.Offers(approval.AnswerSession) {
+		t.Errorf("write = %+v", write)
+	}
+	if read.Warning != "" {
+		t.Errorf("a read of a path that the host runs needs no warning: %+v", read)
+	}
+	if edit.Warning != "The request touches "+envrc+". direnv runs it." {
+		t.Errorf("edit = %+v", edit)
+	}
+}
+
+func TestAPathThatTheProfileRefusesIsRefusedLikeYourKeys(t *testing.T) {
+	s := newTestSession(t, nil)
+	tokens := filepath.Join(s.home, ".tokens")
+	mkdirAll(t, tokens)
+	s.req.Profile.PathRules.Refuse = []string{tokens}
+	for _, path := range []string{tokens, filepath.Join(tokens, "new")} {
+		if _, err := s.checkPromotion(path); err == nil || !strings.Contains(err.Error(), "holds keys, logins, config that names programs the host runs, or doriath's own state") {
+			t.Errorf("%s: err = %v", path, err)
+		}
+	}
+}

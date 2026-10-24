@@ -459,6 +459,7 @@ type Profile struct {
 	Open            []OpenRule
 	Agent           Agent
 	Claude          Claude
+	PathRules       PathRules
 	// Secrets says where each secret this profile uses comes from. They live
 	// in the profile, not in a shared table, so a profile reaches only the
 	// secrets written into it, and reusing one elsewhere is a deliberate copy.

@@ -145,6 +145,19 @@ func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 		}
 	}
 	out.Mounts = append(out.Mounts, explicit...)
+	out.PathRules = p.PathRules.resolve(func(path string) (string, bool) {
+		path, placeholder := placeholderPath(path)
+		if !placeholder {
+			return path, true
+		}
+		root := start.Current
+		if strings.HasPrefix(path, Repository) {
+			root = start.Repository
+		}
+		_, rest, _ := strings.Cut(path, "}")
+		return filepath.Clean(root + rest), root != ""
+	})
+	out.Mounts = heldMounts(out.Mounts, out.PathRules.Hold)
 	if guard, ok := repoProfilesGuard(out.Mounts, start); ok {
 		out.Mounts = append(out.Mounts, guard)
 	}
