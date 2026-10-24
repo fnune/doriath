@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -28,7 +29,14 @@ func Serve(ctx context.Context, l net.Listener, src clipboard.Source, onError fu
 	defer stop()
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	clients := make(chan struct{}, maxClients)
+	copies := make(chan struct{}, maxCopies)
 	for {
+		select {
+		case clients <- struct{}{}:
+		case <-ctx.Done():
+			return nil
+		}
 		c, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
@@ -39,12 +47,14 @@ func Serve(ctx context.Context, l net.Listener, src clipboard.Source, onError fu
 		uc, ok := c.(*net.UnixConn)
 		if !ok {
 			_ = c.Close()
+			<-clients
 			continue
 		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cl := newClient(uc, src, onError)
+			defer func() { <-clients }()
+			cl := newClient(uc, src, copies, onError)
 			if err := cl.serve(ctx); err != nil {
 				onError(err)
 			}
@@ -94,6 +104,11 @@ const (
 	// 28 descriptors with one.
 	maxMessage = 4096
 	maxFDs     = 28
+
+	maxClients    = 64
+	maxCopies     = 8
+	maxPendingFDs = 64
+	typesLifetime = time.Second
 )
 
 var globals = []global{
@@ -149,16 +164,20 @@ const (
 type client struct {
 	conn    *net.UnixConn
 	src     clipboard.Source
+	copies  chan struct{}
 	onError func(error)
 	objects map[uint32]object
 	fds     []int
 	next    uint32
+	types   []string
+	typesAt time.Time
 }
 
-func newClient(conn *net.UnixConn, src clipboard.Source, onError func(error)) *client {
+func newClient(conn *net.UnixConn, src clipboard.Source, copies chan struct{}, onError func(error)) *client {
 	return &client{
 		conn:    conn,
 		src:     src,
+		copies:  copies,
 		onError: onError,
 		objects: map[uint32]object{displayID: {iface: ifaceDisplay}},
 		next:    firstServerID,
@@ -231,7 +250,13 @@ func (c *client) takeFDs(oob []byte) error {
 		if err != nil {
 			continue
 		}
-		c.fds = append(c.fds, fds...)
+		for _, fd := range fds {
+			if len(c.fds) < maxPendingFDs {
+				c.fds = append(c.fds, fd)
+			} else {
+				_ = unix.Close(fd)
+			}
+		}
 	}
 	return nil
 }
@@ -393,11 +418,7 @@ func (c *client) manager(ctx context.Context, m message, mgr object) error {
 // the clipboard of the moment it is made, which is how wl-paste and arboard
 // read: one device for each paste.
 func (c *client) offerSelection(ctx context.Context, device uint32, d object) error {
-	types, err := c.src.Types(ctx)
-	if err != nil {
-		c.onError(err)
-		types = nil
-	}
+	types := c.currentTypes(ctx)
 	selection := uint32(0)
 	if len(types) > 0 {
 		selection = c.next
@@ -419,6 +440,19 @@ func (c *client) offerSelection(ctx context.Context, device uint32, d object) er
 		return c.send(device, devicePrimarySelection, u32(0))
 	}
 	return nil
+}
+
+func (c *client) currentTypes(ctx context.Context) []string {
+	if !c.typesAt.IsZero() && time.Since(c.typesAt) < typesLifetime {
+		return c.types
+	}
+	types, err := c.src.Types(ctx)
+	if err != nil {
+		c.onError(err)
+		types = nil
+	}
+	c.types, c.typesAt = types, time.Now()
+	return types
 }
 
 func (c *client) device(m message) error {
@@ -465,7 +499,14 @@ func (c *client) offer(ctx context.Context, m message) error {
 		fd := c.fds[0]
 		c.fds = c.fds[1:]
 		f := os.NewFile(uintptr(fd), "clipboard")
+		select {
+		case c.copies <- struct{}{}:
+		case <-ctx.Done():
+			_ = f.Close()
+			return nil
+		}
 		go func() {
+			defer func() { <-c.copies }()
 			defer f.Close()
 			if err := c.src.Copy(ctx, mimeType, f); err != nil {
 				c.onError(err)

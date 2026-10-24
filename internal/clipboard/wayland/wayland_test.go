@@ -3,6 +3,7 @@ package wayland
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/fnune/doriath/internal/clipboard"
 )
@@ -65,6 +68,12 @@ func serve(t *testing.T, src clipboard.Source) []string {
 			t.Skipf("%s is not installed", tool)
 		}
 	}
+	socket := listen(t, src)
+	return []string{"WAYLAND_DISPLAY=" + socket, "XDG_RUNTIME_DIR=" + t.TempDir(), "PATH=" + os.Getenv("PATH")}
+}
+
+func listen(t *testing.T, src clipboard.Source) string {
+	t.Helper()
 	socket := filepath.Join(t.TempDir(), "wayland.sock")
 	l, err := net.Listen("unix", socket)
 	if err != nil {
@@ -80,7 +89,7 @@ func serve(t *testing.T, src clipboard.Source) []string {
 		cancel()
 		<-done
 	})
-	return []string{"WAYLAND_DISPLAY=" + socket, "XDG_RUNTIME_DIR=" + t.TempDir(), "PATH=" + os.Getenv("PATH")}
+	return socket
 }
 
 func run(t *testing.T, env []string, stdin string, name string, args ...string) (string, error) {
@@ -178,5 +187,196 @@ func TestWlCopyCannotSetYourClipboard(t *testing.T) {
 	out, err := run(t, env, "", "wl-paste", "--type", "image/png")
 	if err != nil || out != string(png) {
 		t.Errorf("after wl-copy the clipboard reads %q, %v", out, err)
+	}
+}
+
+type rawClient struct {
+	t    *testing.T
+	conn *net.UnixConn
+	next uint32
+}
+
+func dial(t *testing.T, socket string) *rawClient {
+	t.Helper()
+	c, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: socket, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return &rawClient{t: t, conn: c, next: 100}
+}
+
+func (r *rawClient) send(object uint32, opcode uint16, fds []int, args ...[]byte) {
+	r.t.Helper()
+	msg := make([]byte, 8)
+	for _, a := range args {
+		msg = append(msg, a...)
+	}
+	binary.LittleEndian.PutUint32(msg, object)
+	binary.LittleEndian.PutUint32(msg[4:], uint32(len(msg))<<16|uint32(opcode))
+	var oob []byte
+	if len(fds) > 0 {
+		oob = unix.UnixRights(fds...)
+	}
+	if _, _, err := r.conn.WriteMsgUnix(msg, oob, nil); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *rawClient) bindDevices(n int) {
+	r.send(displayID, displayGetRegistry, nil, u32(2))
+	r.send(2, registryBind, nil, u32(1), str("wl_seat"), u32(1), u32(3))
+	r.send(2, registryBind, nil, u32(2), str("ext_data_control_manager_v1"), u32(1), u32(4))
+	for i := range n {
+		r.send(4, managerGetDevice, nil, u32(uint32(5+i)), u32(3))
+	}
+}
+
+func (r *rawClient) sync() uint32 {
+	r.next++
+	r.send(displayID, displaySync, nil, u32(r.next))
+	return r.next
+}
+
+func (r *rawClient) waitDone(callback uint32, timeout time.Duration) error {
+	_ = r.conn.SetReadDeadline(time.Now().Add(timeout))
+	header := make([]byte, 8)
+	for {
+		if _, err := io.ReadFull(r.conn, header); err != nil {
+			return err
+		}
+		body := make([]byte, int(binary.LittleEndian.Uint32(header[4:])>>16)-8)
+		if _, err := io.ReadFull(r.conn, body); err != nil {
+			return err
+		}
+		if binary.LittleEndian.Uint32(header) == callback && uint16(binary.LittleEndian.Uint32(header[4:])) == callbackDone {
+			return nil
+		}
+	}
+}
+
+func (r *rawClient) roundtrip() {
+	r.t.Helper()
+	if err := r.waitDone(r.sync(), 5*time.Second); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+type countingClipboard struct {
+	mu      sync.Mutex
+	lists   int
+	active  int
+	most    int
+	release chan struct{}
+}
+
+func (c *countingClipboard) Types(context.Context) ([]string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lists++
+	return []string{"image/png"}, nil
+}
+
+func (c *countingClipboard) Copy(context.Context, string, io.Writer) error {
+	c.mu.Lock()
+	c.active++
+	c.most = max(c.most, c.active)
+	c.mu.Unlock()
+	<-c.release
+	c.mu.Lock()
+	c.active--
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *countingClipboard) counts() (lists, active, most int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lists, c.active, c.most
+}
+
+func TestDevicesInALoopListTheTypesOnce(t *testing.T) {
+	src := &countingClipboard{}
+	r := dial(t, listen(t, src))
+	r.bindDevices(10)
+	r.roundtrip()
+	if lists, _, _ := src.counts(); lists != 1 {
+		t.Errorf("ten devices listed the types %d times", lists)
+	}
+}
+
+func openFDs(t *testing.T) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Skip(err)
+	}
+	return len(entries)
+}
+
+func TestDescriptorsBeyondTheCapAreClosed(t *testing.T) {
+	r := dial(t, listen(t, &countingClipboard{}))
+	pipe := make([]int, 2)
+	if err := unix.Pipe2(pipe, unix.O_CLOEXEC); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unix.Close(pipe[0]); _ = unix.Close(pipe[1]) })
+	r.roundtrip()
+	before := openFDs(t)
+	fds := make([]int, maxFDs)
+	for i := range fds {
+		fds[i] = pipe[1]
+	}
+	for range 10 {
+		r.next++
+		r.send(displayID, displaySync, fds, u32(r.next))
+	}
+	r.roundtrip()
+	if after := openFDs(t); after > before+maxPendingFDs {
+		t.Errorf("%d descriptors held after %d were sent, want at most %d", after-before, 10*maxFDs, maxPendingFDs)
+	}
+}
+
+func TestCopiesRunAtMostEightAtATime(t *testing.T) {
+	src := &countingClipboard{release: make(chan struct{})}
+	r := dial(t, listen(t, src))
+	r.bindDevices(1)
+	pipe := make([]int, 2)
+	if err := unix.Pipe2(pipe, unix.O_CLOEXEC); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unix.Close(pipe[0]); _ = unix.Close(pipe[1]) })
+	for range maxCopies + 4 {
+		r.send(firstServerID, offerReceive, []int{pipe[1]}, str("image/png"))
+	}
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, active, _ := src.counts(); active >= maxCopies || time.Now().After(deadline) {
+			break
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	_, _, most := src.counts()
+	close(src.release)
+	r.roundtrip()
+	if most != maxCopies {
+		t.Errorf("%d copies ran at once, want %d", most, maxCopies)
+	}
+}
+
+func TestAClientBeyondTheCapWaitsForAFreeSlot(t *testing.T) {
+	socket := listen(t, &countingClipboard{})
+	first := dial(t, socket)
+	first.roundtrip()
+	for range maxClients - 1 {
+		dial(t, socket).roundtrip()
+	}
+	late := dial(t, socket)
+	callback := late.sync()
+	if err := late.waitDone(callback, 100*time.Millisecond); err == nil {
+		t.Fatal("a client beyond the cap was served")
+	}
+	_ = first.conn.Close()
+	if err := late.waitDone(callback, 5*time.Second); err != nil {
+		t.Fatalf("a client got no slot after another left: %v", err)
 	}
 }
