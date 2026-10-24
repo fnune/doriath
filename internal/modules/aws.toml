@@ -23,7 +23,45 @@ form = { Action = "List*" }
 action = "allow"
 
 [[http]]
+host = "iam-fips.amazonaws.com"
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
+default = "deny"
+operation = { form = "Action" }
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "Get*" }
+action = "allow"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "List*" }
+action = "allow"
+
+[[http]]
 host = "organizations.us-east-1.amazonaws.com"
+credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
+default = "deny"
+operation = { header = "X-Amz-Target" }
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.Describe*"
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "*.List*"
+action = "allow"
+
+[[http]]
+host = "organizations-fips.us-east-1.amazonaws.com"
 credential = { secret = "aws", scheme = "sigv4", key_id = "AKIADORIATHPLACEHOLD" }
 default = "deny"
 operation = { header = "X-Amz-Target" }
@@ -54,6 +92,13 @@ path = "/**"
 form = { Action = "AssumeRole*" }
 action = "deny"
 summary = "Assume a role: its credentials would enter the jail"
+
+[[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "AssumeRoot" }
+action = "deny"
+summary = "Assume root: its credentials would enter the jail"
 
 [[http.rules]]
 method = "*"
@@ -98,6 +143,59 @@ action = "deny"
 summary = "Get a CodeArtifact token: it would enter the jail"
 
 [[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "GetClusterCredentials*" }
+action = "deny"
+summary = "Get Redshift credentials: they would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "RedshiftServerless.GetCredentials"
+action = "deny"
+summary = "Get Redshift Serverless credentials: they would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "Lightsail_20161128.GetInstanceAccessDetails"
+action = "deny"
+summary = "Get a Lightsail instance key: it would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "Lightsail_20161128.GetRelationalDatabaseMasterUserPassword"
+action = "deny"
+summary = "Get a Lightsail database password: it would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "GameLift.GetComputeAccess"
+action = "deny"
+summary = "Get GameLift compute credentials: they would enter the jail"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "GameLift.GetInstanceAccess"
+action = "deny"
+summary = "Get GameLift instance credentials: they would enter the jail"
+
+[[http.rules]]
+method = "GET"
+path = "/user/federate/*"
+action = "deny"
+summary = "Get Amazon Connect federation tokens: they would enter the jail"
+
+[[http.rules]]
 method = "POST"
 path = "/"
 header = "X-Amz-Target"
@@ -128,6 +226,14 @@ header = "X-Amz-Target"
 header_glob = "TrentService.Decrypt"
 action = "approve"
 summary = "Decrypt with KMS"
+
+[[http.rules]]
+method = "POST"
+path = "/"
+header = "X-Amz-Target"
+header_glob = "TrentService.GenerateDataKey*"
+action = "approve"
+summary = "Generate a data key with KMS"
 
 [[http.rules]]
 method = "*"

@@ -217,6 +217,18 @@ func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 		{"iam.amazonaws.com", "POST", "/", form, "Action=CreateAccessKey", "deny"},
 		{"iam.amazonaws.com", "POST", "/", form, "Action=AttachRolePolicy", "deny"},
 		{"organizations.us-east-1.amazonaws.com", "POST", "/", target("AWSOrganizationsV20161128.InviteAccountToOrganization"), "", "deny"},
+		{"iam-fips.amazonaws.com", "POST", "/", form, "Action=CreateAccessKey", "deny"},
+		{"iam-fips.amazonaws.com", "POST", "/", form, "Action=ListRoles", "allow"},
+		{"organizations-fips.us-east-1.amazonaws.com", "POST", "/", target("AWSOrganizationsV20161128.InviteAccountToOrganization"), "", "deny"},
+		{"sts.amazonaws.com", "POST", "/", form, "Action=AssumeRoot", "deny"},
+		{"redshift.us-east-1.amazonaws.com", "POST", "/", form, "Action=GetClusterCredentials", "deny"},
+		{"redshift.us-east-1.amazonaws.com", "POST", "/", form, "Action=GetClusterCredentialsWithIAM", "deny"},
+		{"redshift-serverless.us-east-1.amazonaws.com", "POST", "/", target("RedshiftServerless.GetCredentials"), "", "deny"},
+		{"lightsail.us-east-1.amazonaws.com", "POST", "/", target("Lightsail_20161128.GetInstanceAccessDetails"), "", "deny"},
+		{"lightsail.us-east-1.amazonaws.com", "POST", "/", target("Lightsail_20161128.GetRelationalDatabaseMasterUserPassword"), "", "deny"},
+		{"gamelift.us-east-1.amazonaws.com", "POST", "/", target("GameLift.GetComputeAccess"), "", "deny"},
+		{"gamelift.us-east-1.amazonaws.com", "POST", "/", target("GameLift.GetInstanceAccess"), "", "deny"},
+		{"connect.us-east-1.amazonaws.com", "GET", "/user/federate/instance-id", http.Header{}, "", "deny"},
 	} {
 		h, ok := p.Intercepted(c.host)
 		if !ok || h.Credential == nil || h.Credential.Scheme != profile.SchemeSigV4 {
@@ -225,6 +237,19 @@ func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 		if r, _ := h.DecideWithQuery(c.method, c.path, nil, c.header, []byte(c.body)); string(r.Action) != c.want {
 			t.Errorf("%s %s%s %v %s: %s, want %s", c.method, c.host, c.path, c.header, c.body, r.Action, c.want)
 		}
+	}
+}
+
+func TestAKMSDataKeyWaitsWithItsOwnSummaryBecauseItCarriesAPlaintextKey(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte("modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kms, _ := p.Intercepted("kms.us-east-1.amazonaws.com")
+	r, _ := kms.DecideRequest("POST", "/", http.Header{"X-Amz-Target": {"TrentService.GenerateDataKey"}}, nil)
+	if r.Action != profile.ActionApprove || r.Summary == "" {
+		t.Errorf("GenerateDataKey = %v %q, want approve with a summary", r.Action, r.Summary)
 	}
 }
 

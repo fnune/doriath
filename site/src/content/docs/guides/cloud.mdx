@@ -29,8 +29,8 @@ The module decides each request by its operation:
 
 - Go through: reads, such as `Describe*`, `Get*` and `List*` calls, and `GET` on S3.
 - Wait for your answer: every other call, named by its operation, such as `Action=DeleteStack` or `DynamoDB_20120810.DeleteTable`. An allow for the session covers that operation only.
-- Wait with their own summary: reads of secrets from Secrets Manager and SSM, and KMS decryption.
-- Refused: calls that return credentials, which would enter the jail, such as `AssumeRole`, `GetSessionToken`, AWS SSO role credentials and registry tokens. All IAM and Organizations writes are refused too.
+- Wait with their own summary: reads of secrets from Secrets Manager and SSM, KMS decryption and KMS data keys.
+- Refused: calls that return credentials, which would enter the jail, such as `AssumeRole`, `GetSessionToken`, AWS SSO role credentials, registry tokens and database passwords. All IAM and Organizations writes are refused too.
 
 If a tool assumes a role itself, as in a profile with `role_arn`, give the command that role's credentials instead.
 
