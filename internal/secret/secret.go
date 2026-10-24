@@ -194,7 +194,13 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 		if c.oauth == nil {
 			return Value{}, fmt.Errorf("secret %q: OAuth logins are not available here", name)
 		}
-		return c.oauth.Token(ctx, name, *b.OAuth)
+		v, err := c.oauth.Token(ctx, name, *b.OAuth)
+		if err != nil {
+			c.failed[name] = failure{err: err, retryAt: now}
+			return Value{}, err
+		}
+		delete(c.failed, name)
+		return v, nil
 	}
 	f, failedBefore := c.failed[name]
 	if !seen && failedBefore && now.Before(f.retryAt) {

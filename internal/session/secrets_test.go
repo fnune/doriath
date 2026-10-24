@@ -3,11 +3,14 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/oauth"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -121,5 +124,49 @@ func TestAnOAuthCardNamesTheLoginCommand(t *testing.T) {
 	s.secretCard("linear", errors.New("not signed in"))
 	if p := s.manager.Pending(); len(p) != 1 || p[0].Command != "doriath profiles login deploy linear" {
 		t.Errorf("pending = %+v", p)
+	}
+}
+
+type countingLogins struct{ calls int }
+
+func (c *countingLogins) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {
+	c.calls++
+	return secret.Value{}, errors.New(`secret "` + name + `": not signed in`)
+}
+
+func TestAMissingOAuthLoginCountsAsMissingAtStart(t *testing.T) {
+	backends := map[string]secret.Backend{"linear": {OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}}
+	s := sessionWithSecrets(t, backends)
+	logins := &countingLogins{}
+	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}, secret.OSFiles{}).WithOAuth(logins)
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	st := s.status()
+	if len(st.Unavailable) != 1 || st.Unavailable[0].Secret != "linear" {
+		t.Errorf("unavailable = %+v", st.Unavailable)
+	}
+	if got := st.SecretsSummary(80); got != "secrets missing linear" {
+		t.Errorf("summary = %q", got)
+	}
+}
+
+func TestASignedInOAuthLoginIsNotFetchedAtStart(t *testing.T) {
+	backends := map[string]secret.Backend{"linear": {OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}}
+	s := sessionWithSecrets(t, backends)
+	logins := &countingLogins{}
+	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}, secret.OSFiles{}).WithOAuth(logins)
+	state := oauth.StatePath(s.deps.Paths.State, "deploy", "linear")
+	if err := os.MkdirAll(filepath.Dir(state), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(state, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if logins.calls != 0 {
+		t.Errorf("a signed-in login was fetched at start %d times", logins.calls)
 	}
 }

@@ -29,6 +29,8 @@ Then find where profiles live, because you write the profile there:
 3. If a link points to a folder, such as `private -> ~/Development/doriath-profiles`, that folder holds profiles that the person keeps in a repository. Ask whether the new profile goes there.
 4. Otherwise, the profile is a TOML file at `~/.config/doriath/profiles/NAME.toml`.
 
+A profile for one project can live in the project instead, at `.doriath/NAME.toml`, and sessions name it `repo:NAME`. Then everyone who works on the project gets it. Put only what the project needs there: modules, hosts, mounts and caches. Keep secrets, signing keys and personal folders in a profile of the person's own, and compose the two, such as `my-app+repo:dev`. `.doriath` must be a folder in the repository, not a link. Ask the person where the profile goes. See https://doriath.fnune.com/reference/configuration/#repository-profiles.
+
 Run `doriath profiles list`. If a profile already covers part of the work, ask whether to compose with it, such as `--profile my-app+deploy`, instead of a copy. See https://doriath.fnune.com/reference/configuration/#composed-profiles.
 
 ## Choose the modules
@@ -117,7 +119,7 @@ In the project, run `doriath doctor --profile NAME`. It tells whether the jail s
 
 ## Start sessions from the project
 
-If the person uses direnv, add `use doriath NAME` to the project's `.envrc`, after `use flake`. If `git ls-files .envrc` shows that the repository tracks `.envrc`, put the line in `.envrc.local` instead, and keep that file out of the repository. The person then runs `direnv allow`. See https://doriath.fnune.com/guides/direnv/.
+If the person uses direnv, add `use doriath NAME` to the project's `.envrc`, after `use flake`. For a composed profile, name each part, such as `use doriath my-app repo:dev`. If `git ls-files .envrc` shows that the repository tracks `.envrc`, put the line in `.envrc.local` instead, and keep that file out of the repository. The person then runs `direnv allow`. See https://doriath.fnune.com/guides/direnv/.
 
 Without direnv, suggest an alias, such as `alias claude-my-app='doriath run --profile my-app -- claude'`.
 
@@ -128,4 +130,5 @@ End with a list of the steps that only the person can do:
 1. Create the token and the secrets, then run `doriath doctor --secrets`.
 2. Add the public signing key to the forge, if the profile has one.
 3. Run a build in learning mode, such as `doriath run --profile NAME --learn -- make build`. At the end, doriath prints the `[egress]` lines to add to the profile.
-4. Start the agent in a session, and sign in to it there. Each profile has its own agent login.
+4. Start the agent in a session, and allow the profile when doriath asks. doriath asks before the first session of each profile in each project, and again when the profile later gives more. A session without a terminal stops instead, and prints the `doriath profiles allow` command to run.
+5. Sign in to the agent in the session. Each profile, and each composition, has its own agent login.

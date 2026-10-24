@@ -37,6 +37,7 @@ import (
 	"github.com/fnune/doriath/internal/containers"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/oauth"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/proxy"
@@ -507,7 +508,7 @@ func (s *Session) httpForward(target string, port int) http.Handler {
 func (s *Session) fetchSecrets(ctx context.Context) error {
 	p := s.req.Profile
 	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
-		if p.Secrets[name].OAuth != nil {
+		if p.Secrets[name].OAuth != nil && s.signedIn(name) {
 			continue
 		}
 		_, err := s.deps.Secrets.Get(ctx, name)
@@ -520,6 +521,11 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (s *Session) signedIn(secret string) bool {
+	_, err := os.Stat(oauth.StatePath(s.deps.Paths.State, s.req.Profile.SecretOwner(secret), secret))
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func secretUsers(p *profile.Profile, name string) []string {
