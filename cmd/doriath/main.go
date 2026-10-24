@@ -207,6 +207,7 @@ func loader(p config.Paths, dir string) *profile.Loader {
 		Repository:     profiles,
 		RepositoryRoot: root,
 		Home:           p.Home,
+		Private:        p.Private(),
 	}
 }
 

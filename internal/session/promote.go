@@ -216,16 +216,11 @@ func deepestExisting(path string) string {
 	}
 }
 
-// privatePaths hold keys, logins, config that names programs the host runs,
-// or doriath's own configuration and state, and also the profile's caches,
-// such as an agent's state, where a module layers read-only files that a
-// grant would make writable on the host.
+// privatePaths add the profile's caches to the paths doriath keeps private,
+// because a module layers read-only files there, such as an agent's state,
+// that a grant would make writable on the host.
 func (s *Session) privatePaths() []string {
-	home := s.deps.Paths.Home
-	out := []string{s.deps.Paths.Config, s.deps.Paths.State, s.deps.Paths.Cache}
-	for _, rel := range []string{".ssh", ".gnupg", ".aws", ".config/gh", ".config/glab-cli", ".config/tea", ".local/share/keyrings", ".password-store", ".gitconfig", ".config/git", ".config/jj", ".local/state/nix", ".local/state/home-manager"} {
-		out = append(out, filepath.Join(home, rel))
-	}
+	out := s.deps.Paths.Private()
 	for _, c := range s.req.Profile.Caches {
 		out = append(out, c.Path)
 	}

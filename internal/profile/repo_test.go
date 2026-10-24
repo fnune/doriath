@@ -188,3 +188,40 @@ func TestARepositoryProfileUsedAloneIsCheckedAsARepositoryProfile(t *testing.T) 
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestARepositoryProfileCannotMakeASettingThatRunsAProgramSafe(t *testing.T) {
+	l := repoLoader()
+	repo := l.Repository.(fstest.MapFS)
+	for _, key := range []string{"core.hookspath", "core.*", "*", "*.sshcommand", "credential.helper", "remote.*.url"} {
+		repo["edit.toml"] = file("[[mounts]]\npath = \"{git}/config\"\nedit = { format = \"git-config\", safe = [\"" + key + " = **\"] }\n")
+		_, err := l.Load("repo:edit")
+		if err == nil || !strings.Contains(err.Error(), "a repository profile cannot let a setting that runs a program or sends data change without your answer") {
+			t.Errorf("%s: err = %v", key, err)
+		}
+	}
+	repo["edit.toml"] = file("[[mounts]]\npath = \"{git}/config\"\nedit = { format = \"git-config\", safe = [\"branch.*.merge = refs/heads/**\", \"core.autocrlf = *\"] }\n")
+	if _, err := l.Load("repo:edit"); err != nil {
+		t.Errorf("a setting that runs nothing is refused: %v", err)
+	}
+}
+
+func TestARepositoryProfileCannotMountPrivatePaths(t *testing.T) {
+	l := repoLoader()
+	l.Home, l.Private = "/home/u", []string{"/home/u/.local/state/doriath", "/home/u/.ssh"}
+	repo := l.Repository.(fstest.MapFS)
+	for _, path := range []string{"~/.local/state/doriath", "~/.local/state/doriath/grants", "~/.local", "/home/u/.ssh"} {
+		repo["mount.toml"] = file("[[mounts]]\npath = \"" + path + "\"\nmode = \"write\"\n")
+		_, err := l.Load("repo:mount")
+		if err == nil || !strings.Contains(err.Error(), "a repository profile cannot show") {
+			t.Errorf("%s: err = %v", path, err)
+		}
+	}
+	repo["mount.toml"] = file("[[mounts]]\npath = \"~/.local/share/fonts\"\n\n[[mounts]]\npath = \"~/.ssh\"\nmode = \"hide\"\n")
+	if _, err := l.Load("repo:mount"); err != nil {
+		t.Errorf("a mount of another path is refused: %v", err)
+	}
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file("[[mounts]]\npath = \"~/.ssh\"\n")
+	if _, err := l.Load("mine"); err != nil {
+		t.Errorf("your own profile cannot mount it: %v", err)
+	}
+}

@@ -24,13 +24,15 @@ import (
 // Loader reads profiles and the modules they name. A module name is in one
 // of Modules only, so that no module replaces another without notice.
 // Repository holds the profiles named with RepoPrefix, and is nil outside a
-// repository.
+// repository. Private holds the paths that a repository profile cannot
+// mount, such as your keys and doriath's own state.
 type Loader struct {
 	Profiles       fs.FS
 	Modules        []fs.FS
 	Repository     fs.FS
 	RepositoryRoot string
 	Home           string
+	Private        []string
 }
 
 // RepoPrefix names a profile of the repository that holds {current}, read
@@ -163,6 +165,7 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	}
 
 	b := newBuilder(l.Home)
+	b.private = l.Private
 	b.apply(defaults)
 	for _, ly := range layers {
 		b.apply(ly)
@@ -351,6 +354,7 @@ func (l *Loader) repoProfileData(name string) ([]byte, error) {
 
 type builder struct {
 	home        string
+	private     []string
 	deny        []string
 	mounts      []mountLayer
 	caches      []string
@@ -400,6 +404,7 @@ func (b *builder) apply(l layer) {
 	b.record(l)
 	if l.fromRepository() {
 		b.errs = append(b.errs, b.repositoryOverrides(l)...)
+		b.errs = append(b.errs, b.repositoryMounts(l)...)
 	}
 	b.mounts = append(b.mounts, l.Mounts...)
 	for _, m := range l.MCP {
@@ -555,6 +560,59 @@ func (b *builder) repositoryOverrides(l layer) []error {
 		}
 	}
 	return errs
+}
+
+func (b *builder) repositoryMounts(l layer) []error {
+	var errs []error
+	for _, m := range l.Mounts {
+		if m.Edit != nil {
+			for _, safe := range m.Edit.Safe {
+				key, _, _ := strings.Cut(safe, " = ")
+				if k := strings.ToLower(strings.TrimSpace(key)); slices.ContainsFunc(gitKeysThatRunOrSend, func(d string) bool { return mayMatch(k, d) }) {
+					errs = append(errs, fmt.Errorf("mount %s: edit safe %q: a repository profile cannot let a setting that runs a program or sends data change without your answer. Put it in a profile of your own", m.Path, safe))
+				}
+			}
+		}
+		if _, placeholder := placeholderPath(m.Path); placeholder || strings.HasPrefix(m.Path, GitDir+"/") || m.Mode == string(ModeHide) {
+			continue
+		}
+		path, err := b.expand(m.Path)
+		if err != nil {
+			continue
+		}
+		for _, private := range b.private {
+			if within(path, private) || within(private, path) {
+				errs = append(errs, fmt.Errorf("mount %s: a repository profile cannot show %s, because it holds keys, logins, config that names programs your machine runs, or the state of doriath. Put the mount in a profile of your own", m.Path, private))
+				break
+			}
+		}
+	}
+	return errs
+}
+
+var gitKeysThatRunOrSend = []string{
+	"credential.*", "url.*", "include.*", "includeif.*", "http.*", "sendemail.*", "remote.*", "submodule.*",
+	"alias.*", "filter.*", "diff.*", "merge.*", "pager.*", "gpg.*", "protocol.*", "uploadpack.*", "receive.*",
+	"core.sshcommand", "core.askpass", "core.hookspath", "core.fsmonitor", "core.editor", "core.pager",
+	"core.gitproxy", "core.worktree", "sequence.editor", "user.signingkey",
+}
+
+func mayMatch(safe, pattern string) bool {
+	prefix, isPrefix := strings.CutSuffix(pattern, "*")
+	if !isPrefix {
+		return regexp.MustCompile("^" + strings.ReplaceAll(regexp.QuoteMeta(safe), `\*`, ".*") + "$").MatchString(pattern)
+	}
+	for i := range prefix {
+		switch {
+		case i == len(safe):
+			return false
+		case safe[i] == '*':
+			return true
+		case safe[i] != prefix[i]:
+			return false
+		}
+	}
+	return true
 }
 
 func (l layer) fromRepository() bool {

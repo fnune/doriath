@@ -34,6 +34,16 @@ func (p Paths) WebToken() string   { return filepath.Join(p.State, "web-token") 
 func (p Paths) WebAddr() string    { return filepath.Join(p.Runtime, "web-addr") }
 func (p Paths) Sessions() string   { return filepath.Join(p.Runtime, "sessions") }
 
+// Private lists the paths that hold keys, logins, config that names programs
+// the host runs, or doriath's own configuration and state.
+func (p Paths) Private() []string {
+	out := []string{p.Config, p.State, p.Cache}
+	for _, rel := range []string{".ssh", ".gnupg", ".aws", ".config/gh", ".config/glab-cli", ".config/tea", ".local/share/keyrings", ".password-store", ".gitconfig", ".config/git", ".config/jj", ".local/state/nix", ".local/state/home-manager"} {
+		out = append(out, filepath.Join(p.Home, rel))
+	}
+	return out
+}
+
 // ImagePins holds the digests a profile's container image tags resolved to.
 // It is state rather than cache: deleting it trusts the next pull again.
 func (p Paths) ImagePins(profile string) string {

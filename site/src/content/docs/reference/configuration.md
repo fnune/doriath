@@ -294,6 +294,8 @@ doriath run --profile my-app+repo:dev -- claude
 - A repository profile cannot set a secret `command`, because the command would run on your machine with your environment, and the checkout may have written it. Keep secret commands in a profile of your own, and compose the two. A secret `file` is allowed. doriath asks you before it uses a repository profile, and again when it gives more. See [allowed profiles](#allowed-profiles).
 - The `repo:` prefix keeps repository profiles apart from your own. A repository cannot replace one of your profiles or modules.
 - A repository profile cannot change where your secrets go. It can hand out only the secrets it defines, and it cannot add rules to an `[[http]]` host that your profiles or modules give a credential, replace one of their `[[mcp]]` servers, or define a secret with the name of one of theirs. Put such rules in a profile of your own.
+- A repository profile cannot mount your keys, logins, git and jj config, or the configuration, state and cache of doriath. It can hide them.
+- In an [edit](#edits) `safe` list, a repository profile cannot name a git setting that runs a program or sends data to another place, such as `core.hookspath`, `credential.*`, `url.*`, `include.*` or `remote.*`.
 - A repository profile cannot go in a `modules` list.
 - A missing repository profile is an error, also outside a repository.
 - Each repository has its own caches, logins and image pins for its repository profiles, also when two repositories use the same name.
