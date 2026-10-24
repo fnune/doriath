@@ -186,7 +186,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				cancel()
 				check(label, err)
 			case b.OAuth != nil:
-				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
+				_, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(name), name))
 				if errors.Is(err, os.ErrNotExist) {
 					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
 				}

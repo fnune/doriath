@@ -175,8 +175,9 @@ func New(deps Deps, req Request) (*Session, error) {
 	if req.Current == "" {
 		req.Current = req.Cwd
 	}
-	repository := profile.FindRepository(req.Current, func(p string) bool { return osHost{}.Kind(p) != "" })
-	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Current, Repository: repository}, deps.Paths.Home)
+	exists := func(p string) bool { return osHost{}.Kind(p) != "" }
+	repository := profile.FindRepository(req.Current, exists)
+	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Current, Repository: repository, Exists: exists}, deps.Paths.Home)
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}
@@ -352,7 +353,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	return s.writeInfo()
 }
 
-func (s *Session) cacheRoot() string { return s.deps.Paths.AgentCache(s.req.Profile.Name) }
+func (s *Session) cacheRoot() string { return s.deps.Paths.AgentCache(s.req.Profile.StateName()) }
 func (s *Session) tmp() string       { return filepath.Join(s.cacheRoot(), "tmp", s.id) }
 func (s *Session) jailPath(name string) string {
 	return filepath.Join(s.jailDir, name)
@@ -962,7 +963,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 	}
 	args := []string{
 		"--user", "--scope", "--quiet", "--collect",
-		"--unit", fmt.Sprintf("doriath-%s-%s-%s", strings.ReplaceAll(s.req.Profile.Name, "+", "-"), role, s.id),
+		"--unit", fmt.Sprintf("doriath-%s-%s-%s", s.req.Profile.Label(), role, s.id),
 	}
 	if lim.Tasks > 0 {
 		args = append(args, "-p", fmt.Sprintf("TasksMax=%d", lim.Tasks))
@@ -989,7 +990,7 @@ func (s *Session) limited(cmd *exec.Cmd, role string) *exec.Cmd {
 }
 
 func agentWritable(deps Deps, p *profile.Profile) []string {
-	writable := []string{deps.Paths.AgentCache(p.Name)}
+	writable := []string{deps.Paths.AgentCache(p.StateName())}
 	for _, m := range p.Mounts {
 		if m.Mode == profile.ModeWrite {
 			writable = append(writable, m.Path)

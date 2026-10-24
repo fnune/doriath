@@ -231,7 +231,7 @@ func (d *doctorChecks) Checks() ([]web.Check, time.Time) {
 }
 
 func (d *doctorChecks) Refresh(ctx context.Context) {
-	results := doctor.Run(ctx, doctor.Options{Paths: d.paths, Loader: loader(d.paths)})
+	results := doctor.Run(ctx, doctor.Options{Paths: d.paths, Loader: loader(d.paths, "")})
 	checks := make([]web.Check, len(results))
 	for i, r := range results {
 		checks[i] = web.Check{Name: r.Name, Level: string(r.Level), Detail: r.Detail}

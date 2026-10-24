@@ -4,7 +4,9 @@
 #
 # puts a shim for NAME first on PATH, so that running it
 # anywhere in the project starts it in a doriath session of PROFILE for this
-# project. Several profiles compose, each over the ones before it. Without --command, NAME is the command of the agent whose module
+# project. Several profiles compose, each over the ones before it. repo:NAME
+# names the profile .doriath/NAME.toml of the repository.
+# Without --command, NAME is the command of the agent whose module
 # the profile lists, such as claude. The shim lives outside the project,
 # where no agent writes.
 use_doriath() {

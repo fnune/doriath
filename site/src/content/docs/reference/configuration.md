@@ -257,6 +257,25 @@ A session can use more than one profile, joined with `+`, such as `doriath run -
 
 `doriath profiles show my-app+deploy` shows the result, with the profile behind each entry.
 
+## Repository profiles
+
+A repository can keep profiles for its project in a `.doriath` folder at its root. A team commits them, so that each person gets the hosts, mounts and caches of the project.
+
+Name a repository profile with `repo:` and its file name. For example, `repo:dev` is `.doriath/dev.toml` in the repository that holds `{current}`. It runs alone, or [composed](#composed-profiles) with your own profiles:
+
+```sh
+doriath run --profile my-app+repo:dev -- claude
+```
+
+- A repository profile is a full profile. It can set `secrets`, and a secret command runs on the host. doriath asks you before it uses a repository profile, and again when it gives more. See [allowed profiles](#allowed-profiles).
+- The `repo:` prefix keeps repository profiles apart from your own. A repository cannot replace one of your profiles or modules.
+- A repository profile cannot go in a `modules` list.
+- A missing repository profile is an error, also outside a repository.
+- Each repository has its own caches, logins and image pins for its repository profiles, also when two repositories use the same name.
+- For settings of one computer, put them in your own profile. Or put them in a profile that `.gitignore` lists, such as `.doriath/my-dev.toml`, and name both: `my-app+repo:dev+repo:my-dev`.
+
+The jail shows `.doriath` read-only, also in a writable repository, so that the agent cannot change what its next session loads. If the folder is missing, doriath holds its place for the session.
+
 ## Allowed profiles
 
 doriath asks you before the first session of each profile in each repository. It shows what the profile gives the jail, and starts only after you answer `y`:

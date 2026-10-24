@@ -160,12 +160,35 @@ func run(args []string) int {
 
 func paths() (config.Paths, error) { return config.DefaultPaths(os.Getenv) }
 
-func loader(p config.Paths) *profile.Loader {
+func loader(p config.Paths, dir string) *profile.Loader {
+	root, profiles := repositoryProfiles(dir)
 	return &profile.Loader{
-		Profiles: os.DirFS(p.Profiles()),
-		Modules:  []fs.FS{os.DirFS(p.Modules()), modules.FS},
-		Home:     p.Home,
+		Profiles:       os.DirFS(p.Profiles()),
+		Modules:        []fs.FS{os.DirFS(p.Modules()), modules.FS},
+		Repository:     profiles,
+		RepositoryRoot: root,
+		Home:           p.Home,
 	}
+}
+
+func workingDir() string {
+	dir, _ := os.Getwd()
+	return dir
+}
+
+func repositoryProfiles(dir string) (string, fs.FS) {
+	if dir == "" {
+		return "", nil
+	}
+	repo := profile.FindRepository(dir, func(p string) bool { return osKind(p) != "" })
+	if repo == "" {
+		return "", nil
+	}
+	root, err := os.OpenRoot(filepath.Join(repo, profile.RepoProfiles))
+	if err != nil {
+		return repo, nil
+	}
+	return repo, root.FS()
 }
 
 func cmdRun(args []string) (int, error) {
@@ -198,7 +221,7 @@ func cmdRun(args []string) (int, error) {
 	if *name == "" {
 		return 2, errors.New("run: name the profile, for example: doriath run --profile my-app -- claude")
 	}
-	prof, err := loader(p).Load(*name)
+	prof, err := loader(p, start).Load(*name)
 	if err != nil {
 		return 1, err
 	}

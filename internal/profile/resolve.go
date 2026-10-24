@@ -82,6 +82,7 @@ func FindRepository(dir string, exists func(string) bool) string {
 type Start struct {
 	Current    string
 	Repository string
+	Exists     func(string) bool
 }
 
 // Defaults are the entries doriath adds on its own. Each yields to any entry
@@ -140,5 +141,26 @@ func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 		}
 	}
 	out.Mounts = append(out.Mounts, explicit...)
+	if guard, ok := repoProfilesGuard(out.Mounts, start); ok {
+		out.Mounts = append(out.Mounts, guard)
+	}
 	return &out, errors.Join(errs...)
+}
+
+func repoProfilesGuard(mounts []Mount, start Start) (Mount, bool) {
+	if start.Repository == "" {
+		return Mount{}, false
+	}
+	dir := filepath.Join(start.Repository, RepoProfiles)
+	if !slices.ContainsFunc(mounts, func(m Mount) bool { return m.Mode == ModeWrite && m.Path != dir && within(dir, m.Path) }) {
+		return Mount{}, false
+	}
+	if slices.ContainsFunc(mounts, func(m Mount) bool { return m.Path == dir }) {
+		return Mount{}, false
+	}
+	mode := ModeHide
+	if start.Exists != nil && start.Exists(dir) {
+		mode = ModeRead
+	}
+	return Mount{Path: dir, Mode: mode, Optional: true}, true
 }

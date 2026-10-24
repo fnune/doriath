@@ -158,7 +158,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		SeccompFD:  opts.SeccompFD,
 		SetIDs:     opts.SetIDs,
 		GID:        opts.GID,
-		Hostname:   "doriath-" + strings.ReplaceAll(p.Name, "+", "-"),
+		Hostname:   "doriath-" + p.Label(),
 		UID:        opts.UID,
 		Home:       opts.Home,
 		Env:        map[string]string{},

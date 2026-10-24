@@ -13,7 +13,7 @@ You give the values of arguments in capitals. Arguments in brackets are optional
 doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
 ```
 
-Runs a command in a jail for the profile. `NAME` can join several profiles with `+`, as [composed profiles](/reference/configuration/#composed-profiles) describes. `--current DIR` sets the folder of the session, in place of the working folder. Before the first session of a profile, and when it gives more than you allowed, `run` asks you; see [allowed profiles](/reference/configuration/#allowed-profiles). `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
+Runs a command in a jail for the profile. `NAME` can join several profiles with `+`, as [composed profiles](/reference/configuration/#composed-profiles) describes, such as `my-app+repo:dev` with a [repository profile](/reference/configuration/#repository-profiles). `--current DIR` sets the folder of the session, in place of the working folder. Before the first session of a profile, and when it gives more than you allowed, `run` asks you; see [allowed profiles](/reference/configuration/#allowed-profiles). `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
 
 ### `doriath exec`
 

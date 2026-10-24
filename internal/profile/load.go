@@ -1,6 +1,8 @@
 package profile
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -23,11 +25,23 @@ const defaultApprovalTimeout = 60 * time.Second
 
 // Loader reads profiles and the modules they name. Modules are looked up in
 // order, so a user module shadows a built-in module of the same name.
+// Repository holds the profiles named with RepoPrefix, and is nil outside a
+// repository.
 type Loader struct {
-	Profiles fs.FS
-	Modules  []fs.FS
-	Home     string
+	Profiles       fs.FS
+	Modules        []fs.FS
+	Repository     fs.FS
+	RepositoryRoot string
+	Home           string
 }
+
+// RepoPrefix names a profile of the repository that holds {current}, read
+// from RepoProfiles at its root. The prefix keeps a repository from
+// replacing one of your profiles.
+const (
+	RepoPrefix   = "repo:"
+	RepoProfiles = ".doriath"
+)
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
@@ -125,9 +139,10 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	names := strings.Split(name, "+")
 	var layers []layer
 	var tops []layer
+	var stateNames []string
 	done := map[string]bool{}
 	for i, n := range names {
-		if !namePattern.MatchString(n) {
+		if !namePattern.MatchString(strings.TrimPrefix(n, RepoPrefix)) {
 			return nil, fmt.Errorf("profile name %q: use lowercase letters, digits and dashes", n)
 		}
 		if slices.Contains(names[:i], n) {
@@ -137,6 +152,8 @@ func (l *Loader) Load(name string) (*Profile, error) {
 		if err != nil {
 			return nil, err
 		}
+		top.stateName = l.stateName(n)
+		stateNames = append(stateNames, top.stateName)
 		if i > 0 {
 			top.source = "profile " + n
 		}
@@ -152,8 +169,10 @@ func (l *Loader) Load(name string) (*Profile, error) {
 		b.apply(ly)
 	}
 	top := tops[0]
-	if len(tops) > 1 {
+	if len(names) > 1 {
 		top.Name = name
+	}
+	if len(tops) > 1 {
 		top.Description = composedDescription(tops)
 		b.errs = append(b.errs, clashes(tops)...)
 	}
@@ -161,20 +180,22 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("profile %q: %w", name, err)
 	}
+	p.stateName = strings.Join(stateNames, "+")
 	return p, nil
 }
 
+func (l *Loader) stateName(name string) string {
+	if !strings.HasPrefix(name, RepoPrefix) {
+		return name
+	}
+	sum := sha256.Sum256([]byte(l.RepositoryRoot))
+	return name + "@" + hex.EncodeToString(sum[:4])
+}
+
 func (l *Loader) readProfile(name string) (layer, error) {
-	file, ok, err := l.File(name)
+	data, err := l.profileData(name)
 	if err != nil {
 		return layer{}, err
-	}
-	if !ok {
-		file = name + ".toml"
-	}
-	data, err := fs.ReadFile(l.Profiles, file)
-	if err != nil {
-		return layer{}, fmt.Errorf("read profile %q: %w", name, err)
 	}
 	top, err := decodeLayer("profile "+name, data)
 	if err != nil {
@@ -263,6 +284,9 @@ func (l *Loader) CheckModule(name string) error {
 }
 
 func (l *Loader) readModule(name string) ([]byte, error) {
+	if strings.HasPrefix(name, RepoPrefix) {
+		return nil, fmt.Errorf("module %s: %s names a repository profile, so add it to the profile name instead, such as my-app+%s", name, RepoPrefix, name)
+	}
 	if !namePattern.MatchString(name) {
 		return nil, fmt.Errorf("module name %q: use lowercase letters, digits and dashes", name)
 	}
@@ -276,6 +300,38 @@ func (l *Loader) readModule(name string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("module %q not found", name)
+}
+
+func (l *Loader) profileData(name string) ([]byte, error) {
+	if rest, ok := strings.CutPrefix(name, RepoPrefix); ok {
+		return l.repoProfileData(rest)
+	}
+	file, ok, err := l.File(name)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		file = name + ".toml"
+	}
+	data, err := fs.ReadFile(l.Profiles, file)
+	if err != nil {
+		return nil, fmt.Errorf("read profile %q: %w", name, err)
+	}
+	return data, nil
+}
+
+func (l *Loader) repoProfileData(name string) ([]byte, error) {
+	if l.Repository == nil {
+		return nil, fmt.Errorf("profile %s: doriath reads it from %s in the repository, and found no repository with that folder", RepoPrefix+name, RepoProfiles)
+	}
+	data, err := fs.ReadFile(l.Repository, name+".toml")
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("profile %s not found: the repository has no %s/%s.toml", RepoPrefix+name, RepoProfiles, name)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read profile %s: %w", RepoPrefix+name, err)
+	}
+	return data, nil
 }
 
 type builder struct {
@@ -444,7 +500,7 @@ func (b *builder) apply(l layer) {
 	for k, v := range l.Secrets {
 		b.secrets[k] = v
 		if strings.HasPrefix(l.source, "profile") {
-			b.secretOwner[k] = l.Name
+			b.secretOwner[k] = l.stateName
 		}
 	}
 }

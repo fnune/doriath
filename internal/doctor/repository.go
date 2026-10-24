@@ -45,7 +45,7 @@ func repository(opts Options) []Result {
 		}
 		return []Result{{Name: label, Level: Problem, Detail: fmt.Sprintf("profile %s, from %s: %v", name, from, err)}}
 	}
-	resolved, err := prof.Resolve(profile.Start{Current: current, Repository: repo}, opts.Paths.Home)
+	resolved, err := prof.Resolve(profile.Start{Current: current, Repository: repo, Exists: exists}, opts.Paths.Home)
 	if err != nil {
 		return []Result{{Name: label, Level: Problem, Detail: fmt.Sprintf("profile %s: %v", name, err)}}
 	}

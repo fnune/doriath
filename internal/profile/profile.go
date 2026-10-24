@@ -392,6 +392,7 @@ type MCPServer struct {
 
 type Profile struct {
 	Name        string
+	stateName   string
 	Description string
 	Mounts      []Mount
 	// GitEdits are the edit rules for files in every git directory that
@@ -556,11 +557,26 @@ func (h HTTPHost) OperationOf(query url.Values, header http.Header, body []byte)
 	return strings.Join(parts, " ")
 }
 
+// Label is the name in a form that hostnames and systemd units accept.
+func (p *Profile) Label() string {
+	return strings.NewReplacer("+", "-", ":", "-").Replace(p.Name)
+}
+
 // SecretOwner is the profile whose state, such as an OAuth login, a secret
 // uses.
 func (p *Profile) SecretOwner(name string) string {
 	if owner, ok := p.SecretOwners[name]; ok {
 		return owner
+	}
+	return p.StateName()
+}
+
+// StateName names the caches, image pins and logins of the profile. It
+// differs from Name for a repository profile, so that two repositories with
+// a repo:dev do not share them.
+func (p *Profile) StateName() string {
+	if p.stateName != "" {
+		return p.stateName
 	}
 	return p.Name
 }

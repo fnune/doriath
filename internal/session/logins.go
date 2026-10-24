@@ -29,7 +29,7 @@ func refuseOwnLogins(p *profile.Profile, stateDir string) *profile.Profile {
 		}
 		summary := fmt.Sprintf("doriath holds the %s login for profile %s, so the agent needs none. If calls to %s fail, run on the host: doriath profiles login %s %s", m.Secret, p.Name, m.Name, p.Name, m.Secret)
 		var rules []profile.Rule
-		for _, path := range loginPaths(stateDir, p.Name, m.Secret, host) {
+		for _, path := range loginPaths(stateDir, p.SecretOwner(m.Secret), m.Secret, host) {
 			if pp, err := profile.ParsePathPattern(path); err == nil {
 				rules = append(rules, profile.Rule{Method: "POST", Path: pp, Action: profile.ActionDeny, Summary: summary})
 			}

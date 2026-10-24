@@ -99,7 +99,7 @@ func cmdComplete(args []string, w io.Writer) {
 	}
 	switch args[0] {
 	case "profiles":
-		names, _ := loader(p).Names()
+		names, _ := loader(p, "").Names()
 		for _, n := range names {
 			fmt.Fprintln(w, n)
 		}

@@ -31,6 +31,7 @@ type layer struct {
 	Claude      *claudeLayer           `toml:"claude"`
 	Secrets     map[string]secretLayer `toml:"secrets"`
 	source      string
+	stateName   string
 }
 
 type mountLayer struct {

@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/fnune/doriath/internal/profile"
 )
 
 // TestEscapes runs every script in testdata/escapes inside a real jail. Each
@@ -23,7 +25,7 @@ import (
 //
 //	# threat: one line on what the agent would gain
 //	# expect: held | works | gap
-//	# setup: live-repo | store-repo | host-listener | rebinding | hidden
+//	# setup: live-repo | store-repo | host-listener | rebinding | hidden | work-repo | repo-profiles
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
@@ -187,6 +189,22 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 				}
 			}
 			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"hide\"\n\n[[mounts]]\npath = %q\nmode = \"hide\"\n\n[[mounts]]\npath = %q\nmode = \"hide\"\n", dir, filepath.Join(e.work, ".env"), filepath.Join(e.work, ".envrc"))
+		case "work-repo", "repo-profiles":
+			cmd := exec.Command("git", "-C", e.work, "init", "-q", "-b", "main")
+			cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git init: %v\n%s", err, out)
+			}
+			if s == "repo-profiles" {
+				dir := filepath.Join(e.work, profile.RepoProfiles)
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "dev.toml"), []byte("[egress]\nallow = [\"dev.example\"]\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			replacements = append(replacements, "{{REPO_PROFILES}}", filepath.Join(e.work, profile.RepoProfiles))
 		case "rebinding":
 			extra += "\n[[egress.programs]]\nbinaries = [\"curl\"]\nallow = [\"rebinding.example\"]\n"
 		default:

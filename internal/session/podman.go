@@ -320,7 +320,7 @@ func (s *Session) startContainerBroker(raw string) error {
 		Profile:     p.Name,
 		ApprovalTTL: approvalTTL,
 		Resolver:    s.jailPaths(),
-		Pins:        imagepins.NewFile(s.deps.Paths.ImagePins(p.Name)),
+		Pins:        imagepins.NewFile(s.deps.Paths.ImagePins(p.StateName())),
 	})
 	l, err := s.listen(PodmanSocket)
 	if err != nil {

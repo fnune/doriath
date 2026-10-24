@@ -343,7 +343,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	l := loader(p)
+	l := loader(p, workingDir())
 	if len(args) == 0 || args[0] == "list" {
 		names, err := l.Names()
 		if err != nil {
@@ -386,7 +386,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return profilesAllow(l, allowed.NewStore(p.AllowedProfiles()), args[1], dir, stdout)
+		return profilesAllow(loader(p, dir), allowed.NewStore(p.AllowedProfiles()), args[1], dir, stdout)
 	}
 	if args[0] == "login" && (len(args) == 2 || len(args) == 3) {
 		return cmdLogin(p, l, args[1:], stdout)
@@ -405,7 +405,7 @@ func cmdAgentCommand(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	prof, err := loader(p).Load(args[0])
+	prof, err := loader(p, workingDir()).Load(args[0])
 	if err != nil {
 		return err
 	}
@@ -434,7 +434,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	allow := func(prof *profile.Profile) error {
 		return confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, cwd), os.Stdin, os.Stderr, isTerminal(os.Stdin))
 	}
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}
@@ -456,7 +456,8 @@ func cleanCaches(name string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if _, err := loader(p).Load(name); err != nil {
+	prof, err := loader(p, workingDir()).Load(name)
+	if err != nil {
 		return err
 	}
 	sessions, err := liveSessions(p)
@@ -468,7 +469,7 @@ func cleanCaches(name string, w io.Writer) error {
 			return fmt.Errorf("session %s of profile %s is running; stop it first", s.info.ID, name)
 		}
 	}
-	dir := p.AgentCache(name)
+	dir := p.AgentCache(prof.StateName())
 	containers := filepath.Join(dir, "containers")
 	if _, err := os.Stat(containers); err == nil {
 		unshare := lookPath("unshare")
@@ -562,6 +563,9 @@ mode = "read"
 `
 
 func profilesEdit(l *profile.Loader, dir, name string, in io.Reader, w io.Writer) error {
+	if rest, ok := strings.CutPrefix(name, profile.RepoPrefix); ok {
+		return fmt.Errorf("profile %s is in the repository: edit %s/%s.toml there", name, profile.RepoProfiles, rest)
+	}
 	file, ok, err := l.File(name)
 	if err != nil {
 		return err

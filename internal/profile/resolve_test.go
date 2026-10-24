@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -21,6 +22,10 @@ func mode(mounts []Mount, path string) Mode {
 		}
 	}
 	return ""
+}
+
+func withoutRepoProfiles(mounts []Mount) []Mount {
+	return slices.DeleteFunc(slices.Clone(mounts), func(m Mount) bool { return strings.HasSuffix(m.Path, "/"+RepoProfiles) })
 }
 
 var inRepo = Start{Current: "/home/u/src/app/pkg", Repository: "/home/u/src/app"}
@@ -48,14 +53,14 @@ func TestDefaultsYieldToTheProfile(t *testing.T) {
 	if mode(got, "/home/u/src/app") != ModeWrite || mode(got, "/home/u/src/app/pkg") != ModeHide {
 		t.Fatalf("mounts = %+v", got)
 	}
-	if len(got) != 2 {
+	if len(withoutRepoProfiles(got)) != 2 {
 		t.Fatalf("a default must not stay beside the entry it yields to: %+v", got)
 	}
 }
 
 func TestDefaultsYieldToAnEntryAbove(t *testing.T) {
 	p := &Profile{VCSStore: true, Mounts: []Mount{{Path: "/home/u/src", Mode: ModeWrite}}}
-	got := resolve(t, p, inRepo)
+	got := withoutRepoProfiles(resolve(t, p, inRepo))
 	if len(got) != 1 || got[0].Mode != ModeWrite {
 		t.Fatalf("a writable parent must not be cut by a read-only default below it: %+v", got)
 	}

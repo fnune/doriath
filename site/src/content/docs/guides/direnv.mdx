@@ -9,7 +9,7 @@ description: Start your agent in the jail from anywhere in a project, alongside 
 use doriath my-app
 ```
 
-`use doriath PROFILE` puts a script first on `PATH`, with the name of the command of your agent, such as `claude`. The script runs `doriath run --profile PROFILE --current ROOT -- COMMAND`, where `ROOT` is the folder of the `.envrc`. To wrap another command, add `--command NAME`. To [compose profiles](/reference/configuration/#composed-profiles), name each one, such as `use doriath my-app deploy`. The script is in `~/.cache/doriath/shims/`, where no agent writes.
+`use doriath PROFILE` puts a script first on `PATH`, with the name of the command of your agent, such as `claude`. The script runs `doriath run --profile PROFILE --current ROOT -- COMMAND`, where `ROOT` is the folder of the `.envrc`. To wrap another command, add `--command NAME`. To [compose profiles](/reference/configuration/#composed-profiles), name each one, such as `use doriath my-app deploy`. To use a [repository profile](/reference/configuration/#repository-profiles), name it with `repo:`, such as `use doriath my-app repo:dev`. The script is in `~/.cache/doriath/shims/`, where no agent writes.
 
 ## Install the library
 

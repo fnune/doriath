@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -99,5 +102,51 @@ func TestHostClipboardNeedsAWaylandSessionAndWlPaste(t *testing.T) {
 	}
 	if hostClipboard(func(string) string { return "" }, "/bin/wl-paste") != nil {
 		t.Error("outside a Wayland session there is no clipboard")
+	}
+}
+
+func TestRepositoryProfilesComeFromTheRootOfTheRepository(t *testing.T) {
+	repo := t.TempDir()
+	sub := filepath.Join(repo, "pkg", "deep")
+	for _, d := range []string{filepath.Join(repo, ".git"), filepath.Join(repo, ".doriath"), sub} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".doriath", "dev.toml"), []byte("[egress]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root, modules := repositoryProfiles(sub)
+	if root != repo || modules == nil {
+		t.Fatal("no repository profiles from a folder inside the repository")
+	}
+	if _, err := fs.ReadFile(modules, "dev.toml"); err != nil {
+		t.Fatal(err)
+	}
+	if _, none := repositoryProfiles(""); none != nil {
+		t.Error("repository profiles without a folder")
+	}
+	if _, none := repositoryProfiles(t.TempDir()); none != nil {
+		t.Error("repository profiles without a repository")
+	}
+}
+
+func TestARepositoryProfileCannotLinkToAFileOutsideTheFolder(t *testing.T) {
+	repo := t.TempDir()
+	for _, d := range []string{filepath.Join(repo, ".git"), filepath.Join(repo, ".doriath")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outside := filepath.Join(t.TempDir(), "secret.toml")
+	if err := os.WriteFile(outside, []byte("[egress]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, ".doriath", "dev.toml")); err != nil {
+		t.Fatal(err)
+	}
+	_, profiles := repositoryProfiles(repo)
+	if _, err := fs.ReadFile(profiles, "dev.toml"); err == nil {
+		t.Fatal("read a file outside .doriath through a symlink")
 	}
 }
