@@ -207,6 +207,11 @@ daemon = false
 [vcs]
 store = true
 
+# Images from your clipboard, each read after you allow it. Text never
+# reaches the jail. The clipboard module turns it on.
+[clipboard]
+images = true
+
 # Make the seccomp and Landlock limits less strict for tools that need it.
 [hardening]
 namespaces = false   # nested sandboxes such as bubblewrap

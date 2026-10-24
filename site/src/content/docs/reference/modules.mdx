@@ -128,3 +128,9 @@ With `pre-commit`, pre-commit builds hook environments in a cache of the profile
 `podman` starts a podman service for the session in its own user namespace, behind a broker that checks each API call. Containers share the network of the session. Thus they reach the internet only through the proxy, and the agent reaches their ports on localhost. [Containers](/reference/configuration/#containers) describes images and binds.
 
 <ModuleSource name="podman" />
+
+## clipboard
+
+`clipboard` lets you paste images, such as screenshots, into the agent. The jail gets a Wayland display that offers only the images in your clipboard, so agents read them the way they would outside the jail, whether through `wl-paste` or the Wayland protocol. Each read asks you, [once or for the session](/guides/approvals/). Text in your clipboard never reaches the jail, and the agent cannot set your clipboard. doriath reads the clipboard with `wl-paste` on your machine, so the module needs a Wayland session and wl-clipboard.
+
+<ModuleSource name="clipboard" />

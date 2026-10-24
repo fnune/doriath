@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/notify"
 )
@@ -83,5 +84,20 @@ func TestJJGitAsksGitForAbsoluteWorktreePaths(t *testing.T) {
 	want := []string{"-c", "worktree.useRelativePaths=false", "worktree", "add", "worktree.useRelativePaths=true"}
 	if !slices.Equal(got, want) {
 		t.Errorf("args = %q, want %q: only the setting jj passes with -c changes", got, want)
+	}
+}
+
+func TestHostClipboardNeedsAWaylandSessionAndWlPaste(t *testing.T) {
+	env := map[string]string{"WAYLAND_DISPLAY": "wayland-1", "XDG_RUNTIME_DIR": "/run/user/1000"}
+	getenv := func(k string) string { return env[k] }
+	src, ok := hostClipboard(getenv, "/bin/wl-paste").(clipboard.WlPaste)
+	if !ok || src.Bin != "/bin/wl-paste" || !slices.Equal(src.Env, []string{"WAYLAND_DISPLAY=wayland-1", "XDG_RUNTIME_DIR=/run/user/1000"}) {
+		t.Errorf("source = %+v", src)
+	}
+	if hostClipboard(getenv, "") != nil {
+		t.Error("without wl-paste there is no clipboard")
+	}
+	if hostClipboard(func(string) string { return "" }, "/bin/wl-paste") != nil {
+		t.Error("outside a Wayland session there is no clipboard")
 	}
 }

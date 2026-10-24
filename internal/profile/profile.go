@@ -420,9 +420,13 @@ type Profile struct {
 	// writable, so agents commit and add worktrees there while the
 	// checkout and the files git runs stay read-only.
 	VCSStore bool
-	MCP      []MCPServer
-	Agent    Agent
-	Claude   Claude
+	// ClipboardImages lets the agent ask for the image in your clipboard,
+	// which you allow for each read or for the session. Text in the
+	// clipboard never reaches the jail.
+	ClipboardImages bool
+	MCP             []MCPServer
+	Agent           Agent
+	Claude          Claude
 	// Secrets says where each secret this profile uses comes from. They live
 	// in the profile, not in a shared table, so a profile reaches only the
 	// secrets written into it, and reusing one elsewhere is a deliberate copy.

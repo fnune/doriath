@@ -32,6 +32,7 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/audit"
 	"github.com/fnune/doriath/internal/ca"
+	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/containers"
 	"github.com/fnune/doriath/internal/jail"
@@ -105,6 +106,9 @@ type Deps struct {
 	UpstreamRoots *x509.CertPool
 	// Promote makes a path writable in the running jail.
 	Promote func(context.Context, promote.Request) error
+	// Clipboard is your clipboard, for profiles that let the agent ask for
+	// its images. Nil when doriath runs outside a desktop session.
+	Clipboard clipboard.Source
 }
 
 type Request struct {
@@ -160,9 +164,11 @@ type Session struct {
 	mu       sync.Mutex
 	listings *listingCache
 	vcsEnv   map[string]string
-	roots    *vcs.RootGuard
-	rootLog  *repairLog
-	titled   bool
+	// clipboardEnv points clipboard tools at the jail's Wayland display.
+	clipboardEnv map[string]string
+	roots        *vcs.RootGuard
+	rootLog      *repairLog
+	titled       bool
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -309,6 +315,9 @@ func (s *Session) prepare(ctx context.Context) error {
 		return err
 	}
 	if err := s.startSigning(ctx); err != nil {
+		return err
+	}
+	if err := s.startClipboard(ctx); err != nil {
 		return err
 	}
 	if p.Podman {
@@ -594,6 +603,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		"DORIATH_BROKER":      jail.InJail(BrokerSocket),
 	}
 	maps.Copy(env, s.vcsEnv)
+	maps.Copy(env, s.clipboardEnv)
 	if p.SigningKey != "" {
 		env["SSH_AUTH_SOCK"] = jail.InJail(AgentSocket)
 	}

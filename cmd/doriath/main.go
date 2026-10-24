@@ -21,6 +21,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/bundle"
+	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/notify"
@@ -255,6 +256,7 @@ func cmdRun(args []string) (int, error) {
 		HostWait:    hostWait(user.Approvals, notifier),
 		SystemdRun:  lookPath("systemd-run"),
 		Promote:     promote.Writable,
+		Clipboard:   hostClipboard(os.Getenv, lookPath("wl-paste")),
 	}
 	finishInterrupted(p, deps.Stderr)
 	s, err := session.New(deps, session.Request{Profile: prof, Cwd: cwd, Current: start, Command: command, Learn: *learn})
@@ -272,6 +274,16 @@ func lookPath(name string) string {
 		return ""
 	}
 	return p
+}
+
+// hostClipboard reads your Wayland clipboard, or returns nil outside a
+// Wayland session.
+func hostClipboard(getenv func(string) string, wlPaste string) clipboard.Source {
+	display := getenv("WAYLAND_DISPLAY")
+	if display == "" || wlPaste == "" {
+		return nil
+	}
+	return clipboard.WlPaste{Bin: wlPaste, Env: []string{"WAYLAND_DISPLAY=" + display, "XDG_RUNTIME_DIR=" + getenv("XDG_RUNTIME_DIR")}}
 }
 
 type clock interface {

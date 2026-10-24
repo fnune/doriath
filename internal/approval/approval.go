@@ -26,6 +26,9 @@ const (
 	// KindEdit asks to change a file that is read-only in the jail. doriath
 	// writes the change once.
 	KindEdit Kind = "edit"
+	// KindClipboard asks to read the image in your clipboard. An allow once
+	// covers one paste.
+	KindClipboard Kind = "clipboard"
 )
 
 // AllowsOnce says whether an allow can cover one request only. A host or a

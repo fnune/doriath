@@ -298,6 +298,7 @@ type builder struct {
 	images      []string
 	nix         bool
 	vcsStore    bool
+	clipboard   bool
 	mcp         []mcpLayer
 	harden      Hardening
 	limits      Limits
@@ -389,6 +390,9 @@ func (b *builder) apply(l layer) {
 	}
 	if l.VCS != nil && l.VCS.Store != nil {
 		b.vcsStore = *l.VCS.Store
+	}
+	if l.Clipboard != nil && l.Clipboard.Images != nil {
+		b.clipboard = *l.Clipboard.Images
 	}
 	if lim := l.Limits; lim != nil {
 		if lim.Tasks != nil {
@@ -557,6 +561,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 		ContainerImages: b.images,
 		NixDaemon:       b.nix,
 		VCSStore:        b.vcsStore,
+		ClipboardImages: b.clipboard,
 		Hardening:       b.harden,
 		Limits:          b.limits,
 		Secrets:         map[string]secret.Backend{},

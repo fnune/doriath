@@ -23,6 +23,7 @@ type layer struct {
 	Podman      *podmanLayer           `toml:"podman"`
 	Nix         *nixLayer              `toml:"nix"`
 	VCS         *vcsLayer              `toml:"vcs"`
+	Clipboard   *clipboardLayer        `toml:"clipboard"`
 	MCP         []mcpLayer             `toml:"mcp"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Limits      *limitsLayer           `toml:"limits"`
@@ -155,6 +156,10 @@ type mcpLayer struct {
 
 type vcsLayer struct {
 	Store *bool `toml:"store"`
+}
+
+type clipboardLayer struct {
+	Images *bool `toml:"images"`
 }
 
 type podmanLayer struct {

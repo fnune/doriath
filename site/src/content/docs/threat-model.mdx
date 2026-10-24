@@ -64,6 +64,7 @@ If a kernel exploit is the threat that matters most, run doriath in a VM, or use
 | Change your checkout, or plant a git hook            | The checkout is read-only. git's and jj's config, hooks and info stay read-only, also in writable mounts.                                                        |
 | Rewrite or delete history                            | Existing packs are read-only. At the end, doriath restores loose objects and removes objects that git cannot verify. `doriath restore` resets moved branches.    |
 | Escape through the kernel                            | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules, keyrings, terminal injection and rare socket families. Landlock limits writes.  |
+| Read your clipboard or screen                        | The jail has no display. With the `clipboard` module it gets a display that offers only clipboard images, each after you allow it.                               |
 | Reach more through containers                        | A broker checks each podman API call. It permits only allowed images and the profile's mounts, nothing privileged, and no host namespace other than the network. |
 
 ## Limits
@@ -149,6 +150,7 @@ These paths let you resume sessions, read output, reuse build caches and add wri
 - `doriath run --learn` reaches every public host for that session. Use it only for builds that you start, and never give it to an agent.
 - `doriath forward` listens on the host's loopback, which every local user can reach, also on a shared server.
 - The `nix-daemon` module's builds run outside the jail, without the allowlist.
+- With the `clipboard` module, an allowed read gives the agent the image you copied last, whatever it shows. An allow for the session covers every later read, also those you did not start with a paste.
 - A secret given as a command runs on the host with your environment, so it trusts the author of the profile.
 - OAuth refresh tokens stay in doriath's state directory, which your user can read outside the jail, as with your other logins.
 - Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session and answer Claude's permission prompts. The jail and the proxy rules still apply.

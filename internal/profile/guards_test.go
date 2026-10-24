@@ -87,6 +87,19 @@ func TestNixDaemonFollowsTheLastLayer(t *testing.T) {
 	}
 }
 
+func TestClipboardImagesFollowTheLastLayer(t *testing.T) {
+	modules := fstest.MapFS{"clipboard.toml": file("[clipboard]\nimages = true")}
+	if p := mustLoad(t, "", modules); p.ClipboardImages {
+		t.Error("a profile without the module reads the clipboard")
+	}
+	if p := mustLoad(t, "modules = [\"clipboard\"]", modules); !p.ClipboardImages {
+		t.Error("the module lets the agent ask for clipboard images")
+	}
+	if p := mustLoad(t, "modules = [\"clipboard\"]\n[clipboard]\nimages = false", modules); p.ClipboardImages {
+		t.Error("the profile takes clipboard images away again")
+	}
+}
+
 func TestSamePathKeepsTheLowerPrivilege(t *testing.T) {
 	for name, tc := range map[string]struct{ module, profile string }{
 		"module writes, profile reads": {"write", "read"},
