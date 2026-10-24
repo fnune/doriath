@@ -379,7 +379,6 @@ type builder struct {
 	claude      claudeLayer
 	disable     bool
 	agent       agentLayer
-	status      bool
 	secrets     map[string]secretLayer
 	secretOwner map[string]string
 	errs        []error
@@ -494,9 +493,6 @@ func (b *builder) apply(l layer) {
 		}
 	}
 	if a := l.Agent; a != nil {
-		if a.StatusLine != nil {
-			b.status = *a.StatusLine
-		}
 		if a.ApprovalTimeout != "" {
 			b.agent.ApprovalTimeout = a.ApprovalTimeout
 		}
@@ -1112,7 +1108,7 @@ func parseAction(s string) (Action, error) {
 }
 
 func (b *builder) buildAgent() (Agent, error) {
-	a := Agent{StatusLine: b.status, ApprovalTimeout: defaultApprovalTimeout}
+	a := Agent{ApprovalTimeout: defaultApprovalTimeout}
 	if b.agent.ApprovalTimeout != "" {
 		d, err := time.ParseDuration(b.agent.ApprovalTimeout)
 		if err != nil || d <= 0 {

@@ -21,7 +21,6 @@ Some things cannot be data. An adapter does them in code for one agent. Each age
 | Permission rules           | Frozen for the session              | Frozen for the session  | The agent can change them         | The agent can change them     |
 | Session text               | At session start                    | At session start        | In `GEMINI.md`                    | In its instructions           |
 | MCP servers from `[[mcp]]` | Yes                                 | Yes                     | Yes                               | Yes                           |
-| Status line                | Yes                                 | No                      | No                                | No                            |
 | Transcripts                | Come back to your `~/.claude`       | Stay in the profile     | Stay in the profile               | Stay in the profile           |
 
 The approval queue is the [approvals page and `doriath approvals`](/guides/approvals/). The session text tells the agent what the jail allows, what `doriath:` errors mean, and how to ask for a host or a path. The settings that each adapter shares are under [`[agent]`](/reference/configuration/#profile-keys) in the profile.

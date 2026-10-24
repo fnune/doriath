@@ -140,8 +140,6 @@ func run(args []string) int {
 		err = cmdStatus(args[1:], os.Stdout)
 	case "__ssh":
 		code, err = cmdSSH(args[1:])
-	case "__statusline":
-		err = cmdStatusline(os.Stdout)
 	case "log":
 		err = cmdLog(ctx, args[1:], realClock{}, os.Stdout)
 	case "completion":

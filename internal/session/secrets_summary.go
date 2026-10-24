@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-// Summary is the session in one line, for a status line or a bar. The
+// Summary is the session in one line, for the bar. The
 // secrets take at most secretsWidth characters.
 func (st Status) Summary(secretsWidth int) string {
 	parts := []string{"doriath " + st.Profile, "session " + st.Session, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}

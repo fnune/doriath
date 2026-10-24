@@ -612,13 +612,12 @@ func TestStatusInsideJail(t *testing.T) {
 curl -s https://example.org/ >/dev/null 2>&1
 curl -s https://example.org/ >/dev/null 2>&1
 /run/doriath-bin/doriath status
-/run/doriath-bin/doriath __statusline
 /run/doriath-bin/doriath __hook claude session-start </dev/null
 `, nil)
 	if code != 0 {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "doriath it · session ", "· 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
+	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", `"hookEventName":"SessionStart"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

@@ -243,12 +243,10 @@ tasks = 8192
 memory = "75%"
 cpu = "200%"
 
-# Settings for every agent. statusline shows the session in the agent's
-# status line, where its adapter can. instructions names the agent's own
+# Settings for every agent. instructions names the agent's own
 # instructions files: the jail shows each as your file followed by what
 # the session allows, so the agent knows the jail from its start.
 [agent]
-statusline = true
 # How long a permission prompt waits for you before the agent shows its own.
 approval_timeout = "60s"
 instructions = ["~/.codex/AGENTS.md"]

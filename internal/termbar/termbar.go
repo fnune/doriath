@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -232,8 +233,11 @@ func (b *Bar) render() string {
 		return ""
 	}
 	text := b.text
-	if room := b.cols - 2; utf8.RuneCountInString(text) > room {
+	room := max(b.cols-2, 0)
+	if n := utf8.RuneCountInString(text); n > room {
 		text = string([]rune(text)[:max(room-1, 0)]) + "…"
+	} else {
+		text += strings.Repeat(" ", room-n)
 	}
 	return term.Badge(text)
 }

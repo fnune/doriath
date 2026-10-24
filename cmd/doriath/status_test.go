@@ -5,46 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/fnune/doriath/internal/session"
 )
-
-func TestStatusline(t *testing.T) {
-	testPaths(t)
-	t.Setenv("NO_COLOR", "1")
-	var out bytes.Buffer
-	if err := cmdStatusline(&out); err != nil || out.String() != "doriath: no session\n" {
-		t.Errorf("without a session = %q, %v", out.String(), err)
-	}
-
-	b := startBroker(t)
-	st := session.Status{Session: "s1", Profile: "kitchen", Hosts: []string{"a.example", "b.example"}, Intercepted: []session.StatusHost{{Host: "github.com"}}}
-	b.setStatus(st)
-	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · session s1 · 3 hosts\n" {
-		t.Errorf("quiet session = %q, %v", out.String(), err)
-	}
-	st.Pending = 1
-	st.Denied = []session.Denial{{Host: "x"}, {Host: "y"}}
-	b.setStatus(st)
-	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · session s1 · 3 hosts · 1 waiting for you · 2 blocked\n" {
-		t.Errorf("busy session = %q, %v", out.String(), err)
-	}
-	st.Secrets = []string{"github", "acme", "signing"}
-	st.Unavailable = []session.Missing{{Secret: "acme"}}
-	b.setStatus(st)
-	out.Reset()
-	if err := cmdStatusline(&out); err != nil || !strings.HasSuffix(out.String(), " · 2 blocked · 2/3 secrets, missing acme\n") {
-		t.Errorf("with a missing secret = %q, %v", out.String(), err)
-	}
-	st.Unavailable = nil
-	b.setStatus(st)
-	out.Reset()
-	if err := cmdStatusline(&out); err != nil || !strings.HasSuffix(out.String(), " · 2 blocked · secrets github, acme, signing\n") {
-		t.Errorf("with every secret = %q, %v", out.String(), err)
-	}
-}
 
 func TestStatusFromHost(t *testing.T) {
 	p := testPaths(t)

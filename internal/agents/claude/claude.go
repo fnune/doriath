@@ -109,17 +109,11 @@ type Files interface {
 
 type settings struct {
 	DisableClaudeAiConnectors bool              `json:"disableClaudeAiConnectors,omitempty"`
-	StatusLine                *statusLine       `json:"statusLine,omitempty"`
 	DeniedMcpServers          []mcpServerRef    `json:"deniedMcpServers,omitempty"`
 	AllowedMcpServers         []mcpServerRef    `json:"allowedMcpServers,omitempty"`
 	Permissions               permissions       `json:"permissions"`
 	Hooks                     map[string][]any  `json:"hooks"`
 	Env                       map[string]string `json:"env,omitempty"`
-}
-
-type statusLine struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
 }
 
 type mcpServerRef struct {
@@ -209,9 +203,6 @@ func Settings(p *profile.Profile, cwd string, files Files) ([]byte, error) {
 	s.Hooks["SessionStart"] = append(s.Hooks["SessionStart"], hookGroup{
 		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " __hook claude session-start", Timeout: 10}},
 	})
-	if p.Agent.StatusLine {
-		s.StatusLine = &statusLine{Type: "command", Command: jail.ExePath + " __statusline"}
-	}
 	s.Hooks["Notification"] = append(s.Hooks["Notification"], hookGroup{
 		Hooks: []hookCommand{{Type: "command", Command: jail.ExePath + " __hook claude notification", Timeout: 10}},
 	})

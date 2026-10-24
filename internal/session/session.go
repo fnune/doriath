@@ -724,13 +724,17 @@ const agentArgsFD = 5
 
 const barSecretsWidth = 48
 
-func (s *Session) openBar() (*termbar.Bar, error) {
-	in, inOK := s.deps.Stdin.(*os.File)
+func (s *Session) barWanted() bool {
+	_, inOK := s.deps.Stdin.(*os.File)
 	out, outOK := s.deps.Stdout.(*os.File)
-	if !s.deps.User.Terminal.Bar || !inOK || !outOK || !term.IsTerminal(out) {
+	return s.deps.User.Terminal.Bar && inOK && outOK && term.IsTerminal(out)
+}
+
+func (s *Session) openBar() (*termbar.Bar, error) {
+	if !s.barWanted() {
 		return nil, nil
 	}
-	bar, err := termbar.Open(in, out)
+	bar, err := termbar.Open(s.deps.Stdin.(*os.File), s.deps.Stdout.(*os.File))
 	if err != nil || bar == nil {
 		return nil, err
 	}

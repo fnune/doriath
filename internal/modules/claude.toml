@@ -77,9 +77,6 @@ header_prefix = "Bearer sk-ant-a"
 action = "deny"
 summary = "Use an API key instead of the profile's Claude login"
 
-[agent]
-statusline = true
-
 [claude]
 disable_connectors = true
 ask = [

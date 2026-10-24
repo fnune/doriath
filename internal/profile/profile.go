@@ -391,9 +391,6 @@ type Hardening struct {
 
 // Agent holds what each agent adapter does alike.
 type Agent struct {
-	// StatusLine shows the session's profile, hosts and waiting requests
-	// in the agent's status line, where the agent has one.
-	StatusLine bool
 	// ApprovalTimeout is how long a permission prompt waits in doriath's
 	// queue before the agent shows its own.
 	ApprovalTimeout time.Duration

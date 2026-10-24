@@ -12,7 +12,6 @@ import (
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/session"
-	"github.com/fnune/doriath/internal/term"
 )
 
 func sessionStatus(ctx context.Context, id string) (session.Status, error) {
@@ -72,19 +71,5 @@ func cmdStatus(args []string, w io.Writer) error {
 		return err
 	}
 	fmt.Fprint(w, st.Describe())
-	return nil
-}
-
-const statuslineSecretsWidth = 32
-
-func cmdStatusline(w io.Writer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	st, err := sessionStatus(ctx, "")
-	if err != nil {
-		fmt.Fprintln(w, term.Badge("doriath: no session"))
-		return nil
-	}
-	fmt.Fprintln(w, term.Badge(st.Summary(statuslineSecretsWidth)))
 	return nil
 }

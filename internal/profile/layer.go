@@ -197,7 +197,6 @@ type podmanLayer struct {
 }
 
 type agentLayer struct {
-	StatusLine      *bool    `toml:"statusline"`
 	ApprovalTimeout string   `toml:"approval_timeout"`
 	Instructions    []string `toml:"instructions"`
 }

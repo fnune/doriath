@@ -78,3 +78,16 @@ func TestAnEscapeInsideAStringStartsANewSequence(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestTheBarFillsTheWholeRow(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	for cols, want := range map[int]string{
+		20: "doriath work      ",
+		8:  "doria…",
+	} {
+		b := &Bar{cols: cols, text: "doriath work"}
+		if got := b.render(); got != want && got != " "+want+" " {
+			t.Errorf("cols %d: %q, want %q", cols, got, want)
+		}
+	}
+}
