@@ -641,8 +641,10 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 	} else if fixed {
 		fmt.Fprintf(w, "the agent pointed worktree %s of %s at another repository; doriath pointed it back\n", name, repo)
 	}
-	if err := os.Remove(filepath.Join(admin, "config.worktree")); err == nil {
-		fmt.Fprintf(w, "removed the config the agent wrote for worktree %s of %s\n", name, repo)
+	if neutralized, err := neutralizeWorktreeConfig(filepath.Join(admin, "config.worktree")); err != nil {
+		return err
+	} else if neutralized {
+		fmt.Fprintf(w, "emptied the config the agent wrote for worktree %s of %s\n", name, repo)
 	}
 	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
 	if err != nil {
@@ -677,6 +679,39 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 	}
 	fmt.Fprintf(w, "pointed worktree %s back at %s\n", checkout, repo)
 	return nil
+}
+
+// neutralizeWorktreeConfig empties a config.worktree in place rather than
+// removing it: an empty one may be the placeholder another session binds
+// read-only into its jail, and removing it would detach that mount. A file
+// with other links is removed instead, so that emptying it does not reach
+// the agent's other name for it.
+func neutralizeWorktreeConfig(p string) (bool, error) {
+	var st unix.Stat_t
+	if err := unix.Lstat(p, &st); errors.Is(err, unix.ENOENT) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	if !singleLinkFile(&st) {
+		return true, os.RemoveAll(p)
+	}
+	if st.Size == 0 {
+		return false, nil
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return true, os.RemoveAll(p)
+	}
+	defer f.Close()
+	if err := unix.Fstat(int(f.Fd()), &st); err != nil || !singleLinkFile(&st) {
+		return true, os.RemoveAll(p)
+	}
+	return true, f.Truncate(0)
+}
+
+func singleLinkFile(st *unix.Stat_t) bool {
+	return st.Mode&unix.S_IFMT == unix.S_IFREG && st.Nlink == 1
 }
 
 func removing(admin string) bool {

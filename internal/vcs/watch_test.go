@@ -58,15 +58,46 @@ func TestWatchRepairsAgentWorktreesDuringTheSession(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(admin, "config.worktree"), []byte("[core]\nfsmonitor = /tmp/x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "config.worktree is removed", func() bool {
-		_, err := os.Stat(filepath.Join(admin, "config.worktree"))
-		return os.IsNotExist(err)
+	eventually(t, "config.worktree is emptied", func() bool {
+		data, err := os.ReadFile(filepath.Join(admin, "config.worktree"))
+		return err == nil && len(data) == 0
 	})
 
 	git(t, r, "worktree", "remove", checkout)
 	out := stop()
 	if _, err := os.Stat(admin); !os.IsNotExist(err) {
 		t.Errorf("git worktree remove must still work, admin directory: %v\n%s", err, out)
+	}
+}
+
+// A session that starts while this one runs holds an empty config.worktree
+// in every worktree, including those this session's agent added.
+func TestWatchLeavesTheEmptyConfigOfAnotherSession(t *testing.T) {
+	r := repo(t)
+	trees := filepath.Join(filepath.Dir(r), "trees")
+	if err := os.MkdirAll(filepath.Join(r, ".git", "worktrees"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rec := &Record{Session: "s1", Writable: []string{trees}}
+	start(t, rec, r)
+	stop := watch(t, rec)
+
+	checkout := filepath.Join(trees, "agent")
+	admin := filepath.Join(r, ".git", "worktrees", "agent")
+	git(t, r, "worktree", "add", "-q", checkout, "-b", "agent")
+	if err := os.WriteFile(filepath.Join(admin, "config.worktree"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(admin, "commondir"), []byte("/tmp/evil.git\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "commondir points back", func() bool {
+		data, _ := os.ReadFile(filepath.Join(admin, "commondir"))
+		return string(data) == "../..\n"
+	})
+	out := stop()
+	if _, err := os.Stat(filepath.Join(admin, "config.worktree")); err != nil {
+		t.Errorf("the empty config is gone: %v\n%s", err, out)
 	}
 }
 

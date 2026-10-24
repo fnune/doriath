@@ -237,11 +237,62 @@ func TestFinishRepairsAgentWorktrees(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(trees, "replaced", ".git.doriath-s1", "hooks")); err != nil {
 		t.Error("the agent's .git directory must be kept aside, not deleted")
 	}
-	if _, err := os.Stat(filepath.Join(r, ".git", "worktrees", "redirected", "config.worktree")); !os.IsNotExist(err) {
-		t.Error("a planted config.worktree stays")
+	if data, err := os.ReadFile(filepath.Join(r, ".git", "worktrees", "redirected", "config.worktree")); err != nil || len(data) != 0 {
+		t.Errorf("a planted config.worktree must be emptied in place: %q, %v", data, err)
 	}
 	if got := git(t, filepath.Join(trees, "redirected"), "rev-parse", "--abbrev-ref", "HEAD"); got != "redirected" {
 		t.Errorf("git in the repaired worktree: %q", got)
+	}
+}
+
+// Another session binds an empty config.worktree read-only into its jail;
+// removing it, or emptying the file another name points at, would undo
+// that session's guard or the agent's other file.
+func TestFinishEmptiesWorktreeConfigsInPlace(t *testing.T) {
+	r := repo(t)
+	trees := filepath.Join(filepath.Dir(r), "trees")
+	f := start(t, &Record{Session: "s1", Writable: []string{trees}}, r)
+	for _, name := range []string{"held", "planted", "linked"} {
+		git(t, r, "worktree", "add", "-q", filepath.Join(trees, name), "-b", name)
+	}
+	config := func(name string) string { return filepath.Join(r, ".git", "worktrees", name, "config.worktree") }
+	if err := os.WriteFile(config("held"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config("planted"), []byte("[core]\nfsmonitor = /tmp/x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(t.TempDir(), "other")
+	if err := os.WriteFile(other, []byte("[core]\nfsmonitor = /tmp/x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(other, config("linked")); err != nil {
+		t.Fatal(err)
+	}
+	held, err := os.Stat(config("held"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planted, err := os.Stat(config("planted"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := f.finish()
+	if now, err := os.Stat(config("held")); err != nil || !os.SameFile(held, now) || now.Size() != 0 {
+		t.Errorf("the empty config of another session must stay as it is: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "worktree held") {
+		t.Errorf("an empty config was reported as the agent's:\n%s", out)
+	}
+	if now, err := os.Stat(config("planted")); err != nil || !os.SameFile(planted, now) || now.Size() != 0 {
+		t.Errorf("a config with settings must be emptied in place: %v\n%s", err, out)
+	}
+	if _, err := os.Lstat(config("linked")); !os.IsNotExist(err) {
+		t.Errorf("a config with another link must be removed: %v", err)
+	}
+	if data, err := os.ReadFile(other); err != nil || len(data) == 0 {
+		t.Errorf("the file behind the other link changed: %q, %v", data, err)
 	}
 }
 
