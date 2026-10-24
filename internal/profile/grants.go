@@ -78,11 +78,13 @@ func flattenList(prefix string, list []any, lines *[]string) {
 		order = append(order, string(data))
 		*lines = append(*lines, prefix+": "+string(data))
 	}
-	if len(order) > 1 {
+	if len(order) > 1 && !slices.Contains(unordered, prefix) {
 		sum := sha256.Sum256([]byte(strings.Join(order, "\n")))
 		*lines = append(*lines, prefix+OrderSuffix+hex.EncodeToString(sum[:4]))
 	}
 }
+
+var unordered = []string{"Mounts"}
 
 // OrderSuffix marks the grant that changes when the entries of a list
 // change order, such as the arguments of a command, or rules where the

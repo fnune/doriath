@@ -165,3 +165,11 @@ func TestNarrowingRemovesNoRestriction(t *testing.T) {
 		t.Error("a new order of rules is an added grant, not a removed restriction")
 	}
 }
+
+func TestAProfileThatDropsAMountAsksNothing(t *testing.T) {
+	mounts := "[[mounts]]\npath = \"~/a\"\n\n[[mounts]]\npath = \"~/b\"\n\n[[mounts]]\npath = \"~/c\"\n"
+	fewer := strings.Replace(mounts, "[[mounts]]\npath = \"~/b\"\n\n", "", 1)
+	if added := Added(grantsOf(t, mounts), grantsOf(t, fewer)); len(added) != 0 {
+		t.Fatalf("added = %q: doriath binds mounts by depth, so their order gives nothing", added)
+	}
+}
