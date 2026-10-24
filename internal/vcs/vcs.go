@@ -6,6 +6,7 @@ package vcs
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -692,30 +693,48 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return nil
 	}
 	checkout := filepath.Dir(resolve(admin, strings.TrimSpace(string(data))))
-	writable := func(p string) bool {
-		return slices.ContainsFunc(rec.Writable, func(root string) bool { return within(p, root) })
+	writableRoot := func(p string) (string, bool) {
+		i := slices.IndexFunc(rec.Writable, func(root string) bool { return within(p, root) })
+		if i < 0 {
+			return "", false
+		}
+		return rec.Writable[i], true
 	}
-	if real, err := filepath.EvalSymlinks(checkout); err == nil && !writable(real) || !writable(checkout) {
+	real, err := filepath.EvalSymlinks(checkout)
+	if err != nil {
+		real = checkout
+	}
+	root, ok := writableRoot(real)
+	if _, inside := writableRoot(checkout); !ok || !inside {
 		fmt.Fprintf(w, "worktree %s of %s says it is at %s, where the session could not write; doriath left it alone, so check it before you use it\n", name, repo, checkout)
 		return nil
 	}
 	if pointsTo(checkout, admin) {
 		return nil
 	}
-	dotgit := filepath.Join(checkout, ".git")
-	if _, err := os.Lstat(dotgit); live && errors.Is(err, fs.ErrNotExist) {
+	rel, _ := filepath.Rel(root, real)
+	dir, err := openBeneath(root, rel)
+	if live && errors.Is(err, unix.ENOENT) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("open worktree %s: %w", checkout, err)
+	}
+	defer func() { _ = unix.Close(dir) }()
+	var st unix.Stat_t
+	err = unix.Fstatat(dir, ".git", &st, unix.AT_SYMLINK_NOFOLLOW)
+	if live && errors.Is(err, unix.ENOENT) {
 		return nil
 	}
-	if info, err := os.Lstat(dotgit); err == nil && !info.Mode().IsRegular() {
-		aside := dotgit + ".doriath-" + rec.Session
-		if err := os.Rename(dotgit, aside); err != nil {
+	if err == nil && st.Mode&unix.S_IFMT != unix.S_IFREG {
+		aside := ".git.doriath-" + rec.Session
+		if err := unix.Renameat(dir, ".git", dir, aside); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "moved the .git the agent put in worktree %s aside, to %s\n", checkout, aside)
-	} else if !errors.Is(err, fs.ErrNotExist) && err != nil {
+		fmt.Fprintf(w, "moved the .git the agent put in worktree %s aside, to %s\n", checkout, filepath.Join(real, aside))
+	} else if !errors.Is(err, unix.ENOENT) && err != nil {
 		return err
 	}
-	if err := os.WriteFile(dotgit, []byte("gitdir: "+admin+"\n"), 0o644); err != nil {
+	if err := replaceAt(dir, ".git", []byte("gitdir: "+admin+"\n")); err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "pointed worktree %s back at %s\n", checkout, repo)
@@ -778,7 +797,49 @@ func resetCommondir(admin string) (bool, error) {
 	if err := os.RemoveAll(p); err != nil {
 		return false, err
 	}
-	return true, os.WriteFile(p, []byte("../..\n"), 0o644)
+	gitDir := filepath.Dir(filepath.Dir(admin))
+	dir, err := openBeneath(gitDir, filepath.Join("worktrees", filepath.Base(admin)))
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = unix.Close(dir) }()
+	return true, replaceAt(dir, "commondir", []byte("../..\n"))
+}
+
+func openBeneath(root, rel string) (int, error) {
+	rootFD, err := unix.Open(root, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, err
+	}
+	defer func() { _ = unix.Close(rootFD) }()
+	return unix.Openat2(rootFD, rel, &unix.OpenHow{
+		Flags:   unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC,
+		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS,
+	})
+}
+
+func replaceAt(dir int, name string, data []byte) error {
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return err
+	}
+	tmp := name + ".doriath-" + hex.EncodeToString(suffix[:])
+	fd, err := unix.Openat(dir, tmp, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0o644)
+	if err != nil {
+		return err
+	}
+	f := os.NewFile(uintptr(fd), tmp)
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = unix.Renameat(dir, tmp, dir, name)
+	}
+	if err != nil {
+		_ = unix.Unlinkat(dir, tmp, 0)
+	}
+	return err
 }
 
 var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false'"}
@@ -844,7 +905,7 @@ func unmirror(src, dst string) error {
 		rel, _ := filepath.Rel(src, p)
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return realDir(target, rel == ".")
 		}
 		if _, err := os.Lstat(target); err == nil {
 			if filepath.Dir(rel) == "pack" || sameContent(p, target) {
@@ -856,6 +917,24 @@ func unmirror(src, dst string) error {
 		}
 		return linkOrCopy(p, target)
 	})
+}
+
+func realDir(dir string, top bool) error {
+	info, err := os.Lstat(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return os.MkdirAll(dir, 0o755)
+	case err != nil:
+		return err
+	case info.IsDir():
+		return nil
+	case top:
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+	if err := os.Remove(dir); err != nil {
+		return err
+	}
+	return os.Mkdir(dir, 0o755)
 }
 
 func sameContent(a, b string) bool {

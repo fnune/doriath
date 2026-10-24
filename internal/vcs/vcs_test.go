@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func git(t *testing.T, dir string, args ...string) string {
@@ -347,6 +349,63 @@ func TestFinishDoesNotRepairThroughLinks(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(outside, "x", ".git")); !os.IsNotExist(err) {
 		t.Errorf("doriath wrote a .git through a link in the checkout path:\n%s", out.String())
+	}
+}
+
+func TestARepairWriteReplacesALinkInsteadOfFollowingIt(t *testing.T) {
+	admin := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "yours")
+	if err := os.WriteFile(victim, []byte("yours\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, filepath.Join(admin, "commondir")); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := openBeneath(admin, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = unix.Close(dir) }()
+	if err := replaceAt(dir, "commondir", []byte("../..\n")); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(victim); string(data) != "yours\n" {
+		t.Errorf("the file behind the link changed: %q", data)
+	}
+	if info, err := os.Lstat(filepath.Join(admin, "commondir")); err != nil || !info.Mode().IsRegular() {
+		t.Errorf("commondir must be a file of its own: %v", err)
+	}
+}
+
+func TestARepairRefusesALinkedDirectoryOnTheWay(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Symlink(t.TempDir(), filepath.Join(root, "wt")); err != nil {
+		t.Fatal(err)
+	}
+	if dir, err := openBeneath(root, "wt"); err == nil {
+		_ = unix.Close(dir)
+		t.Fatal("a link on the way must not open")
+	}
+}
+
+func TestFinishDoesNotBringObjectsBackThroughALink(t *testing.T) {
+	r := repo(t)
+	head := git(t, r, "rev-parse", "HEAD")
+	f := start(t, &Record{Session: "s1"}, r)
+	fanout := filepath.Join(r, ".git", "objects", head[:2])
+	if err := os.RemoveAll(fanout); err != nil {
+		t.Fatal(err)
+	}
+	victim := t.TempDir()
+	if err := os.Symlink(victim, fanout); err != nil {
+		t.Fatal(err)
+	}
+	f.finish()
+	if names, _ := os.ReadDir(victim); len(names) != 0 {
+		t.Errorf("doriath wrote into the directory behind the link: %v", names)
+	}
+	if got := git(t, r, "cat-file", "-t", head); got != "commit" {
+		t.Errorf("the object is not back: %q", got)
 	}
 }
 
