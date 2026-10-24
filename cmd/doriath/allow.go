@@ -11,6 +11,7 @@ import (
 	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/term"
 )
 
@@ -67,13 +68,13 @@ func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen 
 	}
 	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", t.Bold(prof.Name), where)
 	for _, line := range readableAdditions(added) {
-		fmt.Fprintln(out, "  "+t.Tint(term.Warn, "+")+" "+line)
+		fmt.Fprintln(out, "  "+t.Tint(term.Warn, "+")+" "+session.PrintableLine(line))
 	}
 	if len(removed) > 0 {
 		fmt.Fprintf(out, "\nIt lost lines that held the agent back:\n\n")
 	}
 	for _, line := range removed {
-		fmt.Fprintln(out, "  "+t.Tint(term.Problem, "-")+" "+line)
+		fmt.Fprintln(out, "  "+t.Tint(term.Problem, "-")+" "+session.PrintableLine(line))
 	}
 }
 

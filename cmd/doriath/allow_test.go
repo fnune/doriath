@@ -206,3 +206,19 @@ func TestTheFirstQuestionShowsSecretSourcesCredentialsAndSettings(t *testing.T) 
 		}
 	}
 }
+
+func TestTheAllowPromptEscapesProfileText(t *testing.T) {
+	const planted = "a\x1b]0;x\x07\nfake.example"
+	store := memoryGrants{}
+	out, _ := confirm(t, store, appProfile(planted), "n\n", true)
+	if strings.ContainsAny(out, "\x1b\x07") || strings.Contains(out, "\nfake.example") {
+		t.Errorf("the first question prints profile text raw:\n%q", out)
+	}
+	if _, err := confirm(t, store, appProfile("a.example"), "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	out, _ = confirm(t, store, appProfile("a.example", planted), "n\n", true)
+	if strings.ContainsAny(out, "\x1b\x07") || strings.Contains(out, "\nfake.example") {
+		t.Errorf("the question about additions prints profile text raw:\n%q", out)
+	}
+}

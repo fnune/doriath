@@ -20,6 +20,7 @@ import (
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/term"
 )
 
@@ -60,7 +61,7 @@ func printProfile(w io.Writer, p *profile.Profile) error {
 		sort.Strings(keys)
 		fmt.Fprintf(tw, "\n%s\n", section.title)
 		for _, key := range keys {
-			fmt.Fprintf(tw, "  %s\t%s\n", strings.TrimPrefix(key, section.prefix), strings.Join(p.Sources[key], ", "))
+			fmt.Fprintf(tw, "  %s\t%s\n", session.PrintableLine(strings.TrimPrefix(key, section.prefix)), strings.Join(p.Sources[key], ", "))
 		}
 	}
 	return tw.Flush()
@@ -102,7 +103,7 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 			if _, seen := entries[group]; !seen {
 				groups = append(groups, group)
 			}
-			entries[group] = append(entries[group], rest)
+			entries[group] = append(entries[group], session.PrintableLine(rest))
 		}
 		if len(groups) == 0 {
 			continue

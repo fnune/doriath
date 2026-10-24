@@ -21,6 +21,12 @@ func Printable(s string) string {
 	return b.String()
 }
 
+// PrintableLine is Printable for text that must stay on one line, such as an
+// entry of a list.
+func PrintableLine(s string) string {
+	return Printable(strings.NewReplacer("\n", `\n`, "\t", `\t`).Replace(s))
+}
+
 func unprintable(r rune) bool {
 	switch {
 	case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
