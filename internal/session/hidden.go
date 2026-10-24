@@ -58,29 +58,36 @@ func (s *Session) holdControlPathsOf(p *profile.Profile, host jail.Host) error {
 		return err
 	}
 	for _, h := range holds {
-		if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {
+		if err := writePlaceholder(h); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writePlaceholder(h jail.Placeholder) error {
+	if err := os.MkdirAll(filepath.Dir(h.Path), 0o755); err != nil {
+		return fmt.Errorf("hold %s: %w", h.Path, err)
+	}
+	if h.Dir {
+		if err := os.Mkdir(h.Path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("hold %s: %w", h.Path, err)
 		}
-		if h.Dir {
-			if err := os.Mkdir(h.Path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-				return fmt.Errorf("hold %s: %w", h.Path, err)
-			}
-			continue
-		}
-		f, err := os.OpenFile(h.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
-		if errors.Is(err, fs.ErrExist) && isRegularFile(h.Path) {
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("hold %s: %w", h.Path, err)
-		}
-		_, err = f.WriteString(h.Content)
-		if closeErr := f.Close(); err == nil {
-			err = closeErr
-		}
-		if err != nil {
-			return fmt.Errorf("hold %s: %w", h.Path, err)
-		}
+		return nil
+	}
+	f, err := os.OpenFile(h.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
+	if errors.Is(err, fs.ErrExist) && isRegularFile(h.Path) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("hold %s: %w", h.Path, err)
+	}
+	_, err = f.WriteString(h.Content)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return fmt.Errorf("hold %s: %w", h.Path, err)
 	}
 	return nil
 }
@@ -120,18 +127,9 @@ func (s *Session) holdMissingPaths() error {
 			}
 			created = append([]string{dir}, created...)
 		}
-		if err := os.MkdirAll(filepath.Dir(m.Path), 0o755); err != nil {
-			return fmt.Errorf("hold %s: %w", m.Path, err)
-		}
 		content := placeholderContent(m.Path)
-		f, err := os.OpenFile(m.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err != nil {
-			return fmt.Errorf("hold %s: %w", m.Path, err)
-		}
-		_, err = f.WriteString(content)
-		_ = f.Close()
-		if err != nil {
-			return fmt.Errorf("hold %s: %w", m.Path, err)
+		if err := writePlaceholder(jail.Placeholder{Path: m.Path, Content: content}); err != nil {
+			return err
 		}
 		created = append(created, m.Path)
 		include := excludeFromGit(created[0])
