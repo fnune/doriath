@@ -49,16 +49,8 @@ func TestHookPermissionRequestAllow(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := b.lastSubmit(t)
-	want := session.SubmitParams{
-		Agent:          "claude",
-		Summary:        "Run a command",
-		Note:           "Remove the build directory",
-		Details:        "rm -rf build",
-		Scope:          "tool Bash rm -rf build",
-		TimeoutSeconds: 45,
-	}
-	if got != want {
-		t.Errorf("submitted %+v, want %+v", got, want)
+	if got.Agent != "claude" || got.Tool != "Bash" || got.TimeoutSeconds != 45 || !strings.Contains(string(got.Input), `"command":"rm -rf build"`) {
+		t.Errorf("submitted %+v", got)
 	}
 	h := decodeHook(t, out)
 	if h.HookSpecificOutput.HookEventName != "PermissionRequest" || h.HookSpecificOutput.Decision.Behavior != "allow" || h.HookSpecificOutput.Decision.Message != "" {
@@ -73,7 +65,7 @@ func TestHookPermissionRequestDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := b.lastSubmit(t); got.Scope != "tool mcp__github__create_issue" || got.Summary != "Use github: create_issue" || got.TimeoutSeconds != 60 {
+	if got := b.lastSubmit(t); got.Tool != "mcp__github__create_issue" || string(got.Input) != `{"title":"x"}` || got.TimeoutSeconds != 60 {
 		t.Errorf("submitted %+v", got)
 	}
 	h := decodeHook(t, out)

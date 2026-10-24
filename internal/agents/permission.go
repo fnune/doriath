@@ -65,6 +65,19 @@ func (r PermissionRequest) Describe() (summary, note, details string) {
 	return summary, truncate(note), truncate(details)
 }
 
+// Scope is what an allow for the session covers. A command's scope holds
+// all of it, so that an allow never reaches past the text you saw.
+func (r PermissionRequest) Scope() string {
+	if r.ToolName != "Bash" {
+		return r.ToolName
+	}
+	var input struct {
+		Command string `json:"command"`
+	}
+	_ = json.Unmarshal(r.ToolInput, &input)
+	return "Bash " + input.Command
+}
+
 func truncate(s string) string {
 	if len(s) > maxDetails {
 		return s[:maxDetails] + "…"
@@ -119,12 +132,7 @@ func AnswerPermission(call HookCall, agent string, leftToAgent func(tool string)
 	if slices.Contains(readOnlyTools, req.ToolName) {
 		return PermissionDecision(true, "")
 	}
-	summary, note, details := req.Describe()
-	scope := "tool " + req.ToolName
-	if req.ToolName == "Bash" {
-		scope += " " + details
-	}
-	d, err := call.Broker.Ask(Question{Summary: summary, Note: note, Details: details, Scope: scope})
+	d, err := call.Broker.Ask(Question{Tool: req.ToolName, Input: req.ToolInput})
 	if err != nil {
 		fmt.Fprintf(call.Stderr, "doriath: no decision, falling back to %s's prompt: %v\n", agent, err)
 		return nil, nil

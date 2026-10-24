@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"encoding/json"
 	"io"
 	"time"
 
@@ -30,12 +31,12 @@ type Broker interface {
 	Inform(title, body string) error
 }
 
+// Question is a tool call as the agent sent it. The session describes it
+// and scopes it, so that a process in the jail cannot choose what an allow
+// covers.
 type Question struct {
-	Summary string
-	Note    string
-	Details string
-	// Scope is what an allow for the session covers.
-	Scope string
+	Tool  string
+	Input json.RawMessage
 }
 
 func DenialMessage(d approval.Decision) string {

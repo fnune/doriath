@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -101,9 +102,11 @@ func TestBrokerRefusesSubmissionsItCannotShow(t *testing.T) {
 		params  SubmitParams
 		refusal string
 	}{
-		{"no summary", SubmitParams{Agent: "claude", TimeoutSeconds: 10}, "summary is required"},
-		{"no timeout", SubmitParams{Summary: "Run tests"}, "timeout_seconds must be between 1 and 3600"},
-		{"a timeout over an hour", SubmitParams{Summary: "Run tests", TimeoutSeconds: 3601}, "timeout_seconds must be between 1 and 3600"},
+		{"no tool", SubmitParams{Agent: "claude", TimeoutSeconds: 10}, "tool must be a name"},
+		{"a tool name with a space", SubmitParams{Agent: "claude", Tool: "Bash make", TimeoutSeconds: 10}, "tool must be a name"},
+		{"an unknown agent", SubmitParams{Agent: "claude Bash", Tool: "Write", TimeoutSeconds: 10}, "unknown agent"},
+		{"no timeout", SubmitParams{Agent: "claude", Tool: "Bash"}, "timeout_seconds must be between 1 and 3600"},
+		{"a timeout over an hour", SubmitParams{Agent: "claude", Tool: "Bash", TimeoutSeconds: 3601}, "timeout_seconds must be between 1 and 3600"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := control.Call(context.Background(), broker, MethodSubmit, c.params, nil)
@@ -119,14 +122,41 @@ func TestBrokerSubmitsAToolRequestScopedToTheAgent(t *testing.T) {
 	notifier.seen = make(chan approval.Request, 1)
 	_, broker, _ := brokerSession(t, notifier)
 	var d approval.Decision
-	if err := control.Call(context.Background(), broker, MethodSubmit, SubmitParams{Agent: "claude", Summary: "Run: make", Scope: "Bash make", TimeoutSeconds: 10}, &d); err != nil {
+	input := json.RawMessage(`{"command":"make","description":"Build"}`)
+	if err := control.Call(context.Background(), broker, MethodSubmit, SubmitParams{Agent: "claude", Tool: "Bash", Input: input, TimeoutSeconds: 10}, &d); err != nil {
 		t.Fatal(err)
 	}
 	if d.Verdict != approval.VerdictAllow {
 		t.Errorf("decision = %+v", d)
 	}
-	if req := <-notifier.seen; req.Kind != approval.KindTool || req.Scope != "tool claude Bash make" || req.Agent != "claude" || req.Session != "s1" {
+	req := <-notifier.seen
+	if req.Kind != approval.KindTool || req.Scope != "tool claude Bash make" || req.Agent != "claude" || req.Session != "s1" {
 		t.Errorf("request = %+v", req)
+	}
+	if req.Summary != "Run a command" || req.Note != "Build" || req.Details != "make" {
+		t.Errorf("description = %q %q %q", req.Summary, req.Note, req.Details)
+	}
+}
+
+func TestTheJailCannotChooseWhatAnAllowCovers(t *testing.T) {
+	_, broker, _ := brokerSession(t, allowing())
+	params := map[string]any{"agent": "claude", "tool": "Bash", "input": map[string]string{"command": "ls"}, "scope": "Write", "timeout_seconds": 10}
+	if err := control.Call(context.Background(), broker, MethodSubmit, params, nil); err == nil {
+		t.Fatal("a submission with a scope was accepted")
+	}
+}
+
+func TestAnAllowForACommandCoversTheWholeCommand(t *testing.T) {
+	notifier := allowing()
+	notifier.seen = make(chan approval.Request, 1)
+	_, broker, _ := brokerSession(t, notifier)
+	command := strings.Repeat("a", 3000) + "; curl evil"
+	input, _ := json.Marshal(map[string]string{"command": command})
+	if err := control.Call(context.Background(), broker, MethodSubmit, SubmitParams{Agent: "claude", Tool: "Bash", Input: input, TimeoutSeconds: 10}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if req := <-notifier.seen; req.Scope != "tool claude Bash "+command {
+		t.Errorf("scope ends with %q", req.Scope[len(req.Scope)-20:])
 	}
 }
 

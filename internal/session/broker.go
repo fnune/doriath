@@ -11,7 +11,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
+	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/profile"
@@ -64,13 +66,12 @@ type RequestWriteParams struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// SubmitParams is a tool call from an agent's hook. The session derives
+// what you see and what an allow covers from the tool and its input.
 type SubmitParams struct {
-	Agent   string `json:"agent"`
-	Summary string `json:"summary"`
-	Details string `json:"details,omitempty"`
-	Note    string `json:"note,omitempty"`
-	URL     string `json:"url,omitempty"`
-	Scope   string `json:"scope,omitempty"`
+	Agent string          `json:"agent"`
+	Tool  string          `json:"tool"`
+	Input json.RawMessage `json:"input,omitempty"`
 	// TimeoutSeconds bounds the wait. Without a decision in time the result
 	// has verdict "none".
 	TimeoutSeconds int `json:"timeout_seconds"`
@@ -99,23 +100,27 @@ func (s *Session) startBroker(ctx context.Context) error {
 			if err != nil {
 				return nil, err
 			}
-			if p.Summary == "" {
-				return nil, fmt.Errorf("summary is required")
+			if AdapterNamed(p.Agent) == nil {
+				return nil, fmt.Errorf("unknown agent %q", p.Agent)
+			}
+			if p.Tool == "" || strings.ContainsFunc(p.Tool, unicode.IsSpace) {
+				return nil, fmt.Errorf("tool must be a name without spaces")
 			}
 			timeout := time.Duration(p.TimeoutSeconds) * time.Second
 			if timeout <= 0 || timeout > maxSubmitTimeout {
 				return nil, fmt.Errorf("timeout_seconds must be between 1 and %d", int(maxSubmitTimeout/time.Second))
 			}
+			call := agents.PermissionRequest{ToolName: p.Tool, ToolInput: p.Input}
+			summary, note, details := call.Describe()
 			return s.manager.Submit(ctx, approval.Request{
 				Session: s.id,
 				Profile: s.req.Profile.Name,
 				Agent:   p.Agent,
 				Kind:    approval.KindTool,
-				Summary: p.Summary,
-				Details: p.Details,
-				Note:    p.Note,
-				URL:     p.URL,
-				Scope:   "tool " + p.Agent + " " + p.Scope,
+				Summary: summary,
+				Details: details,
+				Note:    note,
+				Scope:   "tool " + p.Agent + " " + call.Scope(),
 			}, timeout)
 		},
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {

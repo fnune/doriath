@@ -132,10 +132,8 @@ func (b hookBroker) Ask(q agents.Question) (approval.Decision, error) {
 	var d approval.Decision
 	err := control.Call(ctx, b.socket, session.MethodSubmit, session.SubmitParams{
 		Agent:          b.agent,
-		Summary:        q.Summary,
-		Note:           q.Note,
-		Details:        q.Details,
-		Scope:          q.Scope,
+		Tool:           q.Tool,
+		Input:          q.Input,
 		TimeoutSeconds: int(b.timeout.Seconds()),
 	}, &d)
 	return d, err
