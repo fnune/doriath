@@ -33,6 +33,12 @@ const (
 	offLastRow    = "\n\x1b[A"
 )
 
+const restoreModes = saveCursor + "\x1b[?1049l" +
+	"\x1b[?25h" +
+	"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l" +
+	"\x1b[?2004l" +
+	"\x1b[<u"
+
 const minRows = 3
 
 const drainTimeout = time.Second
@@ -171,7 +177,7 @@ func (b *Bar) close() error {
 	if err == nil {
 		rows = int(ws.Row)
 	}
-	_, werr := io.WriteString(b.out, saveCursor+resetRegion+cursorTo(rows)+clearLine+restoreCursor)
+	_, werr := io.WriteString(b.out, restoreModes+saveCursor+resetRegion+cursorTo(rows)+clearLine+restoreCursor)
 	return errors.Join(werr, unix.IoctlSetTermios(int(b.in.Fd()), unix.TCSETS, b.saved), b.master.Close())
 }
 

@@ -2,6 +2,7 @@ package termbar
 
 import (
 	"bytes"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -9,13 +10,14 @@ import (
 const (
 	ground = iota
 	escape
+	escapeOverflow
 	csi
 	csiOverflow
 	str
 	strEscape
 )
 
-const maxCSI = 256
+const maxSequence = 256
 
 type scanner struct {
 	rows          int
@@ -34,6 +36,13 @@ func (s *scanner) feed(p []byte, out *bytes.Buffer) {
 }
 
 func (s *scanner) step(b byte, out *bytes.Buffer) {
+	if b == 0x1b && (s.state == csi || s.state == csiOverflow || s.state == escapeOverflow) {
+		if s.state == csi {
+			out.Write(s.seq)
+		}
+		s.state, s.seq = escape, append(s.seq[:0], b)
+		return
+	}
 	switch s.state {
 	case ground:
 		if b == 0x1b {
@@ -45,6 +54,8 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 			s.utf8Remaining = utf8Continuations(b)
 		case b >= 0x80 && s.utf8Remaining > 0:
 			s.utf8Remaining--
+		case b >= 0x80 && b <= 0x9f:
+			return
 		default:
 			s.utf8Remaining = 0
 		}
@@ -61,12 +72,20 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 			out.Write(s.seq[:len(s.seq)-1])
 			s.seq = s.seq[:1]
 		case b >= 0x20 && b <= 0x2f:
+			if len(s.seq) > maxSequence {
+				s.state = escapeOverflow
+			}
 		default:
 			out.Write(s.seq)
 			s.state = ground
 			if b == 'c' && len(s.seq) == 2 {
 				s.barErased = true
+				out.WriteString(s.region())
 			}
+		}
+	case escapeOverflow:
+		if b < 0x20 || b > 0x2f {
+			s.state = ground
 		}
 	case csi:
 		s.seq = append(s.seq, b)
@@ -77,13 +96,11 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 		case b == 0x18 || b == 0x1a:
 			out.Write(s.seq)
 			s.state = ground
-		case len(s.seq) > maxCSI:
-			out.Write(s.seq)
+		case len(s.seq) > maxSequence:
 			s.state = csiOverflow
 		}
 	case csiOverflow:
-		out.WriteByte(b)
-		if b >= 0x40 && b <= 0x7e {
+		if b >= 0x40 && b <= 0x7e || b == 0x18 || b == 0x1a {
 			s.state = ground
 		}
 	case str:
@@ -134,6 +151,7 @@ func (s *scanner) rewriteCSI(seq []byte) []byte {
 	case private:
 	case intermediate == "!" && final == 'p':
 		s.barErased = true
+		return []byte(string(seq) + s.region())
 	case intermediate != "":
 	case final == 'r':
 		top := param(params, 0, 1)
@@ -158,12 +176,27 @@ func (s *scanner) rewriteCSI(seq []byte) []byte {
 	return seq
 }
 
+func (s *scanner) region() string {
+	return saveCursor + "\x1b[1;" + strconv.Itoa(s.rows-1) + "r" + restoreCursor
+}
+
 func param(params []string, n, def int) int {
 	if n >= len(params) {
 		return def
 	}
-	v, err := strconv.Atoi(params[n])
-	if err != nil || v == 0 {
+	v := 0
+	for _, part := range strings.Split(params[n], ":") {
+		digits := strings.TrimLeft(part, "0")
+		if digits == "" || strings.Trim(digits, "0123456789") != "" {
+			continue
+		}
+		p, err := strconv.Atoi(digits)
+		if err != nil || len(digits) > 9 {
+			p = math.MaxInt32
+		}
+		v = max(v, p)
+	}
+	if v == 0 {
 		return def
 	}
 	return v
