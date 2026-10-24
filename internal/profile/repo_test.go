@@ -179,3 +179,12 @@ secret = "notion"
 		t.Errorf("the MCP host is not in the sources: %v", p.Sources)
 	}
 }
+
+func TestARepositoryProfileUsedAloneIsCheckedAsARepositoryProfile(t *testing.T) {
+	l := repoLoader()
+	l.Repository.(fstest.MapFS)["cmd.toml"] = file("[secrets.token]\ncommand = [\"./scripts/token.sh\"]\n")
+	_, err := l.Load("repo:cmd")
+	if err == nil || !strings.Contains(err.Error(), "a repository profile cannot run a command on your machine") {
+		t.Fatalf("err = %v", err)
+	}
+}

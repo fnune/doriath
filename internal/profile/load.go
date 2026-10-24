@@ -558,11 +558,11 @@ func (b *builder) repositoryOverrides(l layer) []error {
 }
 
 func (l layer) fromRepository() bool {
-	return strings.HasPrefix(l.source, "profile "+RepoPrefix)
+	return strings.HasPrefix(l.source, "profile") && strings.HasPrefix(l.Name, RepoPrefix)
 }
 
 func (l layer) profileName() string {
-	return strings.TrimPrefix(l.source, "profile ")
+	return l.Name
 }
 
 func (b *builder) record(l layer) {
