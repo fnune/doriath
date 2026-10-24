@@ -3,6 +3,7 @@ package agents
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -99,6 +100,11 @@ func PermissionDecision(allow bool, message string) ([]byte, error) {
 	}})
 }
 
+// readOnlyTools only read files. The jail already decides what the agent
+// can read, and a shell reads the same files without asking, so a prompt
+// for these adds nothing.
+var readOnlyTools = []string{"Read", "Glob", "Grep", "LS", "NotebookRead"}
+
 // AnswerPermission puts a PermissionRequest hook's tool call in doriath's
 // queue. Without an answer it prints nothing, and the agent shows its own
 // prompt. leftToAgent names the tools that are themselves questions to you.
@@ -109,6 +115,9 @@ func AnswerPermission(call HookCall, agent string, leftToAgent func(tool string)
 	}
 	if leftToAgent != nil && leftToAgent(req.ToolName) {
 		return nil, nil
+	}
+	if slices.Contains(readOnlyTools, req.ToolName) {
+		return PermissionDecision(true, "")
 	}
 	summary, note, details := req.Describe()
 	scope := "tool " + req.ToolName

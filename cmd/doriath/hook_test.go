@@ -91,6 +91,27 @@ func TestHookPermissionRequestDeny(t *testing.T) {
 	}
 }
 
+func TestHookAllowsReadsWithoutAsking(t *testing.T) {
+	b := startBroker(t)
+	for _, input := range []string{
+		`{"tool_name":"Read","tool_input":{"file_path":"/home/u/notes/todo.md"}}`,
+		`{"tool_name":"Grep","tool_input":{"pattern":"x","path":"/home/u/notes"}}`,
+	} {
+		out, err := hook(t, "permission-request", input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h := decodeHook(t, out); h.HookSpecificOutput.Decision.Behavior != "allow" {
+			t.Errorf("%s: %s", input, out)
+		}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.submits) != 0 {
+		t.Errorf("reads reached the queue: %+v", b.submits)
+	}
+}
+
 func TestHookPermissionRequestFallsBackToClaude(t *testing.T) {
 	b := startBroker(t)
 	b.set(approval.Decision{Verdict: approval.VerdictNone}, nil)
