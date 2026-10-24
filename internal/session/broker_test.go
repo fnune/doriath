@@ -157,7 +157,7 @@ func TestBrokerPassesMessagesToTheInformerAndTheAuditLog(t *testing.T) {
 // only you may do.
 func TestBrokerCannotDecideOrGrant(t *testing.T) {
 	_, broker, _ := brokerSession(t, nil)
-	for _, method := range []string{MethodDecide, MethodList, MethodGrantWrite, MethodInfo} {
+	for _, method := range []string{MethodDecide, MethodList, MethodInfo} {
 		if err := control.Call(context.Background(), broker, method, struct{}{}, nil); err == nil {
 			t.Errorf("the broker answers %s", method)
 		}
@@ -176,22 +176,6 @@ func TestControlDecidesAsTheCLIUnlessToldOtherwise(t *testing.T) {
 	}
 	if h := s.manager.History(); len(h) != 1 || h[0].Decision.By != "cli" {
 		t.Errorf("history = %+v", h)
-	}
-}
-
-func TestControlGrantsWriteAndReturnsTheProfileLines(t *testing.T) {
-	s, _, ctl := brokerSession(t, nil)
-	s.peers.setInit(4242)
-	videos := filepath.Join(s.home, "videos")
-	var res GrantWriteResult
-	if err := control.Call(context.Background(), ctl, MethodGrantWrite, GrantWriteParams{Path: videos + "/"}, &res); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(res.Hint, `path = "`+videos+`"`) || len(s.promoted.requests) != 1 {
-		t.Errorf("hint = %q, promotions = %+v", res.Hint, s.promoted.requests)
-	}
-	if err := control.Call(context.Background(), ctl, MethodGrantWrite, GrantWriteParams{Path: "/etc"}, nil); err == nil {
-		t.Error("a refused grant reported success")
 	}
 }
 

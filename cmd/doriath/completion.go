@@ -41,13 +41,11 @@ _doriath() {
       _arguments '--profile[profile to use]:profile:($(doriath __complete profiles))' '*::command:_normal' ;;
     approvals)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list allow deny grant
+        _values 'subcommand' list allow deny
       elif [[ "${words[3]}" == (allow|deny) ]] && (( CURRENT == 4 )); then
         _values 'request' $(doriath __complete approvals)
       elif [[ "${words[3]}" == allow ]]; then
         _arguments '--for[how long the allow lasts]:lasting:(once session 15m 1h)'
-      elif [[ "${words[3]}" == grant ]]; then
-        _arguments '--session[the session]:session:($(doriath __complete sessions))' '*:path:_files'
       fi ;;
     secrets)
       if (( CURRENT == 3 )); then

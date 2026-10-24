@@ -478,7 +478,7 @@ Do not run git in an agent worktree until the session ends. `doriath restore SES
 
 [Answering requests](/guides/approvals/) tells which requests wait for you, and where you answer them. `host_wait` under [config.toml keys](#configtoml-keys) sets how long the agent waits.
 
-The agent can ask to write a path, or to read a folder that the jail does not show. A path the jail does not show must exist. On the host, `doriath approvals grant` makes a path writable without a request.
+The agent can ask to write a path, or to read a folder that the jail does not show. A path the jail does not show must exist.
 
 doriath refuses these paths before it asks you:
 

@@ -15,7 +15,7 @@ In a jail, the doriath configuration is not visible, and `doriath doctor` checks
 
 1. Write the draft to a scratch folder, such as `$TMPDIR/doriath/profiles/NAME.toml`.
 2. Check it with `DORIATH_CONFIG_DIR=$TMPDIR/doriath doriath profiles show NAME`.
-3. Ask the person where it goes. If the jail does not show that folder, the person grants it with `doriath approvals grant`, or saves the file.
+3. Ask the person where it goes. If the jail does not show that folder, ask for it with `doriath request write PATH --reason TEXT`, or let the person save the file.
 4. Give the person the checks to run on the host: `doriath profiles show NAME`, `doriath doctor --profile NAME` in the project, and the steps of the last section.
 
 ## Find how the person installs doriath

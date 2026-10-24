@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/session"
@@ -114,58 +113,6 @@ func TestRequestWaitReportsADenial(t *testing.T) {
 	b.set(approval.Decision{Verdict: approval.VerdictDeny, Reason: "use the mirror"}, nil)
 	if _, err := request(t, "wait", "pypi.org"); err == nil || err.Error() != "request: denied: use the mirror" {
 		t.Errorf("denied = %v", err)
-	}
-}
-
-func grant(t *testing.T, args ...string) (string, error) {
-	t.Helper()
-	var out bytes.Buffer
-	err := cmdGrant(args, &out)
-	return out.String(), err
-}
-
-func TestGrantWriteReachesTheSession(t *testing.T) {
-	p := testPaths(t)
-	first := startSession(t, p, "s1", "kitchen", time.Now().Add(-time.Minute))
-	second := startSession(t, p, "s2", "garden", time.Now())
-	data := t.TempDir()
-
-	if _, err := grant(t, data); err == nil || !strings.Contains(err.Error(), "doriath approvals grant --session s2 "+data+"  # profile garden") {
-		t.Errorf("two sessions without --session = %v", err)
-	}
-	out, err := grant(t, "--session", "s2", data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != data+" is writable in session s2 until it ends.\nadd it to the profile to keep it\n" {
-		t.Errorf("grant = %q", out)
-	}
-	if got := second.grants(); len(first.grants()) != 0 || len(got) != 1 || got[0] != data {
-		t.Errorf("granted s1 %v, s2 %v", first.grants(), got)
-	}
-}
-
-func TestGrantUsage(t *testing.T) {
-	testPaths(t)
-	for _, args := range [][]string{nil, {"/a", "/b"}, {"--session", "s1"}} {
-		if _, err := grant(t, args...); err == nil || !strings.Contains(err.Error(), "usage") {
-			t.Errorf("grant %q = %v", args, err)
-		}
-	}
-	if _, err := grant(t, t.TempDir()); err == nil || !strings.Contains(err.Error(), "no running sessions") {
-		t.Errorf("without sessions = %v", err)
-	}
-}
-
-func TestGrantRefusesAPathThatDoesNotExist(t *testing.T) {
-	p := testPaths(t)
-	s := startSession(t, p, "s1", "kitchen", time.Now())
-	missing := filepath.Join(t.TempDir(), "--session")
-	if _, err := grant(t, missing); err == nil || !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("grant of a missing path = %v", err)
-	}
-	if len(s.grants()) != 0 {
-		t.Errorf("the session got %v", s.grants())
 	}
 }
 

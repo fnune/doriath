@@ -241,8 +241,6 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdout io.Writer)
 			}
 		}
 		return decide(ctx, p, id, d)
-	case "grant":
-		return cmdGrant(args, stdout)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }

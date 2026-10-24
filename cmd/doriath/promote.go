@@ -6,11 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/cli"
@@ -157,49 +155,6 @@ func reportDecision(w io.Writer, d approval.Decision, allowed string) error {
 		return errors.New("request: denied")
 	}
 	return errors.New("request: nobody decided before the request expired")
-}
-
-func cmdGrant(args []string, w io.Writer) error {
-	flags := flag.NewFlagSet("approvals grant", flag.ContinueOnError)
-	id := flags.String("session", "", "the session, when several run")
-	operands, err := parseInterspersed(flags, args)
-	if err != nil {
-		return err
-	}
-	if len(operands) != 1 {
-		return errors.New("approvals grant: usage: doriath approvals grant [--session ID] PATH")
-	}
-	path, err := filepath.Abs(operands[0])
-	if err != nil {
-		return err
-	}
-	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("approvals grant: %s does not exist; to give a new folder, create it first", path)
-	}
-	p, err := paths()
-	if err != nil {
-		return err
-	}
-	sessions, err := liveSessions(p)
-	if err != nil {
-		return err
-	}
-	dir, err := pickSession(sessions, *id, p.Sessions(), func(id string) string {
-		return cli.Line("approvals", "grant", "--session", id, path)
-	})
-	if err != nil {
-		return err
-	}
-	slow := time.AfterFunc(2*time.Second, func() {
-		fmt.Fprintf(os.Stderr, "doriath: looking for git and jj repositories in %s before the jail can write it; a folder of many checkouts takes a while\n", path)
-	})
-	defer slow.Stop()
-	var res session.GrantWriteResult
-	if err := control.Call(context.Background(), filepath.Join(dir, session.ControlSocket), session.MethodGrantWrite, session.GrantWriteParams{Path: path}, &res); err != nil {
-		return fmt.Errorf("approvals grant: %w", err)
-	}
-	fmt.Fprintf(w, "%s is writable in session %s until it ends.\n%s\n", path, filepath.Base(dir), res.Hint)
-	return nil
 }
 
 func parseInterspersed(flags *flag.FlagSet, args []string) ([]string, error) {

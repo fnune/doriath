@@ -84,7 +84,6 @@ type fakeSession struct {
 	requested requestedIDs
 	status    session.Status
 	mu        sync.Mutex
-	granted   []string
 	provided  map[string]string
 }
 
@@ -128,16 +127,6 @@ func startSession(t *testing.T, p config.Paths, id, profile string, started time
 		},
 		session.MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status, nil
-		},
-		session.MethodGrantWrite: func(_ context.Context, raw json.RawMessage) (any, error) {
-			params, err := control.Decode[session.GrantWriteParams](raw)
-			if err != nil {
-				return nil, err
-			}
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.granted = append(s.granted, params.Path)
-			return session.GrantWriteResult{Hint: "add it to the profile to keep it"}, nil
 		},
 		session.MethodProvide: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.ProvideParams](raw)
@@ -358,12 +347,6 @@ func hook(t *testing.T, event, input string, flags ...string) (string, error) {
 	var out bytes.Buffer
 	err := cmdHook(append([]string{"claude", event}, flags...), bytes.NewBufferString(input), &out)
 	return out.String(), err
-}
-
-func (s *fakeSession) grants() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.granted)
 }
 
 func (b *fakeBroker) setPending(id string) {

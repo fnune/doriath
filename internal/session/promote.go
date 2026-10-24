@@ -123,12 +123,6 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	return nil
 }
 
-// profileHint says how to keep a grant for later sessions. doriath does not
-// edit the profile itself: it may come from nix, and you decide its shape.
-func (s *Session) profileHint(path string) string {
-	return fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", s.req.Profile.Name, s.mountLines(path))
-}
-
 func (s *Session) mountLines(path string) string {
 	return fmt.Sprintf("[[mounts]]\npath = %q\nmode = \"write\"", s.profilePath(path))
 }

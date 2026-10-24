@@ -47,11 +47,10 @@ type RequestResult struct {
 }
 
 const (
-	MethodList       = "approvals.list"
-	MethodDecide     = "approvals.decide"
-	MethodInfo       = "session.info"
-	MethodGrantWrite = "path.grant_write"
-	MethodProvide    = "secret.provide"
+	MethodList    = "approvals.list"
+	MethodDecide  = "approvals.decide"
+	MethodInfo    = "session.info"
+	MethodProvide = "secret.provide"
 )
 
 type ProvideParams struct {
@@ -63,15 +62,6 @@ type RequestWriteParams struct {
 	Path string `json:"path"`
 	// Reason is the agent's own text, shown to you as such.
 	Reason string `json:"reason,omitempty"`
-}
-
-type GrantWriteParams struct {
-	Path string `json:"path"`
-}
-
-// GrantWriteResult tells you how to keep the grant for later sessions.
-type GrantWriteResult struct {
-	Hint string `json:"hint"`
 }
 
 type SubmitParams struct {
@@ -232,16 +222,7 @@ func (s *Session) startControl(ctx context.Context) error {
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status(), nil
 		},
-		MethodGrantWrite: func(ctx context.Context, raw json.RawMessage) (any, error) {
-			p, err := control.Decode[GrantWriteParams](raw)
-			if err != nil {
-				return nil, err
-			}
-			if err := s.grantWrite(ctx, p.Path); err != nil {
-				return nil, err
-			}
-			return GrantWriteResult{Hint: s.profileHint(filepath.Clean(p.Path))}, nil
-		},
+
 		MethodProvide: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[ProvideParams](raw)
 			if err != nil {

@@ -115,8 +115,6 @@ doriath tells the agent to plan its changes first and ask once, for the narrowes
 
 Where `request write` refuses, such as `.git/config`, the agent runs `doriath request edit PATH --reason TEXT` with the new content as input. The request shows what changes, and doriath writes it once. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
 
-On the host, `doriath approvals grant PATH` makes a path writable in the running session. It can also attach a directory that the jail does not see yet. It refuses a path that does not exist, so a typo does not create a folder.
-
 ## Secrets
 
 When a secret is unavailable, such as an expired login, the page shows a card for it. The card names the error and what fails without the secret. It holds the command that gives the session a value, [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide), with a button that copies it. For an OAuth login, it holds `doriath profiles login` instead.

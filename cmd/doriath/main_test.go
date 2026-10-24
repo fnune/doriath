@@ -179,7 +179,7 @@ func TestDoriathsNextMessageStartsOnItsOwnLine(t *testing.T) {
 
 func TestHelpShowsTheUsageOfTheCommandOnly(t *testing.T) {
 	got := commandUsage("approvals")
-	if !strings.Contains(got, "doriath approvals grant") || strings.Contains(got, "doriath web") {
+	if !strings.Contains(got, "doriath approvals allow") || strings.Contains(got, "doriath web") {
 		t.Errorf("usage = %q", got)
 	}
 	if commandUsage("app") != "" {

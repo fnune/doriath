@@ -3,7 +3,6 @@
 package session_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,14 +13,13 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
-	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/session"
 )
 
 // TestRequestAndGrantWrite makes paths writable in a running jail: one the
 // agent asks for and you allow, and one you grant from the host that the
 // jail could not see before.
-func TestRequestAndGrantWrite(t *testing.T) {
+func TestRequestWriteOfASeenAndAnUnseenPath(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second
 	repo := filepath.Join(e.home, "app")
@@ -32,7 +30,6 @@ func TestRequestAndGrantWrite(t *testing.T) {
 		}
 	}
 	git(t, repo, "init", "-q", "-b", "main")
-	marker := filepath.Join(e.work, "granted")
 	e.cwd = repo
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n", repo))
 	code, out := e.run(p, fmt.Sprintf(`
@@ -45,29 +42,22 @@ touch $R/assets/x || echo "FAIL not writable after the allow"
 touch $R/other 2>/dev/null && echo "FAIL the rest of the repository became writable"
 $G request write $R/.git/config 2>&1 | grep -q '.git or .jj' || echo "FAIL a control file was not refused"
 $G request write $HOME/.config/jj 2>&1 | grep -q 'config that names programs' || echo "FAIL jj's config was not refused"
-touch %[3]s
-for _ in $(seq 100); do [ -d %[2]s ] && touch %[2]s/clip 2>/dev/null && break; sleep 0.1; done
-touch %[2]s/clip || echo "FAIL the granted host directory is not writable"
+$G request write %[2]s --reason "save the clips" || echo "FAIL request of the unseen folder"
+touch %[2]s/clip || echo "FAIL the unseen folder is not writable after the allow"
 echo done
-`, repo, outside, marker), func() {
-		req := e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+`, repo, outside), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		req := e.decideNext(allow)
 		if req.Kind != approval.KindPath || req.Note != "store generated images" || !strings.Contains(req.Keep, `path = "{repository}/assets"`) {
 			t.Errorf("request: %+v", req)
 		}
-		for i := 0; i < 200; i++ {
-			if _, err := os.Stat(marker); err == nil {
-				break
-			}
-			time.Sleep(50 * time.Millisecond)
+		if req := e.decideNext(allow); !strings.Contains(req.Details, "does not show") {
+			t.Errorf("request of the unseen folder: %+v", req)
 		}
 		socks, _ := filepath.Glob(filepath.Join(e.paths.Sessions(), "*", session.ControlSocket))
-		var res session.GrantWriteResult
 		if len(socks) != 1 {
 			t.Errorf("control sockets: %v", socks)
 			return
-		}
-		if err := control.Call(context.Background(), socks[0], session.MethodGrantWrite, session.GrantWriteParams{Path: outside}, &res); err != nil {
-			t.Errorf("grant: %v", err)
 		}
 		var entry session.Entry
 		var err error
@@ -92,10 +82,11 @@ echo done
 	}
 }
 
-// TestGrantKeepsRepositoryGuards makes directories that hold repositories
-// writable, one the jail sees and one it does not: their files become
-// writable, and git's control files stay read-only, as in a write mount.
-func TestGrantKeepsRepositoryGuards(t *testing.T) {
+// TestAWriteRequestKeepsRepositoryGuards makes directories that hold
+// repositories writable, one the jail sees and one it does not: their files
+// become writable, and git's control files stay read-only, as in a write
+// mount.
+func TestAWriteRequestKeepsRepositoryGuards(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second
 	seen := filepath.Join(e.home, "projects")
@@ -109,7 +100,6 @@ func TestGrantKeepsRepositoryGuards(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	marker := filepath.Join(e.work, "asked")
 	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"read\"\n", seen))
 	code, out := e.run(p, fmt.Sprintf(`
 set -u
@@ -123,26 +113,13 @@ probe() {
 }
 $G request write %[1]s --reason "work on several projects" || echo "FAIL request"
 probe %[1]s/app
-touch %[3]s
-for _ in $(seq 100); do [ -d %[2]s/lib ] && break; sleep 0.1; done
+$G request write %[2]s --reason "work on the library" || echo "FAIL request of the unseen folder"
 probe %[2]s/lib
 echo done
-`, seen, unseen, marker), func() {
-		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
-		for i := 0; i < 200; i++ {
-			if _, err := os.Stat(marker); err == nil {
-				break
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
-		socks, _ := filepath.Glob(filepath.Join(e.paths.Sessions(), "*", session.ControlSocket))
-		if len(socks) != 1 {
-			t.Errorf("control sockets: %v", socks)
-			return
-		}
-		if err := control.Call(context.Background(), socks[0], session.MethodGrantWrite, session.GrantWriteParams{Path: unseen}, &session.GrantWriteResult{}); err != nil {
-			t.Errorf("grant: %v", err)
-		}
+`, seen, unseen), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		e.decideNext(allow)
+		e.decideNext(allow)
 	})
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
 		t.Fatalf("code %d:\n%s", code, out)

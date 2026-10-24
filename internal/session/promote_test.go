@@ -81,7 +81,7 @@ func TestDeepestExistingFindsTheClosestAncestor(t *testing.T) {
 	}
 }
 
-func TestProfileHintNamesPathsInsideTheRepositoryRelatively(t *testing.T) {
+func TestTheProfileLinesNamePathsInsideTheRepositoryRelatively(t *testing.T) {
 	s := newTestSession(t, nil)
 	s.repository = filepath.Join(s.home, "repo")
 	for path, want := range map[string]string{
@@ -89,8 +89,8 @@ func TestProfileHintNamesPathsInsideTheRepositoryRelatively(t *testing.T) {
 		filepath.Join(s.home, "repo"):           `path = "{repository}"`,
 		filepath.Join(s.home, "repository"):     `path = "` + filepath.Join(s.home, "repository") + `"`,
 	} {
-		if got := s.profileHint(path); !strings.Contains(got, want) || !strings.Contains(got, "add to profile p:\n[[mounts]]") {
-			t.Errorf("hint for %s:\n%s\nwant %s", path, got, want)
+		if got := s.mountLines(path); !strings.Contains(got, want) || !strings.HasPrefix(got, "[[mounts]]") {
+			t.Errorf("lines for %s:\n%s\nwant %s", path, got, want)
 		}
 	}
 }
