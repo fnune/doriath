@@ -56,7 +56,7 @@ func TestActionsAndBody(t *testing.T) {
 
 func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
 	for kind, want := range map[approval.Kind][]string{
-		approval.KindHost: {"allow-session", "Allow for this session", "deny", "Ignore"},
+		approval.KindHost: {"allow-session", "Allow for this session", "deny", "Deny"},
 		approval.KindPath: {"allow-session", "Allow for this session", "deny", "Deny"},
 	} {
 		if got := Actions(approval.Request{Kind: kind, URL: "https://example.com"}); !slices.Equal(got, want) {

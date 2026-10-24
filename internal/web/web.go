@@ -382,18 +382,15 @@ func (s *Server) find(ctx context.Context, session, id string) (approval.Request
 }
 
 func decision(kind approval.Kind, answer string) (approval.Decision, error) {
-	switch answer {
-	case "once":
-		if !kind.AllowsOnce() {
-			return approval.Decision{}, fmt.Errorf("a %s request is allowed for the session or not at all", kind)
-		}
-		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "web"}, nil
-	case "session":
-		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "web"}, nil
-	case "deny":
-		return approval.Decision{Verdict: approval.VerdictDeny, By: "web"}, nil
+	a := approval.Answer(answer)
+	d, ok := a.Decision("web")
+	if !ok {
+		return approval.Decision{}, fmt.Errorf("answer %q: want once, session or deny", answer)
 	}
-	return approval.Decision{}, fmt.Errorf("answer %q: want once, session or deny", answer)
+	if !kind.Offers(a) {
+		return approval.Decision{}, fmt.Errorf("a %s request has no %s answer", kind, answer)
+	}
+	return d, nil
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, status int, selected, problem string, orOldest bool) {

@@ -40,9 +40,70 @@ const (
 	KindOpen Kind = "open"
 )
 
-// AllowsOnce says whether an allow can cover one request only. A host or a
-// write stays reachable once allowed, so those last for the session.
-func (k Kind) AllowsOnce() bool { return k != KindHost && k != KindPath && k != KindRead }
+type Answer string
+
+const (
+	AnswerOnce    Answer = "once"
+	AnswerSession Answer = "session"
+	AnswerDeny    Answer = "deny"
+)
+
+type Button struct {
+	Answer Answer
+	Label  string
+}
+
+// Buttons are the answers that a request of the kind offers, each with its
+// label. A host, a write or a read stays reachable once allowed, so those
+// offer no allow once. A secret card offers to try the source again.
+func (k Kind) Buttons() []Button {
+	switch k {
+	case KindHost, KindPath, KindRead:
+		return []Button{{AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
+	case KindSecret:
+		return []Button{{AnswerOnce, "Try again"}, {AnswerDeny, "Dismiss"}}
+	}
+	return []Button{{AnswerOnce, "Allow once"}, {AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
+}
+
+func (k Kind) Offers(a Answer) bool {
+	for _, b := range k.Buttons() {
+		if b.Answer == a {
+			return true
+		}
+	}
+	return false
+}
+
+func (a Answer) Decision(by string) (Decision, bool) {
+	switch a {
+	case AnswerOnce:
+		return Decision{Verdict: VerdictAllow, Lasting: LastingOnce, By: by}, true
+	case AnswerSession:
+		return Decision{Verdict: VerdictAllow, Lasting: LastingSession, By: by}, true
+	case AnswerDeny:
+		return Decision{Verdict: VerdictDeny, By: by}, true
+	}
+	return Decision{}, false
+}
+
+func (k Kind) Answered(d Decision) string {
+	switch {
+	case k == KindSecret && d.Verdict == VerdictAllow:
+		return "Tried again"
+	case k == KindSecret && d.Verdict == VerdictDeny:
+		return "Dismissed"
+	case d.Verdict == VerdictAllow && d.Lasting == LastingOnce:
+		return "Allowed once"
+	case d.Verdict == VerdictAllow && d.Lasting == LastingUntil:
+		return "Allowed until " + d.Until.Local().Format("15:04")
+	case d.Verdict == VerdictAllow:
+		return "Allowed for the session"
+	case d.Verdict == VerdictDeny:
+		return "Denied"
+	}
+	return "No answer in time"
+}
 
 type Request struct {
 	ID      string `json:"id"`

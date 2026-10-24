@@ -66,28 +66,28 @@ type sessionView struct {
 }
 
 type requestView struct {
-	Key        string
-	ID         string
-	Kind       string
-	Summary    string
-	Details    string
-	Note       string
-	NoteLabel  string
-	Agent      string
-	URL        string
-	Scope      string
-	Keep       string
-	Command    string
-	History    string
-	Session    sessionView
-	Timer      string
-	Pace       string
-	Fill       string
-	Status     string
-	Selected   bool
-	AllowsOnce bool
-	ByAgent    bool
-	created    time.Time
+	Key       string
+	ID        string
+	Kind      string
+	Summary   string
+	Details   string
+	Note      string
+	NoteLabel string
+	Agent     string
+	URL       string
+	Scope     string
+	Keep      string
+	Command   string
+	History   string
+	Session   sessionView
+	Timer     string
+	Pace      string
+	Fill      string
+	Status    string
+	Selected  bool
+	Buttons   []buttonView
+	ByAgent   bool
+	created   time.Time
 }
 
 type answeredView struct {
@@ -232,22 +232,22 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		noteLabel = "Reason"
 	}
 	v := requestView{
-		Key:        sv.ID + "/" + r.ID,
-		ID:         r.ID,
-		Kind:       string(r.Kind),
-		Summary:    session.Printable(r.Summary),
-		Details:    session.Printable(r.Details),
-		Note:       session.Printable(r.Note),
-		NoteLabel:  noteLabel,
-		Agent:      session.Printable(agent),
-		URL:        session.Printable(r.URL),
-		Scope:      session.Printable(r.Scope),
-		Keep:       session.Printable(r.Keep),
-		Command:    session.Printable(r.Command),
-		Session:    sv,
-		AllowsOnce: r.Kind.AllowsOnce(),
-		ByAgent:    r.Kind == approval.KindTool,
-		created:    r.Created,
+		Key:       sv.ID + "/" + r.ID,
+		ID:        r.ID,
+		Kind:      string(r.Kind),
+		Summary:   session.Printable(r.Summary),
+		Details:   session.Printable(r.Details),
+		Note:      session.Printable(r.Note),
+		NoteLabel: noteLabel,
+		Agent:     session.Printable(agent),
+		URL:       session.Printable(r.URL),
+		Scope:     session.Printable(r.Scope),
+		Keep:      session.Printable(r.Keep),
+		Command:   session.Printable(r.Command),
+		Session:   sv,
+		Buttons:   buttons(r.Kind),
+		ByAgent:   r.Kind == approval.KindTool,
+		created:   r.Created,
 	}
 	if r.Kind == approval.KindSecret {
 		v.Timer, v.Pace, v.Fill = "", "parked", "0%"
@@ -292,7 +292,7 @@ func answeredOf(a Answered, now time.Time) answeredView {
 		Kind:    string(a.Request.Kind),
 		Profile: sessionView{Profile: a.Request.Profile, Hue: hue(a.Request.Profile)},
 		Verdict: string(a.Decision.Verdict),
-		Label:   verdictLabel(a.Request.Kind, a.Decision),
+		Label:   a.Request.Kind.Answered(a.Decision),
 		Ago:     ago(now.Sub(a.Time)),
 		By:      byLabel(a.Decision.By),
 	}
@@ -339,22 +339,25 @@ func history(scope string, answered []Answered) string {
 	return fmt.Sprintf("You %s in the last day, in profile %s.", strings.Join(parts, " and "), strings.Join(names, ", "))
 }
 
-func verdictLabel(kind approval.Kind, d approval.Decision) string {
-	switch {
-	case kind == approval.KindSecret && d.Verdict == approval.VerdictAllow:
-		return "Tried again"
-	case kind == approval.KindSecret && d.Verdict == approval.VerdictDeny:
-		return "Dismissed"
-	case d.Verdict == approval.VerdictAllow && d.Lasting == approval.LastingOnce:
-		return "Allowed once"
-	case d.Verdict == approval.VerdictAllow && d.Lasting == approval.LastingUntil:
-		return "Allowed until " + d.Until.Local().Format("15:04")
-	case d.Verdict == approval.VerdictAllow:
-		return "Allowed for the session"
-	case d.Verdict == approval.VerdictDeny:
-		return "Denied"
+type buttonView struct {
+	Answer string
+	Label  string
+	Class  string
+}
+
+func buttons(kind approval.Kind) []buttonView {
+	var out []buttonView
+	for i, b := range kind.Buttons() {
+		class := "secondary"
+		switch {
+		case b.Answer == approval.AnswerDeny:
+			class = "deny"
+		case i == 0:
+			class = "primary"
+		}
+		out = append(out, buttonView{Answer: string(b.Answer), Label: b.Label, Class: class})
 	}
-	return "No answer in time"
+	return out
 }
 
 func byLabel(by string) string {

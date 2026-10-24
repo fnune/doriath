@@ -44,15 +44,17 @@ type Page interface {
 // Actions are the buttons, as key and label pairs in the order the
 // specification wants.
 func Actions(req approval.Request) []string {
-	switch req.Kind {
-	case approval.KindHost:
-		return []string{actionAllowSession, "Allow for this session", actionDeny, "Ignore"}
-	case approval.KindPath, approval.KindRead:
-		return []string{actionAllowSession, "Allow for this session", actionDeny, "Deny"}
-	case approval.KindSecret:
-		return []string{actionAllowOnce, "Try again", actionDeny, "Dismiss"}
+	var out []string
+	for _, b := range req.Kind.Buttons() {
+		out = append(out, actionFor[b.Answer], b.Label)
 	}
-	return []string{actionAllowOnce, "Allow once", actionAllowSession, "Allow for this session", actionDeny, "Deny"}
+	return out
+}
+
+var actionFor = map[approval.Answer]string{
+	approval.AnswerOnce:    actionAllowOnce,
+	approval.AnswerSession: actionAllowSession,
+	approval.AnswerDeny:    actionDeny,
 }
 
 func safeURL(raw string) bool {
@@ -62,13 +64,10 @@ func safeURL(raw string) bool {
 
 // DecisionFor maps a pressed button to a decision.
 func DecisionFor(action string) (approval.Decision, bool) {
-	switch action {
-	case actionAllowOnce:
-		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "desktop"}, true
-	case actionAllowSession:
-		return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}, true
-	case actionDeny:
-		return approval.Decision{Verdict: approval.VerdictDeny, By: "desktop"}, true
+	for answer, key := range actionFor {
+		if key == action {
+			return answer.Decision("desktop")
+		}
 	}
 	return approval.Decision{}, false
 }

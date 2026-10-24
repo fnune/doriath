@@ -211,12 +211,8 @@
 <form class="actions" method="post" action="/decide" hx-post="/decide" hx-target="#main" hx-swap="morph:outerHTML">
   <input type="hidden" name="session" value="{{.Session.ID}}">
   <input type="hidden" name="id" value="{{.ID}}">
-  {{if eq .Kind "secret"}}<button class="btn primary" name="answer" value="once">Try again</button>
-  <button class="btn deny" name="answer" value="deny">Dismiss</button>
-  {{else}}{{if .AllowsOnce}}<button class="btn primary" name="answer" value="once">Allow once</button>
-  <button class="btn secondary" name="answer" value="session">Allow for this session</button>
-  {{else}}<button class="btn primary" name="answer" value="session">Allow for this session</button>{{end}}
-  <button class="btn deny" name="answer" value="deny">Deny</button>{{end}}
+  {{range .Buttons}}<button class="btn {{.Class}}" name="answer" value="{{.Answer}}">{{.Label}}</button>
+  {{end}}
 </form>
 {{end}}
 

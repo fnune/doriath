@@ -310,3 +310,20 @@ func TestPendingRequestsAreCapped(t *testing.T) {
 		t.Errorf("pending = %d", len(m.Pending()))
 	}
 }
+
+func TestEveryButtonOfAKindMeansADecision(t *testing.T) {
+	for _, kind := range []Kind{KindHTTP, KindTool, KindHost, KindPath, KindRead, KindEdit, KindClipboard, KindSecret, KindOpen} {
+		for _, b := range kind.Buttons() {
+			d, ok := b.Answer.Decision("test")
+			if !ok || b.Label == "" || !kind.Offers(b.Answer) {
+				t.Errorf("%s: button %+v means %+v, %v", kind, b, d, ok)
+			}
+		}
+	}
+	if KindHost.Offers(AnswerOnce) || KindPath.Offers(AnswerOnce) || KindRead.Offers(AnswerOnce) {
+		t.Error("a request that stays reachable once allowed offers allow once")
+	}
+	if got := KindSecret.Answered(Decision{Verdict: VerdictAllow}); got != "Tried again" {
+		t.Errorf("secret answered = %q", got)
+	}
+}
