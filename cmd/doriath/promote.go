@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,6 +143,9 @@ func cmdGrant(args []string, w io.Writer) error {
 	path, err := filepath.Abs(operands[0])
 	if err != nil {
 		return err
+	}
+	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("approvals grant: %s does not exist; to give a new folder, create it first", path)
 	}
 	p, err := paths()
 	if err != nil {

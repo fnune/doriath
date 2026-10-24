@@ -128,18 +128,19 @@ func TestGrantWriteReachesTheSession(t *testing.T) {
 	p := testPaths(t)
 	first := startSession(t, p, "s1", "kitchen", time.Now().Add(-time.Minute))
 	second := startSession(t, p, "s2", "garden", time.Now())
+	data := t.TempDir()
 
-	if _, err := grant(t, "/srv/data"); err == nil || !strings.Contains(err.Error(), "doriath approvals grant --session s2 /srv/data  # profile garden") {
+	if _, err := grant(t, data); err == nil || !strings.Contains(err.Error(), "doriath approvals grant --session s2 "+data+"  # profile garden") {
 		t.Errorf("two sessions without --session = %v", err)
 	}
-	out, err := grant(t, "--session", "s2", "/srv/data")
+	out, err := grant(t, "--session", "s2", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "/srv/data is writable in session s2 until it ends.\nadd it to the profile to keep it\n" {
+	if out != data+" is writable in session s2 until it ends.\nadd it to the profile to keep it\n" {
 		t.Errorf("grant = %q", out)
 	}
-	if got := second.grants(); len(first.grants()) != 0 || len(got) != 1 || got[0] != "/srv/data" {
+	if got := second.grants(); len(first.grants()) != 0 || len(got) != 1 || got[0] != data {
 		t.Errorf("granted s1 %v, s2 %v", first.grants(), got)
 	}
 }
@@ -151,8 +152,20 @@ func TestGrantUsage(t *testing.T) {
 			t.Errorf("grant %q = %v", args, err)
 		}
 	}
-	if _, err := grant(t, "/srv"); err == nil || !strings.Contains(err.Error(), "no running sessions") {
+	if _, err := grant(t, t.TempDir()); err == nil || !strings.Contains(err.Error(), "no running sessions") {
 		t.Errorf("without sessions = %v", err)
+	}
+}
+
+func TestGrantRefusesAPathThatDoesNotExist(t *testing.T) {
+	p := testPaths(t)
+	s := startSession(t, p, "s1", "kitchen", time.Now())
+	missing := filepath.Join(t.TempDir(), "--session")
+	if _, err := grant(t, missing); err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("grant of a missing path = %v", err)
+	}
+	if len(s.grants()) != 0 {
+		t.Errorf("the session got %v", s.grants())
 	}
 }
 
