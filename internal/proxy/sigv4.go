@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ import (
 )
 
 const maxSignedBody = 64 << 20
+
+const maxPresignedExpiry = 3600
 
 var errUnsignedGoesAsItCame = errors.New("not signed")
 
@@ -89,12 +92,17 @@ func (s *Server) presigned(ctx context.Context, secret string, r *http.Request, 
 		return nil, errors.New("the presigned URL has no valid X-Amz-Credential")
 	}
 	region, service := f[2], f[3]
-	at, err := time.Parse("20060102T150405Z", query.Get("X-Amz-Date"))
-	if err != nil {
+	if _, err := time.Parse("20060102T150405Z", query.Get("X-Amz-Date")); err != nil {
 		return nil, errors.New("the presigned URL has no valid X-Amz-Date")
+	}
+	if expires := query.Get("X-Amz-Expires"); expires != "" {
+		if n, err := strconv.Atoi(expires); err != nil || n > maxPresignedExpiry {
+			query.Set("X-Amz-Expires", strconv.Itoa(maxPresignedExpiry))
+		}
 	}
 	payload := "UNSIGNED-PAYLOAD"
 	if service != "s3" {
+		var err error
 		if payload, err = hashBody(r); err != nil {
 			return nil, err
 		}
@@ -109,7 +117,7 @@ func (s *Server) presigned(ctx context.Context, secret string, r *http.Request, 
 	r.URL.RawQuery = query.Encode()
 	return func(out *http.Request) error {
 		out.Header.Del("Authorization")
-		signed, _, err := v4.NewSigner().PresignHTTP(out.Context(), creds, out, payload, service, region, at)
+		signed, _, err := v4.NewSigner().PresignHTTP(out.Context(), creds, out, payload, service, region, time.Now())
 		if err != nil {
 			return err
 		}

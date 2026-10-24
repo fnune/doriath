@@ -144,8 +144,34 @@ func TestAPresignedURLIsSignedAgainInItsQuery(t *testing.T) {
 	}
 	got, _ := h.upstream.last(t)
 	q := got.URL.Query()
-	if !strings.HasPrefix(q.Get("X-Amz-Credential"), "AKIAREALKEY/") || q.Get("X-Amz-Security-Token") != "real-session" || q.Get("X-Amz-Date") != at.Format("20060102T150405Z") || q.Get("X-Amz-Expires") != "900" || q.Get("Action") != "GetCallerIdentity" {
+	if !strings.HasPrefix(q.Get("X-Amz-Credential"), "AKIAREALKEY/") || q.Get("X-Amz-Security-Token") != "real-session" || q.Get("X-Amz-Expires") != "900" || q.Get("Action") != "GetCallerIdentity" {
 		t.Errorf("query = %v", q)
+	}
+}
+
+func TestAPresignedURLIsSignedForNowAndAnHourAtMost(t *testing.T) {
+	h := newHarnessWith(t, awsProfile)
+	req, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15&X-Amz-Expires=604800", nil)
+	signed, _, err := v4.NewSigner().PresignHTTP(context.Background(), placeholder, req, emptyHash, "sts", "us-east-1", time.Now().Add(6*24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	get, _ := http.NewRequest(http.MethodGet, signed, nil)
+	resp, err := h.client().Do(get)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := body(t, resp); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", resp.StatusCode, text)
+	}
+	got, _ := h.upstream.last(t)
+	q := got.URL.Query()
+	at, err := time.Parse("20060102T150405Z", q.Get("X-Amz-Date"))
+	if err != nil || time.Since(at).Abs() > time.Minute {
+		t.Errorf("signed for %s, not for now", q.Get("X-Amz-Date"))
+	}
+	if q.Get("X-Amz-Expires") != "3600" {
+		t.Errorf("expires = %q", q.Get("X-Amz-Expires"))
 	}
 }
 
