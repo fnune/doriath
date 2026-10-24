@@ -329,6 +329,8 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			if operation != "" {
 				summary += " " + operation
 			}
+		} else if repo := rules.Repository(reqPath); repo != "" {
+			summary += " in " + host + repo
 		}
 		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
 			summary += " " + tools

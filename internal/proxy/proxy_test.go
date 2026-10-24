@@ -397,11 +397,11 @@ func TestRuleApprove(t *testing.T) {
 	req := h.approver.requests[0]
 	h.approver.verdict = approval.VerdictDeny
 	h.approver.mu.Unlock()
-	if req.Summary != "Create a GitHub release" || req.Scope != "http POST api.github.com /repos/*/*/releases in /repos/fnune/project" || req.Session != "s1" {
+	if req.Summary != "Create a GitHub release in api.github.com/repos/fnune/project" || req.Scope != "http POST api.github.com /repos/*/*/releases in /repos/fnune/project" || req.Session != "s1" {
 		t.Fatalf("approval request = %+v", req)
 	}
 	resp := post()
-	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release was denied: not today") {
+	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release in api.github.com/repos/fnune/project was denied: not today") {
 		t.Fatalf("denied: status %d: %s", resp.StatusCode, b)
 	}
 	if h.upstream.count() != 1 {
@@ -892,7 +892,7 @@ summary = "Push"
 	h.approver.mu.Lock()
 	req := h.approver.requests[0]
 	h.approver.mu.Unlock()
-	if req.Summary != "Push: main" || !strings.Contains(req.Details, "update refs/heads/main aaaaaaaaaaaa..bbbbbbbbbbbb") || !strings.HasSuffix(req.Scope, " in /group/sub/proj") {
+	if req.Summary != "Push in github.com/group/sub/proj: main" || !strings.Contains(req.Details, "update refs/heads/main aaaaaaaaaaaa..bbbbbbbbbbbb") || !strings.HasSuffix(req.Scope, " in /group/sub/proj") {
 		t.Fatalf("approval request = %+v", req)
 	}
 	if _, got := h.upstream.last(t); string(got) != payload {

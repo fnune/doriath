@@ -230,9 +230,9 @@ func TestRefusedApprovalSaysWhy(t *testing.T) {
 		err     error
 		want    string
 	}{
-		"denied with a reason": {verdict: approval.VerdictDeny, want: "doriath: Create a GitHub release was denied: not today"},
-		"expired":              {verdict: approval.VerdictNone, want: "doriath: Create a GitHub release: nobody approved it in time"},
-		"queue unreachable":    {err: errors.New("no queue"), want: "doriath: Create a GitHub release was denied"},
+		"denied with a reason": {verdict: approval.VerdictDeny, want: "doriath: Create a GitHub release in api.github.com/repos/a/b was denied: not today"},
+		"expired":              {verdict: approval.VerdictNone, want: "doriath: Create a GitHub release in api.github.com/repos/a/b: nobody approved it in time"},
+		"queue unreachable":    {err: errors.New("no queue"), want: "doriath: Create a GitHub release in api.github.com/repos/a/b was denied"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)
