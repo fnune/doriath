@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -115,7 +116,6 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	return &testSession{Session: s, home: home, audit: &buf, promoted: promoted}
 }
 
-// builtinRules are the path lists that every profile loads.
 func builtinRules(t *testing.T, home string) profile.PathRules {
 	t.Helper()
 	l := &profile.Loader{Profiles: fstest.MapFS{"p.toml": {}}, Modules: []fs.FS{modules.FS}, Home: home, Builtins: modules.Builtins}
@@ -123,6 +123,7 @@ func builtinRules(t *testing.T, home string) profile.PathRules {
 	if err != nil {
 		t.Fatal(err)
 	}
+	p.PathRules.Warn = slices.DeleteFunc(p.PathRules.Warn, func(w profile.PathWarning) bool { return within(home, w.Path) })
 	return p.PathRules
 }
 

@@ -1,0 +1,6 @@
+description = "Built in to every profile. Warns on requests to read or write /tmp."
+
+[[paths.warn]]
+path = "/tmp"
+reason = "It holds the sockets of your X11 display and of agents such as ssh-agent. A program that reaches them acts as you, outside the jail."
+read = true

@@ -25,6 +25,18 @@ doriath loads these modules into every profile, before the profile's own modules
 
 <ModuleSource name="private-paths" />
 
+### login-autorun
+
+`login-autorun` warns on requests for paths that your machine runs on its own: the folders in `PATH` such as `~/.local/bin`, systemd user units, autostart entries, session variables, and the startup files of your shells. Code that the agent writes there runs outside the jail.
+
+<ModuleSource name="login-autorun" />
+
+### shared-tmp
+
+`shared-tmp` warns on requests to read or write `/tmp`. The host's `/tmp` holds the sockets of your X11 display and of agents such as ssh-agent, and the jail has its own `/tmp`.
+
+<ModuleSource name="shared-tmp" />
+
 ## vcs-readwrite
 
 With `vcs-readwrite`, the agent edits the repository that you start in, commits, branches and adds git worktrees or jj workspaces. The checkout and the store become writable. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files that your machine runs on its own, such as `.envrc`, `flake.nix`, `.vscode` and `.claude/settings.json`: the agent reads them, and changes one with `doriath request edit`, which shows you the new content first.

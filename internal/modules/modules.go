@@ -8,4 +8,4 @@ var FS embed.FS
 
 // Builtins load into every profile before its own layers. Each one only
 // refuses, warns on or holds paths, so that no profile can leave it out.
-var Builtins = []string{"private-paths"}
+var Builtins = []string{"private-paths", "login-autorun", "shared-tmp"}

@@ -32,3 +32,28 @@ func TestAUserModuleCannotTakeTheNameOfABuiltinModule(t *testing.T) {
 		t.Error("a user module replaced a built-in module")
 	}
 }
+
+func TestARequestForAPathThatYourMachineRunsOnItsOwnWarns(t *testing.T) {
+	p, err := builtinLoader(fstest.MapFS{"empty.toml": {Data: []byte("")}}).Load("empty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		path string
+		read bool
+		want bool
+	}{
+		{"/home/u/.local/bin", false, true},
+		{"/home/u/.local", false, true},
+		{"/home/u/.config/systemd/user", false, true},
+		{"/home/u/.zshrc", false, true},
+		{"/home/u/.local/bin", true, false},
+		{"/tmp", false, true},
+		{"/tmp", true, true},
+		{"/home/u/src/app", false, false},
+	} {
+		if w, ok := p.PathRules.Warning(c.path, c.read); ok != c.want {
+			t.Errorf("%s, read %v: %+v, %v", c.path, c.read, w, ok)
+		}
+	}
+}

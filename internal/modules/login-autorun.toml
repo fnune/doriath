@@ -1,0 +1,81 @@
+description = "Built in to every profile. Warns on requests for paths that your login session or your shells run."
+
+[[paths.warn]]
+path = "~/.local/bin"
+reason = "Your shells find programs in this folder through PATH. A program that the agent puts here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/bin"
+reason = "Your shells find programs in this folder through PATH. A program that the agent puts here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.config/systemd"
+reason = "systemd runs the user units in this folder as you, also at your next login."
+
+[[paths.warn]]
+path = "~/.config/autostart"
+reason = "Your desktop starts the programs in this folder when you log in."
+
+[[paths.warn]]
+path = "~/.config/environment.d"
+reason = "systemd sets the variables in this folder, such as PATH, for each program of your login session."
+
+[[paths.warn]]
+path = "~/.profile"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.bash_profile"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.bash_login"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.bashrc"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.bash_logout"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.zshenv"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.zprofile"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.zshrc"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.zlogin"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.zlogout"
+reason = "Your shell runs this file when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.config/zsh"
+reason = "zsh reads its startup files from this folder when ZDOTDIR names it. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.config/fish"
+reason = "fish runs the files in this folder when it starts. Code that the agent writes here runs outside the jail, as you."
+
+[[paths.warn]]
+path = "~/.xprofile"
+reason = "Your display manager runs this file when you log in."
+
+[[paths.warn]]
+path = "~/.xinitrc"
+reason = "startx runs this file when it starts your desktop."
+
+[[paths.warn]]
+path = "~/.xsessionrc"
+reason = "Your display manager runs this file when you log in."
