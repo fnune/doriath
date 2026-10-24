@@ -8,9 +8,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/fswatch"
 )
 
 // Watch repairs the worktrees the agent adds while the session runs, as
@@ -19,12 +20,12 @@ import (
 // into a worktree's admin directory or its .git file. Removing a worktree
 // still works. Watch returns when ctx ends; w gets a line for each repair.
 func Watch(ctx context.Context, rec *Record, w io.Writer) error {
-	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
+	fw, err := fswatch.New()
 	if err != nil {
 		return err
 	}
-	defer func() { _ = unix.Close(fd) }()
-	wt := &watcher{fd: fd, rec: rec, w: &lockedWriter{w: w}, dirs: map[int32]watched{}}
+	defer func() { _ = fw.Close() }()
+	wt := &watcher{fw: fw, rec: rec, w: &lockedWriter{w: w}, dirs: map[string]watched{}}
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
 		wt.add(filepath.Join(r.GitDir, "worktrees"), watched{repo: r, kind: kindWorktrees})
@@ -34,18 +35,7 @@ func Watch(ctx context.Context, rec *Record, w io.Writer) error {
 			}
 		}
 	}
-	buf := make([]byte, 64*1024)
-	fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
-	for ctx.Err() == nil {
-		if n, _ := unix.Poll(fds, 250); n <= 0 {
-			continue
-		}
-		n, err := unix.Read(fd, buf)
-		if err != nil {
-			continue
-		}
-		wt.handle(buf[:n])
-	}
+	fw.Run(ctx, wt.handle)
 	return nil
 }
 
@@ -64,16 +54,15 @@ type watched struct {
 }
 
 type watcher struct {
-	fd   int
+	fw   *fswatch.Watcher
 	rec  *Record
 	w    io.Writer
-	dirs map[int32]watched
+	dirs map[string]watched
 }
 
 func (wt *watcher) add(dir string, what watched) {
-	wd, err := unix.InotifyAddWatch(wt.fd, dir, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_MODIFY|unix.IN_CLOSE_WRITE|unix.IN_DELETE)
-	if err == nil {
-		wt.dirs[int32(wd)] = what
+	if wt.fw.Add(dir, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_MODIFY|unix.IN_CLOSE_WRITE|unix.IN_DELETE) == nil {
+		wt.dirs[dir] = what
 	}
 }
 
@@ -93,32 +82,23 @@ func (wt *watcher) repair(r *Repo, admin string) {
 	}
 }
 
-func (wt *watcher) handle(buf []byte) {
-	for len(buf) >= unix.SizeofInotifyEvent {
-		ev := (*unix.InotifyEvent)(unsafe.Pointer(&buf[0]))
-		size := unix.SizeofInotifyEvent + int(ev.Len)
-		if size > len(buf) {
-			return
+func (wt *watcher) handle(ev fswatch.Event) {
+	what, ok := wt.dirs[ev.Dir]
+	if !ok {
+		return
+	}
+	switch what.kind {
+	case kindWorktrees:
+		if ev.Mask&(unix.IN_CREATE|unix.IN_MOVED_TO) != 0 {
+			wt.adopt(what.repo, ev.Name)
 		}
-		name := strings.TrimRight(string(buf[unix.SizeofInotifyEvent:size]), "\x00")
-		buf = buf[size:]
-		what, ok := wt.dirs[ev.Wd]
-		if !ok {
-			continue
+	case kindAdmin:
+		if ev.Name == "commondir" || ev.Name == "gitdir" || ev.Name == "config.worktree" {
+			wt.repair(what.repo, what.admin)
 		}
-		switch what.kind {
-		case kindWorktrees:
-			if ev.Mask&(unix.IN_CREATE|unix.IN_MOVED_TO) != 0 {
-				wt.adopt(what.repo, name)
-			}
-		case kindAdmin:
-			if name == "commondir" || name == "gitdir" || name == "config.worktree" {
-				wt.repair(what.repo, what.admin)
-			}
-		case kindCheckout:
-			if name == ".git" {
-				wt.repair(what.repo, what.admin)
-			}
+	case kindCheckout:
+		if ev.Name == ".git" {
+			wt.repair(what.repo, what.admin)
 		}
 	}
 }

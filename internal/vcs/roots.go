@@ -7,11 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/fswatch"
 )
 
 // Commondir is the file that sends git from a store to another one, with
@@ -26,28 +26,34 @@ var placeholderCommondir = []byte(".\n")
 // write, when a store is added, as soon as one appears, and when the guard
 // closes, since git on your machine would follow it while the session runs.
 type RootGuard struct {
-	mu    sync.Mutex
-	fd    int
-	roots map[int32]string
-	all   []string
-	w     io.Writer
-	done  chan struct{}
-	stop  context.CancelFunc
-	once  sync.Once
+	mu   sync.Mutex
+	fw   *fswatch.Watcher
+	all  []string
+	w    io.Writer
+	done chan struct{}
+	stop context.CancelFunc
+	once sync.Once
 }
 
 // NewRootGuard returns a guard that sweeps only on Add and Close, with the
 // error, when the kernel cannot watch the stores.
 func NewRootGuard(w io.Writer) (*RootGuard, error) {
 	ctx, stop := context.WithCancel(context.Background())
-	g := &RootGuard{fd: -1, roots: map[int32]string{}, w: &lockedWriter{w: w}, done: make(chan struct{}), stop: stop}
-	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
+	g := &RootGuard{w: &lockedWriter{w: w}, done: make(chan struct{}), stop: stop}
+	fw, err := fswatch.New()
 	if err != nil {
 		close(g.done)
 		return g, err
 	}
-	g.fd = fd
-	go g.run(ctx)
+	g.fw = fw
+	go func() {
+		defer close(g.done)
+		fw.Run(ctx, func(ev fswatch.Event) {
+			if ev.Name == Commondir {
+				g.sweep(ev.Dir)
+			}
+		})
+	}()
 	return g, nil
 }
 
@@ -55,10 +61,10 @@ func (g *RootGuard) Add(roots ...string) {
 	for _, root := range roots {
 		g.mu.Lock()
 		g.all = append(g.all, root)
-		if wd, err := unix.InotifyAddWatch(g.fd, root, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_CLOSE_WRITE); err == nil {
-			g.roots[int32(wd)] = root
-		}
 		g.mu.Unlock()
+		if g.fw != nil {
+			_ = g.fw.Add(root, unix.IN_CREATE|unix.IN_MOVED_TO|unix.IN_CLOSE_WRITE)
+		}
 		g.sweep(root)
 	}
 }
@@ -68,8 +74,8 @@ func (g *RootGuard) Close() {
 	g.once.Do(func() {
 		g.stop()
 		<-g.done
-		if g.fd >= 0 {
-			_ = unix.Close(g.fd)
+		if g.fw != nil {
+			_ = g.fw.Close()
 		}
 		g.mu.Lock()
 		all := g.all
@@ -78,36 +84,6 @@ func (g *RootGuard) Close() {
 			g.sweep(root)
 		}
 	})
-}
-
-func (g *RootGuard) run(ctx context.Context) {
-	defer close(g.done)
-	buf := make([]byte, 16*1024)
-	fds := []unix.PollFd{{Fd: int32(g.fd), Events: unix.POLLIN}}
-	for ctx.Err() == nil {
-		if n, _ := unix.Poll(fds, 250); n <= 0 {
-			continue
-		}
-		n, err := unix.Read(g.fd, buf)
-		if err != nil {
-			continue
-		}
-		for b := buf[:n]; len(b) >= unix.SizeofInotifyEvent; {
-			ev := (*unix.InotifyEvent)(unsafe.Pointer(&b[0]))
-			size := unix.SizeofInotifyEvent + int(ev.Len)
-			if size > len(b) {
-				break
-			}
-			name := strings.TrimRight(string(b[unix.SizeofInotifyEvent:size]), "\x00")
-			b = b[size:]
-			g.mu.Lock()
-			root, ok := g.roots[ev.Wd]
-			g.mu.Unlock()
-			if ok && name == Commondir {
-				g.sweep(root)
-			}
-		}
-	}
 }
 
 func (g *RootGuard) sweep(root string) {

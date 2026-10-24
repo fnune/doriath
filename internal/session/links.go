@@ -1,15 +1,17 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"sync"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/fswatch"
 )
 
 const linkEvents = unix.IN_CREATE | unix.IN_DELETE | unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_ATTRIB
@@ -17,16 +19,15 @@ const linkEvents = unix.IN_CREATE | unix.IN_DELETE | unix.IN_MOVED_FROM | unix.I
 type linkKeeper struct {
 	mu      sync.Mutex
 	targets map[string]string
-	watches map[int]string
 	watched map[string]bool
-	fd      int
-	done    chan struct{}
+	fw      *fswatch.Watcher
+	stop    context.CancelFunc
 	stopped chan struct{}
 	report  func(path, found string)
 }
 
 func newLinkKeeper(report func(path, found string)) *linkKeeper {
-	return &linkKeeper{targets: map[string]string{}, watches: map[int]string{}, watched: map[string]bool{}, fd: -1, report: report}
+	return &linkKeeper{targets: map[string]string{}, watched: map[string]bool{}, report: report}
 }
 
 func (k *linkKeeper) Keep(paths ...string) error {
@@ -52,78 +53,36 @@ func (k *linkKeeper) watch(dir string) error {
 	if k.watched[dir] {
 		return nil
 	}
-	if k.fd < 0 {
-		fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
+	if k.fw == nil {
+		fw, err := fswatch.New()
 		if err != nil {
 			return err
 		}
-		k.fd, k.done, k.stopped = fd, make(chan struct{}), make(chan struct{})
-		go k.loop(fd)
+		ctx, stop := context.WithCancel(context.Background())
+		k.fw, k.stop, k.stopped = fw, stop, make(chan struct{})
+		go func() {
+			defer close(k.stopped)
+			fw.Run(ctx, k.changed)
+		}()
 	}
-	wd, err := unix.InotifyAddWatch(k.fd, dir, linkEvents|unix.IN_DONT_FOLLOW)
-	if err != nil {
+	if err := k.fw.Add(dir, linkEvents|unix.IN_DONT_FOLLOW); err != nil {
 		return err
 	}
-	k.watches[wd] = dir
 	k.watched[dir] = true
 	return nil
 }
 
-func (k *linkKeeper) loop(fd int) {
-	defer close(k.stopped)
-	buf := make([]byte, 64*(unix.SizeofInotifyEvent+unix.NAME_MAX+1))
-	for {
-		select {
-		case <-k.done:
-			return
-		default:
-		}
-		ready, err := unix.Poll([]unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}, 200)
-		if err != nil && !errors.Is(err, unix.EINTR) {
-			return
-		}
-		if ready == 0 {
-			continue
-		}
-		n, err := unix.Read(fd, buf)
-		if err != nil {
-			continue
-		}
-		for _, path := range k.changed(buf[:n]) {
-			k.restore(path)
-		}
+func (k *linkKeeper) changed(ev fswatch.Event) {
+	if ev.Name == "" {
+		return
 	}
-}
-
-func (k *linkKeeper) changed(buf []byte) []string {
+	path := filepath.Join(ev.Dir, ev.Name)
 	k.mu.Lock()
-	defer k.mu.Unlock()
-	var out []string
-	for off := 0; off+unix.SizeofInotifyEvent <= len(buf); {
-		ev := (*unix.InotifyEvent)(unsafe.Pointer(&buf[off]))
-		nameStart := off + unix.SizeofInotifyEvent
-		nameEnd := min(nameStart+int(ev.Len), len(buf))
-		name := string(trimNul(buf[nameStart:nameEnd]))
-		off = nameEnd
-		dir, ok := k.watches[int(ev.Wd)]
-		if !ok || name == "" {
-			continue
-		}
-		path := filepath.Join(dir, name)
-		if _, kept := k.targets[path]; kept && !slices.Contains(out, path) {
-			out = append(out, path)
-		}
+	_, kept := k.targets[path]
+	k.mu.Unlock()
+	if kept {
+		k.restore(path)
 	}
-	return out
-}
-
-func trimNul(b []byte) []byte {
-	for i, c := range b {
-		if c == 0 {
-			return b[:i]
-		}
-	}
-	return b
 }
 
 func (k *linkKeeper) Check() {
@@ -168,15 +127,15 @@ func (k *linkKeeper) restore(path string) {
 
 func (k *linkKeeper) Close() {
 	k.mu.Lock()
-	fd, done, stopped := k.fd, k.done, k.stopped
-	k.fd = -1
+	fw, stop, stopped := k.fw, k.stop, k.stopped
+	k.fw = nil
 	k.mu.Unlock()
-	if fd < 0 {
+	if fw == nil {
 		return
 	}
-	close(done)
+	stop()
 	<-stopped
-	_ = unix.Close(fd)
+	_ = fw.Close()
 }
 
 func (s *Session) linkRestored(path, found string) {
