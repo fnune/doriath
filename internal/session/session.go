@@ -313,6 +313,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.holdMissingPaths(); err != nil {
 		return err
 	}
+	s.guardMissingHolds()
 	s.rootLog = &repairLog{log: s.log}
 	roots, err := vcs.NewRootGuard(s.rootLog)
 	if err != nil {

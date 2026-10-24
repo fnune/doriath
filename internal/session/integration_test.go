@@ -235,11 +235,12 @@ summary = "Create a GitHub release"
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "it.toml"), []byte(body), 0o600); err != nil {
 		e.t.Fatal(err)
 	}
-	l := &profile.Loader{Profiles: os.DirFS(e.paths.Profiles()), Modules: []fs.FS{modules.FS}, Home: e.home}
+	l := &profile.Loader{Profiles: os.DirFS(e.paths.Profiles()), Modules: []fs.FS{modules.FS}, Home: e.home, Builtins: modules.Builtins}
 	p, err := l.Load("it")
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	p.PathRules.Warn = slices.DeleteFunc(p.PathRules.Warn, func(w profile.PathWarning) bool { return strings.HasPrefix(e.home, w.Path+"/") })
 	return p
 }
 

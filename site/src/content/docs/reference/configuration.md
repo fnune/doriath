@@ -106,7 +106,7 @@ reason = "Hyprland runs the commands in its config when you log in."
 [[paths.hold]]
 path = "{repository}/.mise.local.toml"
 reason = "mise runs its hooks when you enter the folder."
-missing = "hold"
+missing = "move"
 
 [env]
 # Host variables that the jail sees. doriath drops all others, but always
@@ -437,11 +437,16 @@ doriath also refuses `/`, the home directory and the directories above it, in al
 
 `[paths]` holds lists that only restrict the agent. Each layer adds to them, and no layer can remove an entry. A change to them does not ask you to [allow the profile](#allowed-profiles) again, because they give the jail nothing.
 
+The [modules in every profile](/reference/modules/#modules-in-every-profile) set these lists for your keys, your login, `/tmp` and the files that your machine runs in a repository.
+
 An entry is an absolute path, a path under `~`, or a path under `{repository}`, without `..` or a trailing slash. A request matches an entry when it names the path, a folder above it, or a path inside it.
 
 - `refuse`: doriath refuses a request for the path before it asks you, as it does for your keys.
 - `warn`: a request still asks you, with the `reason` as a warning from doriath. You can allow it once only, and the request shows no profile lines to keep. With `read = true`, a request to read the path also warns.
-- `hold`: doriath keeps the path read-only in each writable mount that holds it, and warns on a request for it as `warn` does. `missing` is required. `hold` puts an empty file at a missing path, so that the agent cannot create it, as for [mounts](#mounts). With `folder = true`, doriath puts an empty folder there instead, so that your own tools can still write into it. `skip` keeps the path only when it exists.
+- `hold`: doriath keeps the path read-only in each mount that shows it, and warns on a request for it as `warn` does. `missing` is required, and says what happens when the path does not exist in a writable mount:
+    - `move`: doriath puts nothing there. If the agent creates the path, doriath moves it at once to `~/.local/state/doriath/moved/<session>/` and tells you. Without inotify, doriath moves it only at the start and the end of the session.
+    - `hold`: doriath puts an empty file there, as for [mounts](#mounts), or an empty folder with `folder = true`. Use it only where the empty file or folder changes nothing for the tools on your machine, such as `{}` in a JSON file.
+    - `skip`: the agent can create the path.
 
 ## Home
 
@@ -612,5 +617,6 @@ bar = true
 | `~/.local/state/doriath/oauth/`           | OAuth logins for each profile, with their refresh tokens                                              |
 | `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
 | `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |
+| `~/.local/state/doriath/moved/<session>/` | What the agent created at a held path, which doriath moved out of the repository                      |
 | `~/.cache/doriath/agents/<profile>/`      | The caches, `/tmp`, home, agent state and container storage of the profile                            |
 | `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                      |

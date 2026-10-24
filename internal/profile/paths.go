@@ -30,6 +30,13 @@ type PathWarning struct {
 	Read bool
 }
 
+// MissingMove leaves a missing held path out, and the session moves out of
+// the repository what the jail creates there, so that your machine sees no
+// placeholder in place of a file that a tool would read.
+const MissingMove Missing = "move"
+
+var holdStrictness = map[Missing]int{MissingSkip: 0, MissingMove: 1, MissingHold: 2}
+
 type PathHold struct {
 	Path    string
 	Reason  string
@@ -92,7 +99,11 @@ func heldMounts(mounts []Mount, holds []PathHold) []Mount {
 		if !ok || enclosing.Mode == ModeHide {
 			continue
 		}
-		mounts = mergeKeepingLessAccess(mounts, Mount{Path: h.Path, Mode: ModeRead, Missing: h.Missing})
+		missing := h.Missing
+		if missing == MissingMove {
+			missing = MissingSkip
+		}
+		mounts = mergeKeepingLessAccess(mounts, Mount{Path: h.Path, Mode: ModeRead, Missing: missing})
 	}
 	return mounts
 }
@@ -145,7 +156,7 @@ func (b *builder) applyPaths(l *pathsLayer) {
 			b.hold = append(b.hold, h)
 			continue
 		}
-		if strictness[Missing(h.Missing)] > strictness[Missing(b.hold[i].Missing)] {
+		if holdStrictness[Missing(h.Missing)] > holdStrictness[Missing(b.hold[i].Missing)] {
 			b.hold[i].Missing = h.Missing
 		}
 		b.hold[i].Folder = b.hold[i].Folder || h.Folder
@@ -182,8 +193,8 @@ func (b *builder) buildPaths() (PathRules, []error) {
 			errs = append(errs, fmt.Errorf("paths hold: %w", err))
 		case strings.TrimSpace(h.Reason) == "":
 			errs = append(errs, fmt.Errorf("paths hold %s: give a reason, which a request for it shows you", h.Path))
-		case missing != MissingHold && missing != MissingSkip:
-			errs = append(errs, fmt.Errorf("paths hold %s: missing %q: want hold or skip", h.Path, h.Missing))
+		case missing != MissingHold && missing != MissingMove && missing != MissingSkip:
+			errs = append(errs, fmt.Errorf("paths hold %s: missing %q: want move, hold or skip", h.Path, h.Missing))
 		default:
 			out.Hold = append(out.Hold, PathHold{Path: path, Reason: h.Reason, Missing: missing, Folder: h.Folder})
 		}

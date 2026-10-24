@@ -37,9 +37,27 @@ doriath loads these modules into every profile, before the profile's own modules
 
 <ModuleSource name="shared-tmp" />
 
+### git-hook-managers
+
+`git-hook-managers` keeps the config of lefthook, husky and pre-commit read-only in the session's repository when the jail can write it. These tools run their config as git hooks on your machine, such as at your next commit. doriath puts nothing at a name that is missing. If the agent creates one, such as a `lefthook-local.yml`, doriath moves it out of the repository at once and tells you where it went, as [path lists](/reference/configuration/#path-lists) describes.
+
+<ModuleSource name="git-hook-managers" />
+
+### direnv-files
+
+`direnv-files` keeps `.envrc`, `.env` and the files that direnv loads through them read-only in the session's repository. doriath moves out a file that the agent creates at a missing name. Nix files that `use nix` reads in place of a missing `shell.nix`, such as `default.nix`, stay writable, because agents edit them in normal work.
+
+<ModuleSource name="direnv-files" />
+
+### editor-autorun
+
+`editor-autorun` keeps the editor files that run when you open the project read-only in the session's repository, such as `.vscode`, `.nvim.lua` and `.exrc`. doriath moves out a file that the agent creates at a missing name. A missing `.vscode` gets an empty folder instead, which VS Code reads as no settings and can still write into. The module also warns on requests for the config of Neovim, Vim and Emacs in your home.
+
+<ModuleSource name="editor-autorun" />
+
 ## vcs-readwrite
 
-With `vcs-readwrite`, the agent edits the repository that you start in, commits, branches and adds git worktrees or jj workspaces. The checkout and the store become writable. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files that your machine runs on its own, such as `.envrc`, `flake.nix`, `.vscode` and `.claude/settings.json`: the agent reads them, and changes one with `doriath request edit`, which shows you the new content first.
+With `vcs-readwrite`, the agent edits the repository that you start in, commits, branches and adds git worktrees or jj workspaces. The checkout and the store become writable. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files of mise and of agents, such as `mise.toml` and `.claude/settings.json`, and the files that the [modules in every profile](#modules-in-every-profile) hold, such as `.envrc` and `.vscode`. The agent reads them, and changes one with `doriath request edit`, which shows you the new content first.
 
 <ModuleSource name="vcs-readwrite" />
 

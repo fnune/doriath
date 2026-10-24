@@ -1,0 +1,92 @@
+description = "Built in to every profile. Keeps the editor files that run when you open a project read-only in a writable repository, and moves out of it what the agent creates at a missing name."
+
+[[paths.hold]]
+path = "{repository}/.vscode"
+reason = "VS Code runs the tasks in this folder, and its settings name programs that it runs."
+missing = "hold"
+folder = true
+
+[[paths.hold]]
+path = "{repository}/.idea"
+reason = "JetBrains IDEs run the configurations in this folder, and its settings name programs that they run."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.zed"
+reason = "Zed runs the tasks in this folder, and its settings name language servers that it runs."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.helix"
+reason = "Helix starts the language servers that the config in this folder names."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.devcontainer"
+reason = "VS Code runs the initializeCommand of this folder on your machine when it opens the container."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.devcontainer.json"
+reason = "VS Code runs the initializeCommand of this file on your machine when it opens the container."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.nvim.lua"
+reason = "Neovim runs this file when it starts in the project, after you trust it."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.nvimrc"
+reason = "Neovim runs this file when it starts in the project, after you trust it."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.exrc"
+reason = "Vim and Neovim run this file when they start in the project with exrc set."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.vimrc"
+reason = "Vim runs this file when it starts in the project with exrc set."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.gvimrc"
+reason = "gVim runs this file when it starts in the project with exrc set."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lazy.lua"
+reason = "lazy.nvim loads the plugins of this file when Neovim starts in the project."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.dir-locals.el"
+reason = "Emacs applies the variables of this file when you open a file in the project."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.dir-locals-2.el"
+reason = "Emacs applies the variables of this file when you open a file in the project."
+missing = "move"
+
+[[paths.warn]]
+path = "~/.config/nvim"
+reason = "Neovim runs the config in this folder each time it starts."
+
+[[paths.warn]]
+path = "~/.vim"
+reason = "Vim runs the plugins in this folder each time it starts."
+
+[[paths.warn]]
+path = "~/.vimrc"
+reason = "Vim runs this file each time it starts."
+
+[[paths.warn]]
+path = "~/.config/emacs"
+reason = "Emacs runs the init files in this folder each time it starts."
+
+[[paths.warn]]
+path = "~/.emacs.d"
+reason = "Emacs runs the init files in this folder each time it starts."

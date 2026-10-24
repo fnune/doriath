@@ -1,0 +1,171 @@
+description = "Built in to every profile. Keeps the config of git hook managers read-only in a writable repository, and moves out of it what the agent creates at a missing name."
+
+[[paths.hold]]
+path = "{repository}/lefthook.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook-local.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook-local.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook-local.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook-local.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/lefthook-local.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook-local.yml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook-local.yaml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook-local.json"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook-local.jsonc"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.config/lefthook-local.toml"
+reason = "lefthook runs the commands in its config as git hooks on your machine, such as at your next commit."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook"
+reason = "lefthook runs the scripts in this folder as git hooks on your machine."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.lefthook-local"
+reason = "lefthook runs the scripts in this folder as git hooks on your machine."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.husky"
+reason = "husky runs the scripts in this folder as git hooks on your machine."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.pre-commit-config.yaml"
+reason = "pre-commit runs the hooks in this file on your machine, such as at your next commit."
+missing = "move"

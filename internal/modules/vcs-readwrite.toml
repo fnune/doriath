@@ -1,4 +1,4 @@
-description = "The repository the session starts in, writable, with the files your machine runs kept read-only."
+description = "The repository the session starts in, writable, with the files of git, mise and agents kept read-only."
 [vcs]
 store = true
 
@@ -15,38 +15,6 @@ edit = { format = "git-config", safe = [
 
 [[mounts]]
 path = "~/.config/jj"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.envrc"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.direnv"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/flake.nix"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/flake.lock"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/shell.nix"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/devenv.nix"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/devenv.yaml"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/devenv.lock"
 missing = "skip"
 
 [[mounts]]
@@ -67,34 +35,6 @@ missing = "skip"
 
 [[mounts]]
 path = "{repository}/.tool-versions"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.vscode"
-missing = "hold"
-
-[[mounts]]
-path = "{repository}/.idea"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.zed"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.helix"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.nvim.lua"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.nvimrc"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.exrc"
 missing = "skip"
 
 [[mounts]]
@@ -123,24 +63,4 @@ missing = "skip"
 
 [[mounts]]
 path = "{repository}/.opencode"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.pre-commit-config.yaml"
-missing = "hold"
-
-[[mounts]]
-path = "{repository}/lefthook.yml"
-missing = "hold"
-
-[[mounts]]
-path = "{repository}/.lefthook.yml"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/lefthook-local.yml"
-missing = "skip"
-
-[[mounts]]
-path = "{repository}/.husky"
 missing = "skip"

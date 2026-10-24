@@ -1,0 +1,50 @@
+description = "Built in to every profile. Keeps .envrc and the files that direnv loads read-only in a writable repository, and moves out of it what the agent creates at a missing name."
+
+[[paths.hold]]
+path = "{repository}/.envrc"
+reason = "direnv runs this file on your machine when you enter the folder, after you allow it."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.env"
+reason = "direnv loads this file on your machine through dotenv in the .envrc."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/.direnv"
+reason = "direnv and nix-direnv load the environment that they cache in this folder."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/flake.nix"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/flake.lock"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/shell.nix"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/devenv.nix"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/devenv.yaml"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.hold]]
+path = "{repository}/devenv.lock"
+reason = "direnv evaluates this file on your machine through the .envrc, such as with use flake or use nix."
+missing = "move"
+
+[[paths.warn]]
+path = "~/.config/direnv"
+reason = "direnv runs the direnvrc in this folder on your machine in each folder that it loads."

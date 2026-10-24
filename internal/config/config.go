@@ -57,6 +57,10 @@ func (p Paths) AgentCache(profile string) string {
 // state: deleting it asks again for every profile.
 func (p Paths) AllowedProfiles() string { return filepath.Join(p.State, "profiles") }
 
+// Moved holds what the jail created at a held path in a session, which
+// doriath moved out of the repository. It is state: you decide what to keep.
+func (p Paths) Moved(session string) string { return filepath.Join(p.State, "moved", session) }
+
 func (p Paths) Bundle() string { return filepath.Join(p.Cache, "bundle") }
 
 // Backups holds, per session, the record of the branches it started with and
