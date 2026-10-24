@@ -2,6 +2,7 @@ package session
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -129,5 +130,32 @@ func TestALinkMeetsTheRuleForThePathThatTheBrowserSends(t *testing.T) {
 	}
 	if len(opened.urls) != 0 || len(notifier.seen) != 5 {
 		t.Errorf("opened %v, asked %d times", opened.urls, len(notifier.seen))
+	}
+}
+
+func TestASessionAllowOfAHeldLinkCoversOnlyLinksOfTheSameRule(t *testing.T) {
+	notifier := allowing()
+	notifier.seen = make(chan approval.Request, 4)
+	s, opened := linkSession(t, notifier,
+		rule(t, "forge.example", "/settings/**", profile.ActionApprove),
+		rule(t, "forge.example", "/login/**", profile.ActionApprove),
+		rule(t, "forge.example", "/**", profile.ActionAllow))
+	for _, link := range []string{
+		"https://forge.example/settings/tokens",
+		"https://forge.example/settings/keys",
+		"https://forge.example/login/device",
+		"https://other.example/page",
+	} {
+		if _, err := s.requestOpen(link, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var scopes []string
+	for len(notifier.seen) > 0 {
+		scopes = append(scopes, (<-notifier.seen).Scope)
+	}
+	want := []string{"open forge.example /settings/**", "open forge.example /login/**", "open other.example"}
+	if !slices.Equal(scopes, want) || len(opened.urls) != 4 {
+		t.Errorf("asked for %q, want %q; opened %v", scopes, want, opened.urls)
 	}
 }

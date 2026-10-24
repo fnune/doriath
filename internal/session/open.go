@@ -35,8 +35,11 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 		return RequestResult{}, err
 	}
 	host := strings.ToLower(u.Hostname())
+	scope := "open " + host
 	rule, ok := s.req.Profile.OpenRule(host, linkPath(u))
-	if !ok {
+	if ok {
+		scope += " " + string(rule.Path)
+	} else {
 		rule = profile.OpenRule{Action: profile.ActionApprove}
 	}
 	switch rule.Action {
@@ -53,7 +56,7 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 		Details: linkDetails(u),
 		Note:    reason,
 		URL:     u.String(),
-		Scope:   "open " + host,
+		Scope:   scope,
 	}
 	return s.holdAndGrant(req, func() error { return s.openLink(u, true) })
 }
