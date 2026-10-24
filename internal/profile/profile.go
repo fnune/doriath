@@ -125,6 +125,8 @@ type Egress struct {
 	Ports []int
 	// TCPPorts are passed as raw TCP, for protocols such as MySQL.
 	TCPPorts []int
+	// Notes say what a host is, for the request that asks you to allow it.
+	Notes map[HostPattern]string
 }
 
 // ProgramEgress lets the named programs, matched like credential binaries,
@@ -489,6 +491,17 @@ func (p *Profile) Intercepted(host string) (HTTPHost, bool) {
 // AllowsHostFor reports whether the program exe may reach host: any program
 // may reach the hosts AllowsHost names, and the named programs their own.
 // Refuses reports whether the profile refuses host without asking you.
+// HostNote says what host is, from the notes of the profile and its
+// modules, or "".
+func (p *Profile) HostNote(host string) string {
+	for pattern, note := range p.Egress.Notes {
+		if pattern.Match(host) {
+			return note
+		}
+	}
+	return ""
+}
+
 func (p *Profile) Refuses(host string) bool {
 	return matchAny(p.Egress.Deny, host) && !p.AllowsHost(host)
 }

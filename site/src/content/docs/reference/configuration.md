@@ -111,6 +111,9 @@ allow = ["proxy.golang.org", "*.githubusercontent.com", "git.example.org:3000"]
 # Hosts refused at once, without asking you, unless an allow entry names
 # them too. The claude module refuses downloads.claude.ai this way.
 deny = ["telemetry.example.com"]
+# What a host is, shown on the request that asks you to allow it. A module
+# names the hosts of its tool this way.
+notes = { "telemetry.example.com" = "The tool reports usage to this host." }
 # Localhost ports of the host that the jail can reach over HTTP,
 # and as raw TCP.
 ports = [4200]

@@ -78,6 +78,7 @@ Inside a jail:
   doriath status
   doriath request write PATH [--reason TEXT]
   doriath request read PATH [--reason TEXT]
+  doriath request host HOST [--reason TEXT]
   doriath request wait ID|HOST|PATH
 `
 

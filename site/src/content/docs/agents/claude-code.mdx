@@ -42,7 +42,12 @@ The `claude` module turns claude.ai connectors off, because a connector reaches 
 [claude]
 disable_connectors = false
 allowed_mcp_servers = ["https://mcp.example.com/mcp"]
+
+[egress]
+allow = ["mcp-proxy.anthropic.com"]
 ```
+
+Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `claude` module refuses without asking you while connectors are off.
 
 `/mcp` in a session outside doriath shows the name and URL of each connector.
 

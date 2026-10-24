@@ -26,6 +26,7 @@ const (
 	MethodStatus       = "status"
 	MethodRequestWrite = "path.request_write"
 	MethodRequestRead  = "path.request_read"
+	MethodRequestHost  = "host.request"
 	MethodWait         = "approval.wait"
 )
 
@@ -142,6 +143,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 				return nil, err
 			}
 			return s.requestRead(p.Path, p.Reason)
+		},
+		MethodRequestHost: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestHostParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestHost(p.Host, p.Reason)
 		},
 		MethodRequestEdit: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestEditParams](raw)

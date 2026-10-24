@@ -18,7 +18,10 @@ func TestUnknownHostIsHeldUntilYouDecide(t *testing.T) {
 	code, out := e.run(e.profile(""), `
 curl -sS -o /dev/null -H "Accept: text/markdown" -w "held %{http_code}\n" https://drafted.example/held
 `, func() {
-		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+		req := e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+		if !strings.Contains(req.Details, "\n  curl -sS -o /dev/null") {
+			t.Errorf("the card lacks the command line:\n%s", req.Details)
+		}
 	})
 	if code != 0 || !strings.Contains(out, "held 200") {
 		t.Fatalf("code %d:\n%s", code, out)

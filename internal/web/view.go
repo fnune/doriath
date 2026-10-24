@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -77,6 +78,7 @@ type requestView struct {
 	Scope      string
 	Keep       string
 	Command    string
+	History    string
 	Session    sessionView
 	Timer      string
 	Pace       string
@@ -124,6 +126,9 @@ func (s *Server) view(ctx context.Context, selected string) (page, error) {
 		return p, fmt.Errorf("read the audit log: %w", err)
 	}
 	sort.SliceStable(answered, func(i, j int) bool { return answered[i].Time.After(answered[j].Time) })
+	for i := range p.Pending {
+		p.Pending[i].History = history(p.Pending[i].Scope, answered)
+	}
 	if len(answered) > answeredShown {
 		answered = answered[:answeredShown]
 	}
@@ -291,6 +296,47 @@ func answeredOf(a Answered, now time.Time) answeredView {
 		Ago:     ago(now.Sub(a.Time)),
 		By:      byLabel(a.Decision.By),
 	}
+}
+
+func history(scope string, answered []Answered) string {
+	if scope == "" {
+		return ""
+	}
+	counts := map[string]int{}
+	profiles := map[string]bool{}
+	for _, a := range answered {
+		if session.Printable(a.Request.Scope) != scope {
+			continue
+		}
+		switch a.Decision.Verdict {
+		case approval.VerdictAllow:
+			counts["allowed"]++
+		case approval.VerdictDeny:
+			counts["denied"]++
+		default:
+			continue
+		}
+		profiles[a.Request.Profile] = true
+	}
+	var parts []string
+	for _, verdict := range []string{"allowed", "denied"} {
+		switch n := counts[verdict]; n {
+		case 0:
+		case 1:
+			parts = append(parts, verdict+" once")
+		default:
+			parts = append(parts, fmt.Sprintf("%s %d times", verdict, n))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return fmt.Sprintf("You %s in the last day, in profile %s.", strings.Join(parts, " and "), strings.Join(names, ", "))
 }
 
 func verdictLabel(kind approval.Kind, d approval.Decision) string {

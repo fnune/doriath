@@ -44,7 +44,7 @@ type Policy interface {
 // HostHolder asks you about a host the profile does not allow, and waits a
 // while for your answer. pending names the request when it is still open.
 type HostHolder interface {
-	HoldHost(ctx context.Context, host, exe string) (allowed bool, pending string)
+	HoldHost(ctx context.Context, host string, caller Identity) (allowed bool, pending string)
 }
 
 type Approver interface {
@@ -668,7 +668,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, host, port string
 	}
 	reason := s.hostReason(host)
 	if reason == ReasonNotInProfile && s.cfg.Holder != nil {
-		allowed, id := s.cfg.Holder.HoldHost(r.Context(), host, exe)
+		allowed, id := s.cfg.Holder.HoldHost(r.Context(), host, IdentityFrom(r.Context()))
 		if allowed {
 			return true
 		}

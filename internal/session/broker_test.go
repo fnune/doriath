@@ -35,7 +35,7 @@ func TestStatusDescribesTheLiveSession(t *testing.T) {
 		}},
 	}
 	s.egress.Egress(proxy.Event{Kind: "denied", Host: "example.org", Reason: "host not in the profile"})
-	s.HoldHost(context.Background(), "drafted.example", "")
+	s.HoldHost(context.Background(), "drafted.example", proxy.Identity{})
 
 	st := s.status()
 	if st.Session != "s1" || st.Profile != "work" || !st.Signing || st.Podman || st.Pending != 1 {
@@ -132,7 +132,7 @@ func TestBrokerSubmitsAToolRequestScopedToTheAgent(t *testing.T) {
 
 func TestBrokerWaitsForAHostByItsLowercaseName(t *testing.T) {
 	s, broker, _ := brokerSession(t, denying())
-	s.HoldHost(context.Background(), "drafted.example", "")
+	s.HoldHost(context.Background(), "drafted.example", proxy.Identity{})
 	var d approval.Decision
 	if err := control.Call(context.Background(), broker, MethodWait, WaitParams{Host: "Drafted.Example"}, &d); err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ func TestBrokerCannotDecideOrGrant(t *testing.T) {
 
 func TestControlDecidesAsTheCLIUnlessToldOtherwise(t *testing.T) {
 	s, _, ctl := brokerSession(t, &answering{}, func(d *Deps) { d.HostWait = 0 })
-	_, id := s.HoldHost(context.Background(), "drafted.example", "")
+	_, id := s.HoldHost(context.Background(), "drafted.example", proxy.Identity{})
 	var pending []approval.Request
 	if err := control.Call(context.Background(), ctl, MethodList, struct{}{}, &pending); err != nil || len(pending) != 1 || pending[0].ID != id {
 		t.Fatalf("pending = %+v, %v", pending, err)

@@ -27,7 +27,7 @@ type fakeHolder struct {
 	asked []string
 }
 
-func (f *fakeHolder) HoldHost(_ context.Context, host, _ string) (bool, string) {
+func (f *fakeHolder) HoldHost(_ context.Context, host string, _ Identity) (bool, string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.asked = append(f.asked, host)

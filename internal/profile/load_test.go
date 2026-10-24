@@ -546,3 +546,26 @@ key = "signing"
 		}
 	}
 }
+
+func TestAModuleNotesWhatAHostIsAndTheNoteGrantsNothing(t *testing.T) {
+	modules := fstest.MapFS{"agent.toml": file("[egress]\nnotes = { \"proxy.example\" = \"The agent's connector proxy.\" }\n")}
+	p, err := loader(fstest.MapFS{"app.toml": file(`modules = ["agent"]`)}, modules).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.HostNote("proxy.example"); got != "The agent's connector proxy." {
+		t.Errorf("note = %q", got)
+	}
+	if p.AllowsHost("proxy.example") {
+		t.Error("a note allowed the host")
+	}
+	grants, err := p.Grants()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range grants {
+		if strings.Contains(g, "Notes") {
+			t.Errorf("a note is a grant: %s", g)
+		}
+	}
+}

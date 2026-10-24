@@ -14,6 +14,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 type livePolicy struct {
@@ -93,17 +94,49 @@ const pendingTTL = 12 * time.Hour
 // HoldHost asks you about a host the profile does not name, and waits up to
 // the configured time. An allow lasts for the session, also when it comes
 // after the agent stopped waiting.
-func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
-	who := "A program"
-	if exe != "" {
-		who = exe
+func (s *Session) HoldHost(_ context.Context, host string, caller proxy.Identity) (bool, string) {
+	d, id := s.holdHost(host, s.hostDetails(host, caller), "")
+	if d.Verdict == approval.VerdictAllow {
+		return true, ""
 	}
+	if d.Verdict == approval.VerdictDeny {
+		return false, ""
+	}
+	return false, id
+}
+
+const maxCommandLine = 300
+
+func (s *Session) hostDetails(host string, caller proxy.Identity) string {
+	var b strings.Builder
+	if note := s.req.Profile.HostNote(host); note != "" {
+		fmt.Fprintf(&b, "%s: %s\n\n", host, note)
+	}
+	who := "A program"
+	if caller.Exe != "" {
+		who = fmt.Sprintf("%s (%s)", programName(caller.Exe), caller.Exe)
+	}
+	fmt.Fprintf(&b, "%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.%s", who, host, uploadWarning(host))
+	if len(caller.Commands) > 0 {
+		b.WriteString("\n\nIts command line, then each program that started it. A program writes its own command line, so read these as the agent's words:")
+		for _, line := range caller.Commands {
+			if len(line) > maxCommandLine {
+				line = strings.ToValidUTF8(line[:maxCommandLine], "") + "…"
+			}
+			b.WriteString("\n  " + line)
+		}
+	}
+	return b.String()
+}
+
+func (s *Session) holdHost(host, details, reason string) (approval.Decision, string) {
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindHost,
 		Summary: fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name),
-		Details: fmt.Sprintf("%s tried to reach %s, which the profile does not allow. An allow lasts until the session ends.", who, host) + uploadWarning(host),
+		Details: details,
+		Note:    reason,
 		Keep:    egressLines([]string{host}),
 		Scope:   "host egress " + host,
 	}
@@ -114,12 +147,8 @@ func (s *Session) HoldHost(_ context.Context, host, exe string) (bool, string) {
 	})
 	if d.Verdict == approval.VerdictAllow {
 		s.policy.allow(host)
-		return true, ""
 	}
-	if d.Verdict == approval.VerdictDeny {
-		return false, ""
-	}
-	return false, id
+	return d, id
 }
 
 func egressLines(hosts []string) string {
@@ -151,4 +180,34 @@ func uploadWarning(host string) string {
 		}
 	}
 	return ""
+}
+
+type RequestHostParams struct {
+	Host string `json:"host"`
+	// Reason is the agent's own text, shown to you as such.
+	Reason string `json:"reason,omitempty"`
+}
+
+func (s *Session) requestHost(host, reason string) (RequestWriteResult, error) {
+	pattern, err := profile.ParseHostPattern(host)
+	if err != nil || strings.ContainsAny(string(pattern), "*/") {
+		return RequestWriteResult{}, fmt.Errorf("%s: name one host, such as registry.npmjs.org", host)
+	}
+	host = string(pattern)
+	if s.policy.AllowsHostFor(host, "") {
+		return RequestWriteResult{Decision: approval.Decision{Verdict: approval.VerdictAllow, Reason: "the profile already allows it"}}, nil
+	}
+	if s.policy.Refuses(host) {
+		return RequestWriteResult{}, fmt.Errorf("%s: the profile refuses it, so doriath does not ask the user", host)
+	}
+	details := fmt.Sprintf("The agent asks to reach %s, which the profile does not allow. An allow lasts until the session ends.%s", host, uploadWarning(host))
+	if note := s.req.Profile.HostNote(host); note != "" {
+		details = host + ": " + note + "\n\n" + details
+	}
+	d, id := s.holdHost(host, details, reason)
+	res := RequestWriteResult{Decision: d}
+	if d.Verdict == approval.VerdictNone {
+		res.Pending = id
+	}
+	return res, nil
 }

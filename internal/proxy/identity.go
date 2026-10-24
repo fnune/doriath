@@ -21,6 +21,9 @@ type Identity struct {
 	Exe  string
 	File jailinit.FileID
 	Code []jailinit.MappedFile
+	// Commands are the command lines of the caller and the processes that
+	// started it, as doriath's init in the jail read them.
+	Commands []string
 	// Untrusted says why doriath cannot vouch that the program is the file
 	// that Exe names, or that only trusted code runs in it.
 	Untrusted string
@@ -99,7 +102,7 @@ func parsePeerHeader(line string) (Identity, bool) {
 	}
 	var peer jailinit.Peer
 	_ = json.Unmarshal([]byte(data), &peer)
-	return Identity{PID: peer.PID, Exe: peer.Exe, File: peer.File, Code: peer.Code}, true
+	return Identity{PID: peer.PID, Exe: peer.Exe, File: peer.File, Code: peer.Code, Commands: peer.Commands}, true
 }
 
 type identifiedConn struct {

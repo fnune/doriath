@@ -202,3 +202,18 @@ func TestRequestReadSendsTheAbsolutePathAndReason(t *testing.T) {
 		t.Errorf("out = %q", out)
 	}
 }
+
+func TestRequestHostSendsTheHostAndReason(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
+	out, err := request(t, "host", "registry.npmjs.org", "--reason", "install the dependencies")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.hosts) != 1 || b.hosts[0].Host != "registry.npmjs.org" || b.hosts[0].Reason != "install the dependencies" {
+		t.Errorf("hosts = %+v", b.hosts)
+	}
+	if !strings.Contains(out, "registry.npmjs.org is reachable now") {
+		t.Errorf("out = %q", out)
+	}
+}

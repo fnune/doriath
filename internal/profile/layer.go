@@ -84,11 +84,12 @@ type envLayer struct {
 }
 
 type egressLayer struct {
-	Allow    []string        `toml:"allow"`
-	Deny     []string        `toml:"deny"`
-	Ports    []int           `toml:"ports"`
-	TCPPorts []int           `toml:"tcp_ports"`
-	Programs []programsLayer `toml:"programs"`
+	Allow    []string          `toml:"allow"`
+	Deny     []string          `toml:"deny"`
+	Notes    map[string]string `toml:"notes"`
+	Ports    []int             `toml:"ports"`
+	TCPPorts []int             `toml:"tcp_ports"`
+	Programs []programsLayer   `toml:"programs"`
 }
 
 type programsLayer struct {

@@ -27,6 +27,9 @@ func (p *Profile) Grants() ([]string, error) {
 	for _, k := range notGrants {
 		delete(top, k)
 	}
+	if egress, ok := top["Egress"].(map[string]any); ok {
+		delete(egress, "Notes")
+	}
 	var lines []string
 	flatten("", top, &lines)
 	slices.Sort(lines)

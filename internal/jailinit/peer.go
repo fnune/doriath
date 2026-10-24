@@ -26,6 +26,9 @@ type Peer struct {
 	// Code lists the files that the process maps as executable, such as its
 	// libraries and anything LD_PRELOAD added.
 	Code []MappedFile `json:"code,omitempty"`
+	// Commands are the command line of the process, then of each process
+	// that started it, inside the jail.
+	Commands []string `json:"commands,omitempty"`
 }
 
 // MappedFile is a file in /proc/PID/maps. Only the inode identifies it
@@ -114,6 +117,7 @@ func Describe(procRoot string, pid int) (Peer, error) {
 		return Peer{}, fmt.Errorf("read the mappings of pid %d: %w", pid, err)
 	}
 	peer.Code = executableMappings(maps)
+	peer.Commands = commandChain(os.ReadFile, procRoot, pid)
 	return peer, nil
 }
 

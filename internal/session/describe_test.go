@@ -34,7 +34,7 @@ func TestDescribeStatus(t *testing.T) {
 		"Requests waiting for the user: 2\n",
 		"Blocked so far:\n  - pypi.org: host not in the profile (3 times)\n",
 		"Do not look for another way around a block.",
-		"To reach a host that is not listed, make the request",
+		"`doriath request host HOST --reason TEXT`",
 		"`doriath request read PATH --reason TEXT`",
 		"Do not ask the user to run commands on their machine.",
 	} {

@@ -493,3 +493,23 @@ func TestThePageScriptIsServed(t *testing.T) {
 		t.Errorf("status %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestACardSaysHowYouAnsweredTheSameRequestBefore(t *testing.T) {
+	pending := request("a1", approval.KindHost, "Allow registry.example for profile my-app?")
+	pending.Scope = "host egress registry.example"
+	earlier := func(profile string, verdict approval.Verdict) Answered {
+		r := request("old", approval.KindHost, "Allow registry.example?")
+		r.Scope, r.Profile = "host egress registry.example", profile
+		return Answered{Time: testNow.Add(-time.Hour), Request: r, Decision: approval.Decision{Verdict: verdict}}
+	}
+	history := fakeHistory{earlier("default", approval.VerdictAllow), earlier("my-app", approval.VerdictAllow), earlier("default", approval.VerdictDeny)}
+	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app", Cwd: "/w", Requests: []approval.Request{pending}}}}
+	srv, err := New(sessions, history, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := get(srv.Handler(), "/?request=s1/a1", true).Body.String()
+	if !strings.Contains(body, "You allowed 2 times and denied once in the last day, in profile default, my-app.") {
+		t.Errorf("the card lacks the history:\n%s", body)
+	}
+}

@@ -63,7 +63,7 @@ func (st Status) Describe() string {
 			fmt.Fprintf(&b, "  - %s: %s (%d times)\n", d.Host, d.Reason, d.Count)
 		}
 	}
-	b.WriteString("To reach a host that is not listed, make the request: doriath then asks the user whether to allow the host. " +
+	b.WriteString("To reach a host that is not listed, first run `doriath request host HOST --reason TEXT`, so that the user sees why you need it. A request to the host also asks the user, without your reason. " +
 		"Do not decide that a host is unreachable before you try it. " +
 		"The first request fails, often only as \"CONNECT tunnel failed, response 403\". " +
 		"To wait for the answer, run `doriath request wait HOST` in the background if you can, then try again. " +

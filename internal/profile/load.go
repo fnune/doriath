@@ -358,6 +358,7 @@ type builder struct {
 	caches      []string
 	devices     []string
 	envSet      map[string]string
+	notes       map[string]string
 	envPass     []string
 	envPath     []string
 	programs    []programsLayer
@@ -387,7 +388,7 @@ type builder struct {
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, secrets: map[string]secretLayer{}, secretOwner: map[string]string{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
+	return &builder{home: home, envSet: map[string]string{}, notes: map[string]string{}, secrets: map[string]secretLayer{}, secretOwner: map[string]string{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
 }
 
 func (b *builder) from(source, key string) {
@@ -427,6 +428,9 @@ func (b *builder) apply(l layer) {
 	}
 	for _, h := range l.Egress.Deny {
 		b.deny = appendNew(b.deny, h)
+	}
+	for h, note := range l.Egress.Notes {
+		b.notes[h] = note
 	}
 	b.programs = append(b.programs, l.Egress.Programs...)
 	for _, p := range l.Egress.Ports {
@@ -760,6 +764,17 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Egress.Deny = append(p.Egress.Deny, pattern)
+	}
+	for h, note := range b.notes {
+		pattern, err := ParseHostPattern(h)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("egress notes: %w", err))
+			continue
+		}
+		if p.Egress.Notes == nil {
+			p.Egress.Notes = map[HostPattern]string{}
+		}
+		p.Egress.Notes[pattern] = note
 	}
 	for _, prog := range b.programs {
 		built, err := b.buildPrograms(prog)

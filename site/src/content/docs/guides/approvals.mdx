@@ -29,6 +29,13 @@ The approvals page shows a request as below. Desktop notifications and the termi
 
 doriath writes the summary and the scope. The text on the curled rule with the agent's name comes from the agent, and so do the details of a tool request.
 
+A request for a host also shows what doriath knows about it:
+
+- What the host is, from a note in the profile or its modules, under `[egress] notes`.
+- The program that tried to reach it, and the command lines of that program and of each program that started it, such as `npm install` under the agent.
+- How you answered requests for the same host in the last day, and in which profiles.
+- The agent's reason, when it asked first with `doriath request host HOST --reason TEXT`.
+
 When the timer ends, the agent gets an error and the request is parked. If you allow a parked request before the session ends, the next try of the agent goes through.
 
 | Kind                        | The agent waits                                      | Set by                                                                       |

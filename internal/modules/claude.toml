@@ -10,9 +10,13 @@ set = { DISABLE_AUTOUPDATER = "1", DISABLE_TELEMETRY = "1", DISABLE_ERROR_REPORT
 
 # downloads.claude.ai serves Claude Code's releases. Claude asks for it
 # even with the updater off, and a jailed Claude has nothing to update.
+# mcp-proxy.anthropic.com carries claude.ai connectors, which this module
+# turns off. Claude asks for it all the same. A profile that turns
+# connectors on allows it.
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com"]
-deny = ["downloads.claude.ai"]
+deny = ["downloads.claude.ai", "mcp-proxy.anthropic.com"]
+notes = { "mcp-proxy.anthropic.com" = "Claude Code reaches claude.ai connectors through this host. Connectors reach your accounts through Anthropic, where doriath cannot see the calls.", "downloads.claude.ai" = "Claude Code downloads its updates from this host. A jailed Claude has nothing to update." }
 
 # The profile's own ~/.claude: its login and state, which the claude adapter
 # points Claude at with CLAUDE_CONFIG_DIR. Your login and MCP servers stay
