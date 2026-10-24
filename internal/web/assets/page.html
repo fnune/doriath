@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"selfRequestsOnly":true}'>
 <title>Doriath</title>
-<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" id="favicon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/ui/tokens.css">
 <link rel="stylesheet" href="/ui/components.css">
 <link rel="stylesheet" href="/assets/page.css">
@@ -20,7 +20,7 @@
 </html>
 {{end}}
 
-{{define "main"}}<div id="main" hx-get="/main" hx-trigger="every 1s" hx-include="#selected" hx-swap="morph:outerHTML" hx-disinherit="*">
+{{define "main"}}<div id="main"{{if .Pending}} data-waiting{{end}} hx-get="/main" hx-trigger="every 1s" hx-include="#selected" hx-swap="morph:outerHTML" hx-disinherit="*">
 <input type="hidden" id="selected" name="request" value="{{with .Selected}}{{.Key}}{{else}}{{with .Answer}}{{.Key}}{{end}}{{end}}">
 <header>
   <div class="wrap">

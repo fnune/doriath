@@ -14,3 +14,12 @@ document.addEventListener("click", async (event) => {
     button.textContent = label;
   }, 1500);
 });
+
+function showWaiting() {
+  const waiting = document.getElementById("main")?.hasAttribute("data-waiting");
+  const href = waiting ? "/assets/favicon-waiting.svg" : "/assets/favicon.svg";
+  const icon = document.getElementById("favicon");
+  if (icon.getAttribute("href") !== href) icon.setAttribute("href", href);
+}
+document.addEventListener("DOMContentLoaded", showWaiting);
+document.addEventListener("htmx:afterSettle", showWaiting);
