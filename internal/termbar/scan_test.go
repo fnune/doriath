@@ -83,6 +83,51 @@ func TestAnEscapeInsideAStringStartsANewSequence(t *testing.T) {
 	}
 }
 
+func TestTheTerminalNeverSeesAClipboardRead(t *testing.T) {
+	for _, in := range []string{
+		"\x1b]52;c;?\x07",
+		"\x1b]52;c;?\x1b\\",
+		"\x1b]52;;?\x07",
+		"\x1b]52;pqs01;?\x07",
+		"\x1b]052;c;?\x07",
+		"\x1b]52;?\x07",
+		"\x1b]52;c;?junk\x07",
+		"\x1b]52;c;?\x9c",
+		"\x1b]52;" + strings.Repeat("c", 300) + ";?\x07",
+		"\x1b]" + strings.Repeat("0", 300) + "52;c;?\x07",
+	} {
+		got, s := scan(in, "x")
+		if got != "x" || !s.idle() {
+			t.Errorf("%.16q: got %.16q, idle %v", in, got, s.idle())
+		}
+	}
+	if got, _ := scan("\x1b]5", "2;c", ";", "?", "\x1b", "\\x"); got != "x" {
+		t.Errorf("split read: got %q", got)
+	}
+	if got, _ := scan("\x1b]52;c;?\x1b", "[r"); got != "\x1b[1;23r" {
+		t.Errorf("cancelled read: got %q", got)
+	}
+}
+
+func TestClipboardWritesAndOtherStringsPass(t *testing.T) {
+	for _, in := range []string{
+		"\x1b]52;c;aGVsbG8=\x07",
+		"\x1b]52;c;aGVsbG8=\x1b\\",
+		"\x1b]52;c;\x07",
+		"\x1b]52;c\x07",
+		"\x1b]5;0;?\x07",
+		"\x1b]4;1;?\x07",
+		"\x1b]520;c;?\x07",
+		"\x1b]8;;https://x/?a=1\x1b\\",
+		"\x1b]133;A\x07",
+		"\x1b]104\x07",
+	} {
+		if got, s := scan(in); got != in || !s.idle() {
+			t.Errorf("%q: got %q, idle %v", in, got, s.idle())
+		}
+	}
+}
+
 func TestTheBarFillsTheWholeRow(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	for cols, want := range map[int]string{

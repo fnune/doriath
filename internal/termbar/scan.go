@@ -13,8 +13,11 @@ const (
 	escapeOverflow
 	csi
 	csiOverflow
+	osc
 	str
 	strEscape
+	strDrop
+	strDropEscape
 )
 
 const maxSequence = 256
@@ -65,7 +68,9 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 		switch {
 		case b == '[':
 			s.state = csi
-		case b == ']' || b == 'P' || b == '_' || b == '^' || b == 'X':
+		case b == ']':
+			s.state = osc
+		case b == 'P' || b == '_' || b == '^' || b == 'X':
 			out.Write(s.seq)
 			s.state = str
 		case b == 0x1b:
@@ -103,6 +108,35 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 		if b >= 0x40 && b <= 0x7e || b == 0x18 || b == 0x1a {
 			s.state = ground
 		}
+	case osc:
+		if b == 0x07 || b == 0x1b || b == 0x18 || b == 0x1a || b == 0x9c {
+			out.Write(s.seq)
+			s.state = str
+			s.step(b, out)
+			return
+		}
+		s.seq = append(s.seq, b)
+		switch v := clipboardRead(s.seq[2:]); {
+		case v == drop || v == undecided && len(s.seq) > maxSequence:
+			s.state = strDrop
+		case v == pass:
+			out.Write(s.seq)
+			s.state = str
+		}
+	case strDrop:
+		switch b {
+		case 0x1b:
+			s.state = strDropEscape
+		case 0x07, 0x18, 0x1a, 0x9c:
+			s.state = ground
+		}
+	case strDropEscape:
+		if b == '\\' {
+			s.state = ground
+			return
+		}
+		s.state, s.seq = escape, append(s.seq[:0], 0x1b)
+		s.step(b, out)
 	case str:
 		if b == 0x1b {
 			s.state = strEscape
@@ -121,6 +155,35 @@ func (s *scanner) step(b byte, out *bytes.Buffer) {
 		s.state, s.seq = escape, append(s.seq[:0], 0x1b)
 		s.step(b, out)
 	}
+}
+
+const (
+	undecided = iota
+	pass
+	drop
+)
+
+func clipboardRead(body []byte) int {
+	number, rest, found := bytes.Cut(body, []byte(";"))
+	if !found {
+		if len(bytes.Trim(number, "0123456789")) == 0 {
+			return undecided
+		}
+		return pass
+	}
+	if string(bytes.TrimLeft(number, "0")) != "52" {
+		return pass
+	}
+	selection, data, found := bytes.Cut(rest, []byte(";"))
+	switch {
+	case bytes.IndexByte(selection, '?') >= 0:
+		return drop
+	case !found || len(data) == 0:
+		return undecided
+	case data[0] == '?':
+		return drop
+	}
+	return pass
 }
 
 func utf8Continuations(b byte) int {

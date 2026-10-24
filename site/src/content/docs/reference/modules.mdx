@@ -137,6 +137,6 @@ With `pre-commit`, pre-commit builds hook environments in a cache of the profile
 
 ## clipboard
 
-`clipboard` lets you paste images, such as screenshots, into the agent. The jail gets a Wayland display that offers only the images in your clipboard, so agents read them the way they would outside the jail, whether through `wl-paste` or the Wayland protocol. Each read asks you, [once or for the session](/guides/approvals/). Text in your clipboard never reaches the jail, and the agent cannot set your clipboard. doriath reads the clipboard with `wl-paste` on your machine, so the module needs a Wayland session and wl-clipboard.
+`clipboard` lets you paste images, such as screenshots, into the agent. The jail gets a Wayland display that offers only the images in your clipboard, so agents read them the way they would outside the jail, whether through `wl-paste` or the Wayland protocol. Each read asks you, [once or for the session](/guides/approvals/). Text in your clipboard never reaches the jail through this display, and the agent cannot set your clipboard through it. The agent can still set the clipboard with an escape sequence in its terminal output, as the [threat model](/threat-model/#trust-that-returns-to-the-host) says. doriath reads the clipboard with `wl-paste` on your machine, so the module needs a Wayland session and wl-clipboard.
 
 <ModuleSource name="clipboard" />

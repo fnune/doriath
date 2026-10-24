@@ -138,7 +138,7 @@ doriath holds each push for your approval, but it does not decide which branches
 
 - Claude's transcripts return to `~/.claude/projects`, so a session that you resume outside the jail reads history that the agent wrote.
 - The agent reads the project's earlier transcripts, also text that you pasted into a session outside the jail.
-- Escape sequences in agent output can change your terminal title or state.
+- Escape sequences in agent output can change your terminal title or state, and can set your terminal's clipboard. The terminal bar drops requests to read the clipboard. With [`bar = false`](/reference/configuration/#configtoml-keys) they reach your terminal, and some terminals answer with the clipboard contents.
 - One session can plant files in caches and container storage that later sessions of the same profile trust. This includes a program at a writable path that `binaries` names, which the next session pins with its credential.
 - A link that the agent opens runs in your browser, where you are signed in. Its site receives the whole link, and a page that acts on a GET request acts as you. doriath opens a link without asking only where a rule allows its host and path, such as an agent's sign-in page or a forge that the profile already reaches. Sign-in, account, settings and app pages of a forge ask you first.
 - A sign-in forward lets programs on your machine reach one port in the jail for five minutes.
