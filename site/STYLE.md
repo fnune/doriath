@@ -32,8 +32,13 @@ Write in Simplified Technical English, after ASD-STE100, in a pragmatic form: th
 Rewrite any of these on sight:
 
 - Two or three sentences in a row with the same structure, such as "The agent sees X. The agent reaches Y. The agent gets Z." Vary the subject, the length and the order, or merge them.
-- Lists of exactly three adjectives, benefits or clauses, used for rhythm rather than because there are three things.
-- Negative parallelism: "not X, but Y", "X isn't just Y, it's Z", "no X, no Y".
+- Lists of exactly three adjectives, benefits or clauses, used for rhythm when there are not three things.
+- Negative parallelism: "not X, but Y", "Y rather than X", "X isn't just Y, it's Z", "no X, no Y".
+- A trailing "-ing" clause that comments on the sentence: "..., ensuring that sessions stay safe", "..., highlighting the need for review". State the effect as its own fact, or cut it.
+- Vague attribution: "many tools", "users often", "some setups". Name the tool or the case, or remove the claim.
+- A small table of two or three rows that reads better as a sentence or a list.
+- Statements about what a change keeps or avoids, in commit messages and PR descriptions: "while preserving X", "without changing Y". Say what changed. Mention what stays the same only if a reader would expect it to change.
+- Words addressed to a chat partner: "I hope this helps", "Let me know if", "Certainly", "Great question".
 - Headings phrased as questions or starting with a question word: "What it is", "How it works", "Why it matters". Name the subject instead: "Architecture", "Threat model".
 - Rhetorical questions, and a colon that sets up a reveal ("The result: ...", "Here's the thing: ...").
 - A closing sentence that restates the section ("In short", "In summary", "Ultimately").
@@ -50,6 +55,11 @@ Words to avoid, with what to say instead:
 | leverage, utilize, harness, empower, unlock, elevate        | use, let                                 |
 | streamline, navigate, foster, bolster, showcase, underscore | the concrete verb                        |
 | ensures, serves as, stands as, boasts, a testament to       | is, has, does                            |
+| acts as, functions as, represents, features, offers         | is, has                                  |
+| enhance, highlight, align with                              | improve, show, match, or the change      |
+| additionally (to open a sentence), moreover, furthermore    | also, or nothing                         |
+| intricate, multifaceted, meticulous, vibrant, valuable      | the property itself, or nothing          |
+| matters, quietly, steady, dependable                        | the property itself, or nothing          |
 | simple, easy, just, simply, effortless, out of the box      | nothing                                  |
 | landscape, realm, ecosystem, journey, tapestry              | the actual thing                         |
 | notably, ultimately, effectively, essentially               | nothing                                  |
