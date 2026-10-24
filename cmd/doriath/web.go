@@ -418,7 +418,7 @@ func endedRecord(rec auditRecord) (web.Ended, bool) {
 	}
 	e := web.Ended{Time: rec.Time, Session: rec.Session, Profile: rec.Profile, Exit: data.Exit}
 	for _, d := range data.Denied {
-		e.Blocked = append(e.Blocked, web.Blocked{Host: d.Host, Reason: d.Reason, Count: d.Count})
+		e.Blocked = append(e.Blocked, web.Blocked{Target: d.Host, Reason: d.Reason, Count: d.Count})
 	}
 	return e, true
 }

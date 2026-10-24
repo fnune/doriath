@@ -55,7 +55,7 @@ type Ended struct {
 }
 
 type Blocked struct {
-	Host   string
+	Target string
 	Reason string
 	Count  int
 }

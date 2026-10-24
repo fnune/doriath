@@ -54,7 +54,7 @@ func TestStatusDescribesTheLiveSession(t *testing.T) {
 	if len(st.Intercepted) != 1 || st.Intercepted[0].Host != want.Host || !st.Intercepted[0].Credential || st.Intercepted[0].Default != want.Default || !slices.Equal(st.Intercepted[0].Rules, want.Rules) {
 		t.Errorf("intercepted = %+v", st.Intercepted)
 	}
-	if len(st.Denied) != 1 || st.Denied[0].Host != "example.org" {
+	if len(st.Denied) != 1 || st.Denied[0].Target != "example.org" {
 		t.Errorf("denied = %+v", st.Denied)
 	}
 }

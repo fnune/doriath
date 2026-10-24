@@ -23,10 +23,10 @@ func summary(denied []Denial, history []approval.Outcome) []note {
 			times = fmt.Sprintf("%d times", d.Count)
 		}
 		if d.Reason == proxy.ReasonRefused {
-			out = append(out, note{term.Refused, Printable(fmt.Sprintf("%s refused %s, as the profile says", d.Host, times))})
+			out = append(out, note{term.Refused, Printable(fmt.Sprintf("%s refused %s, as the profile says", d.Target, times))})
 			continue
 		}
-		out = append(out, note{term.Problem, Printable(fmt.Sprintf("%s blocked %s: %s", d.Host, times, d.Reason))})
+		out = append(out, note{term.Problem, Printable(fmt.Sprintf("%s blocked %s: %s", d.Target, times, d.Reason))})
 	}
 	counts := map[approval.Verdict]int{}
 	for _, o := range history {

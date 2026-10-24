@@ -14,7 +14,7 @@ func TestSummary(t *testing.T) {
 	if got := summary(nil, nil); len(got) != 0 {
 		t.Fatalf("a quiet session must print nothing, got %v", got)
 	}
-	denied := []Denial{{Host: "a", Reason: "host not in the profile", Count: 5}, {Host: "b", Reason: "private address", Count: 1}, {Host: "c", Reason: "refused by the profile", Count: 2}}
+	denied := []Denial{{Target: "a", Reason: "host not in the profile", Count: 5}, {Target: "b", Reason: "private address", Count: 1}, {Target: "c", Reason: "refused by the profile", Count: 2}}
 	history := []approval.Outcome{
 		{Decision: approval.Decision{Verdict: approval.VerdictAllow}},
 		{Decision: approval.Decision{Verdict: approval.VerdictDeny}},

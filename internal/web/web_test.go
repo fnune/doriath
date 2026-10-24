@@ -363,7 +363,7 @@ func TestTheStatusShowsFailingChecksAndWhatSessionsBlocked(t *testing.T) {
 		{Name: "secret my-app/github (file)", Level: "problem", Detail: "run chmod 600 on it"},
 		{Name: "desktop notifications", Level: "note", Detail: "unavailable"},
 	}}
-	history := endedHistory{{Time: testNow.Add(-10 * time.Minute), Session: "s9", Profile: "my-app", Blocked: []Blocked{{Host: "downloads.example", Reason: "host not in the profile", Count: 3}}}}
+	history := endedHistory{{Time: testNow.Add(-10 * time.Minute), Session: "s9", Profile: "my-app", Blocked: []Blocked{{Target: "downloads.example", Reason: "host not in the profile", Count: 3}}}}
 	srv, err := New(&fakeSessions{}, history, checks, fixedClock{}, testToken, testAddr)
 	if err != nil {
 		t.Fatal(err)

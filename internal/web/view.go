@@ -178,9 +178,9 @@ func (s *Server) status(ctx context.Context, now time.Time, running bool) (statu
 	for _, e := range ended {
 		ev := endedView{Session: sessionView{ID: e.Session, Profile: e.Profile, Hue: hue(e.Profile)}, Ago: ago(now.Sub(e.Time)), Exit: e.Exit}
 		for _, b := range e.Blocked {
-			bv := blockedView{Host: session.Printable(b.Host), Reason: session.Printable(b.Reason), Count: b.Count}
+			bv := blockedView{Host: session.Printable(b.Target), Reason: session.Printable(b.Reason), Count: b.Count}
 			if b.Reason == proxy.ReasonNotInProfile {
-				bv.Keep = fmt.Sprintf("[egress]\nallow = [%q]", b.Host)
+				bv.Keep = fmt.Sprintf("[egress]\nallow = [%q]", b.Target)
 			}
 			ev.Blocked = append(ev.Blocked, bv)
 		}

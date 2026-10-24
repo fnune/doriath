@@ -20,7 +20,7 @@ func TestDescribeStatus(t *testing.T) {
 		Signing: true,
 		Podman:  true,
 		Pending: 2,
-		Denied:  []Denial{{Host: "pypi.org", Reason: "host not in the profile", Count: 3}},
+		Denied:  []Denial{{Target: "pypi.org", Reason: "host not in the profile", Count: 3}},
 	}).Describe()
 	for _, want := range []string{
 		"This session runs in doriath profile \"kitchen\" (session s1).\n",

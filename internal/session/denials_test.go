@@ -23,7 +23,7 @@ func TestEgressLogCollapsesRepeats(t *testing.T) {
 		t.Fatalf("events = %+v", events)
 	}
 	d := l.Denials()
-	if len(d) != 2 || d[0].Host != "mcp.notion.com" || d[0].Count != 5 || d[1].Count != 1 {
+	if len(d) != 2 || d[0].Target != "mcp.notion.com" || d[0].Count != 5 || d[1].Count != 1 {
 		t.Fatalf("denials = %+v", d)
 	}
 }

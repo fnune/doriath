@@ -21,7 +21,9 @@ type denialKey struct {
 }
 
 type Denial struct {
-	Host   string `json:"host"`
+	// Target is the host, or a path that doriath put back. Its JSON key
+	// stays host, which older audit records use.
+	Target string `json:"host"`
 	Reason string `json:"reason"`
 	Count  int    `json:"count"`
 }
@@ -61,13 +63,13 @@ func (l *egressLog) Denials() []Denial {
 	defer l.mu.Unlock()
 	out := make([]Denial, 0, len(l.denied))
 	for k, n := range l.denied {
-		out = append(out, Denial{Host: k.Host, Reason: k.Reason, Count: n})
+		out = append(out, Denial{Target: k.Host, Reason: k.Reason, Count: n})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {
 			return out[i].Count > out[j].Count
 		}
-		return out[i].Host < out[j].Host
+		return out[i].Target < out[j].Target
 	})
 	return out
 }

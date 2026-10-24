@@ -60,7 +60,7 @@ func (st Status) Describe() string {
 	if len(st.Denied) > 0 {
 		b.WriteString("Blocked so far:\n")
 		for _, d := range st.Denied {
-			fmt.Fprintf(&b, "  - %s: %s (%d times)\n", d.Host, d.Reason, d.Count)
+			fmt.Fprintf(&b, "  - %s: %s (%d times)\n", d.Target, d.Reason, d.Count)
 		}
 	}
 	b.WriteString("To reach a host that is not listed, first run `doriath request host HOST --reason TEXT`, so that the user sees why you need it. A request to the host also asks the user, without your reason. " +
