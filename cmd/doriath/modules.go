@@ -91,6 +91,7 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 	for _, section := range profileSections {
 		var groups []string
 		entries := map[string][]string{}
+		problems := map[string]bool{}
 		for key := range p.Sources {
 			rest, ok := strings.CutPrefix(key, section.prefix)
 			if !ok {
@@ -103,7 +104,12 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 			if _, seen := entries[group]; !seen {
 				groups = append(groups, group)
 			}
-			entries[group] = append(entries[group], session.PrintableLine(rest))
+			entry := session.PrintableLine(rest)
+			if reason := passRisk(key); reason != "" {
+				entry += " (" + reason + ")"
+				problems[entry] = true
+			}
+			entries[group] = append(entries[group], entry)
 		}
 		if len(groups) == 0 {
 			continue
@@ -130,6 +136,11 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 			label := "  " + tint(section.prefix+g, fmt.Sprintf("%-*s", labelWidth, g))
 			lines := wrapList(entries[g], width-2-labelWidth)
 			for i, line := range lines {
+				for j, entry := range line {
+					if problems[entry] {
+						line[j] = t.Tint(term.Problem, entry)
+					}
+				}
 				text := strings.Join(line, t.Dim(", "))
 				if i < len(lines)-1 {
 					text += t.Dim(",")
@@ -139,6 +150,14 @@ func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int
 			}
 		}
 	}
+}
+
+func passRisk(sourceKey string) string {
+	name, ok := strings.CutPrefix(sourceKey, "env pass ")
+	if !ok {
+		return ""
+	}
+	return profile.PassRisk(name)
 }
 
 // wrapList splits items into lines of at most width columns, joined by ", ".

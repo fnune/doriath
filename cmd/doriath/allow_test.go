@@ -222,3 +222,40 @@ func TestTheAllowPromptEscapesProfileText(t *testing.T) {
 		t.Errorf("the question about additions prints profile text raw:\n%q", out)
 	}
 }
+
+func TestAPassedCredentialIsTintedAsAProblemWithItsReason(t *testing.T) {
+	p := appProfile()
+	for _, name := range []string{"TERM", "LANG", "GITHUB_TOKEN", "SSH_AUTH_SOCK", "LD_PRELOAD"} {
+		p.Sources["env pass "+name] = []string{"profile"}
+	}
+	var out bytes.Buffer
+	tw := term.Colored(&out)
+	summarizeProfile(tw, &out, p, 0)
+	for _, want := range []string{
+		tw.Tint(term.Problem, "GITHUB_TOKEN (can hold a credential)"),
+		tw.Tint(term.Problem, "SSH_AUTH_SOCK (connects to a service on your machine)"),
+		tw.Tint(term.Problem, "LD_PRELOAD (changes the code that programs load)"),
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("no %q in:\n%q", want, out.String())
+		}
+	}
+	for _, harmless := range []string{"TERM", "LANG"} {
+		if strings.Contains(out.String(), tw.Tint(term.Problem, harmless)) || !strings.Contains(out.String(), harmless) {
+			t.Errorf("%s is not shown plain in:\n%q", harmless, out.String())
+		}
+	}
+}
+
+func TestANewlyPassedCredentialShowsItsReason(t *testing.T) {
+	store := memoryGrants{}
+	if _, err := confirm(t, store, appProfile("a.example"), "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	p := appProfile("a.example")
+	p.Env.Pass = []string{"LANG", "GITHUB_TOKEN"}
+	out, _ := confirm(t, store, p, "n\n", true)
+	if !strings.Contains(out, "+ Env.Pass: GITHUB_TOKEN (can hold a credential)\n") || strings.Contains(out, "LANG (") {
+		t.Errorf("output:\n%s", out)
+	}
+}

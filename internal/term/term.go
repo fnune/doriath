@@ -53,6 +53,12 @@ func New(w io.Writer) *Writer {
 	return &Writer{w: w, color: IsTerminal(w) && os.Getenv("NO_COLOR") == ""}
 }
 
+// Colored colors its output whatever w is, for a reader that shows colors
+// later, such as a test.
+func Colored(w io.Writer) *Writer {
+	return &Writer{w: w, color: true}
+}
+
 func IsTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	if !ok || os.Getenv("TERM") == "dumb" {

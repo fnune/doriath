@@ -68,6 +68,11 @@ func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen 
 	}
 	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", t.Bold(prof.Name), where)
 	for _, line := range readableAdditions(added) {
+		name, isPass := strings.CutPrefix(line, "Env.Pass: ")
+		if reason := profile.PassRisk(name); isPass && reason != "" {
+			fmt.Fprintln(out, "  "+t.Tint(term.Problem, "+ "+session.PrintableLine(line)+" ("+reason+")"))
+			continue
+		}
 		fmt.Fprintln(out, "  "+t.Tint(term.Warn, "+")+" "+session.PrintableLine(line))
 	}
 	if len(removed) > 0 {

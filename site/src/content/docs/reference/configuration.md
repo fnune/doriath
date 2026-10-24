@@ -305,7 +305,7 @@ The jail shows `.doriath` read-only, also in a writable repository, so that the 
 
 ## Allowed profiles
 
-doriath asks you before the first session of each profile in each repository. It shows what the profile gives the jail, and starts only after you answer `y`. The summary lists the mounts, caches, devices, hosts, environment, MCP servers, images and secrets by name. Below them it lists what decides where a secret goes and what the jail may do beyond its mounts: the command, file or login behind each secret, each credential with the host and programs it reaches, each host `default`, the links the browser opens, and settings such as `nix.daemon`, `hardening` and the safe edits. Read those lines with care when the profile comes from a repository.
+doriath asks you before the first session of each profile in each repository. It shows what the profile gives the jail, and starts only after you answer `y`. The summary lists the mounts, caches, devices, hosts, environment, MCP servers, images and secrets by name. Below them it lists what decides where a secret goes and what the jail may do beyond its mounts: the command, file or login behind each secret, each credential with the host and programs it reaches, each host `default`, the links the browser opens, and settings such as `nix.daemon`, `hardening` and the safe edits. An `env.pass` name that can hold a credential, connect to a service on your machine or change the code that programs load shows in red with the reason. doriath still passes it. Read those lines with care when the profile comes from a repository.
 
 ```txt
 You have not allowed profile my-app in /home/me/src/my-app yet. It gives the jail:
