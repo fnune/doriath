@@ -1,6 +1,8 @@
 package session
 
 import (
+	"debug/elf"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"slices"
@@ -82,5 +84,48 @@ func TestAProgramsLibraryFoldersArePinnedWithinItsInstallPrefixOnly(t *testing.T
 	got := libraryFolders([]string{"$ORIGIN", "$ORIGIN/../lib", "${ORIGIN}/../lib/server", "/usr/lib", "$ORIGIN/../..", "$ORIGIN/..", "$ORIGIN/../lib"})
 	if want := []string{"../lib", "../lib/server"}; !slices.Equal(got, want) {
 		t.Errorf("folders = %v, want %v", got, want)
+	}
+}
+
+func writeELF(t *testing.T, dynamicSize uint64) string {
+	t.Helper()
+	const strtabOff, dynamicOff = 64, 128
+	shoff := dynamicOff + dynamicSize
+	path := filepath.Join(t.TempDir(), "tool")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	header := elf.Header64{Type: uint16(elf.ET_EXEC), Machine: uint16(elf.EM_X86_64), Version: 1, Shoff: shoff, Ehsize: 64, Shentsize: 64, Shnum: 3}
+	copy(header.Ident[:], elf.ELFMAG)
+	header.Ident[elf.EI_CLASS], header.Ident[elf.EI_DATA], header.Ident[elf.EI_VERSION] = byte(elf.ELFCLASS64), byte(elf.ELFDATA2LSB), 1
+	strtab := "\x00$ORIGIN/../lib\x00"
+	sections := []elf.Section64{
+		{},
+		{Type: uint32(elf.SHT_DYNAMIC), Off: dynamicOff, Size: dynamicSize, Link: 2, Entsize: 16},
+		{Type: uint32(elf.SHT_STRTAB), Off: strtabOff, Size: uint64(len(strtab))},
+	}
+	write := func(off int64, data any) {
+		if _, err := f.Seek(off, 0); err != nil {
+			t.Fatal(err)
+		}
+		if err := binary.Write(f, binary.LittleEndian, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(0, header)
+	write(strtabOff, []byte(strtab))
+	write(dynamicOff, []elf.Dyn64{{Tag: int64(elf.DT_RUNPATH), Val: 1}})
+	write(int64(shoff), sections)
+	return path
+}
+
+func TestAnOversizedDynamicSectionIsNotRead(t *testing.T) {
+	if got := runpaths(writeELF(t, 32)); !slices.Equal(got, []string{"$ORIGIN/../lib"}) {
+		t.Fatalf("runpaths = %q", got)
+	}
+	if got := runpaths(writeELF(t, maxDynamicData+16)); got != nil {
+		t.Fatalf("runpaths = %q, want none", got)
 	}
 }

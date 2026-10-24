@@ -94,13 +94,23 @@ func (ps pins) pinFolder(jailDir, sourceDir string) {
 	})
 }
 
-func runpaths(path string) []string {
+const maxDynamicData = 64 << 20
+
+func runpaths(path string) (out []string) {
+	defer func() {
+		if recover() != nil {
+			out = nil
+		}
+	}()
 	f, err := elf.Open(path)
 	if err != nil {
 		return nil
 	}
 	defer func() { _ = f.Close() }()
-	var out []string
+	dynamic := f.SectionByType(elf.SHT_DYNAMIC)
+	if dynamic == nil || dynamic.Size > maxDynamicData || int(dynamic.Link) >= len(f.Sections) || f.Sections[dynamic.Link].Size > maxDynamicData {
+		return nil
+	}
 	for _, tag := range []elf.DynTag{elf.DT_RUNPATH, elf.DT_RPATH} {
 		entries, _ := f.DynString(tag)
 		for _, e := range entries {
