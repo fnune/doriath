@@ -89,15 +89,16 @@ func isRegularFile(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// holdHiddenPaths gives each missing hidden path inside a writable mount an
-// empty placeholder for the session, which the jail then hides, so that the
-// agent cannot create the very file the profile hides, such as an .envrc.
-// The placeholders, and directories made for them, go when the session
-// ends, if nothing else was put there.
-func (s *Session) holdHiddenPaths() error {
+// holdMissingPaths gives each missing hidden or read-only path inside a
+// writable mount an empty placeholder for the session, which the jail then
+// hides or shows read-only, so that the agent cannot create the very file
+// the profile keeps from it, such as an .envrc. The placeholders, and
+// directories made for them, go when the session ends, if nothing else was
+// put there.
+func (s *Session) holdMissingPaths() error {
 	p := s.req.Profile
 	for _, m := range p.Mounts {
-		if m.Mode != profile.ModeHide {
+		if m.Mode == profile.ModeWrite {
 			continue
 		}
 		if _, err := os.Lstat(m.Path); !errors.Is(err, fs.ErrNotExist) {
@@ -119,11 +120,11 @@ func (s *Session) holdHiddenPaths() error {
 			created = append([]string{dir}, created...)
 		}
 		if err := os.MkdirAll(filepath.Dir(m.Path), 0o755); err != nil {
-			return fmt.Errorf("hide %s: %w", m.Path, err)
+			return fmt.Errorf("hold %s: %w", m.Path, err)
 		}
 		f, err := os.OpenFile(m.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
-			return fmt.Errorf("hide %s: %w", m.Path, err)
+			return fmt.Errorf("hold %s: %w", m.Path, err)
 		}
 		_ = f.Close()
 		created = append(created, m.Path)

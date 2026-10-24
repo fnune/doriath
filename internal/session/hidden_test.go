@@ -23,7 +23,7 @@ func TestMissingHiddenPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: hidden, Mode: profile.ModeHide},
 	}
-	if err := s.holdHiddenPaths(); err != nil {
+	if err := s.holdMissingPaths(); err != nil {
 		t.Fatal(err)
 	}
 	if info, err := os.Lstat(hidden); err != nil || !info.Mode().IsRegular() || info.Size() != 0 {
@@ -40,6 +40,27 @@ func TestMissingHiddenPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 	}
 }
 
+func TestMissingReadOnlyPathInAWritableMountGetsAPlaceholder(t *testing.T) {
+	s := newTestSession(t, nil)
+	work := filepath.Join(s.home, "work")
+	mkdirAll(t, work)
+	guarded := filepath.Join(work, ".envrc")
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: work, Mode: profile.ModeWrite},
+		{Path: guarded, Mode: profile.ModeRead, Optional: true},
+	}
+	if err := s.holdMissingPaths(); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(guarded); err != nil || !info.Mode().IsRegular() || info.Size() != 0 {
+		t.Fatalf("placeholder: %v, %v", info, err)
+	}
+	s.cleanup()
+	if _, err := os.Lstat(guarded); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s stays after the session: %v", guarded, err)
+	}
+}
+
 func TestPlaceholderCleanupKeepsWhatSomeoneElsePutThere(t *testing.T) {
 	s := newTestSession(t, nil)
 	work := filepath.Join(s.home, "work")
@@ -50,7 +71,7 @@ func TestPlaceholderCleanupKeepsWhatSomeoneElsePutThere(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: hidden, Mode: profile.ModeHide},
 	}
-	if err := s.holdHiddenPaths(); err != nil {
+	if err := s.holdMissingPaths(); err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range []string{hidden, filepath.Join(config, "other")} {
@@ -89,7 +110,7 @@ func TestHiddenPathsThatNeedNoPlaceholder(t *testing.T) {
 				{Path: filepath.Join(s.home, "docs"), Mode: profile.ModeRead},
 				{Path: hide, Mode: profile.ModeHide},
 			}
-			if err := s.holdHiddenPaths(); err != nil {
+			if err := s.holdMissingPaths(); err != nil {
 				t.Fatal(err)
 			}
 			defer s.cleanup()

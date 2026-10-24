@@ -27,3 +27,19 @@ func TestMissingHiddenPathIsHeldForTheSession(t *testing.T) {
 		}
 	}
 }
+
+// TestMissingReadOnlyPathIsHeldForTheSession keeps a path that does not
+// exist read-only inside a writable mount, as the vcs-readwrite module does
+// for an .envrc: the agent cannot create it.
+func TestMissingReadOnlyPathIsHeldForTheSession(t *testing.T) {
+	e := newEnv(t)
+	guarded := filepath.Join(e.work, ".envrc")
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\noptional = true\n", guarded))
+	code, out := e.run(p, fmt.Sprintf(`echo x > %[1]q 2>/dev/null && echo "FAIL created"; cat %[1]q && echo done`, guarded), nil)
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if _, err := os.Lstat(guarded); !os.IsNotExist(err) {
+		t.Errorf("%s stays after the session: %v", guarded, err)
+	}
+}

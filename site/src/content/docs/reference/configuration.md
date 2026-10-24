@@ -363,7 +363,7 @@ Entries combine by least privilege:
 
 `write` changes your files in place, but the config, hooks and info of git and jj stay read-only, because git runs what they name. If these are missing, doriath creates them empty before the session, so that the agent cannot create them: `.git/hooks`, `info`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`.
 
-`hide` shows an empty directory or file, also to containers. A hidden path that is missing in a writable mount gets an empty placeholder for the session, so that the agent cannot create it. doriath removes the placeholder at the end.
+`hide` shows an empty directory or file, also to containers. A `hide` or `read` path that is missing in a writable mount gets an empty file as a placeholder for the session, so that the agent cannot create it. To give such a file content, the agent runs [`doriath request edit`](#edits). doriath removes the placeholder at the end, unless someone wrote to it.
 
 doriath refuses to start if a mount, or a guarded path in a repository, goes through a symlink in a directory that the jail can write. An agent can put such a link there in an earlier session. Other symlinks, such as `~/.nix-profile`, mount their target.
 

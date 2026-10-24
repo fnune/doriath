@@ -280,7 +280,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.fetchSecrets(ctx); err != nil {
 		return err
 	}
-	if err := s.holdHiddenPaths(); err != nil {
+	if err := s.holdMissingPaths(); err != nil {
 		return err
 	}
 	s.rootLog = &repairLog{log: s.log}
