@@ -44,9 +44,11 @@ type Options struct {
 	Paths  config.Paths
 	Loader *profile.Loader
 	// FetchSecrets gets each secret once, which can ask to unlock a password
-	// manager. Runner runs the secret commands.
+	// manager. Runner runs the secret commands, for a profile that Allow
+	// accepts, as a session would.
 	FetchSecrets bool
 	Runner       secret.Runner
+	Allow        func(*profile.Profile) error
 	// Dir, when it is in a repository, adds checks of that repository with
 	// Profile, or the profile its .envrc names, or DefaultProfile.
 	Dir     string
@@ -112,37 +114,8 @@ func Run(ctx context.Context, opts Options) []Result {
 		note("profiles", "none yet; see https://doriath.fnune.com/install/")
 	}
 
-	secrets := 0
-	for _, prof := range profiles {
-		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner))
-		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
-			secrets++
-			label := "secret " + prof.Name + "/" + name
-			b := prof.Secrets[name]
-			switch {
-			case opts.FetchSecrets:
-				ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
-				_, err := store.Get(ctx, name)
-				cancel()
-				check(label, err)
-			case b.OAuth != nil:
-				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
-				if errors.Is(err, os.ErrNotExist) {
-					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
-				}
-				check(label+" (oauth)", err)
-			case b.File != "":
-				info, err := os.Stat(b.File)
-				if err == nil && info.Mode().Perm()&0o077 != 0 {
-					err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
-				}
-				check(label+" (file)", err)
-			default:
-				_, err := exec.LookPath(b.Command[0])
-				check(label+" (command "+b.Command[0]+")", err)
-			}
-		}
-	}
+	secretResults, secrets := checkSecrets(ctx, opts, profiles)
+	out = append(out, secretResults...)
 	if !opts.FetchSecrets && secrets > 0 {
 		note("secrets", "run doriath doctor --secrets to fetch each one once")
 	}
@@ -181,4 +154,54 @@ func Run(ctx context.Context, opts Options) []Result {
 		}
 	}
 	return out
+}
+
+func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile) ([]Result, int) {
+	var out []Result
+	check := func(name string, err error) {
+		if err != nil {
+			out = append(out, Result{Name: name, Level: Problem, Detail: err.Error()})
+			return
+		}
+		out = append(out, Result{Name: name, Level: OK})
+	}
+	p := opts.Paths
+	secrets := 0
+	for _, prof := range profiles {
+		if opts.FetchSecrets && len(prof.Secrets) > 0 {
+			if err := opts.Allow(prof); err != nil {
+				check("secrets of profile "+prof.Name, err)
+				continue
+			}
+		}
+		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner))
+		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
+			secrets++
+			label := "secret " + prof.Name + "/" + name
+			b := prof.Secrets[name]
+			switch {
+			case opts.FetchSecrets:
+				ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+				_, err := store.Get(ctx, name)
+				cancel()
+				check(label, err)
+			case b.OAuth != nil:
+				_, err := os.Stat(oauth.StatePath(p.State, prof.Name, name))
+				if errors.Is(err, os.ErrNotExist) {
+					err = fmt.Errorf("not signed in: run doriath profiles login %s %s", prof.Name, name)
+				}
+				check(label+" (oauth)", err)
+			case b.File != "":
+				info, err := os.Stat(b.File)
+				if err == nil && info.Mode().Perm()&0o077 != 0 {
+					err = fmt.Errorf("%s is readable by other users: run chmod 600 on it", b.File)
+				}
+				check(label+" (file)", err)
+			default:
+				_, err := exec.LookPath(b.Command[0])
+				check(label+" (command "+b.Command[0]+")", err)
+			}
+		}
+	}
+	return out, secrets
 }

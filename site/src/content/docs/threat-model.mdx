@@ -152,6 +152,7 @@ These paths let you resume sessions, read output, reuse build caches and add wri
 - The `nix-daemon` module's builds run outside the jail, without the allowlist.
 - With the `clipboard` module, an allowed read gives the agent the image you copied last, whatever it shows. An allow for the session covers every later read, also those you did not start with a paste.
 - A secret given as a command runs on the host with your environment, so it trusts the author of the profile.
+- A profile can change without your edit, such as a module after an upgrade. doriath asks before the first session of each profile in each repository, and again when a profile gives more than you allowed. Read the lines it shows before you answer.
 - OAuth refresh tokens stay in doriath's state directory, which your user can read outside the jail, as with your other logins.
 - Claude's Remote Control lets anyone signed in to the profile's claude.ai account drive the session and answer Claude's permission prompts. The jail and the proxy rules still apply.
 - Tool requests carry text that the agent wrote, and the notification says so. A long run of requests invites a click on allow, so doriath refuses new requests while 32 wait. It shows other notifications 10 at once, then one a minute.

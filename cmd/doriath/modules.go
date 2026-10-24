@@ -55,6 +55,36 @@ func printProfile(w io.Writer, p *profile.Profile) error {
 	return tw.Flush()
 }
 
+func summarizeProfile(w io.Writer, p *profile.Profile) error {
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	for _, section := range profileSections {
+		var groups []string
+		entries := map[string][]string{}
+		for key := range p.Sources {
+			rest, ok := strings.CutPrefix(key, section.prefix)
+			if !ok {
+				continue
+			}
+			group := ""
+			if mode, value, qualified := strings.Cut(rest, " "); qualified && (section.prefix == "mount " || section.prefix == "env ") {
+				group, rest = mode+" ", value
+			}
+			if _, seen := entries[group]; !seen {
+				groups = append(groups, group)
+			}
+			entries[group] = append(entries[group], rest)
+		}
+		sort.Strings(groups)
+		title := section.title
+		for _, g := range groups {
+			sort.Strings(entries[g])
+			fmt.Fprintf(tw, "  %s\t%s%s\n", title, g, strings.Join(entries[g], ", "))
+			title = ""
+		}
+	}
+	return tw.Flush()
+}
+
 type moduleSource struct {
 	name     string
 	builtin  []byte

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/bundle"
 	"github.com/fnune/doriath/internal/clipboard"
@@ -57,7 +58,7 @@ Answers:
   doriath web open [--listen HOST:PORT] [--print]
 
 Configuration:
-  doriath profiles [list | show NAME [--json] | edit NAME | login NAME [SECRET] | clean NAME]
+  doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current DIR] | login NAME [SECRET] | clean NAME]
   doriath modules [list | show NAME [--path]]
 
 Repositories:
@@ -199,6 +200,9 @@ func cmdRun(args []string) (int, error) {
 	}
 	prof, err := loader(p).Load(*name)
 	if err != nil {
+		return 1, err
+	}
+	if err := confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, start), os.Stdin, os.Stderr, isTerminal(os.Stdin)); err != nil {
 		return 1, err
 	}
 	user, err := config.LoadUser(p.UserConfig())

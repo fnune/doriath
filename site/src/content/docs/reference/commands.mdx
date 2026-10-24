@@ -13,7 +13,7 @@ You give the values of arguments in capitals. Arguments in brackets are optional
 doriath run --profile NAME [--current DIR] [--learn] -- COMMAND
 ```
 
-Runs a command in a jail for the profile. `NAME` can join several profiles with `+`, as [composed profiles](/reference/configuration/#composed-profiles) describes. `--current DIR` sets the folder of the session, in place of the working folder. `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
+Runs a command in a jail for the profile. `NAME` can join several profiles with `+`, as [composed profiles](/reference/configuration/#composed-profiles) describes. `--current DIR` sets the folder of the session, in place of the working folder. Before the first session of a profile, and when it gives more than you allowed, `run` asks you; see [allowed profiles](/reference/configuration/#allowed-profiles). `--learn` makes all public hosts reachable, and prints the hosts that the session used. See [install](/install/#find-the-hosts-of-a-build).
 
 ### `doriath exec`
 
@@ -104,11 +104,12 @@ Opens the approvals page with a link that works one time. `--print` prints the l
 ### `doriath profiles`
 
 ```txt frame="none"
-doriath profiles [list | show NAME [--json] | edit NAME | login NAME [SECRET] | clean NAME]
+doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current DIR] | login NAME [SECRET] | clean NAME]
 ```
 
 - `list` and `show` list the profiles and show one. `show` names the module behind each mount, host and rule, and `--json` prints the whole profile for scripts.
 - `edit` opens a profile in your editor, and checks it when you save.
+- `allow` allows a profile for sessions in the repository of `--current DIR`, or of the working folder, and shows what it gives. Use it where a session has no terminal to ask in. See [allowed profiles](/reference/configuration/#allowed-profiles).
 - `login` signs in to the OAuth secrets of a profile. See [OAuth logins](/reference/configuration/#oauth-logins).
 - `clean` removes the caches of a profile, when none of its sessions runs.
 
@@ -146,7 +147,7 @@ After you confirm, removes old backups and the agent worktrees that are already 
 doriath doctor [--secrets] [--profile NAME]
 ```
 
-Checks the machine. `--secrets` also gets each secret one time, and can ask you to unlock a password manager.
+Checks the machine. `--secrets` also gets each secret one time, and can ask you to unlock a password manager. Before it runs the secret commands of a profile, it asks you as `run` does; see [allowed profiles](/reference/configuration/#allowed-profiles).
 
 In a repository, doctor also checks it with the profile that its `.envrc` names in `use doriath PROFILE`, or with `--profile`, or with a profile named `default`. It tells whether the jail shows the repository, whether the agent can commit there, and whether the commits can be signed as your git or jj config asks.
 

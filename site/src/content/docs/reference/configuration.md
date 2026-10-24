@@ -257,6 +257,31 @@ A session can use more than one profile, joined with `+`, such as `doriath run -
 
 `doriath profiles show my-app+deploy` shows the result, with the profile behind each entry.
 
+## Allowed profiles
+
+doriath asks you before the first session of each profile in each repository. It shows what the profile gives the jail, and starts only after you answer `y`:
+
+```txt
+You have not allowed profile my-app in /home/me/src/my-app yet. It gives the jail:
+...
+Allow? [y/N]
+```
+
+doriath keeps what you allowed. When the profile later gives more, the next session shows only the new lines and asks again. This covers your own edits, a profile from a pull or a merge, and a new version of a built-in module. A profile that gives less starts without a question.
+
+```txt
+Profile my-app in /home/me/src/my-app gives the jail more than when you allowed it:
+
+  + Egress.Allow: evil.example
+  + Mounts[{repository}].Mode: write
+```
+
+A session without a terminal, such as one that an editor starts, cannot ask. It stops and prints the command that allows the profile. Run it on the host:
+
+```sh
+doriath profiles allow my-app --current ~/src/my-app
+```
+
 ## Secrets
 
 A secret has a name that you select, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints it, or an [`oauth` login](#oauth-logins). These keys refer to a secret by its name:
@@ -461,6 +486,7 @@ title = true
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `~/.local/state/doriath/audit.jsonl`      | Every session, egress decision and approval. Read it with `doriath log`, or lnav with `contrib/lnav`. |
 | `~/.local/state/doriath/images/`          | Container image digests for each profile                                                              |
+| `~/.local/state/doriath/profiles/`        | What you allowed for each profile in each repository                                                  |
 | `~/.local/state/doriath/oauth/`           | OAuth logins for each profile, with their refresh tokens                                              |
 | `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
 | `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |

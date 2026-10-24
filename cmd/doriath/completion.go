@@ -21,7 +21,7 @@ _doriath() {
     'forward:reach a port of a running jail'
     'status:list sessions, or show what one allows'
     'log:show the audit log'
-    'profiles:list, show, edit, sign in to or clean profiles'
+    'profiles:list, show, edit, allow, sign in to or clean profiles'
     'modules:list or show modules'
     'clean:remove merged agent worktrees and old branch backups'
     'restore:put back the branches a session moved'
@@ -53,7 +53,7 @@ _doriath() {
       fi ;;
     profiles)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' list show edit login clean
+        _values 'subcommand' list show edit allow login clean
       else
         _values 'profile' $(doriath __complete profiles)
       fi ;;

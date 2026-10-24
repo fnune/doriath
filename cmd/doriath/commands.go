@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/agents"
+	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/confine"
@@ -377,13 +378,23 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return printProfile(stdout, prof)
 	}
+	if args[0] == "allow" && (len(args) == 2 || len(args) == 4 && args[2] == "--current") {
+		dir, err := os.Getwd()
+		if len(args) == 4 {
+			dir, err = filepath.Abs(args[3])
+		}
+		if err != nil {
+			return err
+		}
+		return profilesAllow(l, allowed.NewStore(p.AllowedProfiles()), args[1], dir, stdout)
+	}
 	if args[0] == "login" && (len(args) == 2 || len(args) == 3) {
 		return cmdLogin(p, l, args[1:], stdout)
 	}
 	if args[0] == "clean" && len(args) == 2 {
 		return cleanCaches(args[1], stdout)
 	}
-	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME | login NAME [SECRET] | clean NAME]")
+	return errors.New("profiles: usage: doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current DIR] | login NAME [SECRET] | clean NAME]")
 }
 
 func cmdAgentCommand(args []string, w io.Writer) error {
@@ -420,7 +431,10 @@ func cmdDoctor(args []string, w io.Writer) int {
 		return 1
 	}
 	cwd, _ := os.Getwd()
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
+	allow := func(prof *profile.Profile) error {
+		return confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, cwd), os.Stdin, os.Stderr, isTerminal(os.Stdin))
+	}
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p), FetchSecrets: *fetch, Runner: execRunner{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}

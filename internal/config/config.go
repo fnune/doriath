@@ -46,6 +46,10 @@ func (p Paths) AgentCache(profile string) string {
 	return filepath.Join(p.Cache, "agents", profile)
 }
 
+// AllowedProfiles holds the grants of each profile you allowed. It is
+// state: deleting it asks again for every profile.
+func (p Paths) AllowedProfiles() string { return filepath.Join(p.State, "profiles") }
+
 func (p Paths) Bundle() string { return filepath.Join(p.Cache, "bundle") }
 
 // Backups holds, per session, the record of the branches it started with and
