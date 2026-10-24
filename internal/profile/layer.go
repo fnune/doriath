@@ -30,8 +30,35 @@ type layer struct {
 	Agent       *agentLayer            `toml:"agent"`
 	Claude      *claudeLayer           `toml:"claude"`
 	Secrets     map[string]secretLayer `toml:"secrets"`
+	UsesSecrets []string               `toml:"uses_secrets"`
 	source      string
 	stateName   string
+}
+
+// secretRefs names each secret that the layer hands to something: a
+// credential, the signing key or an MCP server.
+func (l layer) secretRefs() []string {
+	var refs []string
+	add := func(c *credentialLayer) {
+		if c != nil && c.Secret != "" {
+			refs = appendNew(refs, c.Secret)
+		}
+	}
+	for _, h := range l.HTTP {
+		add(h.Credential)
+		for _, r := range h.Rules {
+			add(r.Credential)
+		}
+	}
+	if l.Signing != nil && l.Signing.Key != "" {
+		refs = appendNew(refs, l.Signing.Key)
+	}
+	for _, m := range l.MCP {
+		if m.Secret != "" {
+			refs = appendNew(refs, m.Secret)
+		}
+	}
+	return refs
 }
 
 type mountLayer struct {

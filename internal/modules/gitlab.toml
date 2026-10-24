@@ -9,6 +9,8 @@
 
 # glab refuses to run without a token. This one only satisfies that check:
 # the proxy replaces the PRIVATE-TOKEN header with the real token.
+uses_secrets = ["gitlab"]
+
 [env]
 set = { GITLAB_TOKEN = "doriath-placeholder-token" }
 

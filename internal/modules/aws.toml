@@ -7,6 +7,8 @@
 # after you approve it, named by its operation. Calls that return
 # credentials are refused, because the credentials would enter the jail.
 
+uses_secrets = ["aws"]
+
 [env]
 set = { AWS_ACCESS_KEY_ID = "AKIADORIATHPLACEHOLD", AWS_SECRET_ACCESS_KEY = "doriath-placeholder" }
 

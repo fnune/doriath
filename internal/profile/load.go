@@ -204,6 +204,9 @@ func (l *Loader) readProfile(name string) (layer, error) {
 	if top.Name != "" && top.Name != name {
 		return layer{}, fmt.Errorf("profile %q: name field says %q", name, top.Name)
 	}
+	if len(top.UsesSecrets) > 0 {
+		return layer{}, fmt.Errorf("profile %q: uses_secrets is for modules; a profile may use any secret of the session", name)
+	}
 	top.Name = name
 	top.source = "profile"
 	return top, nil
@@ -265,6 +268,11 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		}
 		if ly.Name != "" || len(ly.Secrets) > 0 {
 			return fmt.Errorf("module %q: name and secrets belong in profiles", name)
+		}
+		for _, ref := range ly.secretRefs() {
+			if !slices.Contains(ly.UsesSecrets, ref) {
+				return fmt.Errorf("module %q: it hands secret %q to a credential, signing or an MCP server, so list it in uses_secrets", name, ref)
+			}
 		}
 		if err := l.collect(ly.Modules, out, append(stack, name), done); err != nil {
 			return err
@@ -557,6 +565,9 @@ func (b *builder) record(l layer) {
 	}
 	for k := range l.Secrets {
 		b.from(l.source, "secret "+k)
+	}
+	for _, k := range l.UsesSecrets {
+		b.from(l.source, "secret "+k+" for "+l.source)
 	}
 }
 

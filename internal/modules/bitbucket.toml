@@ -5,6 +5,8 @@
 # deploy keys, branch restrictions and permissions are refused. Say where the token comes from under [secrets.bitbucket]
 # in the profile.
 
+uses_secrets = ["bitbucket"]
+
 [[http]]
 host = "bitbucket.org"
 credential = { secret = "bitbucket", scheme = "basic", username = "x-token-auth", binaries = ["git-remote-https", "git-remote-http", "git", "git-lfs"] }

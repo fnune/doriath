@@ -10,6 +10,8 @@
 # tea and berg refuse to run without a login. These only satisfy that
 # check: the proxy replaces the Authorization header with the real token.
 # fj needs none.
+uses_secrets = ["forgejo"]
+
 [env]
 set = { GITEA_INSTANCE_URL = "https://codeberg.org", GITEA_TOKEN = "doriath-placeholder-token", BERG_TOKEN = "doriath-placeholder-token" }
 

@@ -5,6 +5,8 @@
 # webhooks, secrets, collaborators and deploy keys are refused. Say where
 # the token comes from under [secrets.github] in the profile.
 
+uses_secrets = ["github"]
+
 [egress]
 allow = ["*.githubusercontent.com"]
 

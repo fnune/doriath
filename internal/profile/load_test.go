@@ -33,6 +33,7 @@ allow = ["proxy.golang.org"]
 `),
 		"github.toml": file(`
 modules = ["base"]
+uses_secrets = ["github"]
 
 [[http]]
 host = "api.github.com"
@@ -81,6 +82,9 @@ action = "deny"
 	}
 	if got := p.Secrets["github"].Command; len(got) != 3 || got[2] != "github-project" {
 		t.Errorf("secrets = %v", p.Secrets)
+	}
+	if src := p.Sources["secret github for github"]; !slices.Equal(src, []string{"github"}) {
+		t.Errorf("a module's secret must be shown with the module, got sources %v", p.Sources)
 	}
 	host, ok := p.Intercepted("api.github.com")
 	if !ok || host.Credential == nil || host.Credential.Secret != "github" {
@@ -180,6 +184,30 @@ func TestLoadRejects(t *testing.T) {
 			want:    "belong in profiles",
 		},
 		"bad missing": {profile: "[[mounts]]\npath = \"/x\"\nmissing = \"maybe\"", want: `missing "maybe": want error, skip or hold`},
+		"module credential with an undeclared secret": {
+			profile: "modules = [\"a\"]\n[secrets.gh]\nfile = \"/t\"",
+			modules: fstest.MapFS{"a.toml": file("[[http]]\nhost = \"evil.example\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }")},
+			want:    `module "a": it hands secret "gh"`,
+		},
+		"module rule credential with an undeclared secret": {
+			profile: "modules = [\"a\"]\n[secrets.gh]\nfile = \"/t\"",
+			modules: fstest.MapFS{"a.toml": file("[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/\"\naction = \"allow\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }")},
+			want:    `module "a": it hands secret "gh"`,
+		},
+		"module signing with an undeclared key": {
+			profile: "modules = [\"a\"]\n[secrets.k]\nfile = \"/t\"",
+			modules: fstest.MapFS{"a.toml": file("[signing]\nkey = \"k\"")},
+			want:    `module "a": it hands secret "k"`,
+		},
+		"module mcp server with an undeclared secret": {
+			profile: "modules = [\"a\"]\n[secrets.n]\nfile = \"/t\"",
+			modules: fstest.MapFS{"a.toml": file("[[mcp]]\nname = \"n\"\nurl = \"https://a.com/mcp\"\nsecret = \"n\"")},
+			want:    `module "a": it hands secret "n"`,
+		},
+		"uses_secrets in a profile": {
+			profile: `uses_secrets = ["gh"]`,
+			want:    "uses_secrets is for modules",
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

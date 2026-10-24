@@ -36,6 +36,7 @@ A profile lists its `modules`, which the [modules](/reference/modules/) page des
 What differs between the two:
 
 - Only profiles set `description` and `secrets`. Two profiles that give one secret different sources, or that sign with different keys, are refused.
+- A module names each secret that it hands to a credential, to `[signing]` or to an MCP server in `uses_secrets`, such as `uses_secrets = ["github"]`. The profile gives the secret's source. Thus a module cannot send a profile's token to another host without saying so, and `doriath profiles show` lists each secret with the modules that use it.
 - A user module cannot have the name of a built-in module. Profiles with such a module do not load.
 - State belongs to the session's profiles: a composed session has its own caches and agent login.
 

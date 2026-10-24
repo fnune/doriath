@@ -13,7 +13,7 @@ These commands show the modules on your machine:
 - `doriath modules show NAME` prints a module, and `--path` prints its path for an editor.
 - `doriath profiles show NAME` names the module behind each mount, host and rule of a profile.
 
-To change a built-in module, save your own copy in `~/.config/doriath/modules/` with a new name, such as `my-github`, and list that name in place of the built-in one. `doriath modules show NAME` prints the built-in module to start from. A copy with the name of the built-in module is an error, so that no module changes what a profile loads without notice.
+To change a built-in module, save your own copy in `~/.config/doriath/modules/` with a new name, such as `my-github`, and list that name in place of the built-in one. `doriath modules show NAME` prints the built-in module to start from. A copy with the name of the built-in module is an error, so that no module changes what a profile loads without notice. A module lists the secrets it uses in `uses_secrets`, and the profile gives their sources, as [profiles and modules](/reference/configuration/#profiles-and-modules) describes.
 
 ## base
 
