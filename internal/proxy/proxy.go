@@ -485,7 +485,7 @@ func unavailable(err error) error {
 
 func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {
 	if !matched {
-		s := fmt.Sprintf("http %s %s %s", method, host, path)
+		s := fmt.Sprintf("http %s %s %s", method, host, scopePath(path))
 		if gql := profile.DescribeGraphQL(body); gql != "" {
 			s += " graphql " + gql
 		}
@@ -502,7 +502,11 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte,
 		s += " " + r.GraphQL.String()
 	}
 	if len(r.MCPTools) > 0 {
-		s += " mcp " + profile.DescribeMCP(body)
+		tools, _ := profile.MCPToolCalls(body)
+		for i, t := range tools {
+			tools[i] = url.PathEscape(t)
+		}
+		s += " mcp " + strings.Join(tools, ", ")
 	}
 	if r.HeaderGlob != "" {
 		s += " " + r.Header + "=" + r.HeaderGlob
@@ -511,9 +515,13 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte,
 		s += " " + name + "=" + r.Form[name]
 	}
 	if repo != "" {
-		s += " in " + repo
+		s += " in " + scopePath(repo)
 	}
 	return s
+}
+
+func scopePath(p string) string {
+	return strings.ReplaceAll((&url.URL{Path: p}).EscapedPath(), "*", "%2A")
 }
 
 const excerptLimit = 400

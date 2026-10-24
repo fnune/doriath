@@ -368,6 +368,22 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	}
 }
 
+func TestAnEncodedPathCannotSpellAnotherRulesScope(t *testing.T) {
+	release := profile.Rule{Method: "POST", Path: "/repos/*/*/releases", Action: profile.ActionApprove}
+	real := scope(release, true, "POST", "/repos/o/r/releases", "api.github.com", nil, "/repos/o/r", "")
+	forged := scope(profile.Rule{}, false, "POST", "/repos/*/*/releases in /repos/o/r", "api.github.com", nil, "", "")
+	if real == forged {
+		t.Errorf("a request off the rules shares the release scope: %q", forged)
+	}
+	tools := profile.Rule{Method: "POST", Path: "/**", MCPTools: []string{"*"}, Action: profile.ActionApprove}
+	call := func(tool string) []byte {
+		return []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `"}}`)
+	}
+	if scope(tools, true, "POST", "/mcp", "h", call("t in /o/r"), "", "") == scope(tools, true, "POST", "/o/r/mcp", "h", call("t"), "/o/r", "") {
+		t.Error("a tool name spells a repository in the scope")
+	}
+}
+
 func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
 	merge := profile.Rule{Method: "PUT", Path: "/api/v4/projects/*/merge_requests/*/merge", Action: profile.ActionApprove}
 	pattern, err := profile.ParsePathPattern("/api/v4/projects/*")
