@@ -637,21 +637,11 @@ func checkLinkTarget(link string, writable []string, host Host) error {
 // doriath mounts read-only and the symlinks it keeps in place instead.
 func GuardsAndLinks(p *profile.Profile, host Host) (guards, links []string, err error) {
 	binds, _, _ := mountBinds(p, Layout{}, host)
-	writable := writableSources(binds)
-	var errs []error
-	for _, b := range binds {
-		if !b.ReadOnly {
-			continue
+	kept, links, errs := splitGuardedLinks(binds, host, nil)
+	for _, b := range kept {
+		if b.ReadOnly {
+			guards = append(guards, b.Source)
 		}
-		if b.Source == b.Dest && host.Link(b.Source) {
-			if err := checkLinkTarget(b.Source, writable, host); err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			links = append(links, b.Source)
-			continue
-		}
-		guards = append(guards, b.Source)
 	}
 	return guards, links, errors.Join(errs...)
 }

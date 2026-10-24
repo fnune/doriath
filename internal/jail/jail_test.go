@@ -634,3 +634,24 @@ func TestALinkInAWritableCheckoutIsKeptInPlaceInsteadOfMounted(t *testing.T) {
 		}
 	}
 }
+
+func TestAGrantKeepsAGuardedLinkInPlaceAsThePlanDoes(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.git"] = "dir"
+	h[repo+"/.git/config"] = "file"
+	h[repo+"/.git/hooks"] = "link"
+	h["target "+repo+"/.git/hooks"] = "/nix/store/abc-hooks"
+	p := &profile.Profile{Mounts: []profile.Mount{{Path: repo, Mode: profile.ModeWrite}}}
+	guards, links, err := GuardsAndLinks(p, held(p, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(links, repo+"/.git/hooks") || slices.Contains(guards, repo+"/.git/hooks") || !slices.Contains(guards, repo+"/.git/config") {
+		t.Errorf("guards %v, links %v", guards, links)
+	}
+	h["target "+repo+"/.git/hooks"] = repo + "/hooks"
+	if _, _, err := GuardsAndLinks(p, held(p, h)); err == nil || !strings.Contains(err.Error(), "which the jail can write") {
+		t.Errorf("a link into the checkout: err = %v", err)
+	}
+}
