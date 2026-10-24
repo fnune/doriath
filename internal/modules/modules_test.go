@@ -205,6 +205,7 @@ func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 		{"portal.sso.eu-west-1.amazonaws.com", "GET", "/federation/credentials", http.Header{}, "", "deny"},
 		{"api.ecr.us-east-1.amazonaws.com", "POST", "/", target("AmazonEC2ContainerRegistry_V20150921.GetAuthorizationToken"), "", "deny"},
 		{"secretsmanager.us-east-1.amazonaws.com", "POST", "/", target("secretsmanager.GetSecretValue"), "", "approve"},
+		{"secretsmanager.us-east-1.amazonaws.com", "POST", "/", target("secretsmanager.BatchGetSecretValue"), "", "approve"},
 		{"secretsmanager.us-east-1.amazonaws.com", "POST", "/", target("secretsmanager.ListSecrets"), "", "allow"},
 		{"cloudformation.us-east-1.amazonaws.com", "POST", "/", form, "Action=DescribeStacks", "allow"},
 		{"cloudformation.us-east-1.amazonaws.com", "POST", "/", form, "Action=DeleteStack", "approve"},
