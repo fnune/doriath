@@ -123,23 +123,50 @@ func (s *Session) holdMissingPaths() error {
 		if err := os.MkdirAll(filepath.Dir(m.Path), 0o755); err != nil {
 			return fmt.Errorf("hold %s: %w", m.Path, err)
 		}
+		content := placeholderContent(m.Path)
 		f, err := os.OpenFile(m.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return fmt.Errorf("hold %s: %w", m.Path, err)
 		}
+		_, err = f.WriteString(content)
 		_ = f.Close()
+		if err != nil {
+			return fmt.Errorf("hold %s: %w", m.Path, err)
+		}
 		created = append(created, m.Path)
 		include := excludeFromGit(created[0])
 		s.closers = append(s.closers, func() {
 			include()
 			for i := len(created) - 1; i >= 0; i-- {
-				if info, err := os.Lstat(created[i]); err == nil && (info.IsDir() || info.Size() == 0) {
+				if untouched(created[i], content) {
 					_ = os.Remove(created[i])
 				}
 			}
 		})
 	}
 	return nil
+}
+
+func placeholderContent(path string) string {
+	if filepath.Ext(path) == ".json" {
+		return "{}\n"
+	}
+	return ""
+}
+
+func untouched(path, content string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		return true
+	}
+	if !info.Mode().IsRegular() || info.Size() != int64(len(content)) {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	return err == nil && string(data) == content
 }
 
 // excludeFromGit lists a placeholder in the info/exclude of the git

@@ -194,3 +194,45 @@ func TestHoldingControlPathsWalksAFolderOfManyWorktreesAFewTimesOnly(t *testing.
 		t.Errorf("%d listings for %d in one walk: each placeholder must not walk the mount again", host.lists, oneWalk.lists)
 	}
 }
+
+func TestAHeldJSONFileIsAnEmptyObjectSoThatToolsCanReadIt(t *testing.T) {
+	s := newTestSession(t, nil)
+	work := filepath.Join(s.home, "work")
+	mkdirAll(t, work)
+	settings := filepath.Join(work, ".claude", "settings.json")
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: work, Mode: profile.ModeWrite},
+		{Path: settings, Mode: profile.ModeRead, Missing: profile.MissingHold},
+	}
+	if err := s.holdMissingPaths(); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(settings); err != nil || string(data) != "{}\n" {
+		t.Fatalf("placeholder = %q, %v", data, err)
+	}
+	s.cleanup()
+	if _, err := os.Lstat(settings); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the untouched placeholder stays: %v", err)
+	}
+}
+
+func TestAHeldFileThatSomeoneWroteStaysAfterTheSession(t *testing.T) {
+	s := newTestSession(t, nil)
+	work := filepath.Join(s.home, "work")
+	mkdirAll(t, work)
+	settings := filepath.Join(work, ".mcp.json")
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: work, Mode: profile.ModeWrite},
+		{Path: settings, Mode: profile.ModeRead, Missing: profile.MissingHold},
+	}
+	if err := s.holdMissingPaths(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settings, []byte(`{"mcpServers":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.cleanup()
+	if _, err := os.Lstat(settings); err != nil {
+		t.Errorf("a file you wrote went: %v", err)
+	}
+}

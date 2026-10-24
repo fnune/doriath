@@ -181,3 +181,9 @@ func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {
 		t.Error("without an allow list, every server stays allowed")
 	}
 }
+
+func TestTheEmptyPlaceholderThatVCSHoldsReadsAsNoProjectSettings(t *testing.T) {
+	if _, err := Settings(&profile.Profile{}, "/w", mapFiles{"/w/.claude/settings.json": ""}); err != nil {
+		t.Fatalf("the placeholder for a missing settings file stopped the session: %v", err)
+	}
+}

@@ -45,10 +45,11 @@ func TestAKeptLinkThatTheJailReplacesIsPutBackAtOnce(t *testing.T) {
 	if err := k.Keep(link); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(link); err != nil {
+	planted := filepath.Join(dir, "planted")
+	if err := os.WriteFile(planted, []byte("[aliases]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(link, []byte("[aliases]\n"), 0o600); err != nil {
+	if err := os.Rename(planted, link); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(5 * time.Second)

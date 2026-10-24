@@ -6,6 +6,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -228,6 +229,9 @@ func readProject(files Files, path string) (projectSettings, error) {
 	}
 	if err != nil {
 		return projectSettings{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return projectSettings{}, nil
 	}
 	var ps projectSettings
 	if err := json.Unmarshal(data, &ps); err != nil {

@@ -72,3 +72,13 @@ true
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+func TestClaudeStartsInAWritableCheckoutWithoutProjectSettings(t *testing.T) {
+	e := agentEnv(t, "claude")
+	e.modules = append(e.modules, "vcs-readwrite")
+	git(t, e.work, "init", "-q", "-b", "main")
+	code, out := e.run(e.profile(""), `echo started`, nil)
+	if code != 0 || !strings.Contains(out, "started") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}

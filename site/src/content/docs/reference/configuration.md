@@ -393,7 +393,7 @@ Entries combine by least privilege:
 
 - `error`, the default for `read` and `write`: the session does not start.
 - `skip`: the jail leaves the path out.
-- `hold`, the default for `hide`: inside a writable mount, doriath puts an empty file at the path for the session, so that the agent cannot create it there, and lists it in the repository's `info/exclude`, so that git and jj leave it out of commits. To give the file content, the agent runs [`doriath request edit`](#edits). doriath removes the placeholder at the end, unless someone wrote to it. Outside a writable mount, `hold` is `skip`.
+- `hold`, the default for `hide`: inside a writable mount, doriath puts an empty file at the path for the session, or `{}` for a JSON file, so that tools can read it, so that the agent cannot create it there, and lists it in the repository's `info/exclude`, so that git and jj leave it out of commits. To give the file content, the agent runs [`doriath request edit`](#edits). doriath removes the placeholder at the end, unless someone wrote to it. Outside a writable mount, `hold` is `skip`.
 
 Where two entries give the same path, the stricter `missing` holds: `error`, then `hold`, then `skip`.
 
