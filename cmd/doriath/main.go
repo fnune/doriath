@@ -413,11 +413,17 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-type opener struct{}
+// opener passes on the activation token of the click that asked for the
+// page, without which a Wayland compositor neither raises the browser nor
+// marks it as wanting attention.
+type opener struct{ activation string }
 
-func (opener) Open(url string) error {
+func (o opener) Open(url string) error {
 	cmd := exec.Command("xdg-open", url)
 	cmd.Stdout, cmd.Stderr = io.Discard, io.Discard
+	if o.activation != "" {
+		cmd.Env = append(os.Environ(), "XDG_ACTIVATION_TOKEN="+o.activation, "DESKTOP_STARTUP_ID="+o.activation)
+	}
 	return cmd.Start()
 }
 

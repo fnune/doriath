@@ -38,7 +38,7 @@ const (
 // in view.
 type Page interface {
 	Running() bool
-	Open(request string) error
+	Open(request, activation string) error
 }
 
 // Actions are the buttons, as key and label pairs in the order the
@@ -113,7 +113,10 @@ type Desktop struct {
 	owner string
 
 	mu       sync.Mutex
-	handlers map[uint32]func(action string)
+	handlers map[uint32]func(action, activation string)
+	// The server sends a click's activation token just before the action,
+	// and the compositor raises a window only for a launch that carries it.
+	activations map[uint32]string
 }
 
 func NewDesktop(now func() time.Time) (*Desktop, error) {
@@ -121,8 +124,8 @@ func NewDesktop(now func() time.Time) (*Desktop, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect to the session bus: %w", err)
 	}
-	d := &Desktop{conn: conn, now: now, handlers: map[uint32]func(string){}}
-	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
+	d := &Desktop{conn: conn, now: now, handlers: map[uint32]func(string, string){}, activations: map[uint32]string{}}
+	for _, member := range []string{"ActivationToken", "ActionInvoked", "NotificationClosed"} {
 		if err := conn.AddMatchSignal(dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(objPath), dbus.WithMatchInterface(iface), dbus.WithMatchMember(member)); err != nil {
 			_ = conn.Close()
 			return nil, fmt.Errorf("subscribe to %s: %w", member, err)
@@ -167,19 +170,21 @@ func (d *Desktop) dispatch(signals <-chan *dbus.Signal) {
 		if !ok {
 			continue
 		}
+		arg, _ := s.Body[1].(string)
 		d.mu.Lock()
-		h := d.handlers[id]
-		if s.Name == iface+".NotificationClosed" {
+		h, activation := d.handlers[id], d.activations[id]
+		switch s.Name {
+		case iface + ".ActivationToken":
+			d.activations[id] = arg
+		case iface + ".ActionInvoked":
+			delete(d.activations, id)
+		case iface + ".NotificationClosed":
 			delete(d.handlers, id)
+			delete(d.activations, id)
 		}
 		d.mu.Unlock()
-		if h == nil {
-			continue
-		}
-		if s.Name == iface+".ActionInvoked" {
-			if action, ok := s.Body[1].(string); ok {
-				h(action)
-			}
+		if h != nil && s.Name == iface+".ActionInvoked" && arg != "" {
+			h(arg, activation)
 		}
 	}
 }
@@ -202,9 +207,9 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 		return nil, fmt.Errorf("show notification: %w", err)
 	}
 	d.mu.Lock()
-	d.handlers[id] = func(action string) {
+	d.handlers[id] = func(action, activation string) {
 		if page && (action == actionOpen || action == actionDefault) {
-			_ = d.Page.Open(req.Session + "/" + req.ID)
+			_ = d.Page.Open(req.Session+"/"+req.ID, activation)
 			return
 		}
 		if dec, ok := DecisionFor(action); ok {
@@ -215,6 +220,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	return func() {
 		d.mu.Lock()
 		delete(d.handlers, id)
+		delete(d.activations, id)
 		d.mu.Unlock()
 		_ = d.conn.Object(busName, objPath).Call(iface+".CloseNotification", 0, id).Err
 	}, nil

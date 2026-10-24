@@ -109,7 +109,7 @@ func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Write
 	if err != nil {
 		return fmt.Errorf("web open: %w", err)
 	}
-	return openPage(ctx, *listen, token, "", *print || overSSH() || !hasDisplay(), out)
+	return openPage(ctx, *listen, token, "", opener{}, *print || overSSH() || !hasDisplay(), out)
 }
 
 func servedAddr(p config.Paths) string {
@@ -131,12 +131,12 @@ func (w webPage) Running() bool {
 	return servesPage(ctx, servedAddr(w.paths), token)
 }
 
-func (w webPage) Open(request string) error {
+func (w webPage) Open(request, activation string) error {
 	token, err := webToken(w.paths.WebToken())
 	if err != nil {
 		return err
 	}
-	return openPage(context.Background(), servedAddr(w.paths), token, request, false, io.Discard)
+	return openPage(context.Background(), servedAddr(w.paths), token, request, opener{activation: activation}, false, io.Discard)
 }
 
 func hasDisplay() bool { return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("DISPLAY") != "" }
@@ -166,7 +166,7 @@ func codeLink(addr, code, request string) string {
 	return link
 }
 
-func openPage(ctx context.Context, addr, token, request string, print bool, out io.Writer) error {
+func openPage(ctx context.Context, addr, token, request string, browser opener, print bool, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with `doriath web`, or enable approvals.web in home-manager", addr)
@@ -195,7 +195,7 @@ func openPage(ctx context.Context, addr, token, request string, print bool, out 
 		fmt.Fprintf(out, "%s\nThe link works once, for a minute.\n", link)
 		return nil
 	}
-	return (opener{}).Open(link)
+	return browser.Open(link)
 }
 
 func servesPage(ctx context.Context, addr, token string) bool {
