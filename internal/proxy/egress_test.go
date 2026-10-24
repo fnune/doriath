@@ -184,7 +184,7 @@ deny = ["notion-delete-*"]
 			body:        call("notion-create-page"),
 			wantStatus:  http.StatusOK,
 			wantSummary: "Call notion tool notion-create-page",
-			wantScope:   "http POST mcp.example.com /** mcp notion-create-page",
+			wantScope:   "http POST mcp.example.com /mcp mcp notion-create-page",
 		},
 		"a denied tool":               {body: call("notion-delete-page"), wantStatus: http.StatusForbidden},
 		"a denied tool in a batch":    {body: call("notion-search", "notion-delete-page"), wantStatus: http.StatusForbidden},
@@ -221,6 +221,34 @@ deny = ["notion-delete-*"]
 				t.Fatalf("upstream got Authorization %q and body %q", got.Header.Get("Authorization"), gotBody)
 			}
 		})
+	}
+}
+
+func TestAnMCPSecretReachesOnlyTheServersEndpoint(t *testing.T) {
+	p := loadProfile(t, `
+[secrets.notion]
+file = "/run/secrets/notion"
+
+[[mcp]]
+name = "notion"
+url = "https://mcp.example.com/mcp"
+secret = "notion"
+`)
+	h := newHarness(t)
+	h.approver.verdict = approval.VerdictAllow
+	srv := h.server(t, p, Config{}, h.dialer())
+	host, _ := p.Intercepted("mcp.example.com")
+	body := `{"jsonrpc":"2.0","id":0,"method":"tools/call","params":{"name":"search"}}`
+	for path, want := range map[string]string{"/mcp": "Bearer notion-token", "/other/mcp": ""} {
+		req := httptest.NewRequest(http.MethodPost, "https://mcp.example.com"+path, strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		srv.intercepted(rec, req, "mcp.example.com", "mcp.example.com", host)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d: %s", path, rec.Code, rec.Body)
+		}
+		if got, _ := h.upstream.last(t); got.Header.Get("Authorization") != want {
+			t.Errorf("%s: upstream got Authorization %q, want %q", path, got.Header.Get("Authorization"), want)
+		}
 	}
 }
 

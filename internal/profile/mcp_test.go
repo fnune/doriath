@@ -29,8 +29,13 @@ url = "https://docs.example.com/mcp"
 		t.Fatalf("mcp = %+v", p.MCP)
 	}
 	notion, ok := p.Intercepted("mcp.notion.com")
-	if !ok || notion.Credential == nil || notion.Credential.Secret != "notion" || notion.Credential.Scheme != SchemeBearer || notion.Default != ActionApprove {
-		t.Errorf("a remote server with a secret is intercepted and gets its token at the proxy: %+v", notion)
+	if !ok || notion.Credential != nil || notion.Default != ActionApprove {
+		t.Errorf("a remote server with a secret is intercepted, and the host gets no credential: %+v", notion)
+	}
+	for _, r := range notion.Rules {
+		if string(r.Path) != "/mcp" || r.Credential == nil || r.Credential.Secret != "notion" || r.Credential.Scheme != SchemeBearer {
+			t.Errorf("the server's endpoint gets its token at the proxy, and only it: %+v", r)
+		}
 	}
 	if _, ok := p.Intercepted("docs.example.com"); ok || !p.AllowsHost("docs.example.com") {
 		t.Error("a remote server without a secret is a plain egress host")
@@ -52,7 +57,7 @@ url = "https://mcp.notion.com/mcp"
 secret = "notion"
 `, nil)
 	h, _ := p.Intercepted("mcp.notion.com")
-	if h.Default != ActionApprove || h.Credential == nil {
+	if h.Default != ActionApprove || len(h.Rules) == 0 || h.Rules[0].Credential == nil {
 		t.Fatalf("host = %+v", h)
 	}
 }

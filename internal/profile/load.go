@@ -1432,10 +1432,6 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 		return MCPServer{}, fmt.Errorf("mcp %s: env is for local servers", m.Name)
 	}
 	host := strings.ToLower(u.Hostname())
-	rules, err := mcpRules(m, u.EscapedPath())
-	if err != nil {
-		return MCPServer{}, err
-	}
 	if m.Secret == "" && !holds {
 		b.allow = appendNew(b.allow, host)
 		return server, nil
@@ -1447,29 +1443,33 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 		}
 		cred = &credentialLayer{Secret: m.Secret, Scheme: string(SchemeBearer)}
 	}
+	rules, err := mcpRules(m, u.EscapedPath(), cred)
+	if err != nil {
+		return MCPServer{}, err
+	}
 	if i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, host) }); i >= 0 {
-		if b.http[i].Credential == nil {
-			b.http[i].Credential = cred
-		}
 		b.http[i].Rules = append(b.http[i].Rules, rules...)
 		return server, nil
 	}
-	b.http = append(b.http, httpLayer{Host: host, Credential: cred, Default: string(ActionApprove), Rules: rules})
+	b.http = append(b.http, httpLayer{Host: host, Default: string(ActionApprove), Rules: rules})
 	return server, nil
 }
 
-func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
+func mcpRules(m mcpLayer, endpoint string, cred *credentialLayer) ([]ruleLayer, error) {
 	if endpoint == "" {
 		endpoint = "/"
 	}
 	summary := "Call " + m.Name + " tool"
 	var rules []ruleLayer
+	if len(m.Deny) > 0 {
+		rules = append(rules, ruleLayer{Method: "POST", Path: "/**", MCPTools: m.Deny, Action: string(ActionDeny), Summary: summary})
+	}
 	for _, l := range []struct {
 		tools  []string
 		action Action
-	}{{m.Deny, ActionDeny}, {m.Approve, ActionApprove}, {m.Allow, ActionAllow}} {
+	}{{m.Approve, ActionApprove}, {m.Allow, ActionAllow}} {
 		if len(l.tools) > 0 {
-			rules = append(rules, ruleLayer{Method: "POST", Path: "/**", MCPTools: l.tools, Action: string(l.action), Summary: summary})
+			rules = append(rules, ruleLayer{Method: "POST", Path: endpoint, MCPTools: l.tools, Action: string(l.action), Summary: summary, Credential: cred})
 		}
 	}
 	other := ActionAllow
@@ -1481,10 +1481,10 @@ func mcpRules(m mcpLayer, endpoint string) ([]ruleLayer, error) {
 		return nil, fmt.Errorf("mcp %s: default %q: want allow, approve or deny", m.Name, m.Default)
 	}
 	return append(rules,
-		ruleLayer{Method: "POST", Path: "/**", MCPTools: []string{"*"}, Action: string(other), Summary: summary},
-		ruleLayer{Method: "POST", Path: endpoint, MCPNone: true, Action: string(ActionAllow)},
-		ruleLayer{Method: "GET", Path: endpoint, Action: string(ActionAllow)},
-		ruleLayer{Method: "DELETE", Path: endpoint, Action: string(ActionAllow)},
+		ruleLayer{Method: "POST", Path: endpoint, MCPTools: []string{"*"}, Action: string(other), Summary: summary, Credential: cred},
+		ruleLayer{Method: "POST", Path: endpoint, MCPNone: true, Action: string(ActionAllow), Credential: cred},
+		ruleLayer{Method: "GET", Path: endpoint, Action: string(ActionAllow), Credential: cred},
+		ruleLayer{Method: "DELETE", Path: endpoint, Action: string(ActionAllow), Credential: cred},
 	), nil
 }
 

@@ -508,9 +508,9 @@ A sign-in in the jail often opens a link whose `redirect_uri` sends your browser
 `[[mcp]]` lists the MCP servers of the profile, for all agents that doriath supports. Your own MCP servers stay outside the jail.
 
 - A local server (`command`, optional `env`) runs in the jail with its limits. The agent can read its `env`, so do not put secrets there.
-- A remote server (`url`, https) goes through the proxy. With `secret`, the proxy adds the secret as a bearer token, and `[[http]]` rules for the host apply. Without `secret`, doriath allows the host and does not change its traffic.
+- A remote server (`url`, https) goes through the proxy. With `secret`, the proxy adds the secret as a bearer token to requests for the path of `url` only, and `[[http]]` rules for the host apply. Another server on the same host does not get the token. Without `secret`, doriath allows the host and does not change its traffic.
 
-For a remote server, `approve` and `deny` hold or refuse tools by name or glob. `allow` with `default = "approve"` holds all tools except the listed ones. doriath reads the JSON-RPC body on all paths of the host. A held call becomes an approval such as "Call notion tool notion-create-pages", with its arguments. If one call in a batch is held, doriath holds the batch.
+For a remote server, `approve` and `deny` hold or refuse tools by name or glob. `allow` with `default = "approve"` holds all tools except the listed ones. doriath reads the JSON-RPC body on the path of `url`. A tool in `deny` is refused on all paths of the host. A held call becomes an approval such as "Call notion tool notion-create-pages", with its arguments. If one call in a batch is held, doriath holds the batch.
 
 If a server has a secret or holds, doriath intercepts its host. There, endpoint traffic that calls no tool goes through. All other traffic waits for approval, as on all hosts with a credential. This includes other paths, and bodies that doriath cannot read as JSON-RPC.
 
