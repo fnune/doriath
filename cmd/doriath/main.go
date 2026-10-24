@@ -224,12 +224,20 @@ func repositoryProfiles(dir string) (string, fs.FS) {
 	if repo == "" {
 		return "", nil
 	}
-	root, err := os.OpenRoot(filepath.Join(repo, profile.RepoProfiles))
+	folder := filepath.Join(repo, profile.RepoProfiles)
+	if info, err := os.Lstat(folder); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return repo, refusedFS{fmt.Errorf("%s is a symlink, and doriath reads repository profiles only from a folder in the repository", folder)}
+	}
+	root, err := os.OpenRoot(folder)
 	if err != nil {
 		return repo, nil
 	}
 	return repo, root.FS()
 }
+
+type refusedFS struct{ err error }
+
+func (f refusedFS) Open(string) (fs.File, error) { return nil, f.err }
 
 func cmdRun(args []string) (int, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)

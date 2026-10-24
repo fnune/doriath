@@ -186,3 +186,20 @@ func TestHelpShowsTheUsageOfTheCommandOnly(t *testing.T) {
 		t.Error("a prefix of a command name is not that command")
 	}
 }
+
+func TestRepositoryProfilesAreNotReadThroughALinkedFolder(t *testing.T) {
+	repo, outside := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "dev.toml"), []byte("[egress]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, ".doriath")); err != nil {
+		t.Fatal(err)
+	}
+	_, profiles := repositoryProfiles(repo)
+	if _, err := fs.ReadFile(profiles, "dev.toml"); err == nil || !strings.Contains(err.Error(), "is a symlink") {
+		t.Fatalf("read a profile through a linked .doriath: %v", err)
+	}
+}
