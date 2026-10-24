@@ -19,7 +19,7 @@ func repoLoader() *Loader {
 		"base.toml": file("[egress]\nallow = [\"base.example\"]\n"),
 	}), fstest.MapFS{
 		"dev.toml":    file("description = \"the project\"\nmodules = [\"base\"]\n\n[egress]\nallow = [\"dev.example\"]\n"),
-		"my-dev.toml": file("[egress]\nallow = [\"mine.example\"]\n\n[secrets.token]\ncommand = [\"pass\", \"token\"]\n"),
+		"my-dev.toml": file("[egress]\nallow = [\"mine.example\"]\n\n[secrets.token]\nfile = \"~/.config/doriath/keys/token\"\n"),
 		"work.toml":   file("[egress]\nallow = [\"repo-work.example\"]\n"),
 		"base.toml":   file("[egress]\nallow = [\"planted.example\"]\n"),
 	})
@@ -116,5 +116,17 @@ func TestRepositoryProfilesStayReadOnlyInAWritableRepository(t *testing.T) {
 	granted := &Profile{Mounts: []Mount{{Path: "{repository}", Mode: ModeWrite}, {Path: "{repository}/.doriath", Mode: ModeWrite}}}
 	if got := resolve(t, granted, start); mode(got, "/home/u/src/app/.doriath") != ModeWrite {
 		t.Errorf("a profile that grants the folder keeps its grant: %+v", got)
+	}
+}
+
+func TestARepositoryProfileCannotRunASecretCommandOnTheHost(t *testing.T) {
+	l := repoLoader()
+	l.Repository.(fstest.MapFS)["cmd.toml"] = file("[secrets.token]\ncommand = [\"./scripts/token.sh\"]\n")
+	_, err := l.Load("work+repo:cmd")
+	if err == nil || !strings.Contains(err.Error(), `secret "token": a repository profile cannot run a command on your machine`) || !strings.Contains(err.Error(), "my-app+repo:cmd") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := l.Load("repo:my-dev"); err != nil {
+		t.Fatalf("a secret from a file is refused: %v", err)
 	}
 }

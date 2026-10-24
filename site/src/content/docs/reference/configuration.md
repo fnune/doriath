@@ -291,7 +291,7 @@ Name a repository profile with `repo:` and its file name. For example, `repo:dev
 doriath run --profile my-app+repo:dev -- claude
 ```
 
-- A repository profile is a full profile. It can set `secrets`, and a secret command runs on the host. doriath asks you before it uses a repository profile, and again when it gives more. See [allowed profiles](#allowed-profiles).
+- A repository profile cannot set a secret `command`, because the command would run on your machine with your environment, and the checkout may have written it. Keep secret commands in a profile of your own, and compose the two. A secret `file` is allowed. doriath asks you before it uses a repository profile, and again when it gives more. See [allowed profiles](#allowed-profiles).
 - The `repo:` prefix keeps repository profiles apart from your own. A repository cannot replace one of your profiles or modules.
 - A repository profile cannot go in a `modules` list.
 - A missing repository profile is an error, also outside a repository.

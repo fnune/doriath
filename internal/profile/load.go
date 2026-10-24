@@ -514,12 +514,25 @@ func (b *builder) apply(l layer) {
 			b.claude.Deny = appendNew(b.claude.Deny, s)
 		}
 	}
-	for k, v := range l.Secrets {
+	for _, k := range slices.Sorted(maps.Keys(l.Secrets)) {
+		v := l.Secrets[k]
+		if l.fromRepository() && len(v.Command) > 0 {
+			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot run a command on your machine. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
+			continue
+		}
 		b.secrets[k] = v
 		if strings.HasPrefix(l.source, "profile") {
 			b.secretOwner[k] = l.stateName
 		}
 	}
+}
+
+func (l layer) fromRepository() bool {
+	return strings.HasPrefix(l.source, "profile "+RepoPrefix)
+}
+
+func (l layer) profileName() string {
+	return strings.TrimPrefix(l.source, "profile ")
 }
 
 func (b *builder) record(l layer) {
