@@ -1,5 +1,7 @@
 import { defineConfig, passthroughImageService } from "astro/config";
 import starlight from "@astrojs/starlight";
+import starlightLlmsTxt from "starlight-llms-txt";
+import { markdownStrip } from "./src/markdown.mjs";
 
 export default defineConfig({
   site: "https://doriath.fnune.com",
@@ -23,7 +25,15 @@ export default defineConfig({
       favicon: "/favicon.svg",
       components: {
         SiteTitle: "./src/components/SiteTitle.astro",
+        EditLink: "./src/components/EditLink.astro",
       },
+      routeMiddleware: "./src/routeData.ts",
+      plugins: [
+        starlightLlmsTxt({
+          details: "Each page is also Markdown at its path with `.md`, such as `/install.md` and `/reference/configuration.md`.",
+          customSelectors: { all: markdownStrip },
+        }),
+      ],
       customCss: ["../internal/ui/tokens.css", "../internal/ui/components.css", "./src/styles/custom.css"],
       expressiveCode: {
         themes: ["github-dark", "github-light"],

@@ -15,7 +15,7 @@ just build
 
 ## This site
 
-This site is a [Starlight](https://starlight.astro.build) project in `site/`. Its colors, fonts, ornaments and request cards come from `internal/ui`, as on the approvals page. The modules page reads `internal/modules` when the site builds. Write pages as `site/STYLE.md` tells. These commands serve and build the site:
+This site is a [Starlight](https://starlight.astro.build) project in `site/`. Its colors, fonts, ornaments and request cards come from `internal/ui`, as on the approvals page. The modules page reads `internal/modules` when the site builds. The build also writes `llms.txt`, and each page as Markdown at its path with `.md`, for agents. Each page links to its Markdown in its head and its footer. Write pages as `site/STYLE.md` tells. These commands serve and build the site:
 
 ```sh
 just site-dev

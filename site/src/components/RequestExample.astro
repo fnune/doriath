@@ -45,13 +45,13 @@ const pace = timer === "parked" ? "parked" : "";
   <div class="detail">
     <div class="detail-head">
       <div>
-        <span class="who"><span class={`profile ${hue}`}>{profile}</span><span class="kind">{kind}</span></span>
+        <span class="who" data-no-markdown><span class={`profile ${hue}`}>{profile}</span><span class="kind">{kind}</span></span>
         <h3>{summary}</h3>
         <p class="status">{status}</p>
       </div>
-      <span class={`timer ${pace}`}>{timer}</span>
+      <span class={`timer ${pace}`} data-no-markdown>{timer}</span>
     </div>
-    <div class={`bar ${pace}`}>
+    <div class={`bar ${pace}`} data-no-markdown>
       <Ornament name="curl-h" class="curl start" width={28} height={14} />
       <svg class="track" height="14" aria-hidden="true">
         <line class="bg" x1="0" x2="100%" y1="12" y2="12"></line>

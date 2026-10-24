@@ -1,0 +1,9 @@
+---
+import Default from "@astrojs/starlight/components/EditLink.astro";
+import { markdownHref } from "../markdown.mjs";
+
+const href = markdownHref(Astro.locals.starlightRoute.entry.id);
+---
+
+<Default />
+{href && <a href={href} type="text/markdown">This page as Markdown</a>}
