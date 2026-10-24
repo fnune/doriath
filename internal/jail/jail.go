@@ -523,13 +523,15 @@ func (g *guards) worktrees(gitDir string) {
 
 // GitControlFiles are the entries of a .git directory that decide what git
 // runs, which config it reads, or how it resolves your next merge.
-var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates", "rr-cache"}
+var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates", "rr-cache", "remotes", "branches"}
 
 var gitHolds = map[string]*Placeholder{
 	"config.worktree":         {},
 	"hooks":                   {Dir: true},
 	"info":                    {Dir: true},
 	"objects/info/alternates": {},
+	"remotes":                 {Dir: true},
+	"branches":                {Dir: true},
 }
 
 func (g *guards) gitDir(srcGit, destGit string, depth int) {

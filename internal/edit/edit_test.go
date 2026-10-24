@@ -50,6 +50,15 @@ func TestUpstreamTrackingIsSafe(t *testing.T) {
 	}
 }
 
+func TestARemoteGitWouldReadFromAFileIsNotSafe(t *testing.T) {
+	if c := changes(t, current+"[branch \"main\"]\n\tremote = evil\n"); allSafe(c) {
+		t.Errorf("a remote without a url passes as safe: %+v", c)
+	}
+	if c := changes(t, current+"[branch \"main\"]\n\tremote = .\n"); !allSafe(c) {
+		t.Errorf("tracking a local branch must stay safe: %+v", c)
+	}
+}
+
 func TestCommentsAndLayoutAreNoChange(t *testing.T) {
 	if c := changes(t, "# a comment\n"+strings.ReplaceAll(current, "\t", "    ")); len(c) != 0 {
 		t.Errorf("changes = %+v", c)

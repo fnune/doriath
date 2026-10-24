@@ -247,6 +247,8 @@ func TestMissingControlPathsAreHeld(t *testing.T) {
 	want := map[string]Placeholder{
 		".git/hooks":                        {Dir: true},
 		".git/info":                         {Dir: true},
+		".git/remotes":                      {Dir: true},
+		".git/branches":                     {Dir: true},
 		".git/config.worktree":              {},
 		".git/objects/info/alternates":      {},
 		".git/worktrees/wt/config.worktree": {},
@@ -259,6 +261,23 @@ func TestMissingControlPathsAreHeld(t *testing.T) {
 	}
 	if len(got) != len(want) {
 		t.Errorf("placeholders = %v", got)
+	}
+}
+
+func TestTheAgentCannotNameARemoteThroughAFileGitReadsOnTheHost(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.git"] = "dir"
+	h[repo+"/.git/remotes"] = "dir"
+	h[repo+"/.git/branches"] = "dir"
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{repo + "/.git/remotes", repo + "/.git/branches"} {
+		if mode(s.Binds, p) != "read" {
+			t.Errorf("%s must be bound read-only", p)
+		}
 	}
 }
 

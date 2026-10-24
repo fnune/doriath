@@ -395,7 +395,7 @@ Entries combine by least privilege:
 - A deeper path applies in its subtree: `write` in a `read` repository, or `hide` in a `write` directory.
 - doriath creates a missing writable entry inside the repository, such as a worktree directory.
 
-`write` changes your files in place, but the config, hooks and info of git and jj stay read-only, because git runs what they name. If these are missing, doriath creates them empty before the session, so that the agent cannot create them: `.git/hooks`, `info`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`.
+`write` changes your files in place, but the config, hooks and info of git and jj stay read-only, because git runs what they name. If these are missing, doriath creates them empty before the session, so that the agent cannot create them: `.git/hooks`, `info`, `remotes`, `branches`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`.
 
 `hide` shows an empty directory or file, also to containers.
 
@@ -447,16 +447,16 @@ edit = { format = "git-config", safe = [
 ] }
 ```
 
-Upstream tracking, as `git push -u` records it, then changes at once. jj workspaces need no setting: in the jail, git and jj record worktrees with absolute paths, which need no extension in `.git/config`. A setting that names a program, such as `core.fsmonitor`, or a remote's URL, waits for you. A read-only file without an `edit` table changes as text, and also waits for you.
+Upstream tracking, as `git push -u` records it, then changes at once. jj workspaces need no setting: in the jail, git and jj record worktrees with absolute paths, which need no extension in `.git/config`. A setting that names a program, such as `core.fsmonitor`, a remote's URL, or a remote that the config does not define, waits for you. A read-only file without an `edit` table changes as text, and also waits for you.
 
 ## Repositories
 
 With `[vcs] store = true`, each git or jj repository gets a writable store. The agent can commit, branch and add worktrees, and your checkout stays read-only:
 
-| Repository | Writable                                                                                                                                                    | Read-only                                                                                                                                                      |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| git        | `.git` and its submodule stores, such as `objects`, `refs`, `HEAD`, `index`, `packed-refs` and their lock files                                             | `config`, `config.worktree`, `hooks`, `info`, `commondir`, `objects/info/alternates`, `rr-cache`, existing packs, and each worktree's `commondir` and `gitdir` |
-| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store`, `store/extra` and `git_import_export.lock` | the rest of `.jj/repo`, such as `config.toml`, `config-id`, `store/git_target` and `store/type`, and jj's git store as above                                   |
+| Repository | Writable                                                                                                                                                    | Read-only                                                                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| git        | `.git` and its submodule stores, such as `objects`, `refs`, `HEAD`, `index`, `packed-refs` and their lock files                                             | `config`, `config.worktree`, `hooks`, `info`, `remotes`, `branches`, `commondir`, `objects/info/alternates`, `rr-cache`, existing packs, and each worktree's `commondir` and `gitdir` |
+| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store`, `store/extra` and `git_import_export.lock` | the rest of `.jj/repo`, such as `config.toml`, `config-id`, `store/git_target` and `store/type`, and jj's git store as above                                                          |
 
 In the jail, git reads a global config that doriath builds from yours, without credentials, URL rewrites, remotes, includes, hooks or settings that run a program. doriath copies in the files that git reads on your machine through that config: the global ignore rules, attributes and commit template, by default from `~/.config/git`. Without them, git and jj in the jail would track what your global ignore leaves out.
 

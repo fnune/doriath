@@ -25,9 +25,10 @@ const MaxSize = 512 << 10
 // Change is one setting an edit changes, with its values before and after.
 // A text edit has one change with no key.
 type Change struct {
-	Key string
-	Old []string
-	New []string
+	Key           string
+	Old           []string
+	New           []string
+	namesNoRemote bool
 }
 
 // Changes lists what new changes in old, read in format.
@@ -72,10 +73,24 @@ func gitChanges(ctx context.Context, git string, old, new []byte) ([]Change, err
 	for _, k := range keys {
 		o, n := values(before, k), values(after, k)
 		if !slices.Equal(o, n) {
-			out = append(out, Change{Key: k, Old: o, New: n})
+			out = append(out, Change{Key: k, Old: o, New: n, namesNoRemote: namesNoRemote(k, n, after)})
 		}
 	}
 	return out, nil
+}
+
+func namesNoRemote(key string, names []string, after []setting) bool {
+	if !isRemoteSetting(key) {
+		return false
+	}
+	return slices.ContainsFunc(names, func(name string) bool {
+		return name != "." && len(values(after, "remote."+name+".url")) == 0
+	})
+}
+
+func isRemoteSetting(key string) bool {
+	key = strings.ToLower(key)
+	return key == "remote.pushdefault" || strings.HasPrefix(key, "branch.") && (strings.HasSuffix(key, ".remote") || strings.HasSuffix(key, ".pushremote"))
 }
 
 type setting struct{ key, value string }
@@ -122,7 +137,7 @@ func gitSettings(ctx context.Context, git string, content []byte) ([]setting, er
 // and so does each of its new values. Removing a setting a rule names is
 // safe too.
 func Safe(c Change, rules []profile.SafeChange) bool {
-	if c.Key == "" {
+	if c.Key == "" || c.namesNoRemote {
 		return false
 	}
 	return slices.ContainsFunc(rules, func(r profile.SafeChange) bool {
