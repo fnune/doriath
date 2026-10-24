@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/fnune/doriath/internal/cli"
+	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/session"
 )
 
 func cmdForward(args []string) error {
@@ -68,6 +71,31 @@ func cmdForward(args []string) error {
 		}
 		go relayInto(conn.(*net.TCPConn), nsenter, self, entry.PID, jailPort)
 	}
+}
+
+func requestForward(ctx context.Context, broker string, args []string, w io.Writer) error {
+	flags := flag.NewFlagSet("request forward", flag.ContinueOnError)
+	reason := flags.String("reason", "", "why the agent wants the port forwarded, shown to you")
+	operands, err := parseInterspersed(flags, args)
+	if err != nil {
+		return err
+	}
+	if len(operands) != 1 {
+		return errors.New("request forward: usage: doriath request forward PORT[:JAIL_PORT] [--reason TEXT]")
+	}
+	hostPort, jailPort, err := parseForward(operands[0])
+	if err != nil {
+		return fmt.Errorf("request forward: %w", err)
+	}
+	var res session.RequestResult
+	params := session.RequestForwardParams{HostPort: hostPort, JailPort: jailPort, Reason: *reason}
+	if err := control.Call(ctx, broker, session.MethodRequestPort, params, &res); err != nil {
+		return fmt.Errorf("request: %w", err)
+	}
+	if res.Pending != "" {
+		return fmt.Errorf("request: approval %s is pending. The user sees it on the approvals page. To wait for the answer, run: %s", res.Pending, cli.Code(cli.Line("request", "wait", res.Pending)))
+	}
+	return reportDecision(w, res.Decision, fmt.Sprintf("Port %d in the jail is forwarded to localhost:%d on the user's machine.", jailPort, hostPort))
 }
 
 func relayInto(conn *net.TCPConn, nsenter, self string, pid, port int) {

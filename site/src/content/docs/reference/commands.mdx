@@ -31,7 +31,7 @@ Runs a command as a new process in a running jail. Without a command, it starts 
 doriath forward [--session ID] PORT[:JAIL_PORT]
 ```
 
-Makes a port of the jail reachable on the loopback address of the host.
+Makes a port of the jail reachable on the loopback address of the host, until you stop the command. The agent asks for the same forward with [`doriath request forward`](#doriath-request-forward).
 
 ### `doriath status`
 
@@ -213,7 +213,15 @@ doriath refuses the request when the profile hides a path with content in that r
 doriath request open URL [--reason TEXT]
 ```
 
-Asks to open a link in your browser, as [links](/reference/configuration/#links) describes. In the jail, `xdg-open` and `$BROWSER` run this command.
+Asks to open a link in your browser, as [links](/reference/configuration/#links) describes. In the jail, `xdg-open` and `$BROWSER` run this command. For a link to `localhost`, doriath first asks you to forward its port, as `doriath request forward` does.
+
+### `doriath request forward`
+
+```txt frame="none"
+doriath request forward PORT[:JAIL_PORT] [--reason TEXT]
+```
+
+Asks you to connect a port on the loopback address of your machine to a port in the jail, until the session ends. Without `JAIL_PORT`, the two ports are the same. The agent uses it to show you a server that it runs, such as a preview of a site. See [ports](/guides/approvals/#ports).
 
 ### `doriath request host`
 

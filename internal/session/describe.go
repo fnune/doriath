@@ -46,6 +46,9 @@ func (st Status) Describe() string {
 		}
 		fmt.Fprintf(&b, "Local ports: %s\n", strings.Join(ports, ", "))
 	}
+	for _, f := range st.Forwards {
+		fmt.Fprintf(&b, "Port %d in the jail is forwarded to localhost:%d on the user's machine.\n", f.Jail, f.Host)
+	}
 	if st.Signing {
 		b.WriteString("Commits are signed by an agent key through SSH_AUTH_SOCK. It signs git commits only.\n")
 	}
@@ -76,6 +79,8 @@ func (st Status) Describe() string {
 		"Otherwise run `doriath request write PATH --reason TEXT`, for the narrowest file or directory that covers all your changes. A request asks the user on the approvals page, waits, and lasts until the session ends. " +
 		"To read a folder that this jail does not show, run `doriath request read PATH --reason TEXT`. " +
 		"To open a link in the user's browser, run `doriath request open URL --reason TEXT`. xdg-open and $BROWSER do the same, so sign-in flows that open a browser work. " +
+		"To show the user a server that runs here, such as a preview, bind it to 127.0.0.1 and run `doriath request open http://localhost:PORT/ --reason TEXT`: it asks the user to forward PORT to their machine, then opens the link. " +
+		"To forward a port without a link, run `doriath request forward PORT[:JAIL_PORT] --reason TEXT`. A forward lasts until the session ends. " +
 		"When a secret is unavailable, doriath shows the user a card on the approvals page. Wait for it with the command in the error. Do not ask the user to run commands on their machine. " +
 		"Each `doriath request edit` asks the user again, so use it only where `doriath request write` refuses, such as .git/config when git or jj cannot write it: write the whole new content to a file and run `doriath request edit PATH --reason TEXT < FILE`, then run the git or jj command again. git here records a branch's upstream itself, and asks the user before `git remote add`. " +
 		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +

@@ -46,7 +46,7 @@ A request waits for your answer in these cases:
 
 - An `[[http]]` rule holds it, for example for a merge, a release or a push.
 - The profile does not name the host.
-- The agent runs `doriath request write` for a path.
+- The agent asks with `doriath request`, for example to write a path or to forward a port.
 - An agent with an [adapter](/agents/#adapters), such as Claude Code, shows a permission prompt.
 
 doriath holds the request while you decide, so an allow lets the first try through. No allow lasts longer than the session. Answers come only from your desktop, your terminal or the approvals page, which the jail cannot reach. See [answering requests](/guides/approvals/).

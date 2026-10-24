@@ -891,6 +891,62 @@ echo done
 	}
 }
 
+func TestALinkToAServerInTheJailForwardsItsPortOnceAllowed(t *testing.T) {
+	e := newEnv(t)
+	release := filepath.Join(e.work, "release")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
+	served := make(chan string, 1)
+	e.open = func(link string) error {
+		go func() {
+			defer func() { _ = os.WriteFile(release, nil, 0o600) }()
+			for range 100 {
+				resp, err := http.Get(link)
+				if err == nil {
+					data, _ := io.ReadAll(resp.Body)
+					_ = resp.Body.Close()
+					served <- string(data)
+					return
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			served <- ""
+		}()
+		return nil
+	}
+	code, out := e.run(e.profile(""), fmt.Sprintf(`
+G=/run/doriath-bin/doriath
+echo "from inside the jail" > served
+python3 -m http.server --bind 127.0.0.1 %[1]d >/dev/null 2>&1 &
+sleep 0.5
+$G request open http://localhost:%[1]d/served --reason "preview the docs" || echo "FAIL request open"
+$G request forward %[1]d || echo "FAIL the allowed forward asked again"
+$G status | grep -q "Port %[1]d in the jail is forwarded" || echo "FAIL status does not list the forward"
+while [ ! -e "$PWD/release" ]; do sleep 0.05; done
+echo done
+`, port), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		if req := e.decideNext(allow); req.Kind != approval.KindForward || req.Note != "preview the docs" {
+			t.Errorf("forward request: %+v", req)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if body := <-served; !strings.Contains(body, "from inside the jail") {
+		t.Fatalf("the forwarded link served %q", body)
+	}
+	if l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port)); err != nil {
+		t.Errorf("the forward outlived the session: %v", err)
+	} else {
+		_ = l.Close()
+	}
+}
+
 func TestAnOptionalSecretThatCannotBeReadLeavesTheSessionRunning(t *testing.T) {
 	e := newEnv(t)
 	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}

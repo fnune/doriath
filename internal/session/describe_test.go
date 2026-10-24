@@ -16,11 +16,12 @@ func TestDescribeStatus(t *testing.T) {
 			Host: "api.github.com", Credential: true, Default: "approve",
 			Rules: []StatusRule{{Method: "GET", Path: "/**", Action: "allow"}, {Method: "POST", Path: "/graphql", Action: "allow", Summary: "queries"}, {Method: "POST", Path: "/**/git-receive-pack", Action: "allow", Refs: []string{"refs/heads/agent/**"}}},
 		}},
-		Ports:   []int{3000, 5432},
-		Signing: true,
-		Podman:  true,
-		Pending: 2,
-		Denied:  []Denial{{Target: "pypi.org", Reason: "host not in the profile", Count: 3}},
+		Ports:    []int{3000, 5432},
+		Forwards: []StatusForward{{Host: 8080, Jail: 4321}},
+		Signing:  true,
+		Podman:   true,
+		Pending:  2,
+		Denied:   []Denial{{Target: "pypi.org", Reason: "host not in the profile", Count: 3}},
 	}).Describe()
 	for _, want := range []string{
 		"This session runs in doriath profile \"kitchen\" (session s1).\n",
@@ -29,6 +30,7 @@ func TestDescribeStatus(t *testing.T) {
 		"Reachable hosts (HTTPS through the proxy):\n  - proxy.golang.org\n",
 		"Host api.github.com (default approve, with a credential the proxy adds):\n  - GET /**: allow\n  - POST /graphql: allow (queries)\n  - POST /**/git-receive-pack refs refs/heads/agent/**: allow\n",
 		"Local ports: 3000, 5432\n",
+		"Port 4321 in the jail is forwarded to localhost:8080 on the user's machine.\n",
 		"Commits are signed by an agent key",
 		"Containers: podman",
 		"Requests waiting for the user: 2\n",
@@ -37,6 +39,8 @@ func TestDescribeStatus(t *testing.T) {
 		"`doriath request host HOST --reason TEXT`",
 		"`doriath request read PATH --reason TEXT`",
 		"`doriath request open URL --reason TEXT`",
+		"`doriath request open http://localhost:PORT/ --reason TEXT`",
+		"`doriath request forward PORT[:JAIL_PORT] --reason TEXT`",
 		"Do not ask the user to run commands on their machine.",
 	} {
 		if !strings.Contains(got, want) {
@@ -44,7 +48,7 @@ func TestDescribeStatus(t *testing.T) {
 		}
 	}
 	bare := Status{Session: "s1", Profile: "k"}.Describe()
-	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting", "no other network access"} {
+	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting", "is forwarded", "no other network access"} {
 		if strings.Contains(bare, absent) {
 			t.Errorf("an empty status mentions %q:\n%s", absent, bare)
 		}

@@ -38,6 +38,9 @@ const (
 	// KindOpen asks to open a link in your browser. An allow once opens this
 	// link, and an allow for the session opens every link to its host.
 	KindOpen Kind = "open"
+	// KindForward asks to forward a port of your machine into the jail. An
+	// allow lasts for the session: the port stays open until it ends.
+	KindForward Kind = "forward"
 )
 
 type Answer string
@@ -54,11 +57,11 @@ type Button struct {
 }
 
 // Buttons are the answers that a request of the kind offers, each with its
-// label. A host, a write or a read stays reachable once allowed, so those
-// offer no allow once. A secret card offers to try the source again.
+// label. A host, a write, a read or a forward stays reachable once allowed,
+// so those offer no allow once. A secret card offers to try the source again.
 func (k Kind) Buttons() []Button {
 	switch k {
-	case KindHost, KindPath, KindRead:
+	case KindHost, KindPath, KindRead, KindForward:
 		return []Button{{AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
 	case KindSecret:
 		return []Button{{AnswerOnce, "Try again"}, {AnswerDeny, "Dismiss"}}

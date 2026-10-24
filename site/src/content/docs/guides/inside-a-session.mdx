@@ -3,7 +3,7 @@ title: Looking inside a session
 description: Run commands in a jail, reach its ports, and read what it did.
 ---
 
-The agent can start a server in the jail, for example a development server on port 3000. Only programs in the jail can connect to it. To use it from the host, run `doriath exec` or `doriath forward` in another terminal.
+The agent can start a server in the jail, for example a development server on port 3000. Only programs in the jail can connect to it. To use it from the host, run `doriath exec` or `doriath forward` in another terminal. The agent can also ask you to forward the port.
 
 If more than one session runs, add `--session ID` to these commands. `doriath status` lists the sessions and their IDs.
 
@@ -23,6 +23,10 @@ doriath forward 3000
 ```
 
 This connects port 3000 on the host to port 3000 in the jail. All local users of the machine can connect to this port.
+
+The agent asks for the same forward with `doriath request forward 3000`. When it opens a link such as `http://localhost:3000/`, doriath asks you to forward port 3000, and then opens the link. These forwards last until the session ends. See [ports](/guides/approvals/#ports).
+
+doriath connects to `127.0.0.1` in the jail, so the server must listen on that address. A server that listens only on `::1` does not get the connection.
 
 To debug a browser in the jail, start it with `--remote-debugging-port=9222`. Then forward port 9222 and open `chrome://inspect` on the host.
 

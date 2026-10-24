@@ -31,6 +31,7 @@ const (
 	MethodRequestModule = "module.request"
 	MethodRequestHost   = "host.request"
 	MethodRequestOpen   = "link.open"
+	MethodRequestPort   = "port.forward"
 	MethodWait          = "approval.wait"
 )
 
@@ -155,6 +156,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.requestOpen(p.URL, p.Reason)
 		},
+		MethodRequestPort: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestForwardParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestForward(p.HostPort, p.JailPort, p.Reason)
+		},
 		MethodRequestHost: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestHostParams](raw)
 			if err != nil {
@@ -271,18 +279,19 @@ type Status struct {
 	Profile string `json:"profile"`
 	// Modules are the modules that the agent can ask to use in another
 	// repository.
-	Modules     []string     `json:"modules,omitempty"`
-	Writable    []string     `json:"writable"`
-	ReadOnly    []string     `json:"read_only"`
-	Hosts       []string     `json:"hosts"`
-	Intercepted []StatusHost `json:"intercepted"`
-	Ports       []int        `json:"ports"`
-	Signing     bool         `json:"signing"`
-	Podman      bool         `json:"podman"`
-	Pending     int          `json:"pending"`
-	Denied      []Denial     `json:"denied"`
-	Secrets     []string     `json:"secrets,omitempty"`
-	Unavailable []Missing    `json:"unavailable,omitempty"`
+	Modules     []string        `json:"modules,omitempty"`
+	Writable    []string        `json:"writable"`
+	ReadOnly    []string        `json:"read_only"`
+	Hosts       []string        `json:"hosts"`
+	Intercepted []StatusHost    `json:"intercepted"`
+	Ports       []int           `json:"ports"`
+	Forwards    []StatusForward `json:"forwards,omitempty"`
+	Signing     bool            `json:"signing"`
+	Podman      bool            `json:"podman"`
+	Pending     int             `json:"pending"`
+	Denied      []Denial        `json:"denied"`
+	Secrets     []string        `json:"secrets,omitempty"`
+	Unavailable []Missing       `json:"unavailable,omitempty"`
 }
 
 // Missing is a secret that doriath could not read, and what fails without
@@ -291,6 +300,12 @@ type Missing struct {
 	Secret string   `json:"secret"`
 	Error  string   `json:"error"`
 	Users  []string `json:"users"`
+}
+
+// StatusForward is a port of your machine that reaches a port in the jail.
+type StatusForward struct {
+	Host int `json:"host"`
+	Jail int `json:"jail"`
 }
 
 type StatusHost struct {
@@ -311,13 +326,14 @@ type StatusRule struct {
 func (s *Session) status() Status {
 	p := s.req.Profile
 	st := Status{
-		Session: s.id,
-		Profile: p.Name,
-		Ports:   append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
-		Signing: p.SigningKey != "",
-		Podman:  p.Podman,
-		Pending: len(s.manager.Pending()),
-		Denied:  s.egress.Denials(),
+		Session:  s.id,
+		Profile:  p.Name,
+		Ports:    append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
+		Forwards: s.lastingForwards(),
+		Signing:  p.SigningKey != "",
+		Podman:   p.Podman,
+		Pending:  len(s.manager.Pending()),
+		Denied:   s.egress.Denials(),
 	}
 	if s.unresolved != nil {
 		st.Modules = s.unresolved.RepositoryModules()

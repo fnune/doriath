@@ -3,14 +3,10 @@ package session
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
-	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -42,10 +38,13 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 	} else {
 		rule = profile.OpenRule{Action: profile.ActionApprove}
 	}
-	switch rule.Action {
-	case profile.ActionDeny:
+	if rule.Action == profile.ActionDeny {
 		return RequestResult{}, fmt.Errorf("%s: the profile refuses to open links to %s", raw, host)
-	case profile.ActionAllow:
+	}
+	if port := loopbackPort(u); port != 0 && !s.forwarding(port, port) {
+		return s.requestOpenForwarded(u, port, reason)
+	}
+	if rule.Action == profile.ActionAllow {
 		return RequestResult{Decision: approval.Decision{Verdict: approval.VerdictAllow}}, s.openLink(u, rule.ForwardRedirect)
 	}
 	req := approval.Request{
@@ -59,6 +58,28 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 		Scope:   scope,
 	}
 	return s.holdAndGrant(req, func() error { return s.openLink(u, true) })
+}
+
+// requestOpenForwarded asks once for both the link and the forward of its
+// port: a link to a server in the jail opens nothing on your machine
+// without it.
+func (s *Session) requestOpenForwarded(u *url.URL, port int, reason string) (RequestResult, error) {
+	req := approval.Request{
+		Session: s.id,
+		Profile: s.req.Profile.Name,
+		Kind:    approval.KindForward,
+		Summary: fmt.Sprintf("Forward port %d into the jail and open the link?", port),
+		Details: "The agent asks to open this link to a server in the jail:\n\n" + u.String() + "\n\n" + forwardDetails(port, port),
+		Note:    reason,
+		URL:     u.String(),
+		Scope:   forwardScope(port, port),
+	}
+	return s.holdAndGrant(req, func() error {
+		if err := s.forwardPort(port, port, 0); err != nil {
+			return err
+		}
+		return s.openLink(u, false)
+	})
 }
 
 func checkLink(raw string) (*url.URL, error) {
@@ -95,9 +116,7 @@ func loopbackRedirect(u *url.URL) int {
 	if err != nil || redirect.Scheme != "http" {
 		return 0
 	}
-	switch redirect.Hostname() {
-	case "localhost", "127.0.0.1", "::1":
-	default:
+	if !isLoopback(redirect.Hostname()) {
 		return 0
 	}
 	port, err := strconv.Atoi(redirect.Port())
@@ -107,9 +126,36 @@ func loopbackRedirect(u *url.URL) int {
 	return port
 }
 
+// loopbackPort is the port of a link to this machine, which from the jail
+// means a server in the jail.
+func loopbackPort(u *url.URL) int {
+	if !isLoopback(u.Hostname()) {
+		return 0
+	}
+	if u.Port() == "" {
+		if u.Scheme == "https" {
+			return 443
+		}
+		return 80
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil || port < 1 || port > 65535 {
+		return 0
+	}
+	return port
+}
+
+func isLoopback(host string) bool {
+	switch strings.ToLower(host) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
+}
+
 func (s *Session) openLink(u *url.URL, forward bool) error {
 	if port := loopbackRedirect(u); forward && port != 0 {
-		if err := s.forwardForSignIn(port); err != nil {
+		if err := s.forwardPort(port, port, signInDuration); err != nil {
 			s.log.Write("sign-in-forward-error", map[string]any{"port": port, "error": err.Error()})
 		}
 	}
@@ -121,55 +167,4 @@ func (s *Session) openLink(u *url.URL, forward bool) error {
 	}
 	s.log.Write("link-opened", map[string]string{"url": u.String()})
 	return nil
-}
-
-func (s *Session) forwardForSignIn(port int) error {
-	reaper := int(s.peers.init.Load())
-	if reaper == 0 || s.deps.Nsenter == "" {
-		return errors.New("the jail is not running, or nsenter is missing")
-	}
-	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	if err != nil {
-		return err
-	}
-	var once sync.Once
-	stop := func() { once.Do(func() { _ = ln.Close() }) }
-	time.AfterFunc(signInDuration, stop)
-	s.mu.Lock()
-	s.signIns = append(s.signIns, stop)
-	s.mu.Unlock()
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			go s.relayInto(conn.(*net.TCPConn), reaper, port)
-		}
-	}()
-	return nil
-}
-
-func (s *Session) stopSignIns() {
-	s.mu.Lock()
-	stops := s.signIns
-	s.signIns = nil
-	s.mu.Unlock()
-	for _, stop := range stops {
-		stop()
-	}
-}
-
-func (s *Session) relayInto(conn *net.TCPConn, reaper, port int) {
-	defer func() { _ = conn.Close() }()
-	f, err := conn.File()
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	cmd := exec.Command(s.deps.Nsenter, "--target", strconv.Itoa(reaper), "--user", "--net", "--preserve-credentials", "--",
-		s.deps.Exe, "__relay", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = f, f, os.Stderr
-	cmd.Env = []string{}
-	_ = cmd.Run()
 }

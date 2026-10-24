@@ -128,7 +128,13 @@ The agent gets the id of the card in its error, and waits for it with `doriath r
 
 ## Links
 
-When the agent opens a link that no rule allows, the page asks you: "Open a link to HOST in your browser?". It shows the whole link, and a warning when the link carries a long query, because your browser sends all of it to the site. Allow once opens this link. Allow for the session opens each later link that meets the same `[[open]]` rule, such as each link to `/settings/**` on the forge. For a link that no rule names, it opens each link to that host. A sign-in that redirects back to a port in the jail gets that port forwarded, as [links](/reference/configuration/#links) describes.
+When the agent opens a link that no rule allows, the page asks you: "Open a link to HOST in your browser?". It shows the whole link, and a warning when the link carries a long query, because your browser sends all of it to the site. Allow once opens this link. Allow for the session opens each later link that meets the same `[[open]]` rule, such as each link to `/settings/**` on the forge. For a link that no rule names, it opens each link to that host. A sign-in that redirects back to a port in the jail gets that port forwarded, as [links](/reference/configuration/#links) describes. A link to `localhost` goes to a server in the jail, so doriath asks you to [forward its port](#ports) first.
+
+## Ports
+
+When the agent runs `doriath request forward PORT`, the page asks you: "Forward port PORT on your machine into the jail?". A link to `localhost` asks for its port in the same way, and doriath opens the link after you allow it.
+
+An allow makes doriath listen on the loopback address of your machine, and connect each connection to the port in the jail. Each program and each local user of your machine can then connect to the port. The forward lasts until the session ends. `doriath status` in the jail lists the forwards.
 
 ## Clipboard images
 

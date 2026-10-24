@@ -545,6 +545,8 @@ The agent opens a link in your browser with `xdg-open`, `$BROWSER` or [`doriath 
 - `approve`, the default for a link that no rule names, asks you first. The request shows the whole link, because your browser sends all of it to the site, where you are signed in.
 - `deny` refuses the link.
 
+A link to `localhost`, `127.0.0.1` or `::1` goes to a server in the jail. Before doriath opens it, doriath asks you to forward the port of the link until the session ends. It asks also when a rule allows the link, and a `deny` rule still refuses it. See [ports](/guides/approvals/#ports).
+
 A sign-in in the jail often opens a link whose `redirect_uri` sends your browser back to a port on `localhost`, where the tool waits. Your browser runs on your machine, so doriath forwards that port into the jail for five minutes. It does this for a link that you allow, and for a rule with `forward_redirect = true`. The agent modules allow their own sign-in pages this way, so `/login` in Claude Code works without a question. The forge modules allow links to their sites, where the agent can already send data through the API of the forge. Sign-in, account, settings and app pages of a forge ask you first, because one click there can authorize an app, install an app or make a token. A rule matches the path that your browser sends, so `/x/../settings` meets the rules for `/settings`.
 
 ## MCP servers

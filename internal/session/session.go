@@ -184,7 +184,7 @@ type Session struct {
 	mu               sync.Mutex
 	listings         *listingCache
 	dismissedSecrets map[string]bool
-	signIns          []func()
+	hostForwards     map[int]*hostForward
 	vcsEnv           map[string]string
 	// clipboardEnv points clipboard tools at the jail's Wayland display.
 	clipboardEnv map[string]string
@@ -281,7 +281,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
 	s.links = newLinkKeeper(s.linkRestored)
-	s.closers = append(s.closers, s.links.Close, s.stopSignIns)
+	s.closers = append(s.closers, s.links.Close, s.stopForwards)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})

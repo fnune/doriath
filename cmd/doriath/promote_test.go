@@ -165,6 +165,24 @@ func TestRequestHostSendsTheHostAndReason(t *testing.T) {
 	}
 }
 
+func TestRequestForwardSendsBothPortsAndReason(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
+	out, err := request(t, "forward", "8080:4321", "--reason", "preview the docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.forwards) != 1 || b.forwards[0] != (session.RequestForwardParams{HostPort: 8080, JailPort: 4321, Reason: "preview the docs"}) {
+		t.Errorf("forwards = %+v", b.forwards)
+	}
+	if !strings.Contains(out, "Port 4321 in the jail is forwarded to localhost:8080") {
+		t.Errorf("out = %q", out)
+	}
+	if _, err := request(t, "forward", "99999"); err == nil {
+		t.Error("an out of range port was sent")
+	}
+}
+
 func TestTheXDGOpenFrontAsksQuietlyAndRefusesWithoutASession(t *testing.T) {
 	b := startBroker(t)
 	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
