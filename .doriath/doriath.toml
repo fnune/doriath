@@ -1,0 +1,8 @@
+description = "doriath itself"
+modules = ["vcs-readwrite", "docs", "go", "node", "nix", "podman"]
+
+[hardening]
+namespaces = true
+
+[podman]
+images = ["docker.io/floci/floci:*"]
