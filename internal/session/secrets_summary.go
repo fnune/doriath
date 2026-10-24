@@ -7,6 +7,22 @@ import (
 	"unicode/utf8"
 )
 
+// Summary is the session in one line, for a status line or a bar. The
+// secrets take at most secretsWidth characters.
+func (st Status) Summary(secretsWidth int) string {
+	parts := []string{"doriath " + st.Profile, "session " + st.Session, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
+	if st.Pending > 0 {
+		parts = append(parts, fmt.Sprintf("%d waiting for you", st.Pending))
+	}
+	if n := len(st.Denied); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d blocked", n))
+	}
+	if secrets := st.SecretsSummary(secretsWidth); secrets != "" {
+		parts = append(parts, secrets)
+	}
+	return strings.Join(parts, " · ")
+}
+
 // SecretsSummary names the session's secrets in at most width characters.
 // It names each secret when they fit, then only the missing ones, then
 // only counts. A width of 0 or less takes the shortest form.

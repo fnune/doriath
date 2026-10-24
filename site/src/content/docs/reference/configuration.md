@@ -545,8 +545,14 @@ host_wait = "2m"
 # While a session runs in a terminal, show "doriath · PROFILE" as the
 # window title, so that tabs and panes tell sessions apart. The title
 # before the session comes back when it ends.
+#
+# bar shows the session on the last row of your terminal, below the agent,
+# with the profile, the session name, the hosts and the requests that wait
+# for you. The agent gets one row less. With bar = false, doriath does not
+# stand between the agent and your terminal: the agent gets it as it is.
 [terminal]
 title = true
+bar = true
 ```
 
 ## Files doriath writes

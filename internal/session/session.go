@@ -44,6 +44,7 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/sshagent"
 	"github.com/fnune/doriath/internal/term"
+	"github.com/fnune/doriath/internal/termbar"
 	"github.com/fnune/doriath/internal/vcs"
 	"github.com/fnune/doriath/internal/vcstools"
 )
@@ -204,7 +205,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
-	id, err := newID()
+	id, err := newID(deps.Paths)
 	if err != nil {
 		return nil, err
 	}
@@ -721,6 +722,35 @@ func (s *Session) plan() (jail.Spec, error) {
 
 const agentArgsFD = 5
 
+const barSecretsWidth = 48
+
+func (s *Session) openBar() (*termbar.Bar, error) {
+	in, inOK := s.deps.Stdin.(*os.File)
+	out, outOK := s.deps.Stdout.(*os.File)
+	if !s.deps.User.Terminal.Bar || !inOK || !outOK || !term.IsTerminal(out) {
+		return nil, nil
+	}
+	bar, err := termbar.Open(in, out)
+	if err != nil || bar == nil {
+		return nil, err
+	}
+	bar.Set(s.status().Summary(barSecretsWidth))
+	return bar, nil
+}
+
+func (s *Session) updateBar(bar *termbar.Bar, done <-chan struct{}) {
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tick.C:
+			bar.Set(s.status().Summary(barSecretsWidth))
+		case <-done:
+			return
+		}
+	}
+}
+
 func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	args, err := spec.ArgsFile()
 	if err != nil {
@@ -755,7 +785,19 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sigs)
-	if err := cmd.Start(); err != nil {
+	bar, err := s.openBar()
+	if err != nil {
+		_ = infoW.Close()
+		_ = infoR.Close()
+		return 1, err
+	}
+	if bar != nil {
+		defer func() { _ = bar.Close() }()
+		err = bar.Start(cmd)
+	} else {
+		err = cmd.Start()
+	}
+	if err != nil {
 		_ = infoW.Close()
 		_ = infoR.Close()
 		return 1, fmt.Errorf("start bubblewrap: %w", err)
@@ -778,8 +820,14 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		case <-done:
 		}
 	}()
+	if bar != nil {
+		go s.updateBar(bar, done)
+	}
 	err = cmd.Wait()
 	close(done)
+	if bar != nil {
+		_ = bar.Close()
+	}
 	code := 0
 	var exit *exec.ExitError
 	switch {
@@ -849,14 +897,6 @@ func envMap(environ []string) map[string]string {
 		}
 	}
 	return m
-}
-
-func newID() (string, error) {
-	b := make([]byte, 5)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("session id: %w", err)
-	}
-	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
 }
 
 type randomIDs struct{}

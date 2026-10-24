@@ -101,6 +101,9 @@ type Terminal struct {
 	// Title names the session's profile in the terminal's window title
 	// while a session runs.
 	Title bool
+	// Bar shows the session on the terminal's last row, below the agent.
+	// Without it, the agent gets your terminal as it is.
+	Bar bool
 }
 
 type Approvals struct {
@@ -129,12 +132,13 @@ type userFile struct {
 	} `toml:"approvals"`
 	Terminal struct {
 		Title *bool `toml:"title"`
+		Bar   *bool `toml:"bar"`
 	} `toml:"terminal"`
 }
 
 // LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
-	u := User{Approvals: Approvals{Desktop: true}, Terminal: Terminal{Title: true}}
+	u := User{Approvals: Approvals{Desktop: true}, Terminal: Terminal{Title: true, Bar: true}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return u, nil
@@ -159,6 +163,9 @@ func LoadUser(path string) (User, error) {
 	}
 	if f.Terminal.Title != nil {
 		u.Terminal.Title = *f.Terminal.Title
+	}
+	if f.Terminal.Bar != nil {
+		u.Terminal.Bar = *f.Terminal.Bar
 	}
 	if f.Approvals.HostWait != nil {
 		d, err := time.ParseDuration(*f.Approvals.HostWait)

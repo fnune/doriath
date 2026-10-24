@@ -18,17 +18,17 @@ func TestStatusline(t *testing.T) {
 	}
 
 	b := startBroker(t)
-	st := session.Status{Profile: "kitchen", Hosts: []string{"a.example", "b.example"}, Intercepted: []session.StatusHost{{Host: "github.com"}}}
+	st := session.Status{Session: "s1", Profile: "kitchen", Hosts: []string{"a.example", "b.example"}, Intercepted: []session.StatusHost{{Host: "github.com"}}}
 	b.setStatus(st)
 	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · 3 hosts\n" {
+	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · session s1 · 3 hosts\n" {
 		t.Errorf("quiet session = %q, %v", out.String(), err)
 	}
 	st.Pending = 1
 	st.Denied = []session.Denial{{Host: "x"}, {Host: "y"}}
 	b.setStatus(st)
 	out.Reset()
-	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · 3 hosts · 1 waiting for you · 2 blocked\n" {
+	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · session s1 · 3 hosts · 1 waiting for you · 2 blocked\n" {
 		t.Errorf("busy session = %q, %v", out.String(), err)
 	}
 	st.Secrets = []string{"github", "acme", "signing"}

@@ -618,7 +618,7 @@ curl -s https://example.org/ >/dev/null 2>&1
 	if code != 0 {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
-	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "doriath it · 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
+	for _, want := range []string{`profile "it"`, "example.com", "POST /repos/*/*/releases: approve", "example.org: host not in the profile (2 times)", "doriath it · session ", "· 2 hosts · 1 waiting for you · 1 blocked", `"hookEventName":"SessionStart"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

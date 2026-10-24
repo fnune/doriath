@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/fnune/doriath/internal/cli"
@@ -86,16 +85,6 @@ func cmdStatusline(w io.Writer) error {
 		fmt.Fprintln(w, term.Badge("doriath: no session"))
 		return nil
 	}
-	parts := []string{"doriath " + st.Profile, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
-	if st.Pending > 0 {
-		parts = append(parts, fmt.Sprintf("%d waiting for you", st.Pending))
-	}
-	if n := len(st.Denied); n > 0 {
-		parts = append(parts, fmt.Sprintf("%d blocked", n))
-	}
-	if secrets := st.SecretsSummary(statuslineSecretsWidth); secrets != "" {
-		parts = append(parts, secrets)
-	}
-	fmt.Fprintln(w, term.Badge(strings.Join(parts, " · ")))
+	fmt.Fprintln(w, term.Badge(st.Summary(statuslineSecretsWidth)))
 	return nil
 }

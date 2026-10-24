@@ -47,13 +47,18 @@ func TestLoadUser(t *testing.T) {
 	}
 
 	u, err := LoadUser(filepath.Join(dir, "missing.toml"))
-	if err != nil || !u.Approvals.Desktop || !u.Terminal.Title {
+	if err != nil || !u.Approvals.Desktop || !u.Terminal.Title || !u.Terminal.Bar {
 		t.Fatalf("missing file: %+v, %v", u, err)
 	}
 
 	write("[terminal]\ntitle = false\n")
 	if u, err = LoadUser(path); err != nil || u.Terminal.Title {
 		t.Fatalf("title should be false: %+v, %v", u, err)
+	}
+
+	write("[terminal]\nbar = false\n")
+	if u, err = LoadUser(path); err != nil || u.Terminal.Bar || !u.Terminal.Title {
+		t.Fatalf("bar should be false: %+v, %v", u, err)
 	}
 
 	write("[approvals]\ndesktop = false\n")
