@@ -28,11 +28,33 @@ let
   home = homeWith {
     enable = true;
     approvals.desktop = false;
+    approvals.host_wait = "30s";
+    approvals.tool_wait = "90s";
     approvals.web.enable = true;
+    terminal.title = false;
+    terminal.bar = false;
     direnv = true;
     skill.enable = true;
     modules.team = {
       egress.allow = [ "team.example" ];
+      uses_secrets = [ "api" ];
+      http = [
+        {
+          host = "api.team.example";
+          credential = {
+            secret = "api";
+            scheme = "bearer";
+          };
+          default = "deny";
+          rules = [
+            {
+              method = "GET";
+              path = "/items";
+              action = "allow";
+            }
+          ];
+        }
+      ];
     };
     profiles.work = {
       description = "Work on the app";
@@ -55,10 +77,31 @@ let
             "github"
           ];
           required = true;
+          refresh = "45m";
         };
         signing.file = "/run/secrets/signing";
+        api.oauth.mcp = "https://mcp.team.example/mcp";
+        issuer.oauth = {
+          issuer = "https://login.team.example";
+          client_id = "doriath";
+          scopes = [
+            "read"
+            "write"
+          ];
+        };
       };
       packages = [ pkgs.hello ];
+      env.path_prepend = [ "/opt/team/bin" ];
+      hardening.namespaces = false;
+      limits.tasks = 256;
+      mcp = [
+        {
+          name = "team";
+          url = "https://api.team.example/mcp";
+          secret = "api";
+          allow = [ "read_items" ];
+        }
+      ];
       egress = {
         allow = [ "api.github.com" ];
         programs = [
@@ -71,19 +114,71 @@ let
     };
   };
 
-  conflictingSecret = homeWith {
-    enable = true;
-    profiles.broken.secrets.both = {
-      file = "/run/secrets/both";
-      command = [ "true" ];
+  userConfigs = {
+    defaults = homeWith { enable = true; };
+    headless = homeWith {
+      enable = true;
+      approvals.desktop = false;
+    };
+    configured = home;
+    zero-wait = homeWith {
+      enable = true;
+      approvals.host_wait = "0s";
     };
   };
-  # home-manager throws on failed assertions instead of exposing them, so the
-  # valid home above is the control that the throw comes from the secret.
-  conflictingSecretFails = !(builtins.tryEval conflictingSecret.activationPackage.drvPath).success;
+
+  configCheck = doriath.overrideAttrs {
+    pname = "doriath-home-manager-config";
+    DORIATH_HOME_MANAGER_PROFILE = home.config.xdg.configFile."doriath/profiles/work.toml".source;
+    DORIATH_HOME_MANAGER_FIXTURES = pkgs.linkFarm "doriath-user-configs" (
+      lib.mapAttrsToList (name: home: {
+        name = "${name}.toml";
+        path = home.config.xdg.configFile."doriath/config.toml".source;
+      }) userConfigs
+    );
+    preBuild = "";
+    buildPhase = ''
+      runHook preBuild
+      go test ./internal/config ./internal/profile -run '^TestHomeManager(Config|Secrets)$' -count=1
+      runHook postBuild
+    '';
+    doCheck = false;
+    installPhase = "touch $out";
+  };
+
+  invalidSecrets = [
+    { }
+    {
+      file = "/run/secrets/both";
+      command = [ "true" ];
+    }
+    {
+      file = "/run/secrets/both";
+      oauth.mcp = "https://mcp.team.example/mcp";
+    }
+    {
+      command = [ "true" ];
+      oauth.mcp = "https://mcp.team.example/mcp";
+    }
+    {
+      file = "/run/secrets/all";
+      command = [ "true" ];
+      oauth.mcp = "https://mcp.team.example/mcp";
+    }
+  ];
+  invalidSecretsFail = builtins.all (
+    secret:
+    let
+      invalidHome = homeWith {
+        enable = true;
+        profiles.broken.secrets.invalid = secret;
+      };
+    in
+    !(builtins.tryEval invalidHome.activationPackage.drvPath).success
+  ) invalidSecrets;
 in
-assert lib.assertMsg conflictingSecretFails
-  "a secret with both file and command must fail the module's assertion";
+assert builtins.isString home.activationPackage.drvPath;
+assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of file, command or oauth";
 pkgs.runCommand "doriath-home-manager-module"
   {
     nativeBuildInputs = [
@@ -92,6 +187,7 @@ pkgs.runCommand "doriath-home-manager-module"
       pkgs.gnugrep
     ];
     homeFiles = home.config.home-files;
+    inherit configCheck;
     hello = "${lib.getBin pkgs.hello}/bin";
   }
   ''
@@ -103,15 +199,19 @@ pkgs.runCommand "doriath-home-manager-module"
     expect() {
       jq -e "$@" profile.json > /dev/null || { echo "profile work: expected $*"; cat profile.json; exit 1; }
     }
-    expect --arg hello "$hello" '.Env.PathPrepend | index($hello) != null'
+    expect --arg hello "$hello" '.Env.PathPrepend == [$hello, "/opt/team/bin"]'
     expect '[.Mounts[] | select(.Mode == "write")] | length == 1'
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
     expect '.Secrets.signing.File == "/run/secrets/signing"'
+    expect '.Secrets.github.Refresh == 2700000000000'
+    expect '.Secrets.api.OAuth.MCP == "https://mcp.team.example/mcp"'
+    expect '.Secrets.issuer.OAuth | .Issuer == "https://login.team.example" and .ClientID == "doriath" and .Scopes == ["read", "write"]'
+    expect '.HTTP[] | select(.Host == "api.team.example") | .Credential.Secret == "api" and .Rules[0].Path == "/items"'
+    expect '.MCP[0] | .Name == "team" and .Secret == "api"'
+    expect '[.HTTP[].Rules[] | select(.MCPTools == ["read_items"] and .Action == "allow")] | length == 1'
+    expect '.Hardening.Namespaces == false and .Limits.Tasks == 256'
     grep -qx 'required = true' $config/profiles/work.toml || { echo "secrets.github.required is not in the profile"; cat $config/profiles/work.toml; exit 1; }
 
-    tables=$(grep '^\[' $config/config.toml)
-    [ "$tables" = "[approvals]" ] || { echo "config.toml has more than [approvals]:"; cat $config/config.toml; exit 1; }
-    grep -qx 'desktop = false' $config/config.toml || { cat $config/config.toml; exit 1; }
     ! grep -q '^packages' $config/profiles/work.toml || { echo "packages is not a profile key"; exit 1; }
 
     ! grep -q '^match' $config/profiles/work.toml || { echo "match is not a profile key"; exit 1; }

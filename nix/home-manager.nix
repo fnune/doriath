@@ -35,6 +35,45 @@ let
         ];
         description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
       };
+      oauth = lib.mkOption {
+        type = lib.types.nullOr (
+          lib.types.submodule {
+            options = {
+              mcp = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "The HTTPS URL of an MCP server that supplies its OAuth login details.";
+              };
+              issuer = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "The HTTPS URL of the OAuth issuer, when mcp is not set.";
+              };
+              client_id = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "The client ID for an explicit issuer. An MCP server registers its own client.";
+              };
+              scopes = lib.mkOption {
+                type = lib.types.nullOr (lib.types.listOf lib.types.str);
+                default = null;
+                description = "The scopes to request during the OAuth login.";
+              };
+            };
+          }
+        );
+        default = null;
+        example = {
+          mcp = "https://mcp.example.com/mcp";
+        };
+        description = "An OAuth login. Set mcp, or set issuer and client_id. Complete the login with `doriath profiles login NAME`.";
+      };
+      refresh = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "45m";
+        description = "Read a file or command secret again after this duration, at least 1m. OAuth logins refresh automatically.";
+      };
       required = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
         default = null;
@@ -105,14 +144,22 @@ let
       "secrets"
     ]
     // withPath
-    // lib.optionalAttrs (profile.secrets != { }) { secrets = lib.mapAttrs (_: withoutNull) profile.secrets; };
+    // lib.optionalAttrs (profile.secrets != { }) {
+      secrets = lib.mapAttrs (
+        _: secret: lib.filterAttrsRecursive (_: value: value != null) secret
+      ) profile.secrets;
+    };
 
   withoutNull = lib.filterAttrs (_: v: v != null);
 
   configFile = toml.generate "doriath-config.toml" (
     lib.filterAttrs (_: v: v != { }) {
-      approvals = withoutNull { desktop = cfg.approvals.desktop; };
-      terminal = lib.optionalAttrs (!cfg.terminal.title) { title = false; };
+      approvals = withoutNull {
+        inherit (cfg.approvals) desktop host_wait tool_wait;
+      };
+      terminal =
+        lib.optionalAttrs (!cfg.terminal.title) { title = false; }
+        // lib.optionalAttrs (!cfg.terminal.bar) { bar = false; };
     }
   );
 
@@ -169,10 +216,30 @@ in
       description = "Show approval requests as desktop notifications with buttons.";
     };
 
+    approvals.host_wait = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "30s";
+      description = "How long a refused request waits for approval, from 0s to 1h. Null uses 2m with desktop notifications, otherwise 0s.";
+    };
+
+    approvals.tool_wait = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "90s";
+      description = "How long an agent permission prompt waits for approval. Use a positive duration up to 1h. Null uses 60s.";
+    };
+
     terminal.title = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Name the session's profile in the terminal's window title while a session runs.";
+    };
+
+    terminal.bar = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Show the session on the terminal's last row, below the agent.";
     };
 
     approvals.web = {
@@ -202,8 +269,13 @@ in
       lib.mapAttrsToList (
         profile: p:
         lib.mapAttrsToList (name: s: {
-          assertion = (s.file == null) != (s.command == null);
-          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file or command.";
+          assertion =
+            lib.count (source: source != null) [
+              s.file
+              s.command
+              s.oauth
+            ] == 1;
+          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file, command or oauth.";
         }) p.secrets
       ) cfg.profiles
     );
@@ -236,7 +308,9 @@ in
 
     xdg.configFile =
       lib.optionalAttrs cfg.direnv {
-        "direnv/lib/doriath.sh".source = pkgs.runCommand "doriath-direnv.sh" { } "${lib.getExe cfg.package} direnv > $out";
+        "direnv/lib/doriath.sh".source =
+          pkgs.runCommand "doriath-direnv.sh" { }
+            "${lib.getExe cfg.package} direnv > $out";
       }
       // {
         "doriath/config.toml".source = configFile;

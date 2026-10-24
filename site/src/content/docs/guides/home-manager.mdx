@@ -30,18 +30,34 @@ Add the flake as an input and import its module:
 }
 ```
 
-| Option                 | Default                            | What it does                                                                                |
-| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| `enable`               | `false`                            | Installs doriath and writes `~/.config/doriath/config.toml`.                                |
-| `direnv`               | `programs.direnv.enable`           | Installs the [direnv](/guides/direnv/) library, for `use doriath PROFILE`.                  |
-| `zsh.completion`       | `programs.zsh.enable`              | Loads the zsh completion.                                                                   |
-| `approvals.desktop`    | `true`                             | Shows requests as desktop notifications.                                                    |
-| `approvals.web.enable` | `false`                            | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service. |
-| `approvals.web.listen` | `"127.0.0.1:7341"`                 | The loopback address of the page.                                                           |
-| `skill.enable`         | `false`                            | Installs the skill for [profiles with an agent](/guides/profile-setup/).                    |
-| `skill.directories`    | `.claude/skills`, `.agents/skills` | The folders under the home directory where agents read skills.                              |
-| `profiles.<name>`      | `{ }`                              | Profiles, with the same keys as their TOML.                                                 |
-| `modules.<name>`       | `{ }`                              | Your own modules. A module with the name of a built-in module is an error.                  |
+| Option                 | Default                            | What it does                                                                                               |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `enable`               | `false`                            | Installs doriath and writes `~/.config/doriath/config.toml`.                                               |
+| `package`              | The flake's default package        | Selects the doriath package to install.                                                                    |
+| `direnv`               | `programs.direnv.enable`           | Installs the [direnv](/guides/direnv/) library, for `use doriath PROFILE`.                                 |
+| `zsh.completion`       | `programs.zsh.enable`              | Loads the zsh completion.                                                                                  |
+| `approvals.desktop`    | `true`                             | Shows requests as desktop notifications.                                                                   |
+| `approvals.host_wait`  | `null`                             | Uses Doriath's default: `2m` with desktop notifications, otherwise `0s`. Set a duration from `0s` to `1h`. |
+| `approvals.tool_wait`  | `null`                             | Uses Doriath's default of `60s`. Set a positive duration up to `1h`.                                       |
+| `approvals.web.enable` | `false`                            | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service.                |
+| `approvals.web.listen` | `"127.0.0.1:7341"`                 | The loopback address of the page.                                                                          |
+| `terminal.title`       | `true`                             | Names the session's profile in the terminal's window title.                                                |
+| `terminal.bar`         | `true`                             | Shows the session on the terminal's last row, below the agent.                                             |
+| `skill.enable`         | `false`                            | Installs the skill for [profiles with an agent](/guides/profile-setup/).                                   |
+| `skill.directories`    | `.claude/skills`, `.agents/skills` | The folders under the home directory where agents read skills.                                             |
+| `profiles.<name>`      | `{ }`                              | Profiles, with the same keys as their TOML.                                                                |
+| `modules.<name>`       | `{ }`                              | Your own modules. A module with the name of a built-in module is an error.                                 |
+
+The global options use the same names as the [config.toml keys](/reference/configuration/#configtoml-keys). For example, disable the terminal bar and allow 90 seconds for an agent permission prompt:
+
+```nix
+programs.doriath = {
+  terminal.bar = false;
+  approvals.tool_wait = "90s";
+};
+```
+
+On a headless host, set `approvals.desktop = false`. Set `approvals.host_wait` if requests must wait for an answer through the CLI or the [approvals page](/guides/approvals/#the-approvals-page).
 
 ## Profiles in Nix
 
@@ -63,6 +79,26 @@ programs.doriath.profiles.my-app = {
 ```
 
 home-manager writes each profile to `~/.config/doriath/profiles/<name>.toml` as a link into the Nix store. `doriath profiles edit` refuses these files and tells you to edit the Nix configuration.
+
+Profiles and modules accept the [profile keys](/reference/configuration/#profile-keys), including nested HTTP rules, MCP servers and resource limits. Modules declare `uses_secrets`; profiles supply the secret sources.
+
+Each [secret](/reference/configuration/#secrets) sets exactly one source: `file`, `command` or `oauth`. The module also accepts `required` and `refresh`. For example, configure a command that refreshes and both forms of [OAuth login](/reference/configuration/#oauth-logins):
+
+```nix
+programs.doriath.profiles.my-app.secrets = {
+  api = {
+    command = [ "team-token" ];
+    refresh = "45m";
+    required = true;
+  };
+  tools.oauth.mcp = "https://mcp.example.com/mcp";
+  account.oauth = {
+    issuer = "https://login.example.com";
+    client_id = "doriath";
+    scopes = [ "read" "write" ];
+  };
+};
+```
 
 ## Profiles kept elsewhere
 
