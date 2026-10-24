@@ -457,6 +457,7 @@ type Profile struct {
 	// clipboard never reaches the jail.
 	ClipboardImages bool
 	MCP             []MCPServer
+	Open            []OpenRule
 	Agent           Agent
 	Claude          Claude
 	// Secrets says where each secret this profile uses comes from. They live
@@ -794,6 +795,24 @@ func (p HostPattern) matchName(host string) bool {
 // PathPattern matches URL paths segment by segment. "*" matches one segment,
 // and "**" matches any number of segments, including none, so
 // "/**/git-receive-pack" matches a push to a repository at any depth.
+type OpenRule struct {
+	Host   HostPattern
+	Path   PathPattern
+	Action Action
+	// ForwardRedirect forwards the loopback port that the link's
+	// redirect_uri names into the jail, for a sign-in that ends there.
+	ForwardRedirect bool
+}
+
+func (p *Profile) OpenRule(host, path string) (OpenRule, bool) {
+	for _, r := range p.Open {
+		if r.Host.Match(host) && r.Path.Match(path) {
+			return r, true
+		}
+	}
+	return OpenRule{}, false
+}
+
 type PathPattern string
 
 func ParsePathPattern(s string) (PathPattern, error) {

@@ -79,12 +79,16 @@ Inside a jail:
   doriath request write PATH [--reason TEXT]
   doriath request read PATH [--reason TEXT]
   doriath request host HOST [--reason TEXT]
+  doriath request open URL [--reason TEXT]
   doriath request wait ID|HOST|PATH
 `
 
 func main() {
-	if name := filepath.Base(os.Args[0]); name == session.JJGit || name == "git" {
+	switch filepath.Base(os.Args[0]) {
+	case session.JJGit, "git":
 		os.Exit(cmdGitFront(os.Args[1:]))
+	case session.OpenFront:
+		os.Exit(cmdOpenFront(os.Args[1:]))
 	}
 	os.Exit(run(os.Args[1:]))
 }
@@ -319,6 +323,7 @@ func cmdRun(args []string) (int, error) {
 		SystemdRun:  lookPath("systemd-run"),
 		Promote:     promote.Writable,
 		Read:        promote.Readable,
+		Open:        openOnHost,
 		Clipboard:   hostClipboard(os.Getenv, lookPath("wl-paste")),
 	}
 	finishInterrupted(p, deps.Stderr)

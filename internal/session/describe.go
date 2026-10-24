@@ -69,6 +69,7 @@ func (st Status) Describe() string {
 		"To wait for the answer, run `doriath request wait HOST` in the background if you can, then try again. " +
 		"To write paths that are read-only here, or folders that this jail does not show, first plan every change you will make, then run `doriath request write PATH --reason TEXT` once, for the narrowest file or directory that covers them all. It asks the user on the approvals page, waits, and keeps PATH writable until the session ends. " +
 		"To read a folder that this jail does not show, run `doriath request read PATH --reason TEXT`. " +
+		"To open a link in the user's browser, run `doriath request open URL --reason TEXT`. xdg-open and $BROWSER do the same, so sign-in flows that open a browser work. " +
 		"When a secret is unavailable, doriath shows the user a card on the approvals page. Wait for it with the command in the error. Do not ask the user to run commands on their machine. " +
 		"Each `doriath request edit` asks the user again, so use it only where `doriath request write` refuses, such as .git/config when git or jj cannot write it: write the whole new content to a file and run `doriath request edit PATH --reason TEXT < FILE`, then run the git or jj command again. git here records a branch's upstream itself, and asks the user before `git remote add`. " +
 		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +

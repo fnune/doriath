@@ -374,6 +374,7 @@ type builder struct {
 	vcsStore    bool
 	clipboard   bool
 	mcp         []mcpLayer
+	open        []openLayer
 	harden      Hardening
 	limits      Limits
 	claude      claudeLayer
@@ -432,6 +433,7 @@ func (b *builder) apply(l layer) {
 		b.notes[h] = note
 	}
 	b.programs = append(b.programs, l.Egress.Programs...)
+	b.open = append(slices.Clone(l.Open), b.open...)
 	for _, p := range l.Egress.Ports {
 		if !slices.Contains(b.ports, p) {
 			b.ports = append(b.ports, p)
@@ -736,6 +738,14 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Env.PathPrepend = append(p.Env.PathPrepend, filepath.Clean(d))
+	}
+	for _, o := range b.open {
+		rule, err := buildOpen(o)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		p.Open = append(p.Open, rule)
 	}
 	for _, m := range b.mcp {
 		server, err := b.buildMCP(m)
@@ -1097,6 +1107,28 @@ func buildGraphQL(g graphQLLayer) (GraphQLRule, error) {
 	}
 	out.Fields = slices.Clone(*g.Fields)
 	return out, nil
+}
+
+func buildOpen(o openLayer) (OpenRule, error) {
+	host, err := ParseHostPattern(o.Host)
+	if err != nil {
+		return OpenRule{}, fmt.Errorf("open %s: %w", o.Host, err)
+	}
+	path := o.Path
+	if path == "" {
+		path = "/**"
+	}
+	pattern, err := ParsePathPattern(path)
+	if err != nil {
+		return OpenRule{}, fmt.Errorf("open %s: %w", o.Host, err)
+	}
+	action := ActionApprove
+	if o.Action != "" {
+		if action, err = parseAction(o.Action); err != nil {
+			return OpenRule{}, fmt.Errorf("open %s: %w", o.Host, err)
+		}
+	}
+	return OpenRule{Host: host, Path: pattern, Action: action, ForwardRedirect: o.ForwardRedirect}, nil
 }
 
 func parseAction(s string) (Action, error) {

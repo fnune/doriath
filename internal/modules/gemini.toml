@@ -30,3 +30,9 @@ instructions = ["~/.gemini/GEMINI.md"]
 
 [egress]
 allow = ["oauth2.googleapis.com", "www.googleapis.com", "cloudcode-pa.googleapis.com", "generativelanguage.googleapis.com"]
+
+[[open]]
+host = "accounts.google.com"
+path = "/o/oauth2/v2/auth"
+action = "allow"
+forward_redirect = true

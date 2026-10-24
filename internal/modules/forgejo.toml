@@ -245,3 +245,8 @@ method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
 summary = "Push to a Forgejo repository"
+
+[[open]]
+host = "codeberg.org"
+path = "/**"
+action = "allow"

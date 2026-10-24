@@ -126,6 +126,10 @@ When a secret is unavailable, such as an expired login, the page shows a card fo
 
 The agent gets the request's id in its error, and waits for the card with `doriath request wait ID`.
 
+## Links
+
+When the agent opens a link that no rule allows, the page asks you: "Open a link to HOST in your browser?". It shows the whole link, and a warning when the link carries a long query, because your browser sends all of it to the site. Allow once opens this link, and allow for the session opens each link to that host. A sign-in that redirects back to a port in the jail gets that port forwarded, as [links](/reference/configuration/#links) describes.
+
 ## Clipboard images
 
 With the [clipboard module](/reference/modules/#clipboard), pasting an image into the agent asks you first: "Let the agent read the image in your clipboard". Allow it once for each paste, or for the session. The agent can ask whenever it likes, not only when you paste, so an unexpected request means the agent wants your clipboard on its own. Text is never offered.

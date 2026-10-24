@@ -119,6 +119,7 @@ type Deps struct {
 	Promote func(context.Context, promote.Request) error
 	// Read shows a host directory read-only in the running jail.
 	Read func(context.Context, promote.Request) error
+	Open func(url string) error
 	// Clipboard is your clipboard, for profiles that let the agent ask for
 	// its images. Nil when doriath runs outside a desktop session.
 	Clipboard clipboard.Source
@@ -178,6 +179,7 @@ type Session struct {
 	mu               sync.Mutex
 	listings         *listingCache
 	dismissedSecrets map[string]bool
+	signIns          []func()
 	vcsEnv           map[string]string
 	// clipboardEnv points clipboard tools at the jail's Wayland display.
 	clipboardEnv map[string]string
@@ -273,7 +275,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
 	s.links = newLinkKeeper(s.linkRestored)
-	s.closers = append(s.closers, s.links.Close)
+	s.closers = append(s.closers, s.links.Close, s.stopSignIns)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})
@@ -580,6 +582,7 @@ func (s *Session) startSigning(context.Context) error {
 const (
 	JJGit     = "jj-git"
 	FrontsDir = "bin"
+	OpenFront = "xdg-open"
 )
 
 func (s *Session) writeVCSFiles() error {
@@ -587,7 +590,7 @@ func (s *Session) writeVCSFiles() error {
 	if err := os.MkdirAll(s.jailPath(FrontsDir), 0o755); err != nil {
 		return err
 	}
-	for _, link := range []string{JJGit, filepath.Join(FrontsDir, "git")} {
+	for _, link := range []string{JJGit, filepath.Join(FrontsDir, "git"), filepath.Join(FrontsDir, OpenFront)} {
 		if err := os.Symlink(jail.ExePath, s.jailPath(link)); err != nil && !errors.Is(err, fs.ErrExist) {
 			return err
 		}
@@ -662,6 +665,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		"no_proxy":            "localhost,127.0.0.1,::1",
 		"SSL_CERT_FILE":       jail.InJail("ca-bundle.pem"),
 		"NIX_SSL_CERT_FILE":   jail.InJail("ca-bundle.pem"),
+		"BROWSER":             jail.InJail(filepath.Join(FrontsDir, OpenFront)),
 		"CURL_CA_BUNDLE":      jail.InJail("ca-bundle.pem"),
 		"GIT_SSL_CAINFO":      jail.InJail("ca-bundle.pem"),
 		"REQUESTS_CA_BUNDLE":  jail.InJail("ca-bundle.pem"),

@@ -344,3 +344,8 @@ method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
 summary = "Push to a GitLab repository"
+
+[[open]]
+host = "gitlab.com"
+path = "/**"
+action = "allow"

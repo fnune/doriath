@@ -25,6 +25,7 @@ type layer struct {
 	VCS         *vcsLayer              `toml:"vcs"`
 	Clipboard   *clipboardLayer        `toml:"clipboard"`
 	MCP         []mcpLayer             `toml:"mcp"`
+	Open        []openLayer            `toml:"open"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Limits      *limitsLayer           `toml:"limits"`
 	Agent       *agentLayer            `toml:"agent"`
@@ -95,6 +96,13 @@ type egressLayer struct {
 type programsLayer struct {
 	Binaries []string `toml:"binaries"`
 	Allow    []string `toml:"allow"`
+}
+
+type openLayer struct {
+	Host            string `toml:"host"`
+	Path            string `toml:"path"`
+	Action          string `toml:"action"`
+	ForwardRedirect bool   `toml:"forward_redirect"`
 }
 
 type httpLayer struct {

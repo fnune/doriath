@@ -162,3 +162,8 @@ action = "allow"
 method = "POST"
 path = "/2.0/repositories/*/*/pullrequests/*/decline"
 action = "allow"
+
+[[open]]
+host = "bitbucket.org"
+path = "/**"
+action = "allow"

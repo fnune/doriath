@@ -217,3 +217,21 @@ func TestRequestHostSendsTheHostAndReason(t *testing.T) {
 		t.Errorf("out = %q", out)
 	}
 }
+
+func TestTheXDGOpenFrontAsksQuietlyAndRefusesWithoutASession(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
+	if code := cmdOpenFront([]string{"https://example.com/a"}); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if len(b.opens) != 1 || b.opens[0].URL != "https://example.com/a" {
+		t.Errorf("opens = %+v", b.opens)
+	}
+	if code := cmdOpenFront([]string{"a", "b"}); code == 0 {
+		t.Error("two links opened")
+	}
+	t.Setenv("DORIATH_BROKER", "")
+	if code := cmdOpenFront([]string{"https://example.com/a"}); code == 0 {
+		t.Error("the front opened a link outside a session")
+	}
+}

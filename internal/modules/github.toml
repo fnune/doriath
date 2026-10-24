@@ -252,3 +252,8 @@ host = "uploads.github.com"
 credential = { secret = "github", scheme = "bearer", binaries = ["gh"] }
 default = "approve"
 repositories = ["/repos/*/*", "/repositories/*"]
+
+[[open]]
+host = "github.com"
+path = "/**"
+action = "allow"

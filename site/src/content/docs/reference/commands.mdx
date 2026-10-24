@@ -201,6 +201,14 @@ doriath request write PATH [--reason TEXT]
 
 Asks you to make a path writable. The path can be a folder that the jail does not show yet, if it exists.
 
+### `doriath request open`
+
+```txt frame="none"
+doriath request open URL [--reason TEXT]
+```
+
+Asks to open a link in your browser, as [links](/reference/configuration/#links) describes. In the jail, `xdg-open` and `$BROWSER` run this command.
+
 ### `doriath request host`
 
 ```txt frame="none"

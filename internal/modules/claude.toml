@@ -83,3 +83,15 @@ ask = [
   "mcp__claude-in-chrome__javascript_tool",
   "mcp__claude-in-chrome__file_upload",
 ]
+
+[[open]]
+host = "claude.com"
+path = "/cai/oauth/authorize"
+action = "allow"
+forward_redirect = true
+
+[[open]]
+host = "platform.claude.com"
+path = "/oauth/authorize"
+action = "allow"
+forward_redirect = true

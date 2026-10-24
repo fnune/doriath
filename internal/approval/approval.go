@@ -35,6 +35,9 @@ const (
 	// KindClipboard asks to read the image in your clipboard. An allow once
 	// covers one paste.
 	KindClipboard Kind = "clipboard"
+	// KindOpen asks to open a link in your browser. An allow once opens this
+	// link, and an allow for the session opens every link to its host.
+	KindOpen Kind = "open"
 )
 
 // AllowsOnce says whether an allow can cover one request only. A host or a

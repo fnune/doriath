@@ -569,3 +569,25 @@ func TestAModuleNotesWhatAHostIsAndTheNoteGrantsNothing(t *testing.T) {
 		}
 	}
 }
+
+func TestAProfileOpenRuleComesBeforeItsModules(t *testing.T) {
+	modules := fstest.MapFS{"agent.toml": file("[[open]]\nhost = \"login.example\"\npath = \"/oauth/authorize\"\naction = \"allow\"\nforward_redirect = true\n")}
+	profiles := fstest.MapFS{"app.toml": file("modules = [\"agent\"]\n\n[[open]]\nhost = \"login.example\"\naction = \"deny\"\n")}
+	p, err := loader(profiles, modules).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := p.OpenRule("login.example", "/oauth/authorize"); !ok || r.Action != ActionDeny {
+		t.Errorf("rule = %+v, %v", r, ok)
+	}
+	modulesOnly, err := loader(fstest.MapFS{"app.toml": file(`modules = ["agent"]`)}, modules).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := modulesOnly.OpenRule("login.example", "/oauth/authorize"); !ok || r.Action != ActionAllow || !r.ForwardRedirect {
+		t.Errorf("module rule = %+v, %v", r, ok)
+	}
+	if _, ok := modulesOnly.OpenRule("login.example", "/elsewhere"); ok {
+		t.Error("a rule matched a path it does not name")
+	}
+}

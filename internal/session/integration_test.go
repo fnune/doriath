@@ -131,6 +131,7 @@ type env struct {
 	resolver session.Resolver
 	agent    string
 	modules  []string
+	open     func(string) error
 }
 
 func newEnv(t *testing.T) *env {
@@ -303,6 +304,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 		Resolver:      e.resolver,
 		Promote:       promote.Writable,
 		Read:          promote.Readable,
+		Open:          e.open,
 	}
 	cwd := e.work
 	if e.cwd != "" {
@@ -972,5 +974,54 @@ func TestTheJailCannotRepointAGuardedLinkInAWritableCheckout(t *testing.T) {
 				t.Errorf("after the session the link is %q, %v", got, err)
 			}
 		})
+	}
+}
+
+func TestASignInLinkOpensOnTheHostAndItsRedirectReachesTheJail(t *testing.T) {
+	e := newEnv(t)
+	const port = 18765
+	opened := make(chan string, 1)
+	e.open = func(link string) error {
+		opened <- link
+		go func() {
+			for range 50 {
+				resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/callback?code=from-the-browser", port))
+				if err == nil {
+					_ = resp.Body.Close()
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}()
+		return nil
+	}
+	got := filepath.Join(e.work, "callback")
+	rule := "\n[[open]]\nhost = \"login.example\"\npath = \"/oauth/authorize\"\naction = \"allow\"\nforward_redirect = true\n"
+	code, out := e.run(e.profile(rule), fmt.Sprintf(`
+/usr/bin/python3 -c '
+import http.server, sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        open(sys.argv[1], "w").write(self.path)
+        self.send_response(200); self.end_headers()
+    def log_message(self, *a): pass
+http.server.HTTPServer(("127.0.0.1", %[1]d), H).handle_request()
+' %[2]s &
+sleep 0.5
+xdg-open "https://login.example/oauth/authorize?client_id=x&redirect_uri=http://localhost:%[1]d/callback" || echo "FAIL xdg-open"
+"$BROWSER" "file:///etc/passwd" 2>/dev/null && echo "FAIL a file link opened"
+wait
+cat %[2]s
+`, port, got), nil)
+	if code != 0 || strings.Contains(out, "FAIL") || !strings.Contains(out, "/callback?code=from-the-browser") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	select {
+	case link := <-opened:
+		if !strings.HasPrefix(link, "https://login.example/oauth/authorize?") {
+			t.Errorf("opened %q", link)
+		}
+	default:
+		t.Error("the link never reached the host")
 	}
 }

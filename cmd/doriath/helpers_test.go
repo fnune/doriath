@@ -196,6 +196,7 @@ type fakeBroker struct {
 	writes   []session.RequestWriteParams
 	reads    []session.RequestReadParams
 	hosts    []session.RequestHostParams
+	opens    []session.RequestOpenParams
 	edits    []session.RequestEditParams
 	waits    []session.WaitParams
 	decision approval.Decision
@@ -258,6 +259,16 @@ func startBroker(t *testing.T) *fakeBroker {
 			if b.fail != nil {
 				return nil, b.fail
 			}
+			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+		},
+		session.MethodRequestOpen: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.RequestOpenParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.opens = append(b.opens, params)
 			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
 		},
 		session.MethodRequestHost: func(_ context.Context, raw json.RawMessage) (any, error) {

@@ -36,6 +36,7 @@ func TestDescribeStatus(t *testing.T) {
 		"Do not look for another way around a block.",
 		"`doriath request host HOST --reason TEXT`",
 		"`doriath request read PATH --reason TEXT`",
+		"`doriath request open URL --reason TEXT`",
 		"Do not ask the user to run commands on their machine.",
 	} {
 		if !strings.Contains(got, want) {

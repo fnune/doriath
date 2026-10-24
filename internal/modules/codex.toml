@@ -20,3 +20,14 @@ missing = "skip"
 
 [egress]
 allow = ["auth.openai.com", "chatgpt.com", "api.openai.com"]
+
+[[open]]
+host = "auth.openai.com"
+path = "/oauth/authorize"
+action = "allow"
+forward_redirect = true
+
+[[open]]
+host = "auth.openai.com"
+path = "/codex/device"
+action = "allow"

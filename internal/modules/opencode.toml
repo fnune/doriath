@@ -21,3 +21,26 @@ missing = "skip"
 
 [egress]
 allow = ["models.dev", "opencode.ai"]
+
+[[open]]
+host = "claude.ai"
+path = "/oauth/authorize"
+action = "allow"
+forward_redirect = true
+
+[[open]]
+host = "claude.com"
+path = "/cai/oauth/authorize"
+action = "allow"
+forward_redirect = true
+
+[[open]]
+host = "auth.openai.com"
+path = "/oauth/authorize"
+action = "allow"
+forward_redirect = true
+
+[[open]]
+host = "github.com"
+path = "/login/device"
+action = "allow"
