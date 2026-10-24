@@ -22,8 +22,10 @@ Create an SSH key for the profile, and add it to GitHub as a signing key. GitHub
 
 ## Requests
 
-- Go through: reads, pull requests, issues, comments and reruns of CI.
-- Wait for your answer: merges, releases, pushes, Git LFS uploads, and the API requests that the module does not name.
+- Go through: reads, pull requests, reviews that comment or request changes, issues, comments and reruns of CI.
+- Wait for your answer: reviews that approve a pull request, merges, releases, pushes, Git LFS uploads, and the API requests that the module does not name.
 - Refused: changes to webhooks, Actions, Dependabot and Codespaces secrets, collaborators and deploy keys. Changes to the webhooks and Actions secrets of organizations, and to the SSH, GPG and signing keys of the user, are refused too.
+
+doriath does not read the arguments of a GraphQL mutation. Thus a mutation or review with the text `APPROVE` anywhere in it waits for your answer too, also when it only comments.
 
 Branch rules, such as no force push to `main`, belong in the branch protection rules or rulesets of the repository.

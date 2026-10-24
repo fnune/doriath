@@ -3,6 +3,7 @@ package modules
 import (
 	"io/fs"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -133,7 +134,7 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 		{"gitlab.com", "PUT", "/api/v4/projects/42", "approve", "header", ""},
 		{"gitlab.com", "GET", "/api/v4/projects/42/repository/files/README.md", "allow", "header", ""},
 		{"gitlab.com", "PUT", "/api/v4/projects/42/repository/files/README.md", "approve", "header", ""},
-		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/approve", "allow", "header", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/approve", "approve", "header", ""},
 		{"gitlab.com", "POST", "/group/proj.git/info/lfs/objects/batch", "allow", "basic", ""},
 		{"gitlab.com", "PUT", "/group/proj.git/gitlab-lfs/objects/abc/12", "allow", "basic", ""},
 		{"codeberg.org", "GET", "/api/v1/repos/a/b/contents/README.md", "allow", "token", ""},
@@ -229,6 +230,61 @@ func TestForgeModulesRefuseChangesToSecretsAndKeysButLetThemBeListed(t *testing.
 		}
 		if r, _ := h.Decide(c.method, c.path, nil); string(r.Action) != c.want {
 			t.Errorf("%s %s%s: %s, want %s", c.method, c.host, c.path, r.Action, c.want)
+		}
+	}
+}
+
+func TestForgeModulesHoldAReviewThatApprovesAndLetOtherReviewsThrough(t *testing.T) {
+	body := "modules = [\"github\", \"gitlab\", \"forgejo\", \"bitbucket\"]\n"
+	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
+	}
+	l := &profile.Loader{Profiles: fstest.MapFS{"f.toml": {Data: []byte(body)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const approve = "Approve a pull request"
+	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	for _, c := range []struct {
+		host, method, path, query string
+		header                    http.Header
+		body, want, summary       string
+	}{
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews", "", nil, `{"event":"APPROVE"}`, "approve", approve},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews", "", nil, `{"body":"ok", "event" : "\u0041PPROVE"}`, "approve", approve},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews/9/events", "", nil, `{"event":"APPROVE"}`, "approve", approve},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews", "event=APPROVE", nil, `{}`, "approve", approve},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews", "", nil, `{"event":"COMMENT","body":"looks fine"}`, "allow", ""},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews", "", nil, `{"event":"REQUEST_CHANGES"}`, "allow", ""},
+		{"api.github.com", "POST", "/repos/a/b/pulls/1/reviews/9/events", "", nil, `{"event":"COMMENT"}`, "allow", ""},
+		{"api.github.com", "POST", "/graphql", "", nil, `{"query":"mutation { addPullRequestReview(input: {pullRequestId: \"P\", event: APPROVE}) { clientMutationId } }"}`, "approve", approve},
+		{"api.github.com", "POST", "/graphql", "", nil, `{"query":"mutation($e: PullRequestReviewEvent!) { addComment(input: {}) { clientMutationId } submitPullRequestReview(input: {event: $e}) { clientMutationId } }","variables":{"e":"APPROVE"}}`, "approve", approve},
+		{"api.github.com", "POST", "/graphql", "", nil, `{"query":"mutation { addPullRequestReview(input: {pullRequestId: \"P\", event: COMMENT, body: \"ok\"}) { clientMutationId } }"}`, "allow", ""},
+		{"api.github.com", "POST", "/graphql", "", nil, `{"query":"mutation { submitPullRequestReview(input: {event: REQUEST_CHANGES}) { clientMutationId } }"}`, "allow", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/approve", "", nil, "", "approve", "Approve a merge request"},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/unapprove", "", nil, "", "allow", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/notes", "", nil, `{"body":"ok"}`, "allow", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/reviews", "", nil, `{"event":"APPROVED"}`, "approve", approve},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/reviews", "", form, "event=%41PPROVED", "approve", approve},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/reviews/5", "", nil, `{"event":"APPROVED"}`, "approve", approve},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/reviews", "", nil, `{"event":"COMMENT","body":"ok"}`, "allow", ""},
+		{"codeberg.org", "POST", "/api/v1/repos/a/b/pulls/3/reviews", "", nil, `{"event":"REQUEST_CHANGES"}`, "allow", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/approve", "", nil, "", "approve", approve},
+		{"api.bitbucket.org", "DELETE", "/2.0/repositories/ws/repo/pullrequests/1/approve", "", nil, "", "allow", ""},
+		{"api.bitbucket.org", "POST", "/2.0/repositories/ws/repo/pullrequests/1/request-changes", "", nil, "", "allow", ""},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok {
+			t.Fatalf("%s is not inspected", c.host)
+		}
+		query, err := url.ParseQuery(c.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _ := h.DecideWithQuery(c.method, c.path, query, c.header, []byte(c.body))
+		if string(got.Action) != c.want || got.Summary != c.summary {
+			t.Errorf("%s %s%s?%s %s = %v %q, want %s %q", c.method, c.host, c.path, c.query, c.body, got.Action, got.Summary, c.want, c.summary)
 		}
 	}
 }

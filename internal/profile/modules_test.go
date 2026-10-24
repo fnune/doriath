@@ -57,7 +57,9 @@ func TestAnLFSUploadIsHeldHoweverItsJSONIsWritten(t *testing.T) {
 		}
 		var h profile.HTTPHost
 		for _, c := range p.HTTP {
-			if slices.ContainsFunc(c.Rules, func(r profile.Rule) bool { return len(r.BodyContains) > 0 }) {
+			if slices.ContainsFunc(c.Rules, func(r profile.Rule) bool {
+				return r.Path.Match("/o/r.git/info/lfs/objects/batch") && len(r.BodyContains) > 0
+			}) {
 				h = c
 			}
 		}

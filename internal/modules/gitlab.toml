@@ -290,7 +290,8 @@ credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", b
 [[http.rules]]
 method = "POST"
 path = "/api/v4/projects/*/merge_requests/*/approve"
-action = "allow"
+action = "approve"
+summary = "Approve a merge request"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
 
 [[http.rules]]

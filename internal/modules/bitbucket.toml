@@ -164,6 +164,12 @@ path = "/2.0/repositories/*/*/pullrequests/*/comments/*"
 action = "allow"
 
 [[http.rules]]
+method = "POST"
+path = "/2.0/repositories/*/*/pullrequests/*/approve"
+action = "approve"
+summary = "Approve a pull request"
+
+[[http.rules]]
 method = "*"
 path = "/2.0/repositories/*/*/pullrequests/*/approve"
 action = "allow"

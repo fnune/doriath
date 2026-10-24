@@ -192,6 +192,20 @@ action = "allow"
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/pulls/*/reviews/**"
+body_contains = ["APPROVE"]
+action = "approve"
+summary = "Approve a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/reviews/**"
+form = { event = "*APPROVE*" }
+action = "approve"
+summary = "Approve a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/reviews/**"
 action = "allow"
 
 [[http.rules]]
@@ -253,6 +267,21 @@ action = "allow"
 [[http.rules]]
 method = "POST"
 path = "/graphql"
+graphql = { operation = "mutation", fields = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"] }
+action = "approve"
+summary = "Merge a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation" }
+body_contains = ["APPROVE"]
+action = "approve"
+summary = "Approve a pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
 action = "allow"
 
 [http.rules.graphql]
@@ -284,13 +313,6 @@ fields = [
   "addReaction",
   "removeReaction",
 ]
-
-[[http.rules]]
-method = "POST"
-path = "/graphql"
-graphql = { operation = "mutation", fields = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"] }
-action = "approve"
-summary = "Merge a pull request"
 
 [[http]]
 host = "uploads.github.com"

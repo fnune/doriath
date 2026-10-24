@@ -15,7 +15,7 @@ The proxy adds the token only for the programs of the module, such as `git` and 
 
 ## Requests
 
-Reads and routine work go through. Merges, releases, pushes and other writes wait for [your answer](/guides/approvals/). doriath refuses changes to webhooks, CI secrets and deploy keys. Each forge page lists its rules.
+Reads and routine work go through. Approvals of pull requests, merges, releases, pushes and other writes wait for [your answer](/guides/approvals/). doriath refuses changes to webhooks, CI secrets and deploy keys. Each forge page lists its rules.
 
 doriath holds each push for your approval. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
 
