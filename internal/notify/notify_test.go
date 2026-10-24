@@ -123,3 +123,18 @@ func TestANotificationTitleIsOneShortEscapedLine(t *testing.T) {
 		t.Errorf("a long title is not cut: %q", got)
 	}
 }
+
+func TestAWarnedRequestShowsTheWarningFirstAndOffersNoSessionAllow(t *testing.T) {
+	req := approval.Request{Kind: approval.KindPath, Profile: "work", Scope: "path write /home/u/.local/bin", Warning: "Your shells run programs from /home/u/.local/bin."}
+	for _, body := range []string{Body(req, time.Now()), PageBody(req)} {
+		if !strings.HasPrefix(body, "<b>Warning from doriath:</b> Your shells run programs") {
+			t.Errorf("body = %q", body)
+		}
+	}
+	if body := Body(req, time.Now()); strings.Contains(body, "Allow for this session") {
+		t.Errorf("body = %q", body)
+	}
+	if got := Actions(req); len(got) != 4 || got[0] != actionAllowOnce || got[2] != actionDeny {
+		t.Errorf("actions = %v", got)
+	}
+}

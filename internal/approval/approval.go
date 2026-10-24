@@ -66,6 +66,24 @@ func (k Kind) Buttons() []Button {
 	return []Button{{AnswerOnce, "Allow once"}, {AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
 }
 
+// Buttons are the answers that the request offers. A request with a
+// warning can be allowed once only, so that each new one asks you again.
+func (r Request) Buttons() []Button {
+	if r.Warning == "" {
+		return r.Kind.Buttons()
+	}
+	return []Button{{AnswerOnce, "Allow once"}, {AnswerDeny, "Deny"}}
+}
+
+func (r Request) Offers(a Answer) bool {
+	for _, b := range r.Buttons() {
+		if b.Answer == a {
+			return true
+		}
+	}
+	return false
+}
+
 func (k Kind) Offers(a Answer) bool {
 	for _, b := range k.Buttons() {
 		if b.Answer == a {
@@ -113,6 +131,9 @@ type Request struct {
 	Kind    Kind   `json:"kind"`
 	Summary string `json:"summary"`
 	Details string `json:"details,omitempty"`
+	// Warning is doriath's own text on a request that touches a path your
+	// machine runs or reads on its own.
+	Warning string `json:"warning,omitempty"`
 	// Note is the agent's own account of the request, such as a command's
 	// description or its reason for a write, shown as the agent's words.
 	Note string `json:"note,omitempty"`
@@ -365,6 +386,10 @@ func (m *Manager) Decide(id string, d Decision) error {
 	if !ok {
 		m.mu.Unlock()
 		return fmt.Errorf("request %s: %w", id, ErrUnknownRequest)
+	}
+	if p.req.Warning != "" && d.Verdict == VerdictAllow && d.Lasting != LastingOnce {
+		m.mu.Unlock()
+		return fmt.Errorf("request %s comes with a warning, so you can allow it once only", id)
 	}
 	delete(m.pending, id)
 	if d.Verdict == VerdictAllow && p.req.Scope != "" {

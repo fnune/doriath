@@ -340,3 +340,28 @@ func TestEveryButtonOfAKindMeansADecision(t *testing.T) {
 		t.Errorf("secret answered = %q", got)
 	}
 }
+
+func TestAWarnedRequestCanBeAllowedOnceOnly(t *testing.T) {
+	req := Request{Kind: KindPath, Warning: "Your shells run programs from it."}
+	if req.Offers(AnswerSession) || !req.Offers(AnswerOnce) || !req.Offers(AnswerDeny) {
+		t.Errorf("buttons = %+v", req.Buttons())
+	}
+	m, _, _, _ := setup()
+	got := make(chan Decision, 1)
+	go func() {
+		d, _ := m.Submit(context.Background(), Request{Kind: KindEdit, Summary: "x", Scope: "edit .envrc", Warning: "direnv runs it."}, time.Minute)
+		got <- d
+	}()
+	pending := waitPending(t, m)
+	for _, lasting := range []Decision{{Verdict: VerdictAllow, Lasting: LastingSession}, {Verdict: VerdictAllow, Lasting: LastingUntil, Until: time.Now().Add(time.Hour)}} {
+		if err := m.Decide(pending.ID, lasting); err == nil {
+			t.Errorf("a warned request was allowed %s", lasting.Lasting)
+		}
+	}
+	if err := m.Decide(pending.ID, Decision{Verdict: VerdictAllow, Lasting: LastingOnce}); err != nil {
+		t.Fatal(err)
+	}
+	if d := <-got; d.Verdict != VerdictAllow {
+		t.Errorf("decision = %+v", d)
+	}
+}

@@ -511,3 +511,13 @@ func TestSessionsWithoutSessions(t *testing.T) {
 		t.Errorf("sessions = %q, %v", out.String(), err)
 	}
 }
+
+func TestApprovalsListsTheWarningOfARequest(t *testing.T) {
+	var out bytes.Buffer
+	now := time.Unix(100, 0)
+	req := approval.Request{ID: "r1", Kind: approval.KindPath, Summary: "Let the agent write /tmp", Warning: "/tmp holds the sockets of your desktop.", Expires: now.Add(time.Minute)}
+	printPending(&out, []pendingRequest{{Request: req}}, now)
+	if !strings.Contains(out.String(), "r1: Warning from doriath: /tmp holds the sockets of your desktop. You can allow it once only.") {
+		t.Errorf("out = %q", out.String())
+	}
+}

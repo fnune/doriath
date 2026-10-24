@@ -353,7 +353,7 @@ func (s *Server) answer(ctx context.Context, session, id, answer string) error {
 	if err != nil {
 		return err
 	}
-	d, err := decision(req.Kind, answer)
+	d, err := decision(req, answer)
 	if err != nil {
 		return err
 	}
@@ -382,14 +382,14 @@ func (s *Server) find(ctx context.Context, session, id string) (approval.Request
 	return approval.Request{}, fmt.Errorf("request %s is no longer waiting", id)
 }
 
-func decision(kind approval.Kind, answer string) (approval.Decision, error) {
+func decision(req approval.Request, answer string) (approval.Decision, error) {
 	a := approval.Answer(answer)
 	d, ok := a.Decision("web")
 	if !ok {
 		return approval.Decision{}, fmt.Errorf("answer %q: want once, session or deny", answer)
 	}
-	if !kind.Offers(a) {
-		return approval.Decision{}, fmt.Errorf("a %s request has no %s answer", kind, answer)
+	if !req.Offers(a) {
+		return approval.Decision{}, fmt.Errorf("this %s request has no %s answer", req.Kind, answer)
 	}
 	return d, nil
 }

@@ -538,3 +538,24 @@ func TestACardSaysHowYouAnsweredTheSameRequestBefore(t *testing.T) {
 		t.Errorf("the card lacks the history:\n%s", body)
 	}
 }
+
+func TestAWarnedRequestShowsTheWarningAndNoAllowForTheSession(t *testing.T) {
+	r := request("a1", approval.KindPath, "Let the agent write /home/me/.local/bin")
+	r.Warning = "The request touches /home/me/.local/bin. Your shells run programs from it."
+	r.Keep = "[[mounts]]\npath = \"/home/me/.local/bin\"\nmode = \"write\""
+	sessions, h := setup(t, r)
+	list := get(h, "/", true).Body.String()
+	if !strings.Contains(list, `<span class="warned">warning</span>`) {
+		t.Error("the list does not mark the warned request")
+	}
+	body := get(h, "/?request=s1/a1", true).Body.String()
+	if !strings.Contains(body, `<div class="warning" role="note">`) || !strings.Contains(body, "Your shells run programs from it.") {
+		t.Error("the detail lacks the warning")
+	}
+	if strings.Contains(body, `value="session"`) || !strings.Contains(body, `value="once"`) || strings.Contains(body, "To keep it after this session") {
+		t.Error("a warned request offers more than allow once")
+	}
+	if w := post(h, url.Values{"session": {"s1"}, "id": {"a1"}, "answer": {"session"}}, "http://"+testAddr, false); w.Code != http.StatusConflict || len(sessions.decided) != 0 {
+		t.Errorf("an allow for the session went through: %d, %+v", w.Code, sessions.decided)
+	}
+}

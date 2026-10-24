@@ -46,7 +46,7 @@ type Page interface {
 // specification wants.
 func Actions(req approval.Request) []string {
 	var out []string
-	for _, b := range req.Kind.Buttons() {
+	for _, b := range req.Buttons() {
 		out = append(out, actionFor[b.Answer], b.Label)
 	}
 	return out
@@ -79,6 +79,9 @@ func Body(req approval.Request, now time.Time) string {
 	if agent == "" {
 		agent = "the agent"
 	}
+	if req.Warning != "" {
+		fmt.Fprintf(&b, "<b>Warning from doriath:</b> %s\n", html.EscapeString(req.Warning))
+	}
 	if req.Kind == approval.KindTool {
 		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", html.EscapeString(agent))
 	}
@@ -94,7 +97,7 @@ func Body(req approval.Request, now time.Time) string {
 	if safeURL(req.URL) {
 		fmt.Fprintf(&b, "Link: %s\n", html.EscapeString(req.URL))
 	}
-	if req.Scope != "" {
+	if req.Scope != "" && req.Offers(approval.AnswerSession) {
 		fmt.Fprintf(&b, "Allow for this session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
 	}
 	fmt.Fprintf(&b, "Profile %s, session %s.", html.EscapeString(req.Profile), html.EscapeString(req.Session))
@@ -233,7 +236,11 @@ func PageBody(req approval.Request) string {
 	if agent == "" {
 		agent = "The agent"
 	}
-	return fmt.Sprintf("%s in profile %s is waiting. Open the approvals page to answer.", html.EscapeString(agent), html.EscapeString(req.Profile))
+	body := fmt.Sprintf("%s in profile %s is waiting. Open the approvals page to answer.", html.EscapeString(agent), html.EscapeString(req.Profile))
+	if req.Warning != "" {
+		body = fmt.Sprintf("<b>Warning from doriath:</b> %s\n%s", html.EscapeString(req.Warning), body)
+	}
+	return body
 }
 
 // Urgency keeps held requests on screen, because an agent is waiting, and

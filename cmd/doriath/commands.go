@@ -291,9 +291,17 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.ID, r.Profile, r.Session, r.Expires.Sub(now).Round(time.Second), session.Printable(r.Summary))
 	}
 	_ = tw.Flush()
+	t := term.New(w)
 	for _, r := range reqs {
+		var lines []string
+		if r.Warning != "" {
+			lines = append(lines, t.Tint(term.Problem, "Warning from doriath: "+session.Printable(r.Warning)+" You can allow it once only."))
+		}
 		if text := requestText(r.Request); text != "" {
-			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(session.Printable(text)))
+			lines = append(lines, session.Printable(text))
+		}
+		if len(lines) > 0 {
+			fmt.Fprintf(w, "\n%s: %s\n", r.ID, indent(strings.Join(lines, "\n")))
 		}
 	}
 }

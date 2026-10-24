@@ -43,7 +43,7 @@
         <a class="item" id="item-{{.Key}}" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
           <span class="sum">{{.Summary}}</span>
           <span class="timer {{.Pace}}">{{.Timer}}</span>
-          <span class="who">{{template "profile" .Session}}</span>
+          <span class="who">{{template "profile" .Session}}{{if .Warning}}<span class="warned">warning</span>{{end}}</span>
           <span class="kind">{{.Kind}}</span>
         </a>
         {{else}}
@@ -83,6 +83,12 @@
   </div>
 </div>
 {{with .Detail}}
+{{with .Warning}}
+<div class="warning" role="note">
+  <span class="kind">Warning from doriath</span>
+  <p>{{.}}</p>
+</div>
+{{end}}
 {{if .Note}}
 <div class="agent-text">
   <div class="rule">
@@ -170,6 +176,13 @@
   <svg class="track" height="14" aria-hidden="true"><line class="bg" x1="0" x2="100%" y1="12" y2="12"/><line class="fg" x1="0" x2="{{.Fill}}" y1="12" y2="12"/></svg>
   {{template "curl-h" "end"}}
 </div>
+{{with .Warning}}
+<div class="warning" role="note">
+  <span class="kind">Warning from doriath</span>
+  <p>{{.}}</p>
+  <p class="caption">You can allow this request once only.</p>
+</div>
+{{end}}
 {{if .Note}}
 <div class="agent-text">
   <div class="rule">

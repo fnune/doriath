@@ -70,6 +70,7 @@ type requestView struct {
 	ID        string
 	Kind      string
 	Summary   string
+	Warning   string
 	Details   string
 	Note      string
 	NoteLabel string
@@ -236,6 +237,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		ID:        r.ID,
 		Kind:      string(r.Kind),
 		Summary:   session.Printable(r.Summary),
+		Warning:   session.Printable(r.Warning),
 		Details:   session.Printable(r.Details),
 		Note:      session.Printable(r.Note),
 		NoteLabel: noteLabel,
@@ -245,9 +247,12 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		Keep:      session.Printable(r.Keep),
 		Command:   session.Printable(r.Command),
 		Session:   sv,
-		Buttons:   buttons(r.Kind),
+		Buttons:   buttons(r),
 		ByAgent:   r.Kind == approval.KindTool,
 		created:   r.Created,
+	}
+	if r.Warning != "" {
+		v.Keep = ""
 	}
 	if r.Kind == approval.KindSecret {
 		v.Timer, v.Pace, v.Fill = "", "parked", "0%"
@@ -345,9 +350,9 @@ type buttonView struct {
 	Class  string
 }
 
-func buttons(kind approval.Kind) []buttonView {
+func buttons(r approval.Request) []buttonView {
 	var out []buttonView
-	for i, b := range kind.Buttons() {
+	for i, b := range r.Buttons() {
 		class := "secondary"
 		switch {
 		case b.Answer == approval.AnswerDeny:

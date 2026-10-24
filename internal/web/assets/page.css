@@ -32,6 +32,10 @@ main .wrap { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1f
 .ended { display: flex; flex-direction: column; gap: 6px; }
 .ended + .ended { margin-top: 6px; }
 .blocked { margin: 0; font-size: 13.5px; }
+.warning { border: 1px solid var(--deny); border-left-width: 4px; background: var(--deny-soft); color: var(--deny); border-radius: var(--radius); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.warning p { margin: 0; color: var(--ink); }
+.doriath-ui .warning .kind, .doriath-ui .warning .caption { color: var(--deny); }
+.warned { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--deny); border: 1px solid var(--deny); border-radius: var(--radius); padding: 0 5px; margin-left: 8px; }
 .doriath-ui .done a.item { cursor: pointer; }
 .doriath-ui .done a.item:hover { background: color-mix(in srgb, var(--ring) 5%, transparent); }
 .doriath-ui .done a.item[aria-current="true"] { background: var(--ring-soft); }
