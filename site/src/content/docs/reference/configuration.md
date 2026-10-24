@@ -511,9 +511,8 @@ doriath refuses these paths before it asks you:
 - paths that the profile hides
 - system paths, `/var/tmp` included
 - paths outside what Landlock allowed at the start: the home directory, `/tmp` and the writable mounts
-- `.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.claude`, `.local/share/keyrings` and `.password-store`
-- the config of git and jj: `.gitconfig`, `.config/git` and `.config/jj`
-- the nix and home-manager profiles under `.local/state`, and the configuration, state and cache of doriath
+- the paths of the [`private-paths` module](/reference/modules/#private-paths): keys and logins such as `.ssh`, `.gnupg` and `.password-store`, the config of git and jj, and the nix and home-manager profiles under `.local/state`
+- the configuration, state and cache of doriath, and the caches of the profile
 
 doriath also refuses the paths on the profile's `refuse` lists. A request for a path on a `warn` or `hold` list asks you with a warning, and you can allow it once only. See [path lists](#path-lists).
 

@@ -15,6 +15,16 @@ These commands show the modules on your machine:
 
 To change a built-in module, save your own copy in `~/.config/doriath/modules/` with a new name, such as `my-github`, and list that name in place of the built-in one. `doriath modules show NAME` prints the built-in module to start from. A copy with the name of the built-in module is an error, so that no module changes what a profile loads without notice. A module lists the secrets it uses in `uses_secrets`, and the profile gives their sources, as [profiles and modules](/reference/configuration/#profiles-and-modules) describes.
 
+## Modules in every profile
+
+doriath loads these modules into every profile, before the profile's own modules. A profile cannot leave them out, and a later layer cannot remove their entries. They only refuse, warn on or hold paths, as [path lists](/reference/configuration/#path-lists) describes, so a new version of them does not ask you to allow a profile again. `doriath profiles show` does not list them.
+
+### private-paths
+
+`private-paths` refuses requests for the paths that hold your keys and logins, the config of git and jj, and the nix and home-manager profiles. doriath also refuses its own configuration, state and cache, which move with the XDG variables.
+
+<ModuleSource name="private-paths" />
+
 ## vcs-readwrite
 
 With `vcs-readwrite`, the agent edits the repository that you start in, commits, branches and adds git worktrees or jj workspaces. The checkout and the store become writable. The files that decide what git or jj runs stay read-only, as [repositories](/reference/configuration/#repositories) lists. So do the files that your machine runs on its own, such as `.envrc`, `flake.nix`, `.vscode` and `.claude/settings.json`: the agent reads them, and changes one with `doriath request edit`, which shows you the new content first.

@@ -1,0 +1,18 @@
+description = "Built in to every profile. Refuses requests for paths that hold keys, logins, and the config of git and jj."
+
+[paths]
+refuse = [
+  "~/.ssh",
+  "~/.gnupg",
+  "~/.aws",
+  "~/.config/gh",
+  "~/.config/glab-cli",
+  "~/.config/tea",
+  "~/.local/share/keyrings",
+  "~/.password-store",
+  "~/.gitconfig",
+  "~/.config/git",
+  "~/.config/jj",
+  "~/.local/state/nix",
+  "~/.local/state/home-manager",
+]

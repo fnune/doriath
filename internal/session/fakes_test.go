@@ -3,14 +3,17 @@ package session
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/audit"
 	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/secret"
@@ -97,7 +100,7 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	promoted := &promotions{}
 	s := &Session{
 		deps:             Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable, Read: promoted.Readable},
-		req:              Request{Profile: &profile.Profile{Name: "p"}},
+		req:              Request{Profile: &profile.Profile{Name: "p", PathRules: builtinRules(t, home)}},
 		id:               "s1",
 		log:              log,
 		peers:            newHostPeers(""),
@@ -110,6 +113,17 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	s.egress = newEgressLog(log)
 	s.policy = newLivePolicy(s.req.Profile, false)
 	return &testSession{Session: s, home: home, audit: &buf, promoted: promoted}
+}
+
+// builtinRules are the path lists that every profile loads.
+func builtinRules(t *testing.T, home string) profile.PathRules {
+	t.Helper()
+	l := &profile.Loader{Profiles: fstest.MapFS{"p.toml": {}}, Modules: []fs.FS{modules.FS}, Home: home, Builtins: modules.Builtins}
+	p, err := l.Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.PathRules
 }
 
 // realTempDir resolves the temporary directory, because doriath refuses
