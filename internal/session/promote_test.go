@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
@@ -250,5 +252,42 @@ func TestGrantWriteKeepsTheMountsWhenPromotionFails(t *testing.T) {
 	}
 	if len(s.req.Profile.Mounts) != 0 || strings.Contains(s.audit.String(), `"granted"`) {
 		t.Errorf("a failed promotion was recorded as a grant: %+v\n%s", s.req.Profile.Mounts, s.audit)
+	}
+}
+
+func TestAJoinedIdenticalRequestGetsTheDecision(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	var grants atomic.Int32
+	req := approval.Request{Session: s.id, Kind: approval.KindPath, Summary: "Let the agent write /x", Scope: "path write /x"}
+	results := make(chan RequestResult, 2)
+	hold := func() {
+		res, _ := s.holdAndGrant(req, func() error { grants.Add(1); return nil })
+		results <- res
+	}
+	go hold()
+	deadline := time.Now().Add(2 * time.Second)
+	for len(s.manager.Pending()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	go hold()
+	time.Sleep(20 * time.Millisecond)
+	if n := len(s.manager.Pending()); n != 1 {
+		t.Fatalf("%d requests pending, want the second to join the first", n)
+	}
+	if err := s.manager.Decide(s.manager.Pending()[0].ID, approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		select {
+		case res := <-results:
+			if res.Decision.Verdict != approval.VerdictAllow {
+				t.Errorf("result = %+v", res)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("a joined request never got the decision")
+		}
+	}
+	if n := grants.Load(); n != 1 {
+		t.Errorf("the grant ran %d times", n)
 	}
 }

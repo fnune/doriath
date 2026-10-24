@@ -55,7 +55,12 @@ func (s *Session) holdAndGrant(req approval.Request, grant func() error) (Reques
 	case d.Verdict == approval.VerdictAllow && id == "":
 		return res, grant()
 	case d.Verdict == approval.VerdictAllow:
-		return res, <-granted
+		select {
+		case err := <-granted:
+			return res, err
+		default:
+			return res, nil
+		}
 	case d.Verdict == approval.VerdictNone:
 		res.Pending = id
 	}

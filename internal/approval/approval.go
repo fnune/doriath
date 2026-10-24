@@ -229,12 +229,13 @@ type pending struct {
 	req      Request
 	decision chan Decision
 
-	done   chan struct{}
-	result Decision
+	done    chan struct{}
+	result  Decision
+	settled chan struct{}
 }
 
 func newPending(req Request) *pending {
-	return &pending{req: req, decision: make(chan Decision, 1), done: make(chan struct{})}
+	return &pending{req: req, decision: make(chan Decision, 1), done: make(chan struct{}), settled: make(chan struct{})}
 }
 
 func (p *pending) finish(d Decision) {
@@ -262,10 +263,10 @@ func NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Man
 // Submit blocks until the request is decided, expires, or ctx ends. An
 // existing grant for the same scope answers at once.
 func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (Decision, error) {
-	return m.submit(ctx, req, ttl, nil)
+	return m.submit(ctx, req, ttl, nil, nil)
 }
 
-func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, registered func(*pending)) (Decision, error) {
+func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, registered func(*pending), decided func(Decision)) (Decision, error) {
 	now := m.clock.Now()
 	m.mu.Lock()
 	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
@@ -320,6 +321,11 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 		d.Reason = "the request was cancelled"
 	}
 	withdraw()
+	if decided != nil && d.Verdict != VerdictNone {
+		decided(d)
+	}
+	<-p.done
+	close(p.settled)
 	return d, nil
 }
 
@@ -392,12 +398,7 @@ func (m *Manager) History() []Outcome {
 // Propose shows a request without anyone waiting for it, and calls decided
 // when the person answers. Requests nobody answers expire quietly.
 func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)) {
-	go func() {
-		d, err := m.Submit(context.Background(), req, ttl)
-		if err == nil && d.Verdict != VerdictNone && decided != nil {
-			decided(d)
-		}
-	}()
+	go func() { _, _ = m.submit(context.Background(), req, ttl, nil, decided) }()
 }
 
 // Hold shows a request, or joins an identical one already pending, and
@@ -429,16 +430,12 @@ func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decisi
 		ch := make(chan started, 1)
 		go func() {
 			sent := false
-			d, err := m.submit(context.Background(), req, ttl, func(p *pending) {
+			d, _ := m.submit(context.Background(), req, ttl, func(p *pending) {
 				sent = true
 				ch <- started{p: p}
-			})
+			}, decided)
 			if !sent {
 				ch <- started{d: d}
-				return
-			}
-			if err == nil && d.Verdict != VerdictNone && decided != nil {
-				decided(d)
 			}
 		}()
 		s := <-ch
@@ -448,7 +445,7 @@ func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decisi
 		p = s.p
 	}
 	select {
-	case <-p.done:
+	case <-p.settled:
 		return p.result, p.req.ID
 	case <-m.clock.After(wait):
 		return Decision{Verdict: VerdictNone, Reason: "still waiting for a decision"}, p.req.ID

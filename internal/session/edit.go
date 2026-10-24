@@ -80,7 +80,12 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 	case d.Verdict == approval.VerdictAllow && id == "":
 		return res, apply()
 	case d.Verdict == approval.VerdictAllow:
-		return res, <-applied
+		select {
+		case err := <-applied:
+			return res, err
+		default:
+			return res, nil
+		}
 	case d.Verdict == approval.VerdictNone:
 		res.Pending = id
 	}
