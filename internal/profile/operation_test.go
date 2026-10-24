@@ -53,7 +53,6 @@ func TestRulesMatchTheOperationInAFormOrAHeader(t *testing.T) {
 		"a form field in JSON":   {nil, http.Header{"Content-Type": {"application/json"}}, `{"Action":"DescribeStacks"}`, ActionApprove},
 		"a header that matches":  {nil, target("DynamoDB_20120810.DeleteTable"), "", ActionDeny},
 		"a header that does not": {nil, target("DynamoDB_20120810.DescribeTable"), "", ActionApprove},
-		"the action named twice": {url.Values{"Action": {"DeleteStack"}}, form, "Action=DescribeStacks", ActionAllow},
 		"no operation at all":    {nil, http.Header{}, "", ActionApprove},
 	} {
 		if r, _ := h.DecideWithQuery("POST", "/", c.query, c.header, []byte(c.body)); r.Action != c.want {
@@ -62,6 +61,25 @@ func TestRulesMatchTheOperationInAFormOrAHeader(t *testing.T) {
 	}
 	if !h.NeedsFormBody("POST", "/", form) || h.NeedsFormBody("PUT", "/bucket/key", http.Header{"Content-Type": {"application/octet-stream"}}) || h.NeedsBody("PUT", "/bucket/key") {
 		t.Error("only a form body needs reading for the operation")
+	}
+}
+
+func TestARequestThatNamesItsOperationTwiceIsDenied(t *testing.T) {
+	h := operationRules(t)
+	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	for name, c := range map[string]struct {
+		query  url.Values
+		header http.Header
+		body   string
+	}{
+		"twice in the body":          {nil, form, "Action=DescribeStacks&Action=DeleteStack"},
+		"in the query and the body":  {url.Values{"Action": {"DescribeStacks"}}, form, "Action=DeleteStack"},
+		"two headers":                {nil, http.Header{"X-Amz-Target": {"DynamoDB_20120810.DescribeTable", "DynamoDB_20120810.PutItem"}}, ""},
+		"a body that does not parse": {nil, form, "Action=DescribeStacks&bad=%zz"},
+	} {
+		if r, _ := h.DecideWithQuery("POST", "/", c.query, c.header, []byte(c.body)); r.Action != ActionDeny {
+			t.Errorf("%s: %s, want deny", name, r.Action)
+		}
 	}
 }
 

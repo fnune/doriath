@@ -589,7 +589,8 @@ func (h HTTPHost) OperationOf(query url.Values, header http.Header, body []byte)
 		}
 	}
 	if h.Operation.Form != "" {
-		if v := formFields(query, header, body).Get(h.Operation.Form); v != "" {
+		fields, _ := formFields(query, header, body)
+		if v := fields.Get(h.Operation.Form); v != "" {
 			parts = append(parts, h.Operation.Form+"="+v)
 		}
 	}
@@ -634,7 +635,10 @@ func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []
 // DecideWithQuery is DecideRequest for a request whose query string rules
 // may look at too.
 func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header http.Header, body []byte) (Rule, bool) {
-	form := sync.OnceValue(func() url.Values { return formFields(query, header, body) })
+	if reason := h.unclearOperation(method, path, query, header, body); reason != "" {
+		return Rule{Action: ActionDeny, Summary: reason}, true
+	}
+	form := sync.OnceValue(func() url.Values { fields, _ := formFields(query, header, body); return fields })
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
 	tools := sync.OnceValue(func() mcpCalls {
 		t, ok := MCPToolCalls(body)
@@ -646,6 +650,20 @@ func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header 
 		}
 	}
 	return Rule{Action: h.Default}, false
+}
+
+func (h HTTPHost) unclearOperation(method, path string, query url.Values, header http.Header, body []byte) string {
+	fields, parsed := formFields(query, header, body)
+	if !parsed && h.NeedsFormBody(method, path, header) {
+		return "the form body does not parse"
+	}
+	if h.Operation.Header != "" && len(header.Values(h.Operation.Header)) > 1 {
+		return "the request names its operation in more than one " + h.Operation.Header + " header"
+	}
+	if h.Operation.Form != "" && len(fields[h.Operation.Form]) > 1 {
+		return "the request names its operation in more than one " + h.Operation.Form + " field"
+	}
+	return ""
 }
 
 func (r Rule) matchBody(body []byte) bool {
@@ -978,17 +996,20 @@ func (r Rule) matchForm(form func() url.Values) bool {
 	return true
 }
 
-func formFields(query url.Values, header http.Header, body []byte) url.Values {
+func formFields(query url.Values, header http.Header, body []byte) (url.Values, bool) {
 	fields := url.Values{}
 	for k, v := range query {
 		fields[k] = append(fields[k], v...)
 	}
-	if isForm(header) {
-		if parsed, err := url.ParseQuery(string(body)); err == nil {
-			for k, v := range parsed {
-				fields[k] = append(fields[k], v...)
-			}
-		}
+	if !isForm(header) {
+		return fields, true
 	}
-	return fields
+	parsed, err := url.ParseQuery(string(body))
+	if err != nil {
+		return fields, false
+	}
+	for k, v := range parsed {
+		fields[k] = append(fields[k], v...)
+	}
+	return fields, true
 }
