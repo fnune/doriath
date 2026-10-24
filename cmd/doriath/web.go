@@ -395,7 +395,7 @@ func answeredRecord(rec auditRecord) (web.Answered, bool) {
 		Request  approval.Request  `json:"request"`
 		Decision approval.Decision `json:"decision"`
 	}
-	if json.Unmarshal(rec.Data, &data) != nil {
+	if json.Unmarshal(rec.Data, &data) != nil || data.Decision.By == approval.ByGrant {
 		return web.Answered{}, false
 	}
 	return web.Answered{Time: rec.Time, Request: data.Request, Decision: data.Decision}, true

@@ -191,6 +191,9 @@ type Notifier interface {
 	Notify(ctx context.Context, req Request, respond func(Decision)) (withdraw func(), err error)
 }
 
+// ByGrant marks a decision that an earlier allow for the session gave.
+const ByGrant = "grant"
+
 type Recorder interface {
 	Requested(req Request)
 	Decided(req Request, d Decision)
@@ -272,7 +275,9 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
 		if g.forever || now.Before(g.until) {
 			m.mu.Unlock()
-			return Decision{Verdict: VerdictAllow, Lasting: g.decision.Lasting, Until: g.until, By: "grant"}, nil
+			d := Decision{Verdict: VerdictAllow, Lasting: g.decision.Lasting, Until: g.until, By: ByGrant}
+			m.recorder.Decided(req, d)
+			return d, nil
 		}
 		delete(m.grants, grantKey(req))
 	}

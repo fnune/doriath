@@ -169,6 +169,19 @@ func TestSessionGrantAnswersLaterRequests(t *testing.T) {
 	}
 }
 
+func TestARequestAnsweredByAGrantIsRecorded(t *testing.T) {
+	m, _, notifier, recorder := setup()
+	got := submitAsync(m, "s")
+	notifier.waitShown(t, 1)(Decision{Verdict: VerdictAllow, Lasting: LastingSession})
+	<-got
+	_, _ = m.Submit(context.Background(), Request{Kind: KindHTTP, Scope: "s"}, time.Minute)
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	if n := len(recorder.decided); n != 2 || recorder.decided[1].By != ByGrant {
+		t.Fatalf("recorded %+v", recorder.decided)
+	}
+}
+
 func TestUntilGrantExpires(t *testing.T) {
 	m, clock, _, _ := setup()
 	got := submitAsync(m, "s")

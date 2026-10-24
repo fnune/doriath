@@ -86,3 +86,15 @@ func TestWebRefusesAnAddressOthersReach(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestTheAnsweredListLeavesOutGrantedRepeats(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	granted := strings.Replace(decidedLine, `"by":"desktop"`, `"by":"grant"`, 1)
+	if err := os.WriteFile(path, []byte(decidedLine+"\n"+granted+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := &auditHistory{path: path}
+	if got, err := h.Answered(context.Background(), time.Time{}); err != nil || len(got) != 1 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
