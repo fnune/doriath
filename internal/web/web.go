@@ -238,7 +238,8 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, notSignedIn, http.StatusUnauthorized)
 		return
 	}
-	s.render(w, r, "page", http.StatusOK, r.URL.Query().Get("request"), "", true)
+	request := r.URL.Query().Get("request")
+	s.render(w, r, "page", http.StatusOK, request, "", request == "")
 }
 
 func (s *Server) code(w http.ResponseWriter, r *http.Request) {

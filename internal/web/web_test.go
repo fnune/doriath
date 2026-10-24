@@ -293,6 +293,13 @@ func TestNoRequestSwapsInUnderTheCursorAfterTheFirstLoad(t *testing.T) {
 	}
 }
 
+func TestALinkToARequestThatIsGoneOpensNoOtherRequest(t *testing.T) {
+	_, h := setup(t, request("a1", approval.KindHTTP, "Merge"))
+	if body := get(h, "/?request=s1/gone", true).Body.String(); strings.Contains(body, `action="/decide"`) {
+		t.Error("a link to an expired request opens another request")
+	}
+}
+
 func TestProofNeedsTheToken(t *testing.T) {
 	_, h := setup(t)
 	challenge := "0123456789abcdef"
