@@ -940,3 +940,37 @@ func TestASessionStartsInAReadOnlyCheckoutWhoseHookConfigIsASymlink(t *testing.T
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+func TestTheJailCannotRepointAGuardedLinkInAWritableCheckout(t *testing.T) {
+	for name, guarded := range map[string]string{
+		"a hook config that git-hooks.nix links": ".pre-commit-config.yaml",
+		"a jj config that jj moved out":          ".jj/repo/config.toml",
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			e.modules = []string{"vcs-readwrite"}
+			git(t, e.work, "init", "-q", "-b", "main")
+			target := filepath.Join(e.home, "outside", "config")
+			link := filepath.Join(e.work, guarded)
+			for _, d := range []string{filepath.Dir(target), filepath.Dir(link)} {
+				if err := os.MkdirAll(d, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(target, []byte("{}\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, link); err != nil {
+				t.Fatal(err)
+			}
+			script := fmt.Sprintf(`ln -sfn /tmp/planted %q; for i in $(seq 50); do [ "$(readlink %q)" = %q ] && break; sleep 0.1; done; echo "during: $(readlink %q)"`, link, link, target, link)
+			code, out := e.run(e.profile(""), script, nil)
+			if code != 0 || !strings.Contains(out, "during: "+target) || !strings.Contains(out, "put the link back") {
+				t.Fatalf("code %d:\n%s", code, out)
+			}
+			if got, err := os.Readlink(link); err != nil || got != target {
+				t.Errorf("after the session the link is %q, %v", got, err)
+			}
+		})
+	}
+}

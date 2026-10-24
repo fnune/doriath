@@ -143,6 +143,7 @@ type Info struct {
 }
 
 type Session struct {
+	links   *linkKeeper
 	deps    Deps
 	req     Request
 	id      string
@@ -224,6 +225,9 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 1, err
 	}
+	if err := s.links.Keep(spec.Links...); err != nil {
+		return 1, err
+	}
 	notes := spec.Notes
 	if s.deps.SystemdRun == "" {
 		notes = append(notes, "systemd-run is not available, so this session runs without the profile's task and memory limits")
@@ -262,6 +266,8 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log = audit.New(f, s.deps.Clock.Now, s.id, p.Name)
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
+	s.links = newLinkKeeper(s.linkRestored)
+	s.closers = append(s.closers, s.links.Close)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})
@@ -788,6 +794,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		s.roots.Close()
 		_, _ = repos.Write(s.rootLog.lines.Bytes())
 	}
+	s.links.Check()
 	s.finishRepositories(&repos)
 	var end []note
 	for _, line := range strings.Split(strings.TrimSpace(repos.String()), "\n") {
@@ -864,8 +871,6 @@ func (noIssuer) Certificate(host string) (*tlsCertificate, error) {
 
 type osHost struct{}
 
-func (osHost) Resolve(p string) (string, error) { return filepath.EvalSymlinks(p) }
-
 func (osHost) Entries(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -921,6 +926,14 @@ func noteIfSlow(w io.Writer, after time.Duration, note string) (stop func()) {
 func (osHost) Link(p string) bool {
 	info, err := os.Lstat(p)
 	return err == nil && info.Mode()&os.ModeSymlink != 0
+}
+
+func (osHost) Resolve(p string) string {
+	real, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return ""
+	}
+	return real
 }
 
 func (osHost) Kind(p string) string {

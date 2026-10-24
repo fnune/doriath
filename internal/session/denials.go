@@ -48,6 +48,12 @@ func (l *egressLog) Egress(e proxy.Event) {
 	}
 }
 
+func (l *egressLog) Block(what, reason string) {
+	l.mu.Lock()
+	l.denied[denialKey{Host: what, Reason: reason}]++
+	l.mu.Unlock()
+}
+
 // Denials returns every denied host and reason with its count, most frequent
 // first.
 func (l *egressLog) Denials() []Denial {

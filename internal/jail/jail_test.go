@@ -20,6 +20,8 @@ func (h fakeHost) Kind(p string) string {
 
 func (h fakeHost) Link(p string) bool { return h[p] == "link" }
 
+func (h fakeHost) Resolve(p string) string { return h["target "+p] }
+
 func (h fakeHost) Entries(dir string) []string {
 	var out []string
 	for p := range h {
@@ -456,8 +458,8 @@ func TestHiddenPathsShowNothing(t *testing.T) {
 func TestLinksInWritableMountsAreRefused(t *testing.T) {
 	repo := "/home/u/Development/project"
 	for name, h := range map[string]fakeHost{
-		"a mount under a linked directory": {repo + "/.claude": "link", repo + "/.claude/worktrees": "dir"},
-		"a guard under a linked directory": {repo + "/.git": "dir", repo + "/.git/config": "file", repo + "/.git/hooks": "link"},
+		"a mount under a linked directory":     {repo + "/.claude": "link", repo + "/.claude/worktrees": "dir"},
+		"a guard that links into the checkout": {repo + "/.git": "dir", repo + "/.git/config": "file", repo + "/.git/hooks": "link", "target " + repo + "/.git/hooks": repo + "/hooks"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			base := host()
@@ -467,7 +469,7 @@ func TestLinksInWritableMountsAreRefused(t *testing.T) {
 			p := testProfile()
 			p.Mounts = append(p.Mounts, profile.Mount{Path: repo + "/.claude/worktrees", Mode: profile.ModeWrite, Missing: profile.MissingSkip})
 			_, err := Plan(p, layout(), opts(), held(p, base))
-			if err == nil || !strings.Contains(err.Error(), "goes through the symlink") {
+			if err == nil || !strings.Contains(err.Error(), "goes through the symlink") && !strings.Contains(err.Error(), "which the jail can write") {
 				t.Fatalf("err = %v", err)
 			}
 		})
@@ -607,6 +609,27 @@ func TestALinkInAReadOnlyCheckoutNeedsNoMountOfItsOwn(t *testing.T) {
 	}
 	for _, b := range s.Binds {
 		if b.Dest == repo+"/.pre-commit-config.yaml" {
+			t.Errorf("bubblewrap cannot mount onto the link: %+v", b)
+		}
+	}
+}
+
+func TestALinkInAWritableCheckoutIsKeptInPlaceInsteadOfMounted(t *testing.T) {
+	repo := "/home/u/Development/project"
+	h := host()
+	h[repo+"/.git"] = "dir"
+	h[repo+"/.git/config"] = "file"
+	h[repo+"/.git/hooks"] = "link"
+	h["target "+repo+"/.git/hooks"] = "/nix/store/abc-hooks"
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(s.Links, repo+"/.git/hooks") {
+		t.Errorf("links = %v", s.Links)
+	}
+	for _, b := range s.Binds {
+		if b.Dest == repo+"/.git/hooks" {
 			t.Errorf("bubblewrap cannot mount onto the link: %+v", b)
 		}
 	}

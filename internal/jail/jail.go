@@ -63,6 +63,9 @@ type Host interface {
 	Entries(dir string) []string
 	// Link reports whether the path itself is a symlink.
 	Link(path string) bool
+	// Resolve returns the path with every symlink followed, or "" when it
+	// leads nowhere.
+	Resolve(path string) string
 	// List lists a directory's entries with their type, from the listing
 	// itself, or nothing if it cannot.
 	List(dir string) []Entry
@@ -106,10 +109,14 @@ type Spec struct {
 	Dirs     []string
 	// Symlinks maps a path in the jail to the target it points at.
 	Symlinks map[string]string
-	Binds    []Bind
-	Env      map[string]string
-	Cwd      string
-	Command  []string
+	// Links are guarded paths that are symlinks inside a writable mount.
+	// bubblewrap cannot mount onto a symlink, so the session keeps each one
+	// pointing where it pointed when the session started.
+	Links   []string
+	Binds   []Bind
+	Env     map[string]string
+	Cwd     string
+	Command []string
 	// Notes are advice for the person who starts the session. They never
 	// change the jail.
 	Notes []string
@@ -211,7 +218,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		errs = append(errs, err)
 	}
 	binds = append(binds, Bind{Source: layout.Home, Dest: opts.Home})
-	binds = withoutLinksInReadOnlyMounts(binds, host)
+	binds, s.Links, errs = splitGuardedLinks(binds, host, errs)
 	if err := errors.Join(errs...); err != nil {
 		return Spec{}, err
 	}
@@ -590,20 +597,63 @@ func checkLinks(paths, roots []string, host Host) error {
 	return nil
 }
 
-// withoutLinksInReadOnlyMounts drops the read-only mount of a symlink onto
-// itself inside a read-only mount of its own directory. The link cannot
-// change there, and bubblewrap cannot mount onto a symlink.
-func withoutLinksInReadOnlyMounts(binds []Bind, host Host) []Bind {
-	out := binds[:0:0]
+func splitGuardedLinks(binds []Bind, host Host, errs []error) ([]Bind, []string, []error) {
+	writable := writableSources(binds)
+	var kept []Bind
+	var links []string
 	for _, b := range binds {
-		if b.ReadOnly && !b.Device && b.Source == b.Dest && host.Link(b.Dest) {
-			if parent, ok := enclosing(binds, b.Dest); ok && parent.ReadOnly && parent.Source == parent.Dest {
+		if !b.ReadOnly || b.Device || b.Source != b.Dest || !host.Link(b.Dest) {
+			kept = append(kept, b)
+			continue
+		}
+		parent, ok := enclosing(binds, b.Dest)
+		if !ok || parent.Source != parent.Dest {
+			kept = append(kept, b)
+			continue
+		}
+		if parent.ReadOnly {
+			continue
+		}
+		if err := checkLinkTarget(b.Dest, writable, host); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		links = append(links, b.Dest)
+	}
+	return kept, links, errs
+}
+
+func checkLinkTarget(link string, writable []string, host Host) error {
+	target := host.Resolve(link)
+	for _, root := range writable {
+		if target != "" && within(target, root) {
+			return fmt.Errorf("%s points to %s, which the jail can write: the agent could change what %s holds. Point the link outside the writable mounts, or replace it with the file", link, target, filepath.Base(link))
+		}
+	}
+	return nil
+}
+
+// GuardsAndLinks splits the read-only paths inside p's mounts into those
+// doriath mounts read-only and the symlinks it keeps in place instead.
+func GuardsAndLinks(p *profile.Profile, host Host) (guards, links []string, err error) {
+	binds, _, _ := mountBinds(p, Layout{}, host)
+	writable := writableSources(binds)
+	var errs []error
+	for _, b := range binds {
+		if !b.ReadOnly {
+			continue
+		}
+		if b.Source == b.Dest && host.Link(b.Source) {
+			if err := checkLinkTarget(b.Source, writable, host); err != nil {
+				errs = append(errs, err)
 				continue
 			}
+			links = append(links, b.Source)
+			continue
 		}
-		out = append(out, b)
+		guards = append(guards, b.Source)
 	}
-	return out
+	return guards, links, errors.Join(errs...)
 }
 
 func enclosing(binds []Bind, path string) (Bind, bool) {

@@ -171,6 +171,9 @@ func (s *Session) startPodman() error {
 	if err != nil {
 		return fmt.Errorf("plan podman service: %w", err)
 	}
+	if err := s.links.Keep(spec.Links...); err != nil {
+		return err
+	}
 	unshareArgs := []string{
 		"--user", "--map-root-user",
 		fmt.Sprintf("--map-users=1:%d:%d", subuid.Start, min(subuid.Count, 65536)),

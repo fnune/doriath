@@ -399,6 +399,12 @@ Where two entries give the same path, the stricter `missing` holds: `error`, the
 
 doriath refuses to start if a mount, or a guarded path in a repository, goes through a symlink in a directory that the jail can write. An agent can put such a link there in an earlier session. Other symlinks, such as `~/.nix-profile`, mount their target.
 
+A guarded path that is itself a symlink is an exception, because tools make such links: git-hooks.nix links `.pre-commit-config.yaml` into the Nix store, and jj links `.jj/repo/config.toml` to your jj config. No mount can make a symlink read-only, so doriath keeps the link in place instead:
+
+- In a read-only mount, the link cannot change, and doriath leaves it as it is.
+- In a writable mount, doriath records where the link points, and watches it. If the jail changes it, doriath puts the link back at once, sends a notification, and reports it at the end of the session and in `doriath status`.
+- doriath refuses to start if the link points to a path that the jail can write, because the agent could then change what the link holds.
+
 doriath also refuses `/`, the home directory and the directories above it, in all modes. It refuses writable mounts under `/nix/store`, `/usr`, `/bin`, `/lib` or `/opt`, because programs there get credentials by name.
 
 ## Home

@@ -98,6 +98,7 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 		entry:    Entry{Writable: []string{home}},
 		manager:  approval.NewManager(stillClock{}, notifier, log, randomIDs{}),
 		listings: newListingCache(),
+		links:    newLinkKeeper(func(string, string) {}),
 	}
 	s.egress = newEgressLog(log)
 	s.policy = newLivePolicy(s.req.Profile, false)
