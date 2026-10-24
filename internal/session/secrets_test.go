@@ -45,8 +45,17 @@ func TestASessionStartsWithoutAnOptionalSecretAndSaysWhatFails(t *testing.T) {
 	if len(st.Unavailable) != 1 || st.Unavailable[0].Secret != "acme" {
 		t.Fatalf("unavailable = %+v", st.Unavailable)
 	}
-	if text := st.Describe(); !strings.Contains(text, "acme (requests to api.acme.com)") || !strings.Contains(text, "not logged in") {
+	if text := st.Describe(); !strings.Contains(text, "acme (requests to api.acme.com)") || !strings.Contains(text, "exit status 1") {
 		t.Errorf("describe lacks the missing secret:\n%s", text)
+	}
+	if text := st.Describe(); strings.Contains(text, "not logged in") {
+		t.Errorf("the jail sees what the secret command printed:\n%s", text)
+	}
+	if text := s.hostStatus().Describe(); !strings.Contains(text, "not logged in") {
+		t.Errorf("your status lacks what the command printed:\n%s", text)
+	}
+	if !strings.Contains(s.notes[0].text, "not logged in") {
+		t.Errorf("your note lacks what the command printed: %v", s.notes)
 	}
 }
 

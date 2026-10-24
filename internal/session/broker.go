@@ -225,7 +225,7 @@ func (s *Session) startControl(ctx context.Context) error {
 			return struct{}{}, s.manager.Decide(p.ID, p.Decision)
 		},
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
-			return s.status(), nil
+			return s.hostStatus(), nil
 		},
 
 		MethodProvide: func(_ context.Context, raw json.RawMessage) (any, error) {
@@ -333,6 +333,17 @@ func (s *Session) provide(name string, v secret.Value) error {
 	}
 	s.log.Write("secret-provided", map[string]string{"secret": name})
 	return nil
+}
+
+func (s *Session) hostStatus() Status {
+	st := s.status()
+	unavailable := s.deps.Secrets.Unavailable()
+	for i, m := range st.Unavailable {
+		if err, ok := unavailable[m.Secret]; ok {
+			st.Unavailable[i].Error = secret.Explained(err).Error()
+		}
+	}
+	return st
 }
 
 func (s *Session) secretsStatus() Status {

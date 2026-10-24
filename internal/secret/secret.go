@@ -152,6 +152,43 @@ func (e unavailableError) Error() string        { return e.err.Error() }
 func (e unavailableError) Unwrap() error        { return e.err }
 func (e unavailableError) Is(target error) bool { return target == ErrUnavailable }
 
+// CommandError is a secret command that failed. Its message leaves out what
+// the command printed, because the message reaches the jail and a command
+// can print its secret when it fails. Explained adds it back for you.
+type CommandError struct {
+	Secret  string
+	Program string
+	Err     error
+	Stderr  string
+}
+
+func (e *CommandError) Error() string {
+	return fmt.Sprintf("secret %q: command %s: %v", e.Secret, e.Program, e.Err)
+}
+
+func (e *CommandError) Unwrap() error { return e.Err }
+
+type explained struct{ err error }
+
+func (e explained) Error() string {
+	var c *CommandError
+	if errors.As(e.err, &c) && c.Stderr != "" {
+		return e.err.Error() + ": " + c.Stderr
+	}
+	return e.err.Error()
+}
+
+func (e explained) Unwrap() error { return e.err }
+
+// Explained is err with the last line that a failed secret command printed,
+// for messages that only you see.
+func Explained(err error) error {
+	if err == nil {
+		return nil
+	}
+	return explained{err}
+}
+
 type failure struct {
 	err     error
 	retryAt time.Time
@@ -309,11 +346,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 	defer cancel()
 	stdout, stderr, err := c.run.Output(ctx, Command{Secret: name, Argv: b.Command, Terminal: terminal})
 	if err != nil {
-		msg := strings.TrimSpace(string(stderr))
-		if msg != "" {
-			return Value{}, fmt.Errorf("secret %q: command %s: %w: %s", name, b.Command[0], err, lastLine(msg))
-		}
-		return Value{}, fmt.Errorf("secret %q: command %s: %w", name, b.Command[0], err)
+		return Value{}, &CommandError{Secret: name, Program: b.Command[0], Err: err, Stderr: lastLine(strings.TrimSpace(string(stderr)))}
 	}
 	return trimmed(name, stdout)
 }

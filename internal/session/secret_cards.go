@@ -40,7 +40,7 @@ func (s *Session) secretCard(name string, cause error) string {
 		Profile: p.Name,
 		Kind:    approval.KindSecret,
 		Summary: "Secret " + name + " is unavailable",
-		Details: fmt.Sprintf("%v\n\nWithout it, these fail: %s.\n\nFix the source on the host, such as a login, then try again. Or give the session a value with the command below.", cause, strings.Join(secretUsers(p, name), ", ")),
+		Details: fmt.Sprintf("%v\n\nWithout it, these fail: %s.\n\nFix the source on the host, such as a login, then try again. Or give the session a value with the command below.", secret.Explained(cause), strings.Join(secretUsers(p, name), ", ")),
 		Command: command,
 		Scope:   "secret " + name,
 	}

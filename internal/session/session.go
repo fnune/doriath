@@ -520,9 +520,9 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 		switch {
 		case err == nil:
 		case p.Secrets[name].Required:
-			return err
+			return secret.Explained(err)
 		default:
-			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", err, strings.Join(secretUsers(p, name), ", "))})
+			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", secret.Explained(err), strings.Join(secretUsers(p, name), ", "))})
 		}
 	}
 	return nil

@@ -236,7 +236,7 @@ func TestAFailedRefreshKeepsTheValueUntilItExpires(t *testing.T) {
 		t.Fatalf("a failed refresh is retried after %s, not on every request: calls %d, %v", retryFailedRefreshAfter, run.calls, err)
 	}
 	c.t = start.Add(61 * time.Minute)
-	if _, err := s.Get(context.Background(), "aws"); err == nil || !strings.Contains(err.Error(), "session expired") {
+	if _, err := s.Get(context.Background(), "aws"); err == nil || !strings.Contains(Explained(err).Error(), "session expired") {
 		t.Fatalf("an expired value must not be served: %v", err)
 	}
 }
@@ -263,7 +263,15 @@ func TestRefreshReadsATokenAgainOnItsSchedule(t *testing.T) {
 func TestAFailedCommandIsReportedByItsLastLineAfterPromptsAndProgress(t *testing.T) {
 	run := &fakeRunner{stderr: "? Master password: [hidden]\nstack trace\nYou are not logged in.", err: errors.New("exit status 1")}
 	s := NewConfigured(map[string]Backend{"locked": {Command: []string{"bw", "unlock"}}}, run, mapFiles{})
-	if _, err := s.Get(context.Background(), "locked"); err == nil || !strings.HasSuffix(err.Error(), ": You are not logged in.") {
+	if _, err := s.Get(context.Background(), "locked"); err == nil || !strings.HasSuffix(Explained(err).Error(), ": You are not logged in.") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestWhatAFailedCommandPrintsStaysOutOfItsError(t *testing.T) {
+	run := &fakeRunner{stderr: "wrong format: hunter2", err: errors.New("exit status 1")}
+	s := NewConfigured(map[string]Backend{"token": {Command: []string{"wrapper"}}}, run, mapFiles{})
+	if _, err := s.Get(context.Background(), "token"); err == nil || strings.Contains(err.Error(), "hunter2") || !strings.Contains(err.Error(), "exit status 1") {
 		t.Fatalf("err = %v", err)
 	}
 }

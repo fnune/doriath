@@ -359,7 +359,7 @@ A command that runs again during the session does not get your terminal, because
 A session starts without a secret that fails, so that one missing login does not block the work that does not need it. doriath prints the error and what fails without the secret before the agent starts:
 
 - The proxy refuses each request that needs the secret, and tells the agent to ask you to fix it.
-- `doriath status` in the jail lists the secret, its error and the hosts that need it.
+- `doriath status` in the jail lists the secret, its error and the hosts that need it. This error does not show the output of the command, because a command can print its secret when it fails. You see the output on the host.
 - doriath tries a command or a file again when a request needs it, at most every 30 seconds and without your terminal. Thus a login on the host, such as `aws sso login`, starts to work during the session.
 
 To give a running session a value yourself, run [`doriath secrets provide`](/reference/commands/#doriath-secrets-provide) on the host.
