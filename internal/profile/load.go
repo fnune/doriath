@@ -398,6 +398,9 @@ func (b *builder) apply(l layer) {
 		b.modules = append(b.modules, l.source)
 	}
 	b.record(l)
+	if l.fromRepository() {
+		b.errs = append(b.errs, b.repositoryOverrides(l)...)
+	}
 	b.mounts = append(b.mounts, l.Mounts...)
 	for _, m := range l.MCP {
 		if i := slices.IndexFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }); i >= 0 {
@@ -527,6 +530,33 @@ func (b *builder) apply(l layer) {
 	}
 }
 
+func (b *builder) repositoryOverrides(l layer) []error {
+	var errs []error
+	yours := "your profiles or modules"
+	for _, h := range l.HTTP {
+		i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, h.Host) })
+		if i >= 0 && b.http[i].Credential != nil {
+			errs = append(errs, fmt.Errorf("http %s: %s already give it a credential, and a repository profile cannot change what the credential reaches. Put the rules in a profile of your own", h.Host, yours))
+		}
+	}
+	for _, m := range l.MCP {
+		if slices.ContainsFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }) {
+			errs = append(errs, fmt.Errorf("mcp %s: %s already define it, and a repository profile cannot replace it", m.Name, yours))
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(l.Secrets)) {
+		if _, taken := b.secrets[k]; taken {
+			errs = append(errs, fmt.Errorf("secret %q: %s already define it, and a repository profile cannot replace it", k, yours))
+		}
+	}
+	for _, ref := range l.secretRefs() {
+		if _, own := l.Secrets[ref]; !own {
+			errs = append(errs, fmt.Errorf("secret %q: a repository profile can hand out only the secrets it defines, and this one comes from %s", ref, yours))
+		}
+	}
+	return errs
+}
+
 func (l layer) fromRepository() bool {
 	return strings.HasPrefix(l.source, "profile "+RepoPrefix)
 }
@@ -568,6 +598,9 @@ func (b *builder) record(l layer) {
 	}
 	for _, m := range l.MCP {
 		b.from(l.source, "mcp "+m.Name)
+		if u, err := url.Parse(m.URL); err == nil && u.Hostname() != "" {
+			b.from(l.source, "http "+strings.ToLower(u.Hostname()))
+		}
 	}
 	if l.Podman != nil {
 		for _, img := range l.Podman.Images {
