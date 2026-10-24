@@ -284,6 +284,14 @@ func GitRoots(p *profile.Profile, host Host) []string {
 	return g.roots
 }
 
+// JJRepos lists the .jj/repo directories of the jj repositories whose
+// store the jail can write: those in writable mounts, and those that the vcs
+// module opens.
+func JJRepos(p *profile.Profile, host Host) []string {
+	g, _ := mountGuards(p, Layout{}, host)
+	return slices.Compact(slices.Sorted(slices.Values(g.jjRepos)))
+}
+
 func mountBinds(p *profile.Profile, layout Layout, host Host) ([]Bind, []Placeholder, []error) {
 	g, errs := mountGuards(p, layout, host)
 	return g.binds, g.missing, errs
@@ -344,6 +352,7 @@ type guards struct {
 	binds   []Bind
 	missing []Placeholder
 	roots   []string
+	jjRepos []string
 	guarded map[[2]string]bool
 }
 
@@ -421,6 +430,7 @@ func (g *guards) jj(repo string) {
 	default:
 		return
 	}
+	g.jjRepos = append(g.jjRepos, jjRepo)
 	for _, name := range slices.Sorted(maps.Keys(jjControlFiles)) {
 		p := filepath.Join(jjRepo, name)
 		g.guard(p, p, jjControlFiles[name])
@@ -453,6 +463,7 @@ func isJJRepo(dir string) bool {
 }
 
 func (g *guards) jjRepoStore(jjRepo string) {
+	g.jjRepos = append(g.jjRepos, jjRepo)
 	for _, name := range jjRepoData {
 		g.writable(filepath.Join(jjRepo, name))
 	}

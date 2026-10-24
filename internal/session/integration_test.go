@@ -143,6 +143,9 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	// jj on the host keeps each repository's secure config there, where
+	// the session finds it, and not in yours.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "host-config"))
 	home := filepath.Join(root, "home")
 	work := filepath.Join(home, "work")
 	for _, d := range []string{filepath.Join(home, ".ssh"), work, filepath.Join(root, "run"), filepath.Join(root, "cfg", "profiles")} {

@@ -569,6 +569,43 @@ func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error
 	return m, nil
 }
 
+// JJSecureConfig returns the directory of a repository's secure config,
+// which jj 0.46 keeps under your own config directory, named by the
+// repository's config-id. It has your jj create both when the repository
+// has none: jj creates them only when it migrates a legacy
+// .jj/repo/config.toml, and the jail's read-only placeholder of that file
+// looks like one, which jj in the jail then fails to replace with a link.
+// An empty legacy file is a placeholder of an earlier session and goes
+// first, so that jj creates the id without a migration; one with content
+// is your own config, and stays for jj to migrate. The jail needs the
+// directory to read the config-id it points at: without it, jj in the jail
+// tries to create both again.
+func JJSecureConfig(ctx context.Context, t Tools, jjRepo string) (string, error) {
+	if t.JJ == "" {
+		return "", nil
+	}
+	legacy := filepath.Join(jjRepo, "config.toml")
+	if _, err := os.Lstat(filepath.Join(jjRepo, "config-id")); errors.Is(err, fs.ErrNotExist) {
+		info, err := os.Lstat(legacy)
+		switch {
+		case err == nil && info.Mode().IsRegular() && info.Size() == 0:
+			if err := os.Remove(legacy); err != nil {
+				return "", err
+			}
+		case err == nil:
+			return "", nil
+		case !errors.Is(err, fs.ErrNotExist):
+			return "", err
+		}
+	}
+	repo := filepath.Dir(filepath.Dir(jjRepo))
+	out, err := runIn(ctx, repo, t.JJ, "--repository", repo, "--ignore-working-copy", "config", "path", "--repo")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(strings.TrimSpace(out)), nil
+}
+
 func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, error) {
 	out, err := run(ctx, t.JJ, "--repository", repo, "--ignore-working-copy", "--color", "never", "bookmark", "list", "-T", `if(!remote && normal_target, name ++ " " ++ normal_target.commit_id() ++ "\n")`)
 	if err != nil {
@@ -747,7 +784,14 @@ func runStore(ctx context.Context, t Tools, gitDir string, args ...string) (stri
 }
 
 func run(ctx context.Context, name string, args ...string) (string, error) {
+	return runIn(ctx, "", name, args...)
+}
+
+// runIn runs a command in dir. jj also reads the repository it starts in,
+// whatever --repository names.
+func runIn(ctx context.Context, dir, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), gitEnv...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

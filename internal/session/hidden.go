@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,12 +9,41 @@ import (
 	"path/filepath"
 	"slices"
 	"syscall"
+	"time"
 
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/term"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
-func (s *Session) holdControlPaths() error { return s.holdControlPathsOf(s.req.Profile, s.listings) }
+func (s *Session) holdControlPaths() error {
+	s.showJJSecureConfigs()
+	return s.holdControlPathsOf(s.req.Profile, s.listings)
+}
+
+// showJJSecureConfigs runs before the placeholders, so that jj in the jail
+// reads each repository's secure config instead of migrating the
+// placeholder of the legacy one. The jail sees each config read-only, where
+// its own jj looks: under the jail's home, as yours is under yours.
+func (s *Session) showJJSecureConfigs() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	for _, jjRepo := range jail.JJRepos(s.req.Profile, s.listings) {
+		dir, err := vcs.JJSecureConfig(ctx, s.vcsTools(), jjRepo)
+		if err != nil {
+			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("jj in the jail may fail in %s: %v", filepath.Dir(filepath.Dir(jjRepo)), err)})
+			continue
+		}
+		if dir == "" {
+			continue
+		}
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			continue
+		}
+		s.placed = append(s.placed, jail.Bind{Source: dir, Dest: filepath.Join(s.deps.Paths.Home, ".config", "jj", "repos", filepath.Base(dir)), ReadOnly: true})
+	}
+}
 
 // The placeholders stay: another session may still bind them.
 func (s *Session) holdControlPathsOf(p *profile.Profile, host jail.Host) error {

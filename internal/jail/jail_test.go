@@ -551,3 +551,28 @@ func TestTheJJConfigIDOfAWritableRepositoryStaysReadOnly(t *testing.T) {
 		t.Error("config-id, which picks the jj config host jj trusts, is writable")
 	}
 }
+
+func TestJJReposListsTheReposWhoseControlFilesTheJailGuards(t *testing.T) {
+	h := host()
+	writable := "/home/u/Development/project"
+	readOnly := "/home/u/Development/project/site/vendor"
+	workspace := "/home/u/Development/project/ws"
+	for p, k := range map[string]string{
+		writable + "/.jj":       "dir",
+		writable + "/.jj/repo":  "dir",
+		workspace + "/.jj":      "dir",
+		workspace + "/.jj/repo": "file",
+		readOnly + "/.jj":       "dir",
+		readOnly + "/.jj/repo":  "dir",
+	} {
+		h[p] = k
+	}
+	p := testProfile()
+	if got := JJRepos(p, h); !slices.Equal(got, []string{writable + "/.jj/repo"}) {
+		t.Errorf("without the vcs store: %q", got)
+	}
+	p.VCSStore = true
+	if got := JJRepos(p, h); !slices.Contains(got, writable+"/.jj/repo") || slices.Contains(got, workspace+"/.jj/repo") {
+		t.Errorf("with the vcs store: %q", got)
+	}
+}
