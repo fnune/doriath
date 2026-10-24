@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/jail"
 )
 
 type Request struct {
@@ -156,17 +158,54 @@ func openNoSymlinks(dir int, path string, flags uint64) (int, error) {
 var clearReadOnly = unix.MountAttr{Attr_clr: unix.MOUNT_ATTR_RDONLY}
 
 func writableInPlaceAfter(guards []string, path string) error {
-	if err := readOnly(guards); err != nil {
+	if err := guardAndPin(path, guards); err != nil {
 		return err
 	}
 	return writableInPlace(path)
 }
 
 func sendTreeWithGuards(guards []string, path string) error {
-	if err := readOnly(guards); err != nil {
+	if err := guardAndPin(path, guards); err != nil {
 		return err
 	}
 	return sendTree(path)
+}
+
+func guardAndPin(path string, guards []string) error {
+	if err := readOnly(guards); err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, g := range guards {
+		for _, dir := range jail.Between(path, g) {
+			if seen[dir] {
+				continue
+			}
+			seen[dir] = true
+			fd, err := openNoSymlinks(unix.AT_FDCWD, dir, unix.O_DIRECTORY)
+			if err != nil {
+				return fmt.Errorf("open %s: %w", dir, err)
+			}
+			err = pinWritable(fd)
+			_ = unix.Close(fd)
+			if err != nil {
+				return fmt.Errorf("pin %s: %w", dir, err)
+			}
+		}
+	}
+	return nil
+}
+
+func pinWritable(fd int) error {
+	tree, err := unix.OpenTree(fd, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH|unix.AT_RECURSIVE)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(tree) }()
+	if err := unix.MountSetattr(tree, "", unix.AT_EMPTY_PATH, &clearReadOnly); err != nil {
+		return err
+	}
+	return unix.MoveMount(tree, "", fd, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH)
 }
 
 var setReadOnly = unix.MountAttr{Attr_set: unix.MOUNT_ATTR_RDONLY}

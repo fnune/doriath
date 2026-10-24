@@ -226,6 +226,11 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 	for i, b := range binds {
 		sources[i] = b.Source
 	}
+	binds = append(binds, parentPins(binds, host)...)
+	sources = make([]string, len(binds))
+	for i, b := range binds {
+		sources[i] = b.Source
+	}
 	if err := checkLinks(sources, writableSources(binds), host); err != nil {
 		return Spec{}, err
 	}
@@ -644,6 +649,43 @@ func GuardsAndLinks(p *profile.Profile, host Host) (guards, links []string, err 
 		}
 	}
 	return guards, links, errors.Join(errs...)
+}
+
+func parentPins(binds []Bind, host Host) []Bind {
+	seen := map[string]bool{}
+	var pins []Bind
+	for _, b := range binds {
+		if !b.ReadOnly || b.Device {
+			continue
+		}
+		parent, ok := enclosing(binds, b.Dest)
+		if !ok || parent.ReadOnly || parent.Device {
+			continue
+		}
+		for _, dir := range Between(parent.Dest, b.Dest) {
+			if seen[dir] {
+				continue
+			}
+			seen[dir] = true
+			rel, _ := filepath.Rel(parent.Dest, dir)
+			source := filepath.Join(parent.Source, rel)
+			if host.Kind(source) == "dir" {
+				pins = append(pins, Bind{Source: source, Dest: dir})
+			}
+		}
+	}
+	return pins
+}
+
+// Between lists the directories strictly between root and path, the
+// shallowest first, or nothing when path is not below root.
+func Between(root, path string) []string {
+	var out []string
+	for dir := filepath.Dir(path); dir != root && within(dir, root) && dir != "/"; dir = filepath.Dir(dir) {
+		out = append(out, dir)
+	}
+	slices.Reverse(out)
+	return out
 }
 
 func enclosing(binds []Bind, path string) (Bind, bool) {

@@ -230,3 +230,80 @@ func TestAJJLockThatHostJJDeletedIsHeldAgainWhileJJRepoStaysReadOnly(t *testing.
 		t.Error(".jj/repo became writable, where the agent could plant a config.toml that host jj copies into your own config")
 	}
 }
+
+func TestTheParentsOfGuardedFilesAreMountPointsInWriteMounts(t *testing.T) {
+	const repo = "/home/u/repo"
+	h := host()
+	for p, k := range storeHost() {
+		h[p] = k
+	}
+	h[repo+"/.claude"] = "dir"
+	h[repo+"/.claude/settings.json"] = "file"
+	h[repo+"/config"] = "dir"
+	h[repo+"/config/secrets"] = "dir"
+	h[repo+"/config/secrets/.env"] = "file"
+	p := testProfile()
+	p.Mounts = append(p.Mounts,
+		profile.Mount{Path: repo, Mode: profile.ModeWrite},
+		profile.Mount{Path: repo + "/.claude/settings.json", Mode: profile.ModeRead},
+		profile.Mount{Path: repo + "/config/secrets/.env", Mode: profile.ModeHide},
+	)
+	s, err := Plan(p, layout(), opts(), held(p, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectModes(t, s.Binds, map[string]string{
+		repo + "/.git":                 "write",
+		repo + "/.git/objects":         "write",
+		repo + "/.git/objects/pack":    "write",
+		repo + "/.git/worktrees/wt":    "write",
+		repo + "/.jj":                  "write",
+		repo + "/.jj/repo":             "write",
+		repo + "/.claude":              "write",
+		repo + "/config":               "write",
+		repo + "/config/secrets":       "write",
+		repo + "/config/secrets/.env":  "read",
+		repo + "/.git/hooks":           "read",
+		repo + "/.jj/repo/config.toml": "read",
+	})
+	for _, b := range s.Binds {
+		if b.Dest == repo+"/.git" && b.Source != b.Dest {
+			t.Errorf("the pin of %s binds %s, want the directory itself", b.Dest, b.Source)
+		}
+	}
+	idx := func(dest string) int { return slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == dest }) }
+	if idx(repo) > idx(repo+"/.git") || idx(repo+"/.git") > idx(repo+"/.git/hooks") {
+		t.Error("each pin must come after the mount that holds it and before the guards inside it")
+	}
+}
+
+func TestNothingIsPinnedUnderAReadOnlyMount(t *testing.T) {
+	h := host()
+	h["/home/u/Development/project/site/.git"] = "dir"
+	h["/home/u/Development/project/site/.git/config"] = "file"
+	p := testProfile()
+	s, err := Plan(p, layout(), opts(), held(p, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mode(s.Binds, "/home/u/Development/project/site/.git"); got != "none" {
+		t.Errorf("a read-only mount needs no pins, got %s", got)
+	}
+}
+
+func TestBetweenListsTheDirectoriesBelowTheRootAndAboveThePath(t *testing.T) {
+	for _, c := range []struct {
+		root, path string
+		want       []string
+	}{
+		{"/r", "/r/.git/hooks", []string{"/r/.git"}},
+		{"/r", "/r/.git/objects/pack/p.pack", []string{"/r/.git", "/r/.git/objects", "/r/.git/objects/pack"}},
+		{"/r", "/r/.envrc", nil},
+		{"/r", "/other/.git/hooks", nil},
+		{"/", "/r/.git/hooks", []string{"/r", "/r/.git"}},
+	} {
+		if got := Between(c.root, c.path); !slices.Equal(got, c.want) {
+			t.Errorf("Between(%s, %s) = %v, want %v", c.root, c.path, got, c.want)
+		}
+	}
+}
