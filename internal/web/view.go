@@ -103,7 +103,7 @@ type answeredView struct {
 	By       string
 }
 
-func (s *Server) view(ctx context.Context, selected string) (page, error) {
+func (s *Server) view(ctx context.Context, selected string, orOldest bool) (page, error) {
 	now := s.clock.Now()
 	sessions, err := s.sessions.Sessions(ctx)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *Server) view(ctx context.Context, selected string) (page, error) {
 		p.Answered[i].Selected = true
 		p.Answer = &p.Answered[i]
 	} else {
-		p.Selected = pick(p.Pending, selected)
+		p.Selected = pick(p.Pending, selected, orOldest)
 	}
 	if p.Selected == nil && p.Answer == nil {
 		if p.Status, err = s.status(ctx, now, p.HasSessions); err != nil {
@@ -190,14 +190,14 @@ func (s *Server) status(ctx context.Context, now time.Time, running bool) (statu
 	return v, nil
 }
 
-func pick(pending []requestView, key string) *requestView {
+func pick(pending []requestView, key string, orOldest bool) *requestView {
 	for i := range pending {
 		if pending[i].Key == key {
 			pending[i].Selected = true
 			return &pending[i]
 		}
 	}
-	if len(pending) == 0 {
+	if !orOldest || len(pending) == 0 {
 		return nil
 	}
 	pending[0].Selected = true

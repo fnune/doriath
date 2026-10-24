@@ -277,6 +277,22 @@ func TestDecideFromHtmxReturnsTheMainPart(t *testing.T) {
 	}
 }
 
+func TestNoRequestSwapsInUnderTheCursorAfterTheFirstLoad(t *testing.T) {
+	_, h := setup(t, request("a1", approval.KindHTTP, "Merge"), request("a2", approval.KindPath, "Let the agent write /x"))
+	if body := get(h, "/", true).Body.String(); !strings.Contains(body, `name="id" value="a1"`) {
+		t.Error("the first load does not open the oldest request")
+	}
+	for _, target := range []string{"/main", "/main?request=s1/gone"} {
+		if body := get(h, target, true).Body.String(); strings.Contains(body, `action="/decide"`) {
+			t.Errorf("%s opens a request nobody chose", target)
+		}
+	}
+	w := post(h, url.Values{"session": {"s1"}, "id": {"a1"}, "answer": {"deny"}}, "http://"+testAddr, true)
+	if strings.Contains(w.Body.String(), `action="/decide"`) {
+		t.Error("answering opens the next request")
+	}
+}
+
 func TestProofNeedsTheToken(t *testing.T) {
 	_, h := setup(t)
 	challenge := "0123456789abcdef"

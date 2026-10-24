@@ -238,7 +238,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, notSignedIn, http.StatusUnauthorized)
 		return
 	}
-	s.render(w, r, "page", http.StatusOK, r.URL.Query().Get("request"), "")
+	s.render(w, r, "page", http.StatusOK, r.URL.Query().Get("request"), "", true)
 }
 
 func (s *Server) code(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +312,7 @@ func (s *Server) proof(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) main(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, "main", http.StatusOK, r.URL.Query().Get("request"), "")
+	s.render(w, r, "main", http.StatusOK, r.URL.Query().Get("request"), "", false)
 }
 
 func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
@@ -341,10 +341,10 @@ func sentByHtmx(r *http.Request) bool { return r.Header.Get("HX-Request") == "tr
 
 func (s *Server) renderAfter(w http.ResponseWriter, r *http.Request, status int, selected, problem string) {
 	if sentByHtmx(r) {
-		s.render(w, r, "main", http.StatusOK, selected, problem)
+		s.render(w, r, "main", http.StatusOK, selected, problem, false)
 		return
 	}
-	s.render(w, r, "page", status, selected, problem)
+	s.render(w, r, "page", status, selected, problem, false)
 }
 
 func (s *Server) answer(ctx context.Context, session, id, answer string) error {
@@ -396,8 +396,8 @@ func decision(kind approval.Kind, answer string) (approval.Decision, error) {
 	return approval.Decision{}, fmt.Errorf("answer %q: want once, session or deny", answer)
 }
 
-func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, status int, selected, problem string) {
-	view, err := s.view(r.Context(), selected)
+func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, status int, selected, problem string, orOldest bool) {
+	view, err := s.view(r.Context(), selected, orOldest)
 	if err != nil {
 		view.Problem = err.Error()
 	}
