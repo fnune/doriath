@@ -120,6 +120,7 @@ func TestStartAndEnd(t *testing.T) {
 		WriteFile: func(name string, data []byte) (string, error) {
 			return "/run/doriath/" + name, os.WriteFile(filepath.Join(jailDir, name), data, 0o644)
 		},
+		Place: func(string, []byte) error { return nil },
 	}
 	argv, env, err := Adapter{}.Start(s, []string{"claude", "-p", "hi"})
 	if err != nil {
@@ -155,6 +156,42 @@ func TestStartAndEnd(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude", "projects", project, "new.jsonl")); err != nil {
 		t.Fatal("the session's transcript must come back")
+	}
+}
+
+func TestTheAgentCannotCreateUserSettingsYouDoNotHave(t *testing.T) {
+	home := t.TempDir()
+	settings := filepath.Join(home, ".claude", "settings.json")
+	placed := map[string]string{}
+	s := agents.Session{
+		Profile:   &profile.Profile{},
+		Home:      home,
+		HostPath:  func(string) string { return "" },
+		WriteFile: func(name string, _ []byte) (string, error) { return "/run/doriath/" + name, nil },
+		Place: func(p string, data []byte) error {
+			placed[p] = string(data)
+			return nil
+		},
+	}
+	if _, _, err := (Adapter{}).Start(s, []string{"claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if placed[settings] != "{}\n" {
+		t.Fatalf("placed = %v", placed)
+	}
+
+	clear(placed)
+	if err := os.MkdirAll(filepath.Dir(settings), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settings, []byte(`{"model":"opus"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := (Adapter{}).Start(s, []string{"claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := placed[settings]; ok {
+		t.Error("your own settings, which the module mounts, must stay")
 	}
 }
 

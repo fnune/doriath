@@ -67,6 +67,9 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := holdUserSettings(s, configDir); err != nil {
+		return nil, nil, err
+	}
 	args := Args(argv, path)
 	if s.MCPConfig != "" {
 		args = append(args[:1], append([]string{"--mcp-config", s.MCPConfig}, args[1:]...)...)
@@ -88,6 +91,14 @@ func (Adapter) End(s agents.Session) error {
 	}
 	project := ProjectDir(s.Cwd)
 	return copyTranscriptsBack(filepath.Join(private, "projects", project), filepath.Join(configDir, "projects", project))
+}
+
+func holdUserSettings(s agents.Session, configDir string) error {
+	own := filepath.Join(configDir, "settings.json")
+	if _, err := os.Stat(own); !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return s.Place(own, []byte("{}\n"))
 }
 
 type osFiles struct{}
