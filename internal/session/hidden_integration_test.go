@@ -34,7 +34,7 @@ func TestMissingHiddenPathIsHeldForTheSession(t *testing.T) {
 func TestMissingReadOnlyPathIsHeldForTheSession(t *testing.T) {
 	e := newEnv(t)
 	guarded := filepath.Join(e.work, ".envrc")
-	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\noptional = true\n", guarded))
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %q\nmissing = \"hold\"\n", guarded))
 	code, out := e.run(p, fmt.Sprintf(`echo x > %[1]q 2>/dev/null && echo "FAIL created"; cat %[1]q && echo done`, guarded), nil)
 	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
 		t.Fatalf("code %d:\n%s", code, out)

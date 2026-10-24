@@ -32,16 +32,45 @@ const (
 	ModeHide Mode = "hide"
 )
 
+// Missing says what a session does when a mount's path does not exist.
+type Missing string
+
+const (
+	// MissingError refuses to start the session.
+	MissingError Missing = "error"
+	// MissingSkip leaves the path out.
+	MissingSkip Missing = "skip"
+	// MissingHold puts an empty file at the path for the session when a
+	// writable mount holds it, so that the agent cannot create it there.
+	// Elsewhere nothing can create it, and the path is left out.
+	MissingHold Missing = "hold"
+)
+
+var strictness = map[Missing]int{MissingSkip: 0, MissingHold: 1, MissingError: 2}
+
 type Mount struct {
-	Path     string
-	Mode     Mode
-	Optional bool
+	Path string
+	Mode Mode
+	// Missing is what happens when the path does not exist. Empty means
+	// the default of the mode: hold for hide, error otherwise.
+	Missing Missing
 	// Create makes doriath create the directory before the session when it
 	// is missing, for writable entries inside the repository, such as an
 	// agent's worktrees.
 	Create bool
 	// Edit says how doriath request edit changes this read-only file.
 	Edit *Edit
+}
+
+// OnMissing is what happens when the mount's path does not exist.
+func (m Mount) OnMissing() Missing {
+	switch {
+	case m.Missing != "":
+		return m.Missing
+	case m.Mode == ModeHide:
+		return MissingHold
+	}
+	return MissingError
 }
 
 // Edit is how doriath request edit changes a read-only file for the agent:

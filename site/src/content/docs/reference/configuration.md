@@ -36,7 +36,7 @@ This example shows every key of a profile. The sections after it give the detail
 
 ```toml
 description = "One line for doriath profiles list"
-modules = ["base", "vcs", "github", "claude"]
+modules = ["base", "vcs-readwrite", "github", "claude"]
 # Device nodes, such as the TPM.
 # Top-level keys go before the first table.
 devices = ["/dev/tpmrm0"]
@@ -57,10 +57,11 @@ oauth = { mcp = "https://mcp.linear.app/mcp" }
 file = "~/.config/doriath/keys/agent-signing"
 
 # Paths that the jail sees, at the same path.
-# mode is read (the default), write or hide. See "Mounts".
+# mode is read (the default), write or hide. missing is error (the
+# default), skip or hold. See "Mounts".
 [[mounts]]
 path = "~/Documents/notes"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "{repository}/web/dist"
@@ -203,7 +204,7 @@ images = ["ghcr.io/acme/*"]
 daemon = false
 
 # Writable git and jj stores in read-only repositories.
-# The vcs module turns it on. See "Repositories".
+# vcs-readwrite and vcs-readonly turn it on. See "Repositories".
 [vcs]
 store = true
 
@@ -347,12 +348,14 @@ Two placeholders resolve when a session starts, thus one profile can serve many 
 
 doriath and modules add these entries:
 
-| Entry                            | Mode    | From     | Kind    |
-| -------------------------------- | ------- | -------- | ------- |
-| `{current}`                      | `read`  | doriath  | default |
-| `{repository}`                   | `read`  | `vcs`    | default |
-| the repository's store           | `write` | `vcs`    | grant   |
-| `{repository}/.claude/worktrees` | `write` | `claude` | grant   |
+| Entry                            | Mode    | From                            | Kind    |
+| -------------------------------- | ------- | ------------------------------- | ------- |
+| `{current}`                      | `read`  | doriath                         | default |
+| `{repository}`                   | `read`  | `vcs-readwrite`, `vcs-readonly` | default |
+| `{repository}`                   | `write` | `vcs-readwrite`                 | grant   |
+| `{repository}`                   | `read`  | `vcs-readonly`                  | grant   |
+| the repository's store           | `write` | `vcs-readwrite`, `vcs-readonly` | grant   |
+| `{repository}/.claude/worktrees` | `write` | `claude`                        | grant   |
 
 Entries combine by least privilege:
 
@@ -363,7 +366,15 @@ Entries combine by least privilege:
 
 `write` changes your files in place, but the config, hooks and info of git and jj stay read-only, because git runs what they name. If these are missing, doriath creates them empty before the session, so that the agent cannot create them: `.git/hooks`, `info`, `config.worktree` and `objects/info/alternates`, `.jj/repo/config.toml`, and a `.git/commondir` that holds `.`.
 
-`hide` shows an empty directory or file, also to containers. A `hide` or `read` path that is missing in a writable mount gets an empty file as a placeholder for the session, so that the agent cannot create it. To give such a file content, the agent runs [`doriath request edit`](#edits). doriath removes the placeholder at the end, unless someone wrote to it.
+`hide` shows an empty directory or file, also to containers.
+
+`missing` says what happens when the path does not exist:
+
+- `error`, the default for `read` and `write`: the session does not start.
+- `skip`: the jail leaves the path out.
+- `hold`, the default for `hide`: inside a writable mount, doriath puts an empty file at the path for the session, so that the agent cannot create it there, and lists it in the repository's `info/exclude`, so that git and jj leave it out of commits. To give the file content, the agent runs [`doriath request edit`](#edits). doriath removes the placeholder at the end, unless someone wrote to it. Outside a writable mount, `hold` is `skip`.
+
+Where two entries give the same path, the stricter `missing` holds: `error`, then `hold`, then `skip`.
 
 doriath refuses to start if a mount, or a guarded path in a repository, goes through a symlink in a directory that the jail can write. An agent can put such a link there in an earlier session. Other symlinks, such as `~/.nix-profile`, mount their target.
 
@@ -388,7 +399,7 @@ An `edit` table on a read-only mount says how doriath compares the file:
 
 `safe` lists the settings that change without asking you, as `KEY = VALUE`. In a key, `*` matches anything. In a value, `*` matches anything but `/` and `:`, and `**` matches anything. Any other change waits for your answer, with the settings that are not on the list marked.
 
-`{git}` stands for every git directory that doriath guards, submodules included. A mount of `{git}/config` gives only an edit rule, since doriath already keeps the file read-only. The [`vcs` module](/reference/modules/#vcs) sets one:
+`{git}` stands for every git directory that doriath guards, submodules included. A mount of `{git}/config` gives only an edit rule, since doriath already keeps the file read-only. The [`vcs-readwrite` module](/reference/modules/#vcs-readwrite) sets one:
 
 ```toml
 [[mounts]]

@@ -284,15 +284,15 @@ func Guards(p *profile.Profile, host Host) []string {
 }
 
 // GitRoots lists the git stores whose root the jail can write: those of
-// repositories in writable mounts, and those that the vcs module opens.
+// repositories in writable mounts, and those that [vcs] store opens.
 func GitRoots(p *profile.Profile, host Host) []string {
 	g, _ := mountGuards(p, Layout{}, host)
 	return g.roots
 }
 
 // JJRepos lists the .jj/repo directories of the jj repositories whose
-// store the jail can write: those in writable mounts, and those that the vcs
-// module opens.
+// store the jail can write: those in writable mounts, and those that
+// [vcs] store opens.
 func JJRepos(p *profile.Profile, host Host) []string {
 	g, _ := mountGuards(p, Layout{}, host)
 	return slices.Compact(slices.Sorted(slices.Values(g.jjRepos)))
@@ -309,10 +309,10 @@ func mountGuards(p *profile.Profile, layout Layout, host Host) (*guards, []error
 	for _, m := range p.Mounts {
 		kind := host.Kind(m.Path)
 		if kind == "" {
-			if m.Optional || m.Mode == profile.ModeHide {
+			if m.OnMissing() != profile.MissingError {
 				continue
 			}
-			errs = append(errs, fmt.Errorf("mount %s does not exist: create it or mark it optional", m.Path))
+			errs = append(errs, fmt.Errorf("mount %s does not exist: create it, or set missing = \"skip\"", m.Path))
 			continue
 		}
 		switch m.Mode {

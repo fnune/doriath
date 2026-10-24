@@ -36,7 +36,7 @@ Run `doriath profiles list`. If a profile already covers part of the work, ask w
 A profile lists modules, and each module holds the hosts, caches and rules of one tool. Run `doriath modules list` for the modules on this machine, and `doriath modules show NAME` to read one. Start from these:
 
 - `base` for almost all profiles.
-- `vcs` if the project is a git or jj repository.
+- `vcs-readwrite` if the project is a git or jj repository, so that the agent edits and commits in it. `vcs-readonly` instead, if the person wants the agent to only read the checkout and work in worktrees.
 - `docs` so that the agent can read documentation sites.
 - One agent module: `claude`, `codex`, `gemini` or `opencode`. Ask the person which agent they use.
 
@@ -61,7 +61,7 @@ Run `git remote -v` to find the forge. Add `github`, `gitlab`, `forgejo` or `bit
 
 ## Choose the mounts
 
-The jail shows the folder where the session starts, and `vcs` shows the whole repository. Both are read-only. The agent commits in worktrees, and the `claude` module makes `.claude/worktrees` writable. Ask the person where they keep worktrees, and mount that folder with `mode = "write"`.
+The jail shows the folder where the session starts. `vcs-readwrite` makes the whole repository writable, except files that the machine runs on its own, such as `.envrc`. `vcs-readonly` keeps the repository read-only. For sessions side by side, the agent works in worktrees, and the `claude` module makes `.claude/worktrees` writable. Ask the person where they keep worktrees, and mount that folder with `mode = "write"`.
 
 A writable folder with many worktrees is slow to walk. If the folder holds worktrees of other projects, mount a narrower folder.
 
@@ -94,7 +94,7 @@ This example is a TOML profile for a Go and Node project on GitHub, with Claude 
 
 ```toml
 description = "My app"
-modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+modules = ["base", "vcs-readwrite", "docs", "go", "node", "github", "claude"]
 
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]

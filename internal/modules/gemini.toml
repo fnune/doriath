@@ -15,23 +15,23 @@ path = "~/.gemini"
 # GEMINI.md comes in through instructions below.
 [[mounts]]
 path = "~/.gemini/commands"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.gemini/skills"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.gemini/agents"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.gemini/policies"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.agents/skills"
-optional = true
+missing = "skip"
 
 # Gemini's hooks need a trusted folder, so the session text reaches it
 # in GEMINI.md, after yours.

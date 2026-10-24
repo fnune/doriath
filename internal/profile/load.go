@@ -667,12 +667,17 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
+		missing := Missing(m.Missing)
+		if _, ok := strictness[missing]; m.Missing != "" && !ok {
+			errs = append(errs, fmt.Errorf("mount %s: missing %q: want error, skip or hold", m.Path, m.Missing))
+			continue
+		}
 		e, err := buildEdit(m.Edit, mode)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("mount %s: %w", m.Path, err))
 			continue
 		}
-		p.Mounts = mergeKeepingLessAccess(p.Mounts, Mount{Path: path, Mode: mode, Optional: m.Optional, Edit: e})
+		p.Mounts = mergeKeepingLessAccess(p.Mounts, Mount{Path: path, Mode: mode, Missing: missing, Edit: e})
 	}
 	for _, img := range b.images {
 		if err := imagePattern(img); err != nil {

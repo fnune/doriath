@@ -78,7 +78,7 @@ func (s *Session) startRepositories(ctx context.Context) error {
 		return nil
 	}
 	if s.deps.Git == "" {
-		return fmt.Errorf("the vcs module needs git on the host to keep your branches recoverable")
+		return fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
 	}
 	for _, repo := range repos {
 		notes, err := vcs.Prepare(ctx, s.vcsTools(), repo)

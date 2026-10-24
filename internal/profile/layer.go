@@ -35,10 +35,10 @@ type layer struct {
 }
 
 type mountLayer struct {
-	Path     string     `toml:"path"`
-	Mode     string     `toml:"mode"`
-	Optional bool       `toml:"optional"`
-	Edit     *editLayer `toml:"edit"`
+	Path    string     `toml:"path"`
+	Mode    string     `toml:"mode"`
+	Missing string     `toml:"missing"`
+	Edit    *editLayer `toml:"edit"`
 }
 
 type editLayer struct {

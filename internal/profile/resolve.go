@@ -54,13 +54,17 @@ func mergeKeepingLessAccess(mounts []Mount, m Mount) []Mount {
 	if i < 0 {
 		return append(mounts, m)
 	}
+	missing := mounts[i].OnMissing()
+	if strictness[m.OnMissing()] > strictness[missing] {
+		missing = m.OnMissing()
+	}
+	mounts[i].Missing = missing
 	if privilege[m.Mode] < privilege[mounts[i].Mode] {
 		mounts[i].Mode = m.Mode
 	}
 	if mounts[i].Edit == nil {
 		mounts[i].Edit = m.Edit
 	}
-	mounts[i].Optional = mounts[i].Optional && m.Optional
 	return mounts
 }
 
@@ -91,7 +95,7 @@ type Start struct {
 func (p *Profile) Defaults() []Mount {
 	out := []Mount{{Path: Current, Mode: ModeRead}}
 	if p.VCSStore {
-		out = append(out, Mount{Path: Repository, Mode: ModeRead, Optional: true})
+		out = append(out, Mount{Path: Repository, Mode: ModeRead, Missing: MissingSkip})
 	}
 	return out
 }
@@ -162,5 +166,5 @@ func repoProfilesGuard(mounts []Mount, start Start) (Mount, bool) {
 	if start.Exists != nil && start.Exists(dir) {
 		mode = ModeRead
 	}
-	return Mount{Path: dir, Mode: mode, Optional: true}, true
+	return Mount{Path: dir, Mode: mode, Missing: MissingHold}, true
 }

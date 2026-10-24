@@ -12,19 +12,19 @@ path = "~/.codex"
 # settings from it, and leaves your MCP servers, hooks and project trust.
 [[mounts]]
 path = "~/.codex/AGENTS.md"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.codex/skills"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.codex/prompts"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.agents/skills"
-optional = true
+missing = "skip"
 
 # chatgpt.com serves the models for a ChatGPT login, and api.openai.com for
 # an API key.

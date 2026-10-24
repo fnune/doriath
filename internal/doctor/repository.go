@@ -98,7 +98,7 @@ func access(label string, p *profile.Profile, repo string) Result {
 	case p.VCSStore:
 		return Result{Name: label, Level: OK, Detail: "the agent commits through the store, and the checkout stays read-only"}
 	}
-	return Result{Name: label, Level: Note, Detail: "the agent reads it but cannot commit: add the vcs module to the profile"}
+	return Result{Name: label, Level: Note, Detail: "the agent reads it but cannot commit: add vcs-readwrite or vcs-readonly to the profile"}
 }
 
 func signing(p *profile.Profile, tools []vcstools.Tool) Result {

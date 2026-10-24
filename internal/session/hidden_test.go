@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fnune/doriath/internal/jail"
@@ -47,7 +48,7 @@ func TestMissingReadOnlyPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 	guarded := filepath.Join(work, ".envrc")
 	s.req.Profile.Mounts = []profile.Mount{
 		{Path: work, Mode: profile.ModeWrite},
-		{Path: guarded, Mode: profile.ModeRead, Optional: true},
+		{Path: guarded, Mode: profile.ModeRead, Missing: profile.MissingHold},
 	}
 	if err := s.holdMissingPaths(); err != nil {
 		t.Fatal(err)
@@ -58,6 +59,37 @@ func TestMissingReadOnlyPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 	s.cleanup()
 	if _, err := os.Lstat(guarded); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("%s stays after the session: %v", guarded, err)
+	}
+}
+
+func TestPlaceholdersStayOutOfCommits(t *testing.T) {
+	s := newTestSession(t, nil)
+	work := filepath.Join(s.home, "work")
+	mkdirAll(t, filepath.Join(work, ".git", "info"), filepath.Join(work, "web"))
+	exclude := filepath.Join(work, ".git", "info", "exclude")
+	if err := os.WriteFile(exclude, []byte("/build"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: work, Mode: profile.ModeWrite},
+		{Path: filepath.Join(work, ".mcp.json"), Mode: profile.ModeRead, Missing: profile.MissingHold},
+		{Path: filepath.Join(work, "web", "config", ".env"), Mode: profile.ModeHide},
+	}
+	if err := s.holdMissingPaths(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(exclude)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/build\n", "\n/.mcp.json\n", "\n/web/config\n"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("info/exclude lacks %q:\n%s", want, data)
+		}
+	}
+	s.cleanup()
+	if data, err := os.ReadFile(exclude); err != nil || string(data) != "/build" {
+		t.Errorf("info/exclude after the session = %q, %v", data, err)
 	}
 }
 

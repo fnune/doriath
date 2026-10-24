@@ -101,12 +101,12 @@ func TestProfilesEditOpensAProfileInAFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", `sed -i 's/base/vcs/'`)
+	t.Setenv("EDITOR", `sed -i 's/base/vcs-readwrite/'`)
 	var out bytes.Buffer
 	if err := cmdProfiles([]string{"edit", "nested"}, strings.NewReader(""), &out); err != nil {
 		t.Fatalf("%v\n%s", err, out.String())
 	}
-	if data, err := os.ReadFile(nested); err != nil || !strings.Contains(string(data), "vcs") {
+	if data, err := os.ReadFile(nested); err != nil || !strings.Contains(string(data), "vcs-readwrite") {
 		t.Fatalf("the nested file was not edited: %q, %v", data, err)
 	}
 	if _, err := os.Stat(filepath.Join(p.Profiles(), "nested.toml")); !errors.Is(err, os.ErrNotExist) {

@@ -90,7 +90,7 @@ func TestSurveyOfGitAndJJInTheJail(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t)
-			e.modules = []string{"vcs"}
+			e.modules = []string{"vcs-readonly"}
 			repos := filepath.Join(e.home, "repos")
 			if c.mode == "write" {
 				repos = filepath.Join(e.work, "repos")

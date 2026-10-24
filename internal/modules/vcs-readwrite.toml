@@ -1,0 +1,177 @@
+# The repository the session starts in, to edit and commit in. The checkout
+# and the store become writable: git's .git, and jj's operation log, index
+# and working-copy state. What decides what git or jj runs stays read-only:
+# config, hooks, info, commondir, rr-cache and jj's store pointers. So do
+# the files below that your machine runs on its own. doriath records your
+# branches and bookmarks when a session starts, and `doriath restore` puts
+# back what the agent moved. vcs-readonly keeps the checkout read-only.
+
+[vcs]
+store = true
+
+[[mounts]]
+path = "{repository}"
+mode = "write"
+
+# doriath request edit changes .git/config for the agent. Upstream
+# tracking, as git push -u records it, changes without asking. Any other
+# change waits for you.
+[[mounts]]
+path = "{git}/config"
+edit = { format = "git-config", safe = [
+  "branch.*.remote = *",
+  "branch.*.merge = refs/heads/**",
+] }
+
+# The files below run on your machine without you choosing to run them, so
+# they stay read-only in the checkout. The agent reads them, and changes
+# one with doriath request edit, which shows you the new content first.
+# missing = "hold" keeps an empty placeholder where the file is missing, so
+# that the agent cannot create it either; doriath lists it in info/exclude,
+# so that commits leave it out. missing = "skip" is for files whose tool
+# asks before it runs a new one, or that are rare enough not to clutter
+# every checkout with a placeholder.
+
+# direnv runs .envrc when you enter the folder, and the shell it loads: the
+# flake's shellHook, nix-direnv's cache, or devenv's. direnv runs a new or
+# changed .envrc only after direnv allow, so a missing one needs no
+# placeholder. What it loads runs without asking.
+[[mounts]]
+path = "{repository}/.envrc"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.direnv"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/flake.nix"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/flake.lock"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/shell.nix"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/devenv.nix"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/devenv.yaml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/devenv.lock"
+missing = "skip"
+
+
+# mise runs hooks and tasks from its config when you enter the folder. It
+# asks you to trust a new config file first.
+[[mounts]]
+path = "{repository}/mise.toml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.mise.toml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/mise.local.toml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.mise"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.tool-versions"
+missing = "skip"
+
+
+# Editors run the tasks, language servers and scripts these name when you
+# open a folder you trusted. VS Code runs a new tasks.json without asking.
+[[mounts]]
+path = "{repository}/.vscode"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/.idea"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.zed"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.helix"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.nvim.lua"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.nvimrc"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.exrc"
+missing = "skip"
+
+
+# Agents on your machine load hooks, MCP servers and plugins from these in a
+# project you trusted, with no question for a new file.
+[[mounts]]
+path = "{repository}/.claude/settings.json"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/.claude/settings.local.json"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/.mcp.json"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/.codex"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.gemini"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/opencode.json"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.opencode"
+missing = "skip"
+
+
+# Hook managers run these when you commit on your machine, once their hook
+# is installed.
+[[mounts]]
+path = "{repository}/.pre-commit-config.yaml"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/lefthook.yml"
+missing = "hold"
+
+[[mounts]]
+path = "{repository}/.lefthook.yml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/lefthook-local.yml"
+missing = "skip"
+
+[[mounts]]
+path = "{repository}/.husky"
+missing = "skip"

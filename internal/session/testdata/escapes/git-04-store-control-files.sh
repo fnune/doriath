@@ -1,5 +1,5 @@
 #!/bin/sh
-# threat: plant config, hooks, a commondir or a merge resolution that host git uses, or corrupt history in place, through a repository store the vcs module makes writable
+# threat: plant config, hooks, a commondir or a merge resolution that host git uses, or corrupt history in place, through a repository store [vcs] store makes writable
 # expect: held
 # setup: store-repo
 

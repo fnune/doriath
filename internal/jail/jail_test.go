@@ -55,8 +55,8 @@ func testProfile() *profile.Profile {
 		Mounts: []profile.Mount{
 			{Path: "/home/u/Development/project/site", Mode: profile.ModeRead},
 			{Path: "/home/u/Development/project", Mode: profile.ModeWrite},
-			{Path: "/home/u/.nix-profile", Mode: profile.ModeRead, Optional: true},
-			{Path: "/home/u/.missing", Mode: profile.ModeRead, Optional: true},
+			{Path: "/home/u/.nix-profile", Mode: profile.ModeRead, Missing: profile.MissingSkip},
+			{Path: "/home/u/.missing", Mode: profile.ModeRead, Missing: profile.MissingSkip},
 		},
 		Caches:  []profile.Cache{{Path: "/home/u/.cache/go-build"}},
 		Devices: []string{"/dev/tpmrm0"},
@@ -465,7 +465,7 @@ func TestLinksInWritableMountsAreRefused(t *testing.T) {
 				base[k] = v
 			}
 			p := testProfile()
-			p.Mounts = append(p.Mounts, profile.Mount{Path: repo + "/.claude/worktrees", Mode: profile.ModeWrite, Optional: true})
+			p.Mounts = append(p.Mounts, profile.Mount{Path: repo + "/.claude/worktrees", Mode: profile.ModeWrite, Missing: profile.MissingSkip})
 			_, err := Plan(p, layout(), opts(), held(p, base))
 			if err == nil || !strings.Contains(err.Error(), "goes through the symlink") {
 				t.Fatalf("err = %v", err)

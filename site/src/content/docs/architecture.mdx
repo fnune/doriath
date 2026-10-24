@@ -13,12 +13,12 @@ import Architecture from "../../components/Architecture.astro";
 
 bubblewrap, inside the `doriath` binary, creates the namespaces of the jail. The agent runs as your user in them.
 
-| Part    | Inside the jail                                                                                                                                         |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Files   | The system and your repository are read-only. Home, `/run`, `/tmp` and `/var` start empty. Other paths appear only if the profile names them.           |
-| Kernel  | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes to home, `/tmp` and the writable mounts. |
-| Network | Loopback only. Every connection goes through the proxy.                                                                                                 |
-| Limits  | A systemd user scope with task and memory limits, and a CPU quota if the profile sets one.                                                              |
+| Part    | Inside the jail                                                                                                                                                                          |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files   | The system is read-only, and so is your repository unless the profile makes it writable. Home, `/run`, `/tmp` and `/var` start empty. Other paths appear only if the profile names them. |
+| Kernel  | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring` and terminal injection. Landlock limits writes to home, `/tmp` and the writable mounts.                                  |
+| Network | Loopback only. Every connection goes through the proxy.                                                                                                                                  |
+| Limits  | A systemd user scope with task and memory limits, and a CPU quota if the profile sets one.                                                                                               |
 
 The jail gets only the host variables that the profile passes. The [`base` module](/reference/modules/#base) passes the usual ones, such as `PATH` and `TERM`.
 
@@ -53,7 +53,7 @@ doriath holds the request while you decide, so an allow lets the first try throu
 
 ## Repositories
 
-With the [`vcs` module](/reference/modules/#vcs), the agent commits, makes branches and adds worktrees, and your checkout stays read-only. The git and jj store is writable. The files that decide what git and jj run stay read-only: config, hooks, `info`, `commondir` and the jj store pointers.
+With the [`vcs-readwrite` module](/reference/modules/#vcs-readwrite), the agent edits your checkout, commits, makes branches and adds worktrees. Files that your machine runs on its own stay read-only. With `vcs-readonly`, the whole checkout stays read-only, and the agent works in worktrees. Either way the git and jj store is writable. The files that decide what git and jj run stay read-only: config, hooks, `info`, `commondir` and the jj store pointers.
 
 When a session starts, doriath records your branches and bookmarks and copies the loose objects. When it ends, doriath does these steps:
 

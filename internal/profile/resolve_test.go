@@ -120,3 +120,22 @@ func TestTheSameMountTwiceKeepsTheLesserAccess(t *testing.T) {
 		}
 	}
 }
+
+func TestTheSameMountTwiceKeepsTheStricterMissing(t *testing.T) {
+	for _, c := range []struct {
+		first, second Mount
+		want          Missing
+	}{
+		{Mount{Mode: ModeRead, Missing: MissingSkip}, Mount{Mode: ModeRead, Missing: MissingHold}, MissingHold},
+		{Mount{Mode: ModeRead, Missing: MissingHold}, Mount{Mode: ModeRead}, MissingError},
+		{Mount{Mode: ModeRead}, Mount{Mode: ModeHide}, MissingError},
+		{Mount{Mode: ModeHide}, Mount{Mode: ModeRead, Missing: MissingSkip}, MissingHold},
+	} {
+		c.first.Path, c.second.Path = "/p", "/p"
+		mounts := mergeKeepingLessAccess(nil, c.first)
+		mounts = mergeKeepingLessAccess(mounts, c.second)
+		if got := mounts[0].OnMissing(); got != c.want {
+			t.Errorf("%+v then %+v: missing %s, want %s", c.first, c.second, got, c.want)
+		}
+	}
+}

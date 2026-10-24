@@ -26,7 +26,7 @@ Doriath guards against an agent that acts against your intent, for example after
 
 In the jail, the agent has these limits:
 
-- The repository that you start in is read-only. The agent commits in worktrees of its own.
+- The agent edits and commits in the repository that you start in, but the files your machine runs on its own, such as `.envrc` and editor tasks, stay read-only. With `vcs-readonly`, the whole checkout does.
 - Your home directory, SSH keys and other projects are absent.
 - Loopback is the only network. A proxy outside the jail forwards the requests that the profile allows.
 - The proxy adds tokens for the programs that can use them, such as `gh`. The agent never reads the tokens.

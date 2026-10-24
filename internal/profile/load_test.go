@@ -22,7 +22,7 @@ func TestLoadMergesModulesInOrder(t *testing.T) {
 		"base.toml": file(`
 [[mounts]]
 path = "~/.nix-profile"
-optional = true
+missing = "skip"
 
 [env]
 pass = ["TERM"]
@@ -73,7 +73,7 @@ action = "deny"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := p.Mounts; len(got) != 2 || got[0].Path != "/home/u/.nix-profile" || got[0].Mode != ModeRead || !got[0].Optional || got[1].Mode != ModeWrite {
+	if got := p.Mounts; len(got) != 2 || got[0].Path != "/home/u/.nix-profile" || got[0].Mode != ModeRead || got[0].Missing != MissingSkip || got[1].Mode != ModeWrite {
 		t.Errorf("mounts = %+v", got)
 	}
 	if p.Env.Set["LANG"] != "en_US.UTF-8" {
@@ -179,6 +179,7 @@ func TestLoadRejects(t *testing.T) {
 			modules: fstest.MapFS{"a.toml": file("[secrets.gh]\nfile = \"/t\"")},
 			want:    "belong in profiles",
 		},
+		"bad missing": {profile: "[[mounts]]\npath = \"/x\"\nmissing = \"maybe\"", want: `missing "maybe": want error, skip or hold`},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -89,14 +89,14 @@ A profile is a TOML file that describes one kind of work. It lists [modules](/re
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
-modules = ["base", "vcs", "docs", "go", "node", "claude"]
+modules = ["base", "vcs-readwrite", "docs", "go", "node", "claude"]
 ```
 
 To let an agent read the project and write the profile with you, see [profiles with an agent](/guides/profile-setup/).
 
 For another agent, use its module instead of `claude`, as [agents](/agents/) describes. `doriath profiles show my-app` shows what the profile allows, and which module allows each part.
 
-The repository is read-only in the jail, and the agent commits in worktrees. The `claude` module puts them in `.claude/worktrees`. To use another folder, add it as a mount:
+With `vcs-readwrite`, the agent edits and commits in your checkout. For sessions side by side, it works in worktrees: the `claude` module puts them in `.claude/worktrees`. To use another folder, add it as a mount:
 
 ```toml
 [[mounts]]
@@ -124,7 +124,7 @@ Then add the `github` module, so that the agent can push and open pull requests.
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
-modules = ["base", "vcs", "docs", "go", "node", "github", "claude"]
+modules = ["base", "vcs-readwrite", "docs", "go", "node", "github", "claude"]
 
 [secrets.github]
 command = ["rbw", "get", "github-my-app"]

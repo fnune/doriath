@@ -57,7 +57,7 @@ func details(results []Result) string {
 
 func TestARepositoryIsCheckedWithTheProfileItsEnvrcNames(t *testing.T) {
 	opts := repoOptions(t, "use flake\nuse doriath app\n", map[string]string{
-		"app":     "modules = [\"vcs\"]\n\n[secrets.key]\nfile = \"/k\"\n\n[signing]\nkey = \"key\"\n",
+		"app":     "modules = [\"vcs-readonly\"]\n\n[secrets.key]\nfile = \"/k\"\n\n[signing]\nkey = \"key\"\n",
 		"default": "modules = [\"base\"]\n",
 	})
 	got := details(repository(opts))
@@ -82,7 +82,7 @@ func TestARepositoryWithoutAProfileIsCheckedWithTheDefault(t *testing.T) {
 	}
 	opts.Dir = filepath.Dir(opts.Dir)
 	got = details(repository(opts))
-	for _, want := range []string{"note repository", "with profile default: the agent reads it but cannot commit: add the vcs module", "problem signing: profile default: your jj signs commits (signing.behavior = own)"} {
+	for _, want := range []string{"note repository", "with profile default: the agent reads it but cannot commit: add vcs-readwrite or vcs-readonly", "problem signing: profile default: your jj signs commits (signing.behavior = own)"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("lacks %q:\n%s", want, got)
 		}

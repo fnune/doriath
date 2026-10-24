@@ -62,7 +62,7 @@ func TestStoreRepositoriesFindsTheMainRepositoryOfALinkedWorktree(t *testing.T) 
 	}
 	p.VCSStore = false
 	if got := storeRepositories(p, osHost{}); got != nil {
-		t.Errorf("without the vcs module: %v", got)
+		t.Errorf("without [vcs] store: %v", got)
 	}
 }
 
@@ -86,7 +86,7 @@ func TestLinkedStoresAreAddedReadOnly(t *testing.T) {
 	}
 	p.VCSStore = false
 	if got := withLinkedStores(p, osHost{}); got != p {
-		t.Error("without the vcs module the profile must stay as it is")
+		t.Error("without [vcs] store the profile must stay as it is")
 	}
 }
 
@@ -95,10 +95,10 @@ func TestStartRepositoriesNeedsGitForTheVCSModule(t *testing.T) {
 	r := newRepositories(t, s.home)
 	s.req.Profile.Mounts = []profile.Mount{{Path: r.main, Mode: profile.ModeRead}}
 	if err := s.startRepositories(context.Background()); err != nil {
-		t.Fatalf("without the vcs module there is nothing to start: %v", err)
+		t.Fatalf("without [vcs] store there is nothing to start: %v", err)
 	}
 	s.req.Profile.VCSStore = true
-	if err := s.startRepositories(context.Background()); err == nil || !strings.Contains(err.Error(), "needs git on the host") {
+	if err := s.startRepositories(context.Background()); err == nil || !strings.Contains(err.Error(), "need git on the host") {
 		t.Fatalf("err = %v", err)
 	}
 }

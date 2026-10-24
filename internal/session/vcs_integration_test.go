@@ -30,7 +30,7 @@ func git(t *testing.T, dir string, args ...string) string {
 }
 
 // TestStoreOfAReadOnlyRepository runs an agent against a read-only
-// repository whose store the vcs module makes writable: it can add a
+// repository whose store [vcs] store makes writable: it can add a
 // worktree, commit, and move or delete branches, but not touch the checkout
 // or anything git runs, and doriath keeps the moved branches recoverable.
 func TestStoreOfAReadOnlyRepository(t *testing.T) {

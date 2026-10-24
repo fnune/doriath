@@ -3,19 +3,19 @@
 
 [[mounts]]
 path = "~/.nix-profile"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.local/state/nix"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.local/state/home-manager"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.config/jj"
-optional = true
+missing = "skip"
 
 [env]
 pass = [

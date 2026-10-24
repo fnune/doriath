@@ -25,50 +25,50 @@ path = "~/.claude"
 # Your configuration, read-only, inside it.
 [[mounts]]
 path = "~/.claude/CLAUDE.md"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/settings.json"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/keybindings.json"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/statusline.sh"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/agents"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/commands"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/hooks"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/output-styles"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/plugins"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/skills"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.claude/chrome"
-optional = true
+missing = "skip"
 
-# Claude Code's own worktrees (claude --worktree, EnterWorktree). With the
-# vcs module, the agent adds them to a read-only repository and works there.
+# Claude Code's own worktrees (claude --worktree, EnterWorktree), so that
+# the agent can work beside your checkout, also with vcs-readonly.
 [[mounts]]
 path = "{repository}/.claude/worktrees"
 mode = "write"

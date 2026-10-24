@@ -175,7 +175,7 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := access(s.Binds, "/home/u/repo/.git/objects"); got != "read" {
-		t.Errorf("without the vcs module the store stays read-only: %s", got)
+		t.Errorf("without [vcs] store the store stays read-only: %s", got)
 	}
 	p.VCSStore = true
 	s, err = Plan(p, layout(), opts(), held(p, h))
@@ -183,7 +183,7 @@ func TestPlanBindsStoresOnlyWhenTheProfileAsks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := access(s.Binds, "/home/u/repo/.git/objects"); got != "write" {
-		t.Errorf("with the vcs module the objects are writable: %s", got)
+		t.Errorf("with [vcs] store the objects are writable: %s", got)
 	}
 	idx := func(dest string) int { return slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == dest }) }
 	if idx("/home/u/repo") > idx("/home/u/repo/.git") || idx("/home/u/repo/.git") > idx("/home/u/repo/.git/config") {

@@ -20,11 +20,11 @@ path = "~/.cache/opencode"
 # The MCP servers in your opencode.json come along and run in the jail.
 [[mounts]]
 path = "~/.config/opencode"
-optional = true
+missing = "skip"
 
 [[mounts]]
 path = "~/.agents/skills"
-optional = true
+missing = "skip"
 
 # models.dev lists the models of each provider, and opencode.ai serves
 # opencode's own models.

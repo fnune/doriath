@@ -53,19 +53,19 @@ If a kernel exploit is the threat that matters most, run doriath in a VM, or use
 
 ## Guarded actions
 
-| Attempt                                              | Guard                                                                                                                                                            |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read your home directory, SSH keys or other projects | The jail does not mount them. It sees the repository, the profile's paths and system paths.                                                                      |
-| Read a token, or send it to another host             | Tokens stay in the proxy, which adds them only for the programs and hosts that the profile names.                                                                |
-| Reach a host that the profile does not name          | The jail has only loopback. The proxy holds unknown hosts for your approval.                                                                                     |
-| Reach your local network or a cloud metadata service | The proxy refuses private, link-local and metadata addresses, whatever name resolves to them.                                                                    |
-| Merge, release or push without you                   | `[[http]]` rules hold those requests until you [answer](/guides/approvals/).                                                                                     |
-| Approve its own requests                             | Answers come from your desktop, terminal or approvals page, which the jail cannot reach.                                                                         |
-| Change your checkout, or plant a git hook            | The checkout is read-only. git's and jj's config, hooks and info stay read-only, also in writable mounts.                                                        |
-| Rewrite or delete history                            | Existing packs are read-only. At the end, doriath restores loose objects and removes objects that git cannot verify. `doriath restore` resets moved branches.    |
-| Escape through the kernel                            | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules, keyrings, terminal injection and rare socket families. Landlock limits writes.  |
-| Read your clipboard or screen                        | The jail has no display. With the `clipboard` module it gets a display that offers only clipboard images, each after you allow it.                               |
-| Reach more through containers                        | A broker checks each podman API call. It permits only allowed images and the profile's mounts, nothing privileged, and no host namespace other than the network. |
+| Attempt                                              | Guard                                                                                                                                                             |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read your home directory, SSH keys or other projects | The jail does not mount them. It sees the repository, the profile's paths and system paths.                                                                       |
+| Read a token, or send it to another host             | Tokens stay in the proxy, which adds them only for the programs and hosts that the profile names.                                                                 |
+| Reach a host that the profile does not name          | The jail has only loopback. The proxy holds unknown hosts for your approval.                                                                                      |
+| Reach your local network or a cloud metadata service | The proxy refuses private, link-local and metadata addresses, whatever name resolves to them.                                                                     |
+| Merge, release or push without you                   | `[[http]]` rules hold those requests until you [answer](/guides/approvals/).                                                                                      |
+| Approve its own requests                             | Answers come from your desktop, terminal or approvals page, which the jail cannot reach.                                                                          |
+| Change your checkout, or plant a git hook            | Files that your machine runs on its own, such as `.envrc`, editor tasks and agent settings, stay read-only. git's and jj's config, hooks and info stay read-only. |
+| Rewrite or delete history                            | Existing packs are read-only. At the end, doriath restores loose objects and removes objects that git cannot verify. `doriath restore` resets moved branches.     |
+| Escape through the kernel                            | seccomp refuses namespaces, mounts, `ptrace`, `bpf`, `io_uring`, kernel modules, keyrings, terminal injection and rare socket families. Landlock limits writes.   |
+| Read your clipboard or screen                        | The jail has no display. With the `clipboard` module it gets a display that offers only clipboard images, each after you allow it.                                |
+| Reach more through containers                        | A broker checks each podman API call. It permits only allowed images and the profile's mounts, nothing privileged, and no host namespace other than the network.  |
 
 ## Limits
 
@@ -116,18 +116,18 @@ The jail runs as your UID on the host kernel, so a kernel or bubblewrap bug lets
 
 ### Writable repositories
 
-With the `vcs` module, the agent creates, moves and deletes branches and adds worktrees. At the end, doriath repairs the store and its submodules as the guarded actions describe.
+With `vcs-readwrite` or `vcs-readonly`, the agent creates, moves and deletes branches and adds worktrees. At the end, doriath repairs the store and its submodules as the guarded actions describe.
 
 git on your machine follows the `.git` file and admin directory of an agent worktree, so `git status` there can run hooks that the agent wrote. doriath resets these files in milliseconds, again at the end or at the next `doriath run`, and reports each change. These cases stay open:
 
 - doriath only reports a worktree that claims a path outside the writable mounts, or reaches outside them through a symlink.
 - git on your machine follows the config and hooks of a `.git` directory that the agent creates elsewhere in a write mount, as with an `.envrc`.
-- In a `write` mount of your checkout, `.envrc` and editor tasks are writable. Only git's and jj's control files stay read-only.
+- `vcs-readwrite` keeps the files it knows read-only: those of direnv, mise, editors, agents and hook managers. A tool it does not list, or a mount of a checkout that you write yourself, leaves such files writable. A missing file that the module does not hold can be created: direnv and mise ask you before they run a new one, but a tool that does not ask runs it.
 - The agent can write a `commondir` into a store whose root it can write, which sends git on your machine to another repository. doriath removes it in milliseconds, and again at the end.
 - While the session runs, a rebase or cherry-pick that the agent left in a store can hold `exec` lines, which git on your machine runs if you continue it. doriath moves this state aside only at the end.
 - The agent can change what your index stages and which branch `HEAD` names. Neither runs code.
 
-`doriath request edit` changes a guarded file without asking when every change is on the profile's safe list. That list is part of what you trust: a module that marks a setting as safe lets the agent change it in your repository. The `vcs` module lists only upstream tracking, and refuses a remote's URL as a branch's remote.
+`doriath request edit` changes a guarded file without asking when every change is on the profile's safe list. That list is part of what you trust: a module that marks a setting as safe lets the agent change it in your repository. `vcs-readwrite` lists only upstream tracking, and refuses a remote's URL as a branch's remote.
 
 Review the files of an agent worktree as you review a pull request. Worktrees let agents work in parallel, and a copy for each session would cost disk, time and a step to land the work.
 
