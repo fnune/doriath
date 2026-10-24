@@ -167,7 +167,7 @@ in
     modules = lib.mkOption {
       type = lib.types.attrsOf layerType;
       default = { };
-      description = "Your own modules. A module with the name of a built-in one replaces it.";
+      description = "Your own modules. A module with the name of a built-in one is an error.";
     };
 
     profiles = lib.mkOption {

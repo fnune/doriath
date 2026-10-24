@@ -1,6 +1,7 @@
 package profile
 
 import (
+	iofs "io/fs"
 	"slices"
 	"strings"
 	"testing"
@@ -192,5 +193,16 @@ func TestPathRuleCredentialDoesNotHideNameRule(t *testing.T) {
 	c := Credential{Binaries: []string{"/home/u/bin/tool", "gh"}}
 	if !c.AllowsBinary("/nix/store/abc-gh-2.76/bin/gh") {
 		t.Fatal("gh is listed after a path")
+	}
+}
+
+func TestAUserModuleCannotReplaceABuiltInModule(t *testing.T) {
+	l := &Loader{
+		Profiles: fstest.MapFS{"app.toml": file("modules = [\"base\"]\n")},
+		Modules:  []iofs.FS{fstest.MapFS{"base.toml": file("[egress]\nallow = [\"mine.example\"]\n")}, fstest.MapFS{"base.toml": file("")}},
+		Home:     "/home/u",
+	}
+	if _, err := l.Load("app"); err == nil || !strings.Contains(err.Error(), "Rename yours") {
+		t.Fatalf("err = %v", err)
 	}
 }

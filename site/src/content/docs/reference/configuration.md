@@ -21,7 +21,7 @@ The file name is the profile name, and two files with the same name are an error
 
 A profile lists its `modules`, which the [modules](/reference/modules/) page describes. doriath applies them in order, each module after its own `modules`, and the profile last. These rules merge them:
 
-- A user module with the name of a built-in module replaces it.
+- A user module cannot have the name of a built-in module. Profiles with such a module do not load.
 - Lists, such as `mounts` and `egress.allow`, merge.
 - Maps, such as `env.set`, merge, and later values win.
 - If an `[[http]]` host occurs two times, later fields win and later rules go first.

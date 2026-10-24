@@ -94,7 +94,7 @@ type moduleSource struct {
 func (m moduleSource) origin() string {
 	switch {
 	case m.userPath != "" && m.builtin != nil:
-		return "yours, in place of the built-in"
+		return "yours and built in: rename yours"
 	case m.userPath != "":
 		return "yours"
 	}

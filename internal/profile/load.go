@@ -23,8 +23,8 @@ import (
 
 const defaultApprovalTimeout = 60 * time.Second
 
-// Loader reads profiles and the modules they name. Modules are looked up in
-// order, so a user module shadows a built-in module of the same name.
+// Loader reads profiles and the modules they name. A module name is in one
+// of Modules only, so that no module replaces another without notice.
 // Repository holds the profiles named with RepoPrefix, and is nil outside a
 // repository.
 type Loader struct {
@@ -290,16 +290,24 @@ func (l *Loader) readModule(name string) ([]byte, error) {
 	if !namePattern.MatchString(name) {
 		return nil, fmt.Errorf("module name %q: use lowercase letters, digits and dashes", name)
 	}
+	var found [][]byte
 	for _, src := range l.Modules {
 		data, err := fs.ReadFile(src, path.Join(name+".toml"))
 		if err == nil {
-			return data, nil
+			found = append(found, data)
+			continue
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("read module %q: %w", name, err)
 		}
 	}
-	return nil, fmt.Errorf("module %q not found", name)
+	switch len(found) {
+	case 0:
+		return nil, fmt.Errorf("module %q not found", name)
+	case 1:
+		return found[0], nil
+	}
+	return nil, fmt.Errorf("module %q: your modules folder has a module with the name of a built-in module. Rename yours, such as my-%s, and list that name", name, name)
 }
 
 func (l *Loader) profileData(name string) ([]byte, error) {

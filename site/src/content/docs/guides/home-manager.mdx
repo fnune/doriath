@@ -39,7 +39,7 @@ Add the flake as an input and import its module:
 | `approvals.web.enable` | `false`                  | Runs the [approvals page](/guides/approvals/#the-approvals-page) as a systemd user service. |
 | `approvals.web.listen` | `"127.0.0.1:7341"`       | The loopback address of the page.                                                           |
 | `profiles.<name>`      | `{ }`                    | Profiles, with the same keys as their TOML.                                                 |
-| `modules.<name>`       | `{ }`                    | Your own modules. A module with the name of a built-in module replaces it.                  |
+| `modules.<name>`       | `{ }`                    | Your own modules. A module with the name of a built-in module is an error.                  |
 
 ## Profiles in Nix
 
