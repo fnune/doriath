@@ -19,16 +19,25 @@ ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private
 
 The file name is the profile name, and two files with the same name are an error. doriath skips folders whose names start with a dot, such as `.git`.
 
-A profile lists its `modules`, which the [modules](/reference/modules/) page describes. doriath applies them in order, each module after its own `modules`, and the profile last. These rules merge them:
+doriath never writes to profiles, because a profile can come from nix. An approval prints the lines to add instead.
 
-- A user module cannot have the name of a built-in module. Profiles with such a module do not load.
+## Profiles and modules
+
+A profile is an identity: it holds secrets, whose commands run on your machine, and it owns state, such as caches, the agent's login and image pins. A module is data only: it holds no secrets and no state, so doriath can ship modules and a team can share them.
+
+A profile lists its `modules`, which the [modules](/reference/modules/) page describes. A session can also join profiles with `+`, as [composed profiles](#composed-profiles) describes. Both build one list of layers: each profile's modules in order, each module after its own `modules`, then the profile, and then the next profile in the same way. One set of rules merges the layers:
+
 - Lists, such as `mounts` and `egress.allow`, merge.
 - Maps, such as `env.set`, merge, and later values win.
 - If an `[[http]]` host occurs two times, later fields win and later rules go first.
-- Only profiles can set `description` and `secrets`.
+- Where two layers give the same path, the lesser access holds, as [mounts](#mounts) describes.
 - Unknown keys are errors.
 
-doriath never writes to profiles, because a profile can come from nix. An approval prints the lines to add instead.
+What differs between the two:
+
+- Only profiles set `description` and `secrets`. Two profiles that give one secret different sources, or that sign with different keys, are refused.
+- A user module cannot have the name of a built-in module. Profiles with such a module do not load.
+- State belongs to the session's profiles: a composed session has its own caches and agent login.
 
 ## Profile keys
 
@@ -252,14 +261,12 @@ deny = []
 
 ## Composed profiles
 
-A session can use more than one profile, joined with `+`, such as `doriath run --profile my-app+deploy`. A profile for one task, such as deploying, then adds what that task needs to the profile of the project.
+A session can use more than one profile, joined with `+`, such as `doriath run --profile my-app+deploy`. A profile for one task, such as deploying, then adds what that task needs to the profile of the project. Each profile applies over the ones before it, with the rules of [profiles and modules](#profiles-and-modules).
 
-- Each profile applies over the ones before it, as a module does. Hosts, mounts, caches and rules add up. Where two profiles give the same path, the lesser access holds.
-- Two profiles that give one secret different sources, or that sign with different keys, are refused.
 - A secret keeps the login of the profile that gives it, so `doriath profiles login my-app linear` also serves `my-app+deploy`.
 - The composed session has its own caches and its own agent login, under the joined name. A session that holds deploy credentials cannot leave files in the caches that the project's own sessions trust.
 
-`doriath profiles show my-app+deploy` shows the result, with the profile behind each entry.
+`doriath profiles show my-app+deploy` shows the result, with the profile behind each entry. To use one composition for a project each time, name its profiles in the project's [`.envrc`](/guides/direnv/), such as `use doriath my-app deploy`.
 
 ## Repository profiles
 
