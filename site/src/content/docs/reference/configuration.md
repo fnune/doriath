@@ -326,6 +326,8 @@ doriath also refuses `/`, the home directory and the directories above it, in al
 
 The agent can ask to change one file that is read-only in the jail, such as `.git/config` when git or jj cannot write it. It writes the whole new content to a file, and runs `doriath request edit PATH --reason TEXT < FILE`. doriath compares the new content with the file, shows you what changes, and writes it once if you allow it. The file stays read-only in the jail before and after.
 
+The jail's `git` is a front for your git that makes these requests itself, for the settings git writes on its own. The upstream that `git push -u`, `git branch --set-upstream-to` or `git switch --track` records then reaches `.git/config` as the safe list allows, and `git remote add` asks you before the remote does.
+
 An `edit` table on a read-only mount says how doriath compares the file:
 
 - `format = "git-config"` compares settings as git reads them, without following includes. Comments and layout are no change, and doriath writes only the changed settings, never the agent's file.

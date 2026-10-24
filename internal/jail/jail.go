@@ -122,6 +122,9 @@ type Options struct {
 	HostEnv map[string]string
 	// ExtraEnv is set by doriath itself: proxy, sockets, CA bundle and so on.
 	ExtraEnv map[string]string
+	// PathPrepend puts doriath's own fronts, such as its git, before PATH.
+	// A jail without PATH gets none, so that it still finds the system's.
+	PathPrepend []string
 	// ExtraBinds come from adapters, for example the agent's own state.
 	ExtraBinds []Bind
 	SkipUserNS bool
@@ -235,6 +238,9 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 			path += ":" + rest
 		}
 		s.Env["PATH"] = path
+	}
+	if path := s.Env["PATH"]; path != "" && len(opts.PathPrepend) > 0 {
+		s.Env["PATH"] = strings.Join(opts.PathPrepend, ":") + ":" + path
 	}
 	s.Env["HOME"] = opts.Home
 	s.Env["XDG_RUNTIME_DIR"] = runtime

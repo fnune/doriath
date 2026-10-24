@@ -515,13 +515,23 @@ func (s *Session) startSigning(context.Context) error {
 	return nil
 }
 
-// JJGit is the name the doriath binary answers to as the git that jj runs.
-const JJGit = "jj-git"
+// JJGit is the name the doriath binary answers to as the git that jj runs,
+// and FrontsDir the directory of the session's own commands, which the jail
+// puts first on PATH: the doriath binary answers to the name of each.
+const (
+	JJGit     = "jj-git"
+	FrontsDir = "bin"
+)
 
 func (s *Session) writeVCSFiles() error {
 	p := s.req.Profile
-	if err := os.Symlink(jail.ExePath, s.jailPath(JJGit)); err != nil && !errors.Is(err, fs.ErrExist) {
+	if err := os.MkdirAll(s.jailPath(FrontsDir), 0o755); err != nil {
 		return err
+	}
+	for _, link := range []string{JJGit, filepath.Join(FrontsDir, "git")} {
+		if err := os.Symlink(jail.ExePath, s.jailPath(link)); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
 	}
 	j := vcstools.Jail{Path: jail.InJail, SSHCommand: jail.ExePath + " __ssh", JJGit: jail.InJail(JJGit)}
 	if p.SigningKey != "" {
@@ -641,18 +651,19 @@ func (s *Session) plan() (jail.Spec, error) {
 	argv = append(argv, command...)
 
 	return jail.Plan(p, s.layout(), jail.Options{
-		InfoFD:     3,
-		SeccompFD:  4,
-		SkipNetNS:  s.netnsPID != 0,
-		SetIDs:     s.netnsPID != 0,
-		GID:        os.Getgid(),
-		UID:        os.Getuid(),
-		Home:       home,
-		Cwd:        s.req.Cwd,
-		Command:    argv,
-		HostEnv:    envMap(s.deps.Environ),
-		ExtraEnv:   env,
-		ExtraBinds: extra,
+		InfoFD:      3,
+		SeccompFD:   4,
+		SkipNetNS:   s.netnsPID != 0,
+		SetIDs:      s.netnsPID != 0,
+		GID:         os.Getgid(),
+		UID:         os.Getuid(),
+		Home:        home,
+		Cwd:         s.req.Cwd,
+		Command:     argv,
+		HostEnv:     envMap(s.deps.Environ),
+		ExtraEnv:    env,
+		ExtraBinds:  extra,
+		PathPrepend: []string{jail.InJail(FrontsDir)},
 	}, s.listings)
 }
 

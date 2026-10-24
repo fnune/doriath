@@ -180,6 +180,7 @@ type fakeBroker struct {
 	submits  []session.SubmitParams
 	informs  []session.InformParams
 	writes   []session.RequestWriteParams
+	edits    []session.RequestEditParams
 	waits    []session.WaitParams
 	decision approval.Decision
 	pending  string
@@ -242,6 +243,24 @@ func startBroker(t *testing.T) *fakeBroker {
 				return nil, b.fail
 			}
 			return session.RequestWriteResult{Decision: b.decision, Pending: b.pending}, nil
+		},
+		session.MethodRequestEdit: func(_ context.Context, raw json.RawMessage) (any, error) {
+			params, err := control.Decode[session.RequestEditParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.edits = append(b.edits, params)
+			if b.fail != nil {
+				return nil, b.fail
+			}
+			if b.decision.Verdict == approval.VerdictAllow {
+				if err := os.WriteFile(params.Path, []byte(params.Content), 0o644); err != nil {
+					return nil, err
+				}
+			}
+			return session.RequestEditResult{Decision: b.decision, Pending: b.pending, Changes: "changed"}, nil
 		},
 		session.MethodWait: func(_ context.Context, raw json.RawMessage) (any, error) {
 			params, err := control.Decode[session.WaitParams](raw)
