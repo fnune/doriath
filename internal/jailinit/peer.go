@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // Peer is the process on the other end of a connection accepted inside the
@@ -31,11 +33,13 @@ type Peer struct {
 	Commands []string `json:"commands,omitempty"`
 }
 
-// MappedFile is a file in /proc/PID/maps. Only the inode identifies it
-// there: the device number in maps can differ from the one stat reports.
+// MappedFile is a file in /proc/PID/maps. The device number in maps can
+// differ from the one stat reports, so File comes from a stat of the path
+// that still names a file with the mapped inode, and is zero otherwise.
 type MappedFile struct {
 	Path string `json:"path"`
 	Ino  uint64 `json:"ino"`
+	File FileID `json:"file,omitzero"`
 }
 
 // FileID changes when the file at a path is replaced or written.
@@ -117,6 +121,7 @@ func Describe(procRoot string, pid int) (Peer, error) {
 		return Peer{}, fmt.Errorf("read the mappings of pid %d: %w", pid, err)
 	}
 	peer.Code = executableMappings(maps)
+	identifyMappings(dir, peer.Code)
 	peer.Commands = commandChain(os.ReadFile, procRoot, pid)
 	return peer, nil
 }
@@ -136,6 +141,35 @@ func executableMappings(maps []byte) []MappedFile {
 		out = append(out, MappedFile{Path: path, Ino: ino})
 	}
 	return out
+}
+
+func identifyMappings(procDir string, code []MappedFile) {
+	root, err := unix.Open(filepath.Join(procDir, "root"), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return
+	}
+	defer func() { _ = unix.Close(root) }()
+	for i, f := range code {
+		if id, err := statInRoot(root, f.Path); err == nil && id.Ino == f.Ino {
+			code[i].File = id
+		}
+	}
+}
+
+func statInRoot(root int, path string) (FileID, error) {
+	fd, err := unix.Openat2(root, path, &unix.OpenHow{
+		Flags:   unix.O_PATH | unix.O_NOFOLLOW | unix.O_CLOEXEC,
+		Resolve: unix.RESOLVE_IN_ROOT | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS,
+	})
+	if err != nil {
+		return FileID{}, err
+	}
+	defer func() { _ = unix.Close(fd) }()
+	var st unix.Stat_t
+	if err := unix.Fstat(fd, &st); err != nil {
+		return FileID{}, err
+	}
+	return FileID{Dev: st.Dev, Ino: st.Ino, Ctime: st.Ctim.Nano()}, nil
 }
 
 func socketInode(procRoot string, client, server *net.TCPAddr) (string, error) {

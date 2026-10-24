@@ -77,7 +77,7 @@ func TestBridgeNamesTheClientProgramToTheSocket(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.TrimPrefix(got[0], "DORIATH-PEER ")), &peer); err != nil {
 		t.Fatalf("header %q: %v", got[0], err)
 	}
-	if peer.PID != child.Process.Pid || peer.Exe != real || peer.File != FileIDOf(info) || !slices.ContainsFunc(peer.Code, func(f MappedFile) bool { return f.Path == real && f.Ino == peer.File.Ino }) {
+	if peer.PID != child.Process.Pid || peer.Exe != real || peer.File != FileIDOf(info) || !slices.ContainsFunc(peer.Code, func(f MappedFile) bool { return f.Path == real && f.File == peer.File }) {
 		t.Errorf("header = %q, want bash %s and the code it maps", got[0], real)
 	}
 	if got[1] != "hello\n" {

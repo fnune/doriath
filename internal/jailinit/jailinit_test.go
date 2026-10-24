@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestParseForward(t *testing.T) {
@@ -133,5 +134,75 @@ func TestSoleOwnerRefusesDifferentPrograms(t *testing.T) {
 	}
 	if _, err := soleOwner(proc, []int{10, 12}); err == nil {
 		t.Fatal("two programs sharing a socket must not get an identity")
+	}
+}
+
+func fakeProcess(t *testing.T, lib string) string {
+	t.Helper()
+	proc := t.TempDir()
+	dir := filepath.Join(proc, "10")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(lib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maps := fmt.Sprintf("7f00-7f10 r-xp 00000000 fe:01 %d %s\n", FileIDOf(info).Ino, lib)
+	for _, err := range []error{
+		os.Symlink(lib, filepath.Join(dir, "exe")),
+		os.Symlink("/", filepath.Join(dir, "root")),
+		os.WriteFile(filepath.Join(dir, "maps"), []byte(maps), 0o600),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return proc
+}
+
+func TestALibraryWrittenInPlaceIsAnotherFile(t *testing.T) {
+	lib := filepath.Join(t.TempDir(), "libtool.so")
+	if err := os.WriteFile(lib, []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	proc := fakeProcess(t, lib)
+	before, err := Describe(proc, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, _ := os.Stat(lib)
+	if len(before.Code) != 1 || before.Code[0].File != FileIDOf(info) {
+		t.Fatalf("code = %+v, want %+v", before.Code, FileIDOf(info))
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err := os.WriteFile(lib, []byte("two"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := Describe(proc, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Code[0].Ino != before.Code[0].Ino || after.Code[0].File == before.Code[0].File {
+		t.Fatalf("a write in place must change the identity: before %+v, after %+v", before.Code[0], after.Code[0])
+	}
+}
+
+func TestAMappedPathThroughASymlinkHasNoIdentity(t *testing.T) {
+	real := t.TempDir()
+	lib := filepath.Join(real, "libtool.so")
+	if err := os.WriteFile(lib, []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "lib")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	peer, err := Describe(fakeProcess(t, filepath.Join(link, "libtool.so")), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(peer.Code) != 1 || peer.Code[0].File != (FileID{}) {
+		t.Fatalf("code = %+v, want no identity", peer.Code)
 	}
 }

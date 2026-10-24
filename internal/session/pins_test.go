@@ -14,9 +14,11 @@ import (
 
 func TestOnlyThePinnedFileAndSystemCodeAreTrusted(t *testing.T) {
 	tool := jailinit.FileID{Dev: 1, Ino: 2, Ctime: 3}
-	ps := pins{programs: map[string]jailinit.FileID{"/home/u/bin/tool": tool}, code: map[string]uint64{"/home/u/bin/tool": 2, "/home/u/bin/libtool.so": 5}}
+	ps := pins{programs: map[string]jailinit.FileID{"/home/u/bin/tool": tool}, code: map[string]jailinit.FileID{"/home/u/bin/tool": tool, "/home/u/bin/libtool.so": {Dev: 1, Ino: 5, Ctime: 3}}}
 	libc := jailinit.MappedFile{Path: "/nix/store/x-glibc/lib/libc.so.6", Ino: 1}
-	code := func(path string, ino uint64) jailinit.MappedFile { return jailinit.MappedFile{Path: path, Ino: ino} }
+	code := func(path string, ino uint64) jailinit.MappedFile {
+		return jailinit.MappedFile{Path: path, Ino: ino, File: jailinit.FileID{Dev: 1, Ino: ino, Ctime: 3}}
+	}
 	for name, c := range map[string]struct {
 		id   proxy.Identity
 		want string
@@ -24,6 +26,7 @@ func TestOnlyThePinnedFileAndSystemCodeAreTrusted(t *testing.T) {
 		"a system program":              {proxy.Identity{Exe: "/nix/store/x-git/bin/git", Code: []jailinit.MappedFile{code("/nix/store/x-git/bin/git", 8), libc}}, ""},
 		"the pinned file":               {proxy.Identity{Exe: "/home/u/bin/tool", File: tool, Code: []jailinit.MappedFile{code("/home/u/bin/tool", 2), code("/home/u/bin/libtool.so", 5), libc}}, ""},
 		"a library it brought, changed": {proxy.Identity{Exe: "/home/u/bin/tool", File: tool, Code: []jailinit.MappedFile{code("/home/u/bin/tool", 2), code("/home/u/bin/libtool.so", 6)}}, "runs code from /home/u/bin/libtool.so"},
+		"a library written in place":    {proxy.Identity{Exe: "/home/u/bin/tool", File: tool, Code: []jailinit.MappedFile{code("/home/u/bin/tool", 2), {Path: "/home/u/bin/libtool.so", Ino: 5, File: jailinit.FileID{Dev: 1, Ino: 5, Ctime: 4}}}}, "runs code from /home/u/bin/libtool.so"},
 		"another file at the path":      {proxy.Identity{Exe: "/home/u/bin/tool", File: jailinit.FileID{Dev: 1, Ino: 9, Ctime: 3}}, "is not the file it was"},
 		"the file after a write":        {proxy.Identity{Exe: "/home/u/bin/tool", File: jailinit.FileID{Dev: 1, Ino: 2, Ctime: 4}}, "is not the file it was"},
 		"a file the session made":       {proxy.Identity{Exe: "/home/u/bin/new"}, "is not a file that the profile names"},

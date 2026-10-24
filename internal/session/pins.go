@@ -17,13 +17,13 @@ import (
 
 type pins struct {
 	programs map[string]jailinit.FileID
-	code     map[string]uint64
+	code     map[string]jailinit.FileID
 }
 
 const maxPinnedCode = 10000
 
 func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) (pins, []string) {
-	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]uint64{}}
+	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]jailinit.FileID{}}
 	var notes []string
 	for _, pattern := range p.BinaryPaths() {
 		for _, jailPath := range globInJail(p, home, cacheRoot, pattern) {
@@ -71,7 +71,7 @@ func (ps pins) untrusted(id proxy.Identity) string {
 
 func (ps pins) foreignCode(id proxy.Identity) string {
 	for _, code := range id.Code {
-		if ino, pinned := ps.code[code.Path]; (pinned && ino == code.Ino) || profile.UnderTrustedRoot(code.Path) {
+		if file, pinned := ps.code[code.Path]; (pinned && file == code.File) || profile.UnderTrustedRoot(code.Path) {
 			continue
 		}
 		return fmt.Sprintf("%s runs code from %s, which is outside the system paths and not as it was when the session started", id.Exe, code.Path)
@@ -88,7 +88,7 @@ func (ps pins) pinFolder(jailDir, sourceDir string) {
 			return nil
 		}
 		if info, err := d.Info(); err == nil {
-			ps.code[filepath.Join(jailDir, strings.TrimPrefix(path, sourceDir))] = jailinit.FileIDOf(info).Ino
+			ps.code[filepath.Join(jailDir, strings.TrimPrefix(path, sourceDir))] = jailinit.FileIDOf(info)
 		}
 		return nil
 	})
