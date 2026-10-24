@@ -108,6 +108,23 @@ func TestFinishKeepsWhatTheSessionDeleted(t *testing.T) {
 	}
 }
 
+func TestALaterSessionCannotDeleteTheStartValueOfAMovedBranch(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "HEAD")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	f.finish()
+
+	git(t, r, "update-ref", "-d", BackupRef("s1", "refs/heads/main"))
+	if err := KeepBackups(f.ctx, f.tools, rec); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "rev-parse", BackupRef("s1", "refs/heads/main")); got != first {
+		t.Fatalf("backup ref = %q, want %q", got, first)
+	}
+}
+
 func TestFinishPointsAgentWorktreesBack(t *testing.T) {
 	r := repo(t)
 	rec := &Record{Session: "s1"}

@@ -153,5 +153,15 @@ func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs
 	if saveErr := rec.Save(recordPath(paths, rec.Session)); err == nil {
 		err = saveErr
 	}
+	keepBackups(ctx, paths, t)
 	return err
+}
+
+func keepBackups(ctx context.Context, paths config.Paths, t vcs.Tools) {
+	files, _ := filepath.Glob(filepath.Join(paths.Backups(), "*.json"))
+	for _, f := range files {
+		if rec, err := vcs.Load(f); err == nil && rec.Finished {
+			_ = vcs.KeepBackups(ctx, t, rec)
+		}
+	}
 }

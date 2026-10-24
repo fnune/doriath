@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -159,4 +160,38 @@ func TestRepairLogWritesEachRepairToTheAuditLogAndKeepsItForTheTerminal(t *testi
 
 func sameElements(a, b []string) bool {
 	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
+}
+
+func TestTheEndOfASessionPutsBackTheStartValuesEarlierSessionsKept(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	repo := t.TempDir()
+	run := func(args ...string) string {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "-q", "-b", "main")
+	run("commit", "-q", "--allow-empty", "-m", "first")
+	first := run("rev-parse", "HEAD")
+	paths := config.Paths{State: t.TempDir()}
+	mkdirAll(t, paths.Backups())
+	earlier := &vcs.Record{Session: "s1", Finished: true, Repos: []vcs.Repo{{
+		Path: repo, GitDir: filepath.Join(repo, ".git"),
+		Branches: map[string]string{"refs/heads/main": first}, Moved: []string{"refs/heads/main"},
+	}}}
+	if err := earlier.Save(recordPath(paths, "s1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "git"}, &vcs.Record{Session: "s2"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := run("rev-parse", vcs.BackupRef("s1", "refs/heads/main")); got != first {
+		t.Fatalf("backup ref = %q, want %q", got, first)
+	}
 }

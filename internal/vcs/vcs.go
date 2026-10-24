@@ -488,6 +488,38 @@ func (rec *Record) Only(names []string) (unknown []string) {
 	return unknown
 }
 
+// KeepBackups puts back the refs that keep the start values of moved
+// branches, which a later session can delete or move.
+func KeepBackups(ctx context.Context, t Tools, rec *Record) error {
+	var errs []error
+	for _, r := range rec.Repos {
+		if len(r.Moved) == 0 || !isDir(r.GitDir) {
+			continue
+		}
+		out, err := runStore(ctx, t, r.GitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/doriath/"+rec.Session+"/")
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		now := map[string]string{}
+		for line := range strings.Lines(out) {
+			if id, name, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+				now[name] = id
+			}
+		}
+		for _, name := range r.Moved {
+			ref := BackupRef(rec.Session, name)
+			if now[ref] == r.Branches[name] {
+				continue
+			}
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", ref, r.Branches[name]); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // DropBackups deletes the refs that keep the start values of moved branches.
 func DropBackups(ctx context.Context, t Tools, rec *Record) error {
 	var errs []error
