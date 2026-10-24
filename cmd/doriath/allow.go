@@ -10,6 +10,7 @@ import (
 
 	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/term"
 )
 
 type grantStore interface {
@@ -37,9 +38,7 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 		}
 		return store.Allow(key, grants)
 	}
-	if err := describeGrants(out, prof, key, seen, added); err != nil {
-		return err
-	}
+	describeGrants(out, prof, key, seen, added)
 	if !terminal {
 		return fmt.Errorf("profile %s waits for your answer, and this session has no terminal to ask in. To allow it, run on the host: %s", prof.Name, allowCommand(key))
 	}
@@ -52,24 +51,22 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 	return errors.New("you did not allow profile " + prof.Name)
 }
 
-func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen bool, added []string) error {
+func describeGrants(out io.Writer, prof *profile.Profile, key allowed.Key, seen bool, added []string) {
+	t := term.New(out)
 	where := ""
 	if key.Repository != "" {
 		where = " in " + key.Repository
 	}
 	if !seen {
-		fmt.Fprintf(out, "You have not allowed profile %s%s yet. It gives the jail:\n\n", prof.Name, where)
-		if err := summarizeProfile(out, prof); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "\ndoriath profiles show %s lists where each entry comes from.\n", prof.Name)
-		return nil
+		fmt.Fprintf(out, "You have not allowed profile %s%s yet. It gives the jail:\n", t.Bold(prof.Name), where)
+		summarizeProfile(t, out, prof, term.Width(out))
+		fmt.Fprintf(out, "\n%s\n", t.Dim("doriath profiles show "+prof.Name+" lists where each entry comes from."))
+		return
 	}
-	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", prof.Name, where)
+	fmt.Fprintf(out, "Profile %s%s gives the jail more than when you allowed it:\n\n", t.Bold(prof.Name), where)
 	for _, line := range readableAdditions(added) {
-		fmt.Fprintln(out, "  + "+line)
+		fmt.Fprintln(out, "  "+t.Tint(term.Warn, "+")+" "+line)
 	}
-	return nil
 }
 
 func readableAdditions(added []string) []string {
@@ -111,9 +108,7 @@ func profilesAllow(l *profile.Loader, store grantStore, name, dir string, out io
 		return err
 	}
 	if added := profile.Added(approved, grants); !seen || len(added) > 0 {
-		if err := describeGrants(out, prof, key, seen, added); err != nil {
-			return err
-		}
+		describeGrants(out, prof, key, seen, added)
 	}
 	if err := store.Allow(key, grants); err != nil {
 		return err

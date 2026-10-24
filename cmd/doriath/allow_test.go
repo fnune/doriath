@@ -10,6 +10,7 @@ import (
 
 	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/term"
 )
 
 type memoryGrants map[allowed.Key][]string
@@ -141,9 +142,22 @@ func TestTheFirstQuestionSummarizesEachKindOfEntryOnOneLine(t *testing.T) {
 	p.Sources["env pass LANG"] = []string{"base"}
 	p.Sources["env set NO_TELEMETRY"] = []string{"base"}
 	out, _ := confirm(t, memoryGrants{}, p, "n\n", true)
-	for _, want := range []string{"Hosts        a.example, b.example\n", "pass LANG, TERM\n", "set NO_TELEMETRY\n"} {
+	for _, want := range []string{"\nHosts\n  a.example, b.example\n", "\nEnvironment\n  pass  LANG, TERM\n  set   NO_TELEMETRY\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("no %q in:\n%s", want, out)
 		}
+	}
+}
+
+func TestALongListWrapsUnderItsLabel(t *testing.T) {
+	p := appProfile()
+	for _, name := range []string{"AAAA", "BBBB", "CCCC", "DDDD"} {
+		p.Sources["env pass "+name] = []string{"base"}
+	}
+	var out bytes.Buffer
+	summarizeProfile(term.New(&out), &out, p, 22)
+	want := "\nEnvironment\n  pass  AAAA, BBBB,\n        CCCC, DDDD\n"
+	if out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/term"
 )
 
 var profileSections = []struct{ prefix, title string }{
@@ -55,8 +56,22 @@ func printProfile(w io.Writer, p *profile.Profile) error {
 	return tw.Flush()
 }
 
-func summarizeProfile(w io.Writer, p *profile.Profile) error {
-	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+// summaryTones marks the entries that give the jail the most: writes,
+// secrets and devices, and the hosts whose traffic the proxy reads.
+var summaryTones = map[string]term.Level{
+	"mount write ": term.Warn,
+	"device ":      term.Problem,
+	"http ":        term.Action,
+	"secret ":      term.Problem,
+}
+
+func summarizeProfile(t *term.Writer, w io.Writer, p *profile.Profile, width int) {
+	tint := func(key, s string) string {
+		if level, ok := summaryTones[key]; ok {
+			return t.Tint(level, s)
+		}
+		return s
+	}
 	for _, section := range profileSections {
 		var groups []string
 		entries := map[string][]string{}
@@ -74,15 +89,51 @@ func summarizeProfile(w io.Writer, p *profile.Profile) error {
 			}
 			entries[group] = append(entries[group], rest)
 		}
+		if len(groups) == 0 {
+			continue
+		}
 		sort.Strings(groups)
-		title := section.title
+		labelWidth := 0
+		for _, g := range groups {
+			if g != "" {
+				labelWidth = max(labelWidth, len(g)+1)
+			}
+		}
+		fmt.Fprintf(w, "\n%s\n", tint(section.prefix, t.Bold(section.title)))
 		for _, g := range groups {
 			sort.Strings(entries[g])
-			fmt.Fprintf(tw, "  %s\t%s%s\n", title, g, strings.Join(entries[g], ", "))
-			title = ""
+			label := "  " + tint(section.prefix+g, fmt.Sprintf("%-*s", labelWidth, g))
+			lines := wrapList(entries[g], width-2-labelWidth)
+			for i, line := range lines {
+				text := strings.Join(line, t.Dim(", "))
+				if i < len(lines)-1 {
+					text += t.Dim(",")
+				}
+				fmt.Fprintln(w, label+text)
+				label = strings.Repeat(" ", 2+labelWidth)
+			}
 		}
 	}
-	return tw.Flush()
+}
+
+// wrapList splits items into lines of at most width columns, joined by ", ".
+// A width of 0 or less keeps them on one line.
+func wrapList(items []string, width int) [][]string {
+	var lines [][]string
+	var line []string
+	used := 0
+	for _, item := range items {
+		if len(line) > 0 && width > 0 && used+len(", ")+len(item)+len(",") > width {
+			lines = append(lines, line)
+			line, used = nil, 0
+		}
+		if len(line) > 0 {
+			used += len(", ")
+		}
+		line = append(line, item)
+		used += len(item)
+	}
+	return append(lines, line)
 }
 
 type moduleSource struct {

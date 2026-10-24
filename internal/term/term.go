@@ -61,6 +61,19 @@ func IsTerminal(w io.Writer) bool {
 	return err == nil
 }
 
+// Width is the terminal's width in columns, or 0 when w is not a terminal.
+func Width(w io.Writer) int {
+	f, ok := w.(*os.File)
+	if !ok || !IsTerminal(w) {
+		return 0
+	}
+	ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
+		return 0
+	}
+	return int(ws.Col)
+}
+
 // Title saves the terminal's window title on its title stack, sets it, and
 // returns a function that puts the saved title back.
 func Title(w io.Writer, title string) (restore func()) {
@@ -82,6 +95,11 @@ func (t *Writer) paint(color, s string) string {
 }
 
 func (t *Writer) Dim(s string) string { return t.paint(dim, s) }
+
+func (t *Writer) Bold(s string) string { return t.paint(bold, s) }
+
+// Tint colors s like the mark of level.
+func (t *Writer) Tint(level Level, s string) string { return t.paint(marks[level].color, s) }
 
 // Header starts a block: "doriath · " and the parts, the first one bold.
 func (t *Writer) Header(parts ...string) {
