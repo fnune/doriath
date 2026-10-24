@@ -140,7 +140,7 @@ doriath holds each push for your approval, but it does not decide which branches
 - The agent reads the project's earlier transcripts, also text that you pasted into a session outside the jail.
 - Escape sequences in agent output can change your terminal title or state.
 - One session can plant files in caches and container storage that later sessions of the same profile trust. This includes a program at a writable path that `binaries` names, which the next session pins with its credential.
-- A link that the agent opens runs in your browser, where you are signed in. Its site receives the whole link, and a page that acts on a GET request acts as you. doriath opens a link without asking only where a rule allows its host and path, such as an agent's sign-in page or the forge that the profile already reaches.
+- A link that the agent opens runs in your browser, where you are signed in. Its site receives the whole link, and a page that acts on a GET request acts as you. doriath opens a link without asking only where a rule allows its host and path, such as an agent's sign-in page or a forge that the profile already reaches. Sign-in, account, settings and app pages of a forge ask you first.
 - A sign-in forward lets programs on your machine reach one port in the jail for five minutes.
 - A write or read request that you allow can attach a directory that the jail does not see, and so lets the agent read it. A grant lasts until the session ends, because an open file stays open after doriath removes a mount.
 

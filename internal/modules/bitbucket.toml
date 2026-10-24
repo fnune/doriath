@@ -186,5 +186,25 @@ action = "allow"
 
 [[open]]
 host = "bitbucket.org"
+path = "/account/**"
+action = "approve"
+
+[[open]]
+host = "bitbucket.org"
+path = "/site/**"
+action = "approve"
+
+[[open]]
+host = "bitbucket.org"
+path = "/socialauth/**"
+action = "approve"
+
+[[open]]
+host = "bitbucket.org"
+path = "/*/workspace/settings/**"
+action = "approve"
+
+[[open]]
+host = "bitbucket.org"
 path = "/**"
 action = "allow"

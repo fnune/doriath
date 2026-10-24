@@ -19,6 +19,10 @@ Reads and routine work go through. Approvals of pull requests, merges, releases,
 
 doriath holds each push for your approval. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
 
+## Links
+
+The agent can open pages of the forge in your browser without a question, such as an issue, a pull request or a search. Sign-in, account, settings and app pages of the forge ask you first. On such a page, one click from you can authorize an app, install an app or make a token. [Links](/reference/configuration/#links) describes the `[[open]]` rules.
+
 ## git over SSH
 
 The jail has no route for SSH. In the jail, a forge module changes the SSH remotes of the forge, such as `git@gitlab.com:group/project.git`, into HTTPS remotes. Thus git goes through the proxy. Your git configuration outside the jail does not change. If the forge serves SSH on another host, such as `ssh.bitbucket.org`, the module names it under `ssh.hosts`. If git tries SSH to a host that no module of the profile names, doriath stops it with an error that names the host, and you push from outside the jail or add the forge's module.

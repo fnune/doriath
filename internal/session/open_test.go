@@ -109,3 +109,25 @@ func TestAnyOtherLinkAsksYouWithTheWholeLink(t *testing.T) {
 		t.Errorf("opened %v", opened.urls)
 	}
 }
+
+func TestALinkMeetsTheRuleForThePathThatTheBrowserSends(t *testing.T) {
+	notifier := denying()
+	notifier.seen = make(chan approval.Request, 5)
+	s, opened := linkSession(t, notifier,
+		rule(t, "forge.example", "/settings/**", profile.ActionApprove),
+		rule(t, "forge.example", "/**", profile.ActionAllow))
+	for _, link := range []string{
+		"https://forge.example/x/../settings/tokens/new",
+		"https://forge.example/./settings/tokens/new",
+		"https://forge.example/%2e/settings/tokens/new",
+		`https://forge.example/\settings/tokens/new`,
+		"https://forge.example//settings/tokens/new",
+	} {
+		if _, err := s.requestOpen(link, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(opened.urls) != 0 || len(notifier.seen) != 5 {
+		t.Errorf("opened %v, asked %d times", opened.urls, len(notifier.seen))
+	}
+}

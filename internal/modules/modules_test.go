@@ -289,6 +289,56 @@ func TestForgeModulesHoldAReviewThatApprovesAndLetOtherReviewsThrough(t *testing
 	}
 }
 
+func TestForgeLinksOpenRepositoryPagesButAskForAccountAndSignInPages(t *testing.T) {
+	body := "modules = [\"github\", \"gitlab\", \"forgejo\", \"bitbucket\"]\n"
+	for _, name := range []string{"github", "gitlab", "forgejo", "bitbucket"} {
+		body += "[secrets." + name + "]\ncommand = [\"true\"]\n"
+	}
+	l := &profile.Loader{Profiles: fstest.MapFS{"f.toml": {Data: []byte(body)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ host, path, want string }{
+		{"github.com", "/a/b", "allow"},
+		{"github.com", "/a/b/pull/1/files", "allow"},
+		{"github.com", "/login/oauth/authorize", "approve"},
+		{"github.com", "/login/device", "approve"},
+		{"github.com", "/settings/tokens/new", "approve"},
+		{"github.com", "/Settings/personal-access-tokens/new", "approve"},
+		{"github.com", "/apps/some-app/installations/new", "approve"},
+		{"github.com", "/organizations/acme/settings/apps/new", "approve"},
+		{"github.com", "/sessions/two-factor", "approve"},
+		{"github.com", "/notifications", "allow"},
+		{"github.com", "/orgs/acme", "allow"},
+		{"github.com", "/search", "allow"},
+		{"gitlab.com", "/group/sub/proj/-/merge_requests/1", "allow"},
+		{"gitlab.com", "/-/user_settings/personal_access_tokens", "approve"},
+		{"gitlab.com", "/-/profile/keys", "approve"},
+		{"gitlab.com", "/oauth/authorize", "approve"},
+		{"gitlab.com", "/users/sign_in", "approve"},
+		{"gitlab.com", "/admin/users", "approve"},
+		{"codeberg.org", "/a/b/pulls/1", "allow"},
+		{"codeberg.org", "/user/settings/applications", "approve"},
+		{"codeberg.org", "/login/oauth/authorize", "approve"},
+		{"codeberg.org", "/user/login", "approve"},
+		{"codeberg.org", "/org/acme/settings/hooks", "approve"},
+		{"codeberg.org", "/repo/migrate", "approve"},
+		{"bitbucket.org", "/ws/repo/pull-requests/1", "allow"},
+		{"bitbucket.org", "/account/settings/app-passwords/new", "approve"},
+		{"bitbucket.org", "/site/oauth2/authorize", "approve"},
+		{"bitbucket.org", "/ws/workspace/settings/api", "approve"},
+	} {
+		got := profile.ActionApprove
+		if r, ok := p.OpenRule(c.host, c.path); ok {
+			got = r.Action
+		}
+		if string(got) != c.want {
+			t.Errorf("open %s%s: %s, want %s", c.host, c.path, got, c.want)
+		}
+	}
+}
+
 func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte("modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
 	p, err := l.Load("a")

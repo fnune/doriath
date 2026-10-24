@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,10 +73,7 @@ func checkLink(raw string) (*url.URL, error) {
 }
 
 func linkPath(u *url.URL) string {
-	if u.Path == "" {
-		return "/"
-	}
-	return u.Path
+	return path.Clean("/" + strings.ReplaceAll(u.Path, `\`, "/"))
 }
 
 func linkDetails(u *url.URL) string {

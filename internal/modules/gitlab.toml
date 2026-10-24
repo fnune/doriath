@@ -393,5 +393,30 @@ summary = "Push to a GitLab repository"
 
 [[open]]
 host = "gitlab.com"
+path = "/-/**"
+action = "approve"
+
+[[open]]
+host = "gitlab.com"
+path = "/profile/**"
+action = "approve"
+
+[[open]]
+host = "gitlab.com"
+path = "/oauth/**"
+action = "approve"
+
+[[open]]
+host = "gitlab.com"
+path = "/users/**"
+action = "approve"
+
+[[open]]
+host = "gitlab.com"
+path = "/admin/**"
+action = "approve"
+
+[[open]]
+host = "gitlab.com"
 path = "/**"
 action = "allow"

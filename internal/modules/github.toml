@@ -322,5 +322,30 @@ repositories = ["/repos/*/*", "/repositories/*"]
 
 [[open]]
 host = "github.com"
+path = "/login/**"
+action = "approve"
+
+[[open]]
+host = "github.com"
+path = "/sessions/**"
+action = "approve"
+
+[[open]]
+host = "github.com"
+path = "/settings/**"
+action = "approve"
+
+[[open]]
+host = "github.com"
+path = "/apps/**"
+action = "approve"
+
+[[open]]
+host = "github.com"
+path = "/organizations/**"
+action = "approve"
+
+[[open]]
+host = "github.com"
 path = "/**"
 action = "allow"

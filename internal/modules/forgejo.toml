@@ -269,5 +269,30 @@ summary = "Push to a Forgejo repository"
 
 [[open]]
 host = "codeberg.org"
+path = "/user/**"
+action = "approve"
+
+[[open]]
+host = "codeberg.org"
+path = "/login/**"
+action = "approve"
+
+[[open]]
+host = "codeberg.org"
+path = "/admin/**"
+action = "approve"
+
+[[open]]
+host = "codeberg.org"
+path = "/org/**"
+action = "approve"
+
+[[open]]
+host = "codeberg.org"
+path = "/repo/**"
+action = "approve"
+
+[[open]]
+host = "codeberg.org"
 path = "/**"
 action = "allow"
