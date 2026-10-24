@@ -5,6 +5,7 @@ package profile
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
 	"net"
@@ -639,6 +640,11 @@ func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header 
 	if reason := h.unclearOperation(method, path, query, header, body); reason != "" {
 		return Rule{Action: ActionDeny, Summary: reason}, true
 	}
+	if h.readsMCP(method, path) {
+		if _, err := jsonRPCToolCalls(body); errors.Is(err, errRepeatedKey) {
+			return Rule{Action: ActionDeny, Summary: err.Error()}, true
+		}
+	}
 	form := sync.OnceValue(func() url.Values { fields, _ := formFields(query, header, body); return fields })
 	graphql := sync.OnceValues(func() ([]graphQLOperation, bool) { return parseGraphQL(body) })
 	tools := sync.OnceValue(func() mcpCalls {
@@ -651,6 +657,12 @@ func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header 
 		}
 	}
 	return Rule{Action: h.Default}, false
+}
+
+func (h HTTPHost) readsMCP(method, path string) bool {
+	return slices.ContainsFunc(h.Rules, func(r Rule) bool {
+		return (len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
+	})
 }
 
 func (h HTTPHost) unclearOperation(method, path string, query url.Values, header http.Header, body []byte) string {

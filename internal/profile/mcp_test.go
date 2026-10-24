@@ -162,3 +162,28 @@ func TestMCPToolHoldErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestAnMCPBodyThatNamesAKeyTwiceIsDenied(t *testing.T) {
+	p := mustLoad(t, `
+[[mcp]]
+name = "notion"
+url = "https://mcp.notion.com/mcp"
+allow = ["notion-search"]
+deny = ["notion-delete-*"]
+`, nil)
+	h, _ := p.Intercepted("mcp.notion.com")
+	for _, body := range []string{
+		`{"method":"tools/call","params":{"name":"notion-delete-page","name":"notion-search"}}`,
+		`{"method":"tools/call","params":{"name":"notion-delete-page","Name":"notion-search"}}`,
+		`{"method":"tools/call","method":"tools/list","params":{"name":"notion-delete-page"}}`,
+		`[{"method":"tools/list"},{"method":"tools/call","params":{"name":"x"},"params":{"name":"notion-search"}}]`,
+	} {
+		if r, _ := h.DecideRequest("POST", "/mcp", nil, []byte(body)); r.Action != ActionDeny {
+			t.Errorf("%s: %s, want deny", body, r.Action)
+		}
+	}
+	args := `{"method":"tools/call","params":{"name":"notion-search","arguments":{"q":1,"Q":2}}}`
+	if r, _ := h.DecideRequest("POST", "/mcp", nil, []byte(args)); r.Action != ActionAllow {
+		t.Errorf("a tool's own arguments may repeat a key in another case: %s", r.Action)
+	}
+}
