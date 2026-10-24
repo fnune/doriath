@@ -892,7 +892,7 @@ func TestAnOptionalSecretThatCannotBeReadLeavesTheSessionRunning(t *testing.T) {
 	e := newEnv(t)
 	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}
 	code, out := e.run(e.profile(""), `curl -sS https://api.github.com/user`, nil)
-	if code != 0 || !strings.Contains(out, `secret \"github\": stat `) || !strings.Contains(out, "Ask the user to fix the secret on the host") {
+	if code != 0 || !strings.Contains(out, `secret \"github\": stat `) || !strings.Contains(out, "Ask the user to fix the secret on the host") || !strings.Contains(out, "secrets missing github") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }

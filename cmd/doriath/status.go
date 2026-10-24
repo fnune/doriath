@@ -13,6 +13,7 @@ import (
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/session"
+	"github.com/fnune/doriath/internal/term"
 )
 
 func sessionStatus(ctx context.Context, id string) (session.Status, error) {
@@ -75,12 +76,14 @@ func cmdStatus(args []string, w io.Writer) error {
 	return nil
 }
 
+const statuslineSecretsWidth = 32
+
 func cmdStatusline(w io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	st, err := sessionStatus(ctx, "")
 	if err != nil {
-		fmt.Fprintln(w, "doriath: no session")
+		fmt.Fprintln(w, term.Badge("doriath: no session"))
 		return nil
 	}
 	parts := []string{"doriath " + st.Profile, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
@@ -90,6 +93,9 @@ func cmdStatusline(w io.Writer) error {
 	if n := len(st.Denied); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d blocked", n))
 	}
-	fmt.Fprintln(w, strings.Join(parts, " · "))
+	if secrets := st.SecretsSummary(statuslineSecretsWidth); secrets != "" {
+		parts = append(parts, secrets)
+	}
+	fmt.Fprintln(w, term.Badge(strings.Join(parts, " · ")))
 	return nil
 }

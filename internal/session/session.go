@@ -230,6 +230,11 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	for _, n := range notes {
 		s.notes = append(s.notes, note{term.Warn, n})
 	}
+	if len(s.notes) > 0 {
+		if summary := s.secretsStatus().SecretsSummary(noteWidth(s.deps.Stderr)); summary != "" {
+			s.notes = append(s.notes, note{term.Info, summary})
+		}
+	}
 	printBlock(term.New(s.deps.Stderr), s.notes, s.req.Profile.Name, "session "+s.id)
 	if s.titled {
 		restore := term.Title(s.deps.Stderr, "doriath · "+s.req.Profile.Name)

@@ -11,6 +11,7 @@ import (
 
 func TestStatusline(t *testing.T) {
 	testPaths(t)
+	t.Setenv("NO_COLOR", "1")
 	var out bytes.Buffer
 	if err := cmdStatusline(&out); err != nil || out.String() != "doriath: no session\n" {
 		t.Errorf("without a session = %q, %v", out.String(), err)
@@ -29,6 +30,19 @@ func TestStatusline(t *testing.T) {
 	out.Reset()
 	if err := cmdStatusline(&out); err != nil || out.String() != "doriath kitchen · 3 hosts · 1 waiting for you · 2 blocked\n" {
 		t.Errorf("busy session = %q, %v", out.String(), err)
+	}
+	st.Secrets = []string{"github", "acme", "signing"}
+	st.Unavailable = []session.Missing{{Secret: "acme"}}
+	b.setStatus(st)
+	out.Reset()
+	if err := cmdStatusline(&out); err != nil || !strings.HasSuffix(out.String(), " · 2 blocked · 2/3 secrets, missing acme\n") {
+		t.Errorf("with a missing secret = %q, %v", out.String(), err)
+	}
+	st.Unavailable = nil
+	b.setStatus(st)
+	out.Reset()
+	if err := cmdStatusline(&out); err != nil || !strings.HasSuffix(out.String(), " · 2 blocked · secrets github, acme, signing\n") {
+		t.Errorf("with every secret = %q, %v", out.String(), err)
 	}
 }
 

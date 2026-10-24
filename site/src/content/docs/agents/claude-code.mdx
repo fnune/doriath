@@ -18,6 +18,8 @@ doriath starts Claude with settings that it generates:
 - MCP servers come from the [`[[mcp]]`](/reference/configuration/#mcp-servers) list of the profile. Your own MCP servers stay outside the jail.
 - When the session ends, doriath copies the transcripts back to your `~/.claude`, so you can resume outside the jail.
 
+With `statusline`, Claude Code's status line shows the profile, the number of hosts, the requests that wait for you, the blocked hosts and the secrets, such as `doriath work · 12 hosts · 2/3 secrets, missing rbe`. It is a magenta field in your terminal's palette, so that you can tell it from Claude's own text. `NO_COLOR` turns the color off.
+
 Set the adapter under `[claude]` in the profile, and what every adapter shares under `[agent]`:
 
 ```toml

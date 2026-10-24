@@ -233,6 +233,7 @@ type Status struct {
 	Podman      bool         `json:"podman"`
 	Pending     int          `json:"pending"`
 	Denied      []Denial     `json:"denied"`
+	Secrets     []string     `json:"secrets,omitempty"`
 	Unavailable []Missing    `json:"unavailable,omitempty"`
 }
 
@@ -290,6 +291,14 @@ func (s *Session) status() Status {
 		}
 		st.Intercepted = append(st.Intercepted, sh)
 	}
+	secrets := s.secretsStatus()
+	st.Secrets, st.Unavailable = secrets.Secrets, secrets.Unavailable
+	return st
+}
+
+func (s *Session) secretsStatus() Status {
+	p := s.req.Profile
+	st := Status{Secrets: slices.Sorted(maps.Keys(p.Secrets))}
 	unavailable := s.deps.Secrets.Unavailable()
 	for _, name := range slices.Sorted(maps.Keys(unavailable)) {
 		st.Unavailable = append(st.Unavailable, Missing{Secret: name, Error: unavailable[name].Error(), Users: secretUsers(p, name)})

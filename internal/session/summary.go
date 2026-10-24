@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -42,6 +43,15 @@ func summary(denied []Denial, history []approval.Outcome) []note {
 		out = append(out, note{term.Info, "requests: " + strings.Join(decided, ", ")})
 	}
 	return out
+}
+
+const noteIndent = len("  · ")
+
+func noteWidth(w io.Writer) int {
+	if width := term.Width(w); width > noteIndent {
+		return width - noteIndent
+	}
+	return 80
 }
 
 func printBlock(t *term.Writer, notes []note, header ...string) {

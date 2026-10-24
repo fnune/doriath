@@ -28,3 +28,14 @@ func TestLinesOutsideATerminalHaveNoColors(t *testing.T) {
 		t.Errorf("got %q, want %q", out.String(), want)
 	}
 }
+
+func TestABadgeTakesTheTerminalsBackgroundAsItsTextColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	if got := Badge("doriath work"); got != "\x1b[35;7m doriath work \x1b[0m" {
+		t.Errorf("badge = %q", got)
+	}
+	t.Setenv("NO_COLOR", "1")
+	if got := Badge("doriath work"); got != "doriath work" {
+		t.Errorf("with NO_COLOR = %q", got)
+	}
+}
