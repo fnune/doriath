@@ -606,8 +606,8 @@ tool_wait = "60s"
 # env sets variables on bubblewrap, the process your terminal sees in place
 # of the agent. {command} is the name of the command doriath runs, such as
 # claude. The jail does not get these variables, but do not put secrets in
-# them. It is empty by default. To let herdr find the agent in its panes,
-# set env = { HERDR_AGENT = "{command}" }.
+# them. It is empty by default. To let an agent manager such as herdr find
+# the agent, see the agent managers section of Looking inside a session.
 [terminal]
 title = true
 bar = true

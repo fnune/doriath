@@ -39,3 +39,14 @@ doriath log --denied --follow
 doriath writes each session, egress decision and approval to the audit log, `~/.local/state/doriath/audit.jsonl`. Each record has its session and profile. `doriath log` reads this file, and `contrib/lnav` has a format for [lnav](https://lnav.org).
 
 When a session ends, doriath prints what it blocked, the hosts that the session learned as profile lines, and the branches that moved. `doriath restore SESSION BRANCH` puts a branch back. See [Repositories](/reference/configuration/#repositories).
+
+## Agent managers
+
+An agent manager, such as [herdr](https://herdr.dev) or [sidecar](https://github.com/marcus/sidecar), shows the agents that run in its panes. It finds an agent from the name of its process. In a session, it sees `doriath` and `bwrap` in place of the agent. To name the agent to these two managers, set [`env` in `[terminal]`](/reference/configuration/#configtoml-keys) in `config.toml`:
+
+```toml title="~/.config/doriath/config.toml"
+[terminal]
+env = { HERDR_AGENT = "{command}", SIDECAR_AGENT = "{command}" }
+```
+
+Other managers, such as claude-squad, agent-deck and ccmanager, start the agent themselves. Set the agent command in the manager to `doriath run --profile NAME -- claude`. A manager that gets the status of the agent from hooks through a socket does not get it, because the jail cannot reach the socket.
