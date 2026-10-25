@@ -294,6 +294,46 @@ func TestDesktopShowsLinksWithoutOpeningThem(t *testing.T) {
 	}
 }
 
+type fakePage struct{ opened chan [2]string }
+
+func (fakePage) Running() bool { return true }
+
+func (p fakePage) Open(request, activation string) error {
+	p.opened <- [2]string{request, activation}
+	return nil
+}
+
+func TestDesktopAnswersOrOpensThePageWhileItRuns(t *testing.T) {
+	e := newDesktopEnv(t)
+	page := fakePage{opened: make(chan [2]string, 1)}
+	e.desktop.Page = page
+	id, decisions, _ := e.notify(t, request)
+	got := e.server.last(t)
+	if want := append(Actions(request), "default", ""); !slices.Equal(got.actions, want) {
+		t.Errorf("actions = %v, want %v", got.actions, want)
+	}
+	if got.body != Body(request, e.desktop.now()) {
+		t.Errorf("body = %q", got.body)
+	}
+
+	if err := e.server.conn.Emit(objPath, iface+".ActivationToken", id, "token"); err != nil {
+		t.Fatal(err)
+	}
+	e.server.invoke(t, id, "default")
+	select {
+	case opened := <-page.opened:
+		if opened != [2]string{"s1/r1", "token"} {
+			t.Errorf("opened = %v", opened)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a click on the notification did not open the page")
+	}
+	expectNoDecision(t, decisions)
+
+	e.server.invoke(t, id, "allow-once")
+	expectDecision(t, decisions, approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "desktop"})
+}
+
 func TestDesktopNotificationClosed(t *testing.T) {
 	e := newDesktopEnv(t)
 	id, decisions, _ := e.notify(t, request)

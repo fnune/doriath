@@ -97,13 +97,6 @@ func TestToolRequestsAreLabeled(t *testing.T) {
 	}
 }
 
-func TestThePageBodyNamesTheProfileAndLeavesTheRestToThePage(t *testing.T) {
-	got := PageBody(approval.Request{Agent: "Claude Code", Profile: "work", Details: "secret details"})
-	if got != "Claude Code in profile work is waiting. Open the approvals page to answer." {
-		t.Errorf("body = %q", got)
-	}
-}
-
 func TestASecretCardOffersToTryAgainOrDismiss(t *testing.T) {
 	got := Actions(approval.Request{Kind: approval.KindSecret})
 	if len(got) != 4 || got[1] != "Try again" || got[3] != "Dismiss" {
@@ -126,12 +119,11 @@ func TestANotificationTitleIsOneShortEscapedLine(t *testing.T) {
 
 func TestAWarnedRequestShowsTheWarningFirstAndOffersNoSessionAllow(t *testing.T) {
 	req := approval.Request{Kind: approval.KindPath, Profile: "work", Scope: "path write /home/u/.local/bin", Warning: "Your shells run programs from /home/u/.local/bin."}
-	for _, body := range []string{Body(req, time.Now()), PageBody(req)} {
-		if !strings.HasPrefix(body, "<b>Warning from doriath:</b> Your shells run programs") {
-			t.Errorf("body = %q", body)
-		}
+	body := Body(req, time.Now())
+	if !strings.HasPrefix(body, "<b>Warning from doriath:</b> Your shells run programs") {
+		t.Errorf("body = %q", body)
 	}
-	if body := Body(req, time.Now()); strings.Contains(body, "Allow for this session") {
+	if strings.Contains(body, "Allow for this session") {
 		t.Errorf("body = %q", body)
 	}
 	if got := Actions(req); len(got) != 4 || got[0] != actionAllowOnce || got[2] != actionDeny {

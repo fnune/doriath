@@ -30,13 +30,11 @@ const (
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
-	actionOpen         = "open"
 	actionDefault      = "default"
 )
 
-// Page is the approvals page, when it runs. A notification then opens it
-// in place of answering, so that the answer is made with the whole request
-// in view.
+// Page is the approvals page, when it runs. A click on the notification
+// itself, rather than on a button, then opens it at the request.
 type Page interface {
 	Running() bool
 	Open(request, activation string) error
@@ -201,7 +199,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	actions, body := Actions(req), Body(req, d.now())
 	page := d.Page != nil && d.Page.Running()
 	if page {
-		actions, body = []string{actionOpen, "Open", actionDefault, ""}, PageBody(req)
+		actions = append(actions, actionDefault, "")
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
@@ -211,7 +209,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}
 	d.mu.Lock()
 	d.handlers[id] = func(action, activation string) {
-		if page && (action == actionOpen || action == actionDefault) {
+		if page && action == actionDefault {
 			_ = d.Page.Open(req.Session+"/"+req.ID, activation)
 			return
 		}
@@ -227,20 +225,6 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 		d.mu.Unlock()
 		_ = d.conn.Object(busName, objPath).Call(iface+".CloseNotification", 0, id).Err
 	}, nil
-}
-
-// PageBody is the text of a notification that opens the approvals page:
-// enough to tell requests apart, since the page shows the rest.
-func PageBody(req approval.Request) string {
-	agent := req.Agent
-	if agent == "" {
-		agent = "The agent"
-	}
-	body := fmt.Sprintf("%s in profile %s is waiting. Open the approvals page to answer.", html.EscapeString(agent), html.EscapeString(req.Profile))
-	if req.Warning != "" {
-		body = fmt.Sprintf("<b>Warning from doriath:</b> %s\n%s", html.EscapeString(req.Warning), body)
-	}
-	return body
 }
 
 // Urgency keeps held requests on screen, because an agent is waiting, and
