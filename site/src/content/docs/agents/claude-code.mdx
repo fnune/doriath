@@ -44,9 +44,18 @@ Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `clau
 
 ## Remote Control
 
-To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. The `claude` module keeps the feature-flag fetch that Remote Control needs, and turns off telemetry, error reports, feedback and updates.
+To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. Remote Control needs Claude's feature flags, which the `claude` module keeps, as [Telemetry](#telemetry) explains.
 
 Permission prompts go to the doriath queue first, and to your phone if you do not answer in time. A command that you allow from the phone still goes through the proxy and its rules. Anyone with the claude.ai login of the profile can control the session, within the same jail.
+
+## Telemetry
+
+The `claude` module refuses the usage events of Claude Code at the proxy. It does not set `DISABLE_TELEMETRY`, because that variable also stops the fetch of Claude's feature flags, which Remote Control needs.
+
+- The proxy refuses `POST /api/event_logging/**` on api.anthropic.com.
+- Egress refuses `*.datadoghq.com`, so you get no prompt for it.
+- The flags come from `/api/eval` on api.anthropic.com. To fetch them, Claude sends Anthropic the attributes that choose your flags, such as your account and the Claude version.
+- `DISABLE_ERROR_REPORTING`, `DISABLE_FEEDBACK_COMMAND` and `DISABLE_AUTOUPDATER` stay set.
 
 ## Sharing your login
 

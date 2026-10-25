@@ -435,3 +435,30 @@ func TestAProfileNarrowsTheAWSHostsToItsRegion(t *testing.T) {
 		}
 	}
 }
+
+func TestTheClaudeModuleRefusesUsageEventsButFetchesFeatureFlags(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"c.toml": {Data: []byte("modules = [\"claude\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api, ok := p.Intercepted("api.anthropic.com")
+	if !ok {
+		t.Fatal("api.anthropic.com is not inspected")
+	}
+	for _, c := range []struct{ path, want string }{
+		{"/api/event_logging/v2/batch", "deny"},
+		{"/api/eval/sdk-abc", "allow"},
+		{"/v1/messages", "allow"},
+	} {
+		if r, _ := api.Decide("POST", c.path, nil); string(r.Action) != c.want {
+			t.Errorf("POST api.anthropic.com%s: %s, want %s", c.path, r.Action, c.want)
+		}
+	}
+	if !p.Refuses("http-intake.logs.us5.datadoghq.com") {
+		t.Error("the Datadog intake is not refused")
+	}
+	if _, ok := p.Env.Set["DISABLE_TELEMETRY"]; ok {
+		t.Error("DISABLE_TELEMETRY is set, so Claude Code fetches no feature flags and leaves out the LSP tool")
+	}
+}
