@@ -259,3 +259,41 @@ func TestANewlyPassedCredentialShowsItsReason(t *testing.T) {
 		t.Errorf("output:\n%s", out)
 	}
 }
+
+func TestAnAddedDenyRuleStartsWithoutAQuestion(t *testing.T) {
+	before := appProfile("a.example")
+	before.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionAllow, Rules: []profile.Rule{{Method: "POST", Path: "/admin/**", Action: profile.ActionApprove}}}}
+	store := memoryGrants{}
+	if _, err := confirm(t, store, before, "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	after := appProfile("a.example")
+	after.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionAllow, Rules: []profile.Rule{
+		{Method: "POST", Path: "/events/**", Action: profile.ActionDeny},
+		{Method: "POST", Path: "/admin/**", Action: profile.ActionApprove},
+	}}}
+	if out, err := confirm(t, store, after, "", true); err != nil || out != "" {
+		t.Errorf("an added deny rule asked: %v\n%s", err, out)
+	}
+	if out, err := confirm(t, store, after, "", true); err != nil || out != "" {
+		t.Errorf("the narrower profile was not kept: %v\n%s", err, out)
+	}
+}
+
+func TestAnAddedDenyRuleStillAsksWhenTheOtherRulesChangeOrder(t *testing.T) {
+	approve := profile.Rule{Method: "POST", Path: "/admin/**", Action: profile.ActionApprove}
+	allow := profile.Rule{Method: "*", Path: "/**", Action: profile.ActionAllow}
+	before := appProfile("a.example")
+	before.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionApprove, Rules: []profile.Rule{approve, allow}}}
+	store := memoryGrants{}
+	if _, err := confirm(t, store, before, "y\n", true); err != nil {
+		t.Fatal(err)
+	}
+	after := appProfile("a.example")
+	after.HTTP = []profile.HTTPHost{{Host: "api.example", Default: profile.ActionApprove, Rules: []profile.Rule{
+		allow, approve, {Method: "POST", Path: "/events/**", Action: profile.ActionDeny},
+	}}}
+	if _, err := confirm(t, store, after, "n\n", true); err == nil {
+		t.Error("a profile whose allow rule now comes first started without a question")
+	}
+}

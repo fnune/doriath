@@ -342,7 +342,7 @@ Allow? [y/N]
 
 doriath keeps what you allowed. When the profile later gives more, the next session shows only the changed lines and asks again. This covers your own edits, a profile from a pull or a merge, and a new version of a built-in module.
 
-A profile gives more when it adds a line. It also gives more when it loses a line that held the agent back: a `deny` or `approve` rule, a hidden path, the `binaries` or `only` of a credential, a host `default`, or a refusal of an agent adapter. Such lines show with a `-`. A profile that only loses hosts, mounts or allow rules starts without a question.
+A profile gives more when it adds a line. It also gives more when it loses a line that held the agent back: a `deny` or `approve` rule, a hidden path, the `binaries` or `only` of a credential, a host `default`, or a refusal of an agent adapter. Such lines show with a `-`. A profile that only loses hosts, mounts or allow rules starts without a question. So does a profile that only adds `deny` rules, because a `deny` rule can only refuse more, wherever it stands in its list.
 
 ```txt
 Profile my-app in /home/me/src/my-app gives the jail more than when you allowed it:

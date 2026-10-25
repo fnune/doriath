@@ -41,6 +41,15 @@ func confirmProfile(store grantStore, prof *profile.Profile, key allowed.Key, in
 		}
 		return store.Allow(key, grants)
 	}
+	if seen {
+		narrower, err := prof.OnlyAddsDenyRules(approved)
+		if err != nil {
+			return err
+		}
+		if narrower {
+			return store.Allow(key, grants)
+		}
+	}
 	describeGrants(out, prof, key, seen, added, removed)
 	if !terminal {
 		return fmt.Errorf("profile %s waits for your answer, and this session has no terminal to ask in. To allow it, run on the host: %s", prof.Name, cli.Code(allowCommand(key)))

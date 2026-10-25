@@ -16,6 +16,35 @@ var notGrants = []string{"Name", "Description", "Modules", "Sources", "SecretOwn
 // is named by its host, name or path where it has one. Other entries, such
 // as rules, are one line each. One more line holds the order of each list.
 func (p *Profile) Grants() ([]string, error) {
+	return p.grantsWithout(nil)
+}
+
+func (p *Profile) OnlyAddsDenyRules(approved []string) (bool, error) {
+	now, err := p.Grants()
+	if err != nil {
+		return false, err
+	}
+	added := map[string]bool{}
+	for _, line := range Added(approved, now) {
+		if strings.Contains(line, OrderSuffix) {
+			continue
+		}
+		if !strings.Contains(line, `"Action":"deny"`) {
+			return false, nil
+		}
+		added[line] = true
+	}
+	if len(added) == 0 || len(Removed(approved, now)) > 0 {
+		return false, nil
+	}
+	without, err := p.grantsWithout(added)
+	if err != nil {
+		return false, err
+	}
+	return len(Added(approved, without)) == 0 && len(Removed(approved, without)) == 0, nil
+}
+
+func (p *Profile) grantsWithout(skip map[string]bool) ([]string, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("list the grants of profile %s: %w", p.Name, err)
@@ -31,56 +60,66 @@ func (p *Profile) Grants() ([]string, error) {
 		delete(egress, "Notes")
 		delete(egress, "Deny")
 	}
-	var lines []string
-	flatten("", top, &lines)
+	w := grantWriter{skip: skip}
+	w.flatten("", top)
+	lines := w.lines
 	slices.Sort(lines)
 	return slices.Compact(lines), nil
 }
 
-func flatten(prefix string, v any, lines *[]string) {
+type grantWriter struct {
+	lines []string
+	skip  map[string]bool
+}
+
+func (w *grantWriter) flatten(prefix string, v any) {
 	switch v := v.(type) {
 	case map[string]any:
 		for k, child := range v {
-			flatten(join(prefix, k), child, lines)
+			w.flatten(join(prefix, k), child)
 		}
 	case []any:
-		flattenList(prefix, v, lines)
+		w.flattenList(prefix, v)
 	case nil:
 	case string:
 		if v != "" {
-			*lines = append(*lines, prefix+": "+v)
+			w.lines = append(w.lines, prefix+": "+v)
 		}
 	default:
 		data, _ := json.Marshal(v)
-		*lines = append(*lines, prefix+": "+string(data))
+		w.lines = append(w.lines, prefix+": "+string(data))
 	}
 }
 
-func flattenList(prefix string, list []any, lines *[]string) {
+func (w *grantWriter) flattenList(prefix string, list []any) {
 	var order []string
 	for _, child := range list {
 		obj, ok := child.(map[string]any)
 		if !ok {
 			data, _ := json.Marshal(child)
 			order = append(order, string(data))
-			flatten(prefix, child, lines)
+			w.flatten(prefix, child)
 			continue
 		}
 		if key, ok := nameKey(obj); ok {
 			name := obj[key].(string)
 			delete(obj, key)
 			order = append(order, name)
-			*lines = append(*lines, prefix+"["+name+"]")
-			flatten(prefix+"["+name+"]", obj, lines)
+			w.lines = append(w.lines, prefix+"["+name+"]")
+			w.flatten(prefix+"["+name+"]", obj)
 			continue
 		}
 		data, _ := json.Marshal(withoutZeros(obj))
+		line := prefix + ": " + string(data)
+		if w.skip[line] {
+			continue
+		}
 		order = append(order, string(data))
-		*lines = append(*lines, prefix+": "+string(data))
+		w.lines = append(w.lines, line)
 	}
 	if len(order) > 1 && !slices.Contains(unordered, prefix) {
 		sum := sha256.Sum256([]byte(strings.Join(order, "\n")))
-		*lines = append(*lines, prefix+OrderSuffix+hex.EncodeToString(sum[:4]))
+		w.lines = append(w.lines, prefix+OrderSuffix+hex.EncodeToString(sum[:4]))
 	}
 }
 
