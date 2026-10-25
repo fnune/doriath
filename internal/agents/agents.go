@@ -32,6 +32,7 @@ type Session struct {
 	// agent must not change during the session.
 	Place func(jailPath string, data []byte) error
 	Touch func(jailPath string) error
+	Later func(after time.Duration, work func() error)
 	// MCPConfig is the jail's path to the profile's MCP servers in the
 	// common mcpServers format, or "" when the profile names none.
 	MCPConfig string

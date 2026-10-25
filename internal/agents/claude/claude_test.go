@@ -196,17 +196,35 @@ func TestYourSettingsArePlacedReadOnlyAndTheAgentCannotCreateThem(t *testing.T) 
 }
 
 func TestStartedTouchesYourSettingsBecauseClaudeListsItsLSPToolOnlyAfterAStateChange(t *testing.T) {
-	var touched []string
-	s := agents.Session{Home: "/h", Touch: func(p string) error {
-		touched = append(touched, p)
-		return nil
-	}}
+	touched, delays := startedSession(t)
+	if len(touched) == 0 || touched[0] != "/h/.claude/settings.json" || len(delays) != len(touched) {
+		t.Errorf("touched %v after %v", touched, delays)
+	}
+}
+
+func TestStartedTouchesAgainLaterBecauseClaudeWatchesItsSettingsOnlyAfterItsHooksRan(t *testing.T) {
+	_, delays := startedSession(t)
+	if slices.Max(delays) < time.Second || slices.Min(delays) != 0 {
+		t.Errorf("delays %v: one touch at once and one well after the hook", delays)
+	}
+}
+
+func startedSession(t *testing.T) (touched []string, delays []time.Duration) {
+	t.Helper()
+	s := agents.Session{
+		Home:  "/h",
+		Touch: func(p string) error { touched = append(touched, p); return nil },
+		Later: func(after time.Duration, work func() error) {
+			delays = append(delays, after)
+			if err := work(); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
 	if err := (Adapter{}).Started(s); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(touched, []string{"/h/.claude/settings.json"}) {
-		t.Errorf("touched %v", touched)
-	}
+	return touched, delays
 }
 
 func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {

@@ -107,8 +107,14 @@ func placeUserSettings(s agents.Session, configDir string) error {
 	return s.Place(own, data)
 }
 
+var settingsTouches = []time.Duration{0, time.Second, 3 * time.Second, 10 * time.Second}
+
 func (Adapter) Started(s agents.Session) error {
-	return s.Touch(filepath.Join(s.Home, ".claude", "settings.json"))
+	settings := filepath.Join(s.Home, ".claude", "settings.json")
+	for _, after := range settingsTouches {
+		s.Later(after, func() error { return s.Touch(settings) })
+	}
+	return nil
 }
 
 type osFiles struct{}

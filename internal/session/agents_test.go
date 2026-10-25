@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/profile"
@@ -78,5 +79,19 @@ func TestAnAgentThatStartedGetsItsAdaptersHostWork(t *testing.T) {
 	}
 	if len(a.sessions) != 1 || a.sessions[0].Touch == nil {
 		t.Errorf("sessions = %+v", a.sessions)
+	}
+}
+
+func TestLaterRunsWorkWhenTheClockSaysSo(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	ran := make(chan struct{})
+	s.later(0, func() error {
+		close(ran)
+		return nil
+	})
+	select {
+	case <-ran:
+	case <-time.After(time.Second):
+		t.Fatal("work did not run")
 	}
 }

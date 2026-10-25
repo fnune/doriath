@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/agents/claude"
@@ -75,6 +76,15 @@ func (s *Session) touch(jailPath string) error {
 	return fmt.Errorf("touch %s: no file placed there", jailPath)
 }
 
+func (s *Session) later(after time.Duration, work func() error) {
+	go func() {
+		<-s.deps.Clock.After(after)
+		if err := work(); err != nil && s.deps.Stderr != nil {
+			fmt.Fprintln(s.deps.Stderr, "doriath: "+err.Error())
+		}
+	}()
+}
+
 func (s *Session) agentStarted() error {
 	starter, ok := s.agent.(agents.Starter)
 	if !ok {
@@ -135,6 +145,7 @@ func (s *Session) agentSession() agents.Session {
 		Instructions: s.status().Describe(),
 		Place:        s.place,
 		Touch:        s.touch,
+		Later:        s.later,
 		Profile:      s.req.Profile,
 		Home:         home,
 		Cwd:          s.req.Cwd,
