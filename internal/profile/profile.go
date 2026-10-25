@@ -471,6 +471,8 @@ type Profile struct {
 	// Modules lists the modules the profile resolved to, in the order
 	// doriath applied them.
 	Modules []string
+	// RepositoryGrants holds what each module grants in a repository.
+	RepositoryGrants map[string]RepositoryGrant
 	// Sources names, for each mount, cache, host, HTTP entry, variable,
 	// MCP server, image and secret, the modules or "profile" that set it.
 	Sources map[string][]string

@@ -170,3 +170,46 @@ echo done
 		t.Error("the read grant let a write through")
 	}
 }
+
+// TestAModuleAppliesInAnotherRepository lets the agent commit in a
+// repository that the session did not start in. The checkout becomes
+// writable, and the files that the host runs stay read-only, as in a
+// session that starts there.
+func TestAModuleAppliesInAnotherRepository(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	e.modules = []string{"vcs-readwrite"}
+	other := filepath.Join(e.home, "other")
+	if err := os.MkdirAll(other, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, other, "init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(other, ".envrc"), []byte("use flake\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out := e.run(e.profile(""), fmt.Sprintf(`
+set -u
+G=/run/doriath-bin/doriath
+O=%[1]s
+touch $O/x 2>/dev/null && echo "FAIL writable before the request"
+$G request write $O/.git 2>&1 | grep -q 'request module' || echo "FAIL the refusal does not name request module"
+$G request module vcs-readwrite $O --reason "commit the fix" || echo "FAIL request"
+touch $O/x || echo "FAIL the checkout is not writable after the allow"
+echo x >> $O/.envrc 2>/dev/null && echo "FAIL .envrc is writable"
+echo x >> $O/.git/config 2>/dev/null && echo "FAIL .git/config is writable"
+touch $O/.git/hooks/pre-commit 2>/dev/null && echo "FAIL the repository took a hook"
+git -C $O add x && git -C $O -c user.name=Agent -c user.email=a@example.org commit -q -m fix || echo "FAIL commit"
+echo done
+`, other), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		if req := e.decideNext(allow); req.Kind != approval.KindPath || !strings.Contains(req.Summary, "module vcs-readwrite in "+other) {
+			t.Errorf("request: %+v", req)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+	if log := git(t, other, "log", "--format=%s", "-1"); strings.TrimSpace(log) != "fix" {
+		t.Errorf("the commit did not reach the host: %q", log)
+	}
+}

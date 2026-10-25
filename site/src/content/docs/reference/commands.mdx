@@ -193,6 +193,16 @@ doriath request write PATH [--reason TEXT]
 
 Asks you to make a path writable. The path can be a folder that the jail does not show yet, if it exists.
 
+### `doriath request module`
+
+```txt frame="none"
+doriath request module MODULE PATH [--reason TEXT]
+```
+
+Asks you to use a module of the profile in another repository, until the session ends. PATH names the repository or a path in it. The module applies there as in a session that starts there: the agent gets the module's writable paths and its store, so it can commit with [`vcs-readwrite`](/reference/modules/#vcs-readwrite). The files that the profile keeps read-only, hidden or held stay so, from every module and from the profile. `doriath status` lists the modules that the agent can ask for.
+
+doriath refuses the request when the profile hides a path with content in that repository, because it cannot hide a path in a running jail. Start a session in that repository instead.
+
 ### `doriath request open`
 
 ```txt frame="none"

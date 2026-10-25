@@ -3,11 +3,13 @@ package session
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fnune/doriath/internal/audit"
@@ -73,52 +75,81 @@ func recordPath(paths config.Paths, id string) string {
 }
 
 func (s *Session) startRepositories(ctx context.Context) error {
-	repos := storeRepositories(s.req.Profile, s.listings)
-	if len(repos) == 0 {
-		return nil
+	notes, err := s.addRepositories(ctx, s.req.Profile, s.listings)
+	for _, n := range notes {
+		s.notes = append(s.notes, note{term.Info, n})
 	}
-	if s.deps.Git == "" {
-		return fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
-	}
-	for _, repo := range repos {
-		notes, err := vcs.Prepare(ctx, s.vcsTools(), repo)
-		if err != nil {
-			return fmt.Errorf("prepare %s: %w", repo, err)
-		}
-		for _, n := range notes {
-			s.notes = append(s.notes, note{term.Info, n})
-		}
-	}
-	rec := &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
-	for _, m := range s.req.Profile.Mounts {
-		if m.Mode == profile.ModeWrite {
-			rec.Writable = append(rec.Writable, m.Path)
-		}
-	}
-	if err := vcs.Start(ctx, s.vcsTools(), filepath.Join(s.deps.Paths.Backups(), s.id), rec, repos); err != nil {
-		return err
-	}
-	if err := rec.Save(recordPath(s.deps.Paths, s.id)); err != nil {
-		return err
-	}
-	s.watchWorktrees(rec)
-	return nil
+	return err
 }
 
-func (s *Session) watchWorktrees(rec *vcs.Record) {
+type repositoryRecord struct {
+	mu       sync.Mutex
+	rec      *vcs.Record
+	repairs  *repairLog
+	stop     func()
+	finished bool
+}
+
+func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host jail.Host) ([]string, error) {
+	r := &s.repos
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.finished {
+		return nil, errors.New("the session has ended")
+	}
+	var repos []string
+	for _, repo := range storeRepositories(p, host) {
+		if r.rec == nil || !slices.ContainsFunc(r.rec.Repos, func(known vcs.Repo) bool { return known.GitDir == vcs.Store(repo) }) {
+			repos = append(repos, repo)
+		}
+	}
+	if len(repos) == 0 {
+		return nil, nil
+	}
+	if s.deps.Git == "" {
+		return nil, fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
+	}
+	var notes []string
+	for _, repo := range repos {
+		n, err := vcs.Prepare(ctx, s.vcsTools(), repo)
+		if err != nil {
+			return notes, fmt.Errorf("prepare %s: %w", repo, err)
+		}
+		notes = append(notes, n...)
+	}
+	if r.stop != nil {
+		r.stop()
+	}
+	if r.rec == nil {
+		r.rec = &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
+		r.repairs = &repairLog{log: s.log}
+	}
+	for _, m := range p.Mounts {
+		if m.Mode == profile.ModeWrite && !slices.Contains(r.rec.Writable, m.Path) {
+			r.rec.Writable = append(r.rec.Writable, m.Path)
+		}
+	}
+	err := vcs.Start(ctx, s.vcsTools(), filepath.Join(s.deps.Paths.Backups(), s.id), r.rec, repos)
+	if saveErr := r.rec.Save(recordPath(s.deps.Paths, s.id)); err == nil {
+		err = saveErr
+	}
+	s.watchWorktrees()
+	return notes, err
+}
+
+func (s *Session) watchWorktrees() {
+	r := &s.repos
 	ctx, cancel := context.WithCancel(context.Background())
-	repairs := &repairLog{log: s.log}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if err := vcs.Watch(ctx, rec, repairs); err != nil {
+		if err := vcs.Watch(ctx, r.rec, r.repairs); err != nil {
 			term.New(s.deps.Stderr).Problem(fmt.Sprintf("agent worktrees are repaired only when the session ends: %v", err))
 		}
 	}()
-	s.unwatch = func(w io.Writer) {
+	r.stop = func() {
 		cancel()
 		<-done
-		_, _ = w.Write(repairs.lines.Bytes())
 	}
 }
 
@@ -133,9 +164,14 @@ func (r *repairLog) Write(p []byte) (int, error) {
 }
 
 func (s *Session) finishRepositories(w io.Writer) {
-	if s.unwatch != nil {
-		s.unwatch(w)
+	r := &s.repos
+	r.mu.Lock()
+	r.finished = true
+	if r.stop != nil {
+		r.stop()
+		_, _ = w.Write(r.repairs.lines.Bytes())
 	}
+	r.mu.Unlock()
 	path := recordPath(s.deps.Paths, s.id)
 	rec, err := vcs.Load(path)
 	if err != nil {

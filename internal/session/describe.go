@@ -19,6 +19,7 @@ func (st Status) Describe() string {
 		}
 	}
 	list("Writable paths", st.Writable)
+	list("Modules that `doriath request module` can use in another repository", st.Modules)
 	list("Read-only paths", st.ReadOnly)
 	list("Reachable hosts (HTTPS through the proxy)", st.Hosts)
 	for _, h := range st.Intercepted {
@@ -67,7 +68,9 @@ func (st Status) Describe() string {
 		"Do not decide that a host is unreachable before you try it. " +
 		"The first request fails, often only as \"CONNECT tunnel failed, response 403\". " +
 		"To wait for the answer, run `doriath request wait HOST` in the background if you can, then try again. " +
-		"To write paths that are read-only here, or folders that this jail does not show, first plan every change you will make, then run `doriath request write PATH --reason TEXT` once, for the narrowest file or directory that covers them all. It asks the user on the approvals page, waits, and keeps PATH writable until the session ends. " +
+		"To write paths that are read-only here, or folders that this jail does not show, first plan every change you will make, and the commits too. Then ask once for what covers them all. " +
+		moduleAdvice(st.Modules) +
+		"Otherwise run `doriath request write PATH --reason TEXT`, for the narrowest file or directory that covers all your changes. A request asks the user on the approvals page, waits, and lasts until the session ends. " +
 		"To read a folder that this jail does not show, run `doriath request read PATH --reason TEXT`. " +
 		"To open a link in the user's browser, run `doriath request open URL --reason TEXT`. xdg-open and $BROWSER do the same, so sign-in flows that open a browser work. " +
 		"When a secret is unavailable, doriath shows the user a card on the approvals page. Wait for it with the command in the error. Do not ask the user to run commands on their machine. " +
@@ -75,4 +78,12 @@ func (st Status) Describe() string {
 		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +
 		"If the user denies a request, tell them what was blocked and why the task needs it. Run `doriath status` to see this again.\n")
 	return b.String()
+}
+
+func moduleAdvice(modules []string) string {
+	if len(modules) == 0 {
+		return ""
+	}
+	return "To commit, make branches or add worktrees in another repository, run `doriath request module MODULE PATH --reason TEXT` with a module from the list above. " +
+		"The module applies there as in a session that starts there, and the files that the user's machine runs stay read-only. "
 }

@@ -523,6 +523,8 @@ doriath also refuses the paths on the profile's `refuse` lists. A request for a 
 
 Repositories in a granted path keep the read-only control files of a `write` mount. Containers that start after a grant can bind the path as writable.
 
+The agent can also ask to use a module of the profile in another repository, with [`doriath request module`](/reference/commands/#doriath-request-module). The module's `{repository}` and `{current}` entries then apply to that repository. Only the module's own `write` entries and `[vcs] store` come along. All entries that keep a path read-only, hidden or held come along, from the profile and from every module.
+
 ## Links
 
 The agent opens a link in your browser with `xdg-open`, `$BROWSER` or [`doriath request open`](/reference/commands/#doriath-request-open). doriath opens only `http` and `https` links, without a user name or password in them. Each link meets the first `[[open]]` rule whose host and path match it, the profile's rules before those of its modules:

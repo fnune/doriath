@@ -147,6 +147,49 @@ func (s *Session) checkRead(path string) (string, error) {
 }
 
 func (s *Session) checkGrant(path string, write bool) (string, error) {
+	path, err := s.checkReach(path, write)
+	if err != nil {
+		return "", err
+	}
+	for _, part := range strings.Split(path, "/") {
+		if part != ".git" && part != ".jj" {
+			continue
+		}
+		if !write {
+			return "", fmt.Errorf("%s: doriath does not show paths inside .git or .jj on their own", path)
+		}
+		return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable. To commit, branch and add worktrees in another repository, run: %s. In this session's repository, git and jj need no grant. To change .git/config, run: %s", path, cli.Code(cli.Line("request", "module", "MODULE", "REPOSITORY", "--reason", "TEXT")), cli.Code(cli.Line("request", "edit", "PATH", "--reason", "TEXT")+" < NEW_CONTENT"))
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, m := range s.req.Profile.Mounts {
+		switch {
+		case m.Mode == profile.ModeHide && (within(path, m.Path) || !write && within(m.Path, path)):
+			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
+		case m.Path != path && within(m.Path, path):
+			return "", fmt.Errorf("%s: it holds %s, which the jail mounts with its own guards, and a grant of the parent would cover them. Ask for a path beside it", path, m.Path)
+		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
+			return "", fmt.Errorf("%s is already writable", path)
+		case !write && m.Mode != profile.ModeHide && within(path, m.Path):
+			return "", fmt.Errorf("%s is already readable", path)
+		}
+	}
+	if write {
+		if err := s.landlockAllows(path); err != nil {
+			return "", err
+		}
+	}
+	return path, nil
+}
+
+func (s *Session) landlockAllows(path string) error {
+	if !slices.ContainsFunc(s.entry.Writable, func(root string) bool { return within(path, root) }) {
+		return fmt.Errorf("%s: only paths under %s can become writable during a session, because Landlock fixes its rules when the jail starts; add it to [[mounts]] with mode = \"write\" instead", path, strings.Join(s.entry.Writable, ", "))
+	}
+	return nil
+}
+
+func (s *Session) checkReach(path string, write bool) (string, error) {
 	verb := "show"
 	if write {
 		verb = "make writable"
@@ -175,32 +218,6 @@ func (s *Session) checkGrant(path string, write bool) (string, error) {
 		if within(path, system) {
 			return "", fmt.Errorf("%s: doriath does not %s system paths during a session", path, verb)
 		}
-	}
-	for _, part := range strings.Split(path, "/") {
-		if part != ".git" && part != ".jj" {
-			continue
-		}
-		if !write {
-			return "", fmt.Errorf("%s: doriath does not show paths inside .git or .jj on their own", path)
-		}
-		return "", fmt.Errorf("%s: doriath does not make paths inside .git or .jj writable, and git and jj need none: with vcs-readwrite or vcs-readonly they commit, branch and add worktrees and workspaces here as they are. Run the git or jj command; to change .git/config, run: %s", path, cli.Code(cli.Line("request", "edit", "PATH", "--reason", "TEXT")+" < NEW_CONTENT"))
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, m := range s.req.Profile.Mounts {
-		switch {
-		case m.Mode == profile.ModeHide && (within(path, m.Path) || !write && within(m.Path, path)):
-			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
-		case m.Path != path && within(m.Path, path):
-			return "", fmt.Errorf("%s: it holds %s, which the profile mounts with its own guards, and a grant of the parent would cover them. Ask for a path beside it", path, m.Path)
-		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
-			return "", fmt.Errorf("%s is already writable", path)
-		case !write && m.Mode != profile.ModeHide && within(path, m.Path):
-			return "", fmt.Errorf("%s is already readable", path)
-		}
-	}
-	if write && !slices.ContainsFunc(s.entry.Writable, func(root string) bool { return within(path, root) }) {
-		return "", fmt.Errorf("%s: only paths under %s can become writable during a session, because Landlock fixes its rules when the jail starts; add it to [[mounts]] with mode = \"write\" instead", path, strings.Join(s.entry.Writable, ", "))
 	}
 	return path, nil
 }

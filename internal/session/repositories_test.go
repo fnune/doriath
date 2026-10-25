@@ -134,7 +134,8 @@ func TestFinishRepositoriesWithoutARecordStopsTheWatchQuietly(t *testing.T) {
 	s := newTestSession(t, nil)
 	var out bytes.Buffer
 	stopped := false
-	s.unwatch = func(io.Writer) { stopped = true }
+	s.repos.repairs = &repairLog{log: s.log}
+	s.repos.stop = func() { stopped = true }
 	s.finishRepositories(&out)
 	if !stopped || out.Len() != 0 {
 		t.Errorf("stopped = %v, out = %q", stopped, out.String())

@@ -399,10 +399,12 @@ type builder struct {
 	errs        []error
 	modules     []string
 	sources     map[string][]string
+
+	repositoryGrants map[string]RepositoryGrant
 }
 
 func newBuilder(home string) *builder {
-	return &builder{home: home, envSet: map[string]string{}, notes: map[string]string{}, secrets: map[string]secretLayer{}, secretOwner: map[string]string{}, sources: map[string][]string{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
+	return &builder{home: home, envSet: map[string]string{}, notes: map[string]string{}, secrets: map[string]secretLayer{}, secretOwner: map[string]string{}, sources: map[string][]string{}, repositoryGrants: map[string]RepositoryGrant{}, limits: Limits{Tasks: DefaultTaskLimit, Memory: DefaultMemoryLimit}}
 }
 
 func (b *builder) from(source, key string) {
@@ -412,6 +414,7 @@ func (b *builder) from(source, key string) {
 func (b *builder) apply(l layer) {
 	if !strings.HasPrefix(l.source, "profile") && l.source != defaultsSource && !l.builtin {
 		b.modules = append(b.modules, l.source)
+		b.recordRepositoryGrant(l)
 	}
 	b.record(l)
 	if l.fromRepository() {
@@ -877,6 +880,8 @@ func (b *builder) build(top layer) (*Profile, error) {
 		SecretOwners:    b.secretOwner,
 		Modules:         b.modules,
 		Sources:         b.sources,
+
+		RepositoryGrants: b.repositoryGrants,
 	}
 	for _, m := range b.mounts {
 		if name, ok := strings.CutPrefix(m.Path, GitDir+"/"); ok {

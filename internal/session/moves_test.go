@@ -24,7 +24,9 @@ func TestAHeldFileThatTheAgentCreatesIsMovedOutAndReported(t *testing.T) {
 		{Path: held, Reason: "lefthook runs it.", Missing: profile.MissingMove},
 		{Path: nested, Reason: "lefthook runs it.", Missing: profile.MissingMove},
 	}
-	s.guardMissingHolds()
+	if err := s.guardMissingHolds(s.req.Profile); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(held, []byte("pre-commit: {commands: {x: {run: evil}}}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -61,10 +63,12 @@ func TestAMissingHeldFileGetsNoPlaceholderOnYourMachine(t *testing.T) {
 	if s.req.Profile, err = p.Resolve(profile.Start{Current: repo, Repository: repo}, s.home); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
-	s.guardMissingHolds()
+	if err := s.guardMissingHolds(s.req.Profile); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"lefthook.yml", ".envrc", "flake.nix", ".lefthook"} {
 		if exists(filepath.Join(repo, name)) {
 			t.Errorf("%s appears on your machine", name)

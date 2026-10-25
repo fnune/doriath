@@ -19,21 +19,21 @@ import (
 )
 
 func (s *Session) holdControlPaths() error {
-	s.showJJSecureConfigs()
+	binds, warnings := s.jjSecureConfigs(s.req.Profile, s.listings)
+	s.placed = append(s.placed, binds...)
+	for _, w := range warnings {
+		s.notes = append(s.notes, note{term.Warn, w})
+	}
 	return s.holdControlPathsOf(s.req.Profile, s.listings)
 }
 
-// showJJSecureConfigs runs before the placeholders, so that jj in the jail
-// reads each repository's secure config instead of migrating the
-// placeholder of the legacy one. The jail sees each config read-only, where
-// its own jj looks: under the jail's home, as yours is under yours.
-func (s *Session) showJJSecureConfigs() {
+func (s *Session) jjSecureConfigs(p *profile.Profile, host jail.Host) (binds []jail.Bind, warnings []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	for _, jjRepo := range jail.JJRepos(s.req.Profile, s.listings) {
+	for _, jjRepo := range jail.JJRepos(p, host) {
 		dir, err := vcs.JJSecureConfig(ctx, s.vcsTools(), jjRepo)
 		if err != nil {
-			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("jj in the jail may fail in %s: %v", filepath.Dir(filepath.Dir(jjRepo)), err)})
+			warnings = append(warnings, fmt.Sprintf("jj in the jail may fail in %s: %v", filepath.Dir(filepath.Dir(jjRepo)), err))
 			continue
 		}
 		if dir == "" {
@@ -42,8 +42,9 @@ func (s *Session) showJJSecureConfigs() {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			continue
 		}
-		s.placed = append(s.placed, jail.Bind{Source: dir, Dest: filepath.Join(s.deps.Paths.Home, ".config", "jj", "repos", filepath.Base(dir)), ReadOnly: true})
+		binds = append(binds, jail.Bind{Source: dir, Dest: filepath.Join(s.deps.Paths.Home, ".config", "jj", "repos", filepath.Base(dir)), ReadOnly: true})
 	}
+	return binds, warnings
 }
 
 // The placeholders stay: another session may still bind them.
@@ -103,8 +104,7 @@ func isRegularFile(path string) bool {
 // the profile keeps from it, such as an .envrc. The placeholders, and
 // directories made for them, go when the session ends, if nothing else was
 // put there.
-func (s *Session) holdMissingPaths() error {
-	p := s.req.Profile
+func (s *Session) holdMissingPaths(p *profile.Profile) error {
 	for _, m := range p.Mounts {
 		if m.Mode == profile.ModeWrite || m.OnMissing() != profile.MissingHold {
 			continue
@@ -137,7 +137,7 @@ func (s *Session) holdMissingPaths() error {
 		}
 		created = append(created, m.Path)
 		include := excludeFromGit(created[0])
-		s.closers = append(s.closers, func() {
+		s.addCloser(func() {
 			include()
 			for i := len(created) - 1; i >= 0; i-- {
 				if untouched(created[i], content) {

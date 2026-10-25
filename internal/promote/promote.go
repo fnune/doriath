@@ -42,6 +42,9 @@ type Request struct {
 	// Visible says the path is inside one of the jail's mounts. Otherwise
 	// the helper mounts the host directory there.
 	Visible bool
+	// Dest is where Readable shows Path in the jail, when it is not at the
+	// same path.
+	Dest string
 }
 
 // Writable makes r.Path writable in the jail.
@@ -65,7 +68,11 @@ func Readable(ctx context.Context, r Request) error {
 		return err
 	}
 	defer tree.Close()
-	return enter(ctx, r, []*os.File{tree}, "attach-read", r.Path)
+	dest := r.Path
+	if r.Dest != "" {
+		dest = r.Dest
+	}
+	return enter(ctx, r, []*os.File{tree}, "attach-read", dest)
 }
 
 func enter(ctx context.Context, r Request, extra []*os.File, args ...string) error {

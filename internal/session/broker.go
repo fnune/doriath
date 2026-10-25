@@ -23,14 +23,15 @@ import (
 type tlsCertificate = tls.Certificate
 
 const (
-	MethodSubmit       = "approval.submit"
-	MethodInform       = "inform"
-	MethodStatus       = "status"
-	MethodRequestWrite = "path.request_write"
-	MethodRequestRead  = "path.request_read"
-	MethodRequestHost  = "host.request"
-	MethodRequestOpen  = "link.open"
-	MethodWait         = "approval.wait"
+	MethodSubmit        = "approval.submit"
+	MethodInform        = "inform"
+	MethodStatus        = "status"
+	MethodRequestWrite  = "path.request_write"
+	MethodRequestRead   = "path.request_read"
+	MethodRequestModule = "module.request"
+	MethodRequestHost   = "host.request"
+	MethodRequestOpen   = "link.open"
+	MethodWait          = "approval.wait"
 )
 
 // WaitParams names a request by its id, or by what it asks for: a host or
@@ -140,6 +141,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.requestRead(p.Path, p.Reason)
 		},
+		MethodRequestModule: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestModuleParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestModule(p.Module, p.Path, p.Reason)
+		},
 		MethodRequestOpen: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestOpenParams](raw)
 			if err != nil {
@@ -170,11 +178,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 			case p.Host != "":
 				return s.manager.WaitScope(ctx, "host egress "+strings.ToLower(p.Host))
 			case p.Path != "":
-				read := "path read " + filepath.Clean(p.Path)
-				if slices.ContainsFunc(s.manager.Pending(), func(r approval.Request) bool { return r.Scope == read }) {
-					return s.manager.WaitScope(ctx, read)
-				}
-				return s.manager.WaitScope(ctx, "path write "+filepath.Clean(p.Path))
+				return s.manager.WaitScope(ctx, s.pathScope(filepath.Clean(p.Path)))
 			}
 			return s.manager.Wait(ctx, p.ID)
 		},
@@ -248,10 +252,26 @@ func (s *Session) startControl(ctx context.Context) error {
 	return nil
 }
 
+func (s *Session) pathScope(path string) string {
+	pending := s.manager.Pending()
+	for _, r := range pending {
+		if r.Scope == "path read "+path {
+			return r.Scope
+		}
+		if rest, ok := strings.CutPrefix(r.Scope, "module "); ok && strings.HasSuffix(rest, " "+path) {
+			return r.Scope
+		}
+	}
+	return "path write " + path
+}
+
 // Status is what the agent and the person can learn about a running session.
 type Status struct {
-	Session     string       `json:"session"`
-	Profile     string       `json:"profile"`
+	Session string `json:"session"`
+	Profile string `json:"profile"`
+	// Modules are the modules that the agent can ask to use in another
+	// repository.
+	Modules     []string     `json:"modules,omitempty"`
 	Writable    []string     `json:"writable"`
 	ReadOnly    []string     `json:"read_only"`
 	Hosts       []string     `json:"hosts"`
@@ -297,6 +317,9 @@ func (s *Session) status() Status {
 		Podman:  p.Podman,
 		Pending: len(s.manager.Pending()),
 		Denied:  s.egress.Denials(),
+	}
+	if s.unresolved != nil {
+		st.Modules = s.unresolved.RepositoryModules()
 	}
 	for _, m := range p.Mounts {
 		switch m.Mode {

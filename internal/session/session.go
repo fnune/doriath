@@ -163,7 +163,7 @@ type Session struct {
 	policy  *livePolicy
 	peers   *hostPeers
 	logFile io.Closer
-	unwatch func(io.Writer)
+	repos   repositoryRecord
 	notes   []note
 	manager *approval.Manager
 	informs informLimit
@@ -176,8 +176,10 @@ type Session struct {
 	placed   []jail.Bind
 	netnsPID int
 
-	repository      string
-	containerBroker *containers.Broker
+	repository          string
+	containerBroker     *containers.Broker
+	unresolved          *profile.Profile
+	modulesByRepository map[string][]string
 
 	mu               sync.Mutex
 	listings         *listingCache
@@ -196,6 +198,7 @@ func New(deps Deps, req Request) (*Session, error) {
 		req.Current = req.Cwd
 	}
 	exists := func(p string) bool { return osHost{}.Kind(p) != "" }
+	unresolved := req.Profile
 	repository := profile.FindRepository(req.Current, exists)
 	resolved, err := req.Profile.Resolve(profile.Start{Current: req.Current, Repository: repository, Exists: exists}, deps.Paths.Home)
 	if err != nil {
@@ -220,7 +223,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, listings: listings, dismissedSecrets: map[string]bool{}}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, unresolved: unresolved, modulesByRepository: map[string][]string{}, listings: listings, dismissedSecrets: map[string]bool{}}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -310,10 +313,12 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.fetchSecrets(ctx); err != nil {
 		return err
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(p); err != nil {
 		return err
 	}
-	s.guardMissingHolds()
+	if err := s.guardMissingHolds(p); err != nil {
+		s.notes = append(s.notes, note{term.Warn, err.Error()})
+	}
 	s.rootLog = &repairLog{log: s.log}
 	roots, err := vcs.NewRootGuard(s.rootLog)
 	if err != nil {
@@ -382,6 +387,12 @@ func (s *Session) prepare(ctx context.Context) error {
 		s.notes = append(s.notes, note{term.Warn, warning})
 	}
 	return s.writeInfo()
+}
+
+func (s *Session) addCloser(f func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closers = append(s.closers, f)
 }
 
 func (s *Session) cacheRoot() string   { return s.deps.Paths.AgentCache(s.req.Profile.StateName()) }
@@ -909,8 +920,11 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 }
 
 func (s *Session) cleanup() {
-	for i := len(s.closers) - 1; i >= 0; i-- {
-		s.closers[i]()
+	s.mu.Lock()
+	closers := slices.Clone(s.closers)
+	s.mu.Unlock()
+	for i := len(closers) - 1; i >= 0; i-- {
+		closers[i]()
 	}
 	if s.logFile != nil {
 		_ = s.logFile.Close()

@@ -24,7 +24,7 @@ func TestMissingHiddenPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: hidden, Mode: profile.ModeHide},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	if info, err := os.Lstat(hidden); err != nil || !info.Mode().IsRegular() || info.Size() != 0 {
@@ -50,7 +50,7 @@ func TestMissingReadOnlyPathInAWritableMountGetsAPlaceholder(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: guarded, Mode: profile.ModeRead, Missing: profile.MissingHold},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	if info, err := os.Lstat(guarded); err != nil || !info.Mode().IsRegular() || info.Size() != 0 {
@@ -75,7 +75,7 @@ func TestPlaceholdersStayOutOfCommits(t *testing.T) {
 		{Path: filepath.Join(work, ".mcp.json"), Mode: profile.ModeRead, Missing: profile.MissingHold},
 		{Path: filepath.Join(work, "web", "config", ".env"), Mode: profile.ModeHide},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(exclude)
@@ -103,7 +103,7 @@ func TestPlaceholderCleanupKeepsWhatSomeoneElsePutThere(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: hidden, Mode: profile.ModeHide},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range []string{hidden, filepath.Join(config, "other")} {
@@ -142,7 +142,7 @@ func TestHiddenPathsThatNeedNoPlaceholder(t *testing.T) {
 				{Path: filepath.Join(s.home, "docs"), Mode: profile.ModeRead},
 				{Path: hide, Mode: profile.ModeHide},
 			}
-			if err := s.holdMissingPaths(); err != nil {
+			if err := s.holdMissingPaths(s.req.Profile); err != nil {
 				t.Fatal(err)
 			}
 			defer s.cleanup()
@@ -204,7 +204,7 @@ func TestAHeldJSONFileIsAnEmptyObjectSoThatToolsCanReadIt(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: settings, Mode: profile.ModeRead, Missing: profile.MissingHold},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(settings); err != nil || string(data) != "{}\n" {
@@ -225,7 +225,7 @@ func TestAHeldFileThatSomeoneWroteStaysAfterTheSession(t *testing.T) {
 		{Path: work, Mode: profile.ModeWrite},
 		{Path: settings, Mode: profile.ModeRead, Missing: profile.MissingHold},
 	}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(settings, []byte(`{"mcpServers":{}}`), 0o600); err != nil {
@@ -247,7 +247,7 @@ func TestAHeldFolderIsAnEmptyFolderSoThatYourToolsCanStillWriteIntoIt(t *testing
 		{Path: held, Mode: profile.ModeRead, Missing: profile.MissingHold},
 	}
 	s.req.Profile.PathRules.Hold = []profile.PathHold{{Path: held, Reason: "r", Missing: profile.MissingHold, Folder: true}}
-	if err := s.holdMissingPaths(); err != nil {
+	if err := s.holdMissingPaths(s.req.Profile); err != nil {
 		t.Fatal(err)
 	}
 	if info, err := os.Lstat(held); err != nil || !info.IsDir() {

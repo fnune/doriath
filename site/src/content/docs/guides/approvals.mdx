@@ -113,7 +113,9 @@ To ask for a writable path from inside the jail, run `doriath request write PATH
 - A read shows the whole folder read-only. doriath refuses a folder that holds a path the profile hides.
 - doriath refuses some paths before it asks you, such as `.git`, `.ssh` and its own configuration. [Configuration](/reference/configuration/#approvals) has the full list.
 
-doriath tells the agent to plan its changes first and ask once, for the narrowest file or directory that covers them all, because each edit request below asks you again.
+To commit in another repository, the agent runs [`doriath request module MODULE PATH --reason TEXT`](/reference/commands/#doriath-request-module), such as with `vcs-readwrite`. The module applies there as in a session that starts there. A write request covers files only: git and jj cannot write the store of another repository with it.
+
+doriath tells the agent to plan its changes first, its commits too, and ask once. It asks for a module where it will commit, and otherwise for the narrowest file or directory that covers all changes. Each edit request below asks you again.
 
 Where `request write` refuses, such as `.git/config`, the agent runs `doriath request edit PATH --reason TEXT` with the new content as input. The request shows what changes, and doriath writes it once. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
 

@@ -15,7 +15,6 @@ import (
 
 	"github.com/fnune/doriath/internal/fswatch"
 	"github.com/fnune/doriath/internal/profile"
-	"github.com/fnune/doriath/internal/term"
 )
 
 type moveGuard struct {
@@ -165,8 +164,7 @@ func copyRegular(src, dst string) error {
 	return out.Close()
 }
 
-func (s *Session) guardMissingHolds() {
-	p := s.req.Profile
+func (s *Session) guardMissingHolds(p *profile.Profile) error {
 	var holds []guardedHold
 	for _, h := range p.PathRules.Hold {
 		if h.Missing != profile.MissingMove {
@@ -183,10 +181,11 @@ func (s *Session) guardMissingHolds() {
 		}
 	}
 	g, err := newMoveGuard(holds, s.deps.Paths.Moved(s.id), s.heldMoved)
-	s.closers = append(s.closers, g.Close)
+	s.addCloser(g.Close)
 	if err != nil {
-		s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("doriath moves out a file that the agent creates at a held path only when the session ends: %v", err)})
+		return fmt.Errorf("doriath moves out a file that the agent creates at a held path only when the session ends: %w", err)
 	}
+	return nil
 }
 
 func (s *Session) heldMoved(path, moved, reason string, err error) {
