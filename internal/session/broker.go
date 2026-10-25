@@ -301,10 +301,11 @@ type StatusHost struct {
 }
 
 type StatusRule struct {
-	Method  string `json:"method"`
-	Path    string `json:"path"`
-	Action  string `json:"action"`
-	Summary string `json:"summary,omitempty"`
+	Method  string   `json:"method"`
+	Path    string   `json:"path"`
+	Action  string   `json:"action"`
+	Summary string   `json:"summary,omitempty"`
+	Refs    []string `json:"refs,omitempty"`
 }
 
 func (s *Session) status() Status {
@@ -338,7 +339,11 @@ func (s *Session) status() Status {
 	for _, h := range p.HTTP {
 		sh := StatusHost{Host: string(h.Host), Credential: h.Credential != nil, Default: string(h.Default)}
 		for _, r := range h.Rules {
-			sh.Rules = append(sh.Rules, StatusRule{Method: r.Method, Path: string(r.Path), Action: string(r.Action), Summary: r.Summary})
+			rule := StatusRule{Method: r.Method, Path: string(r.Path), Action: string(r.Action), Summary: r.Summary}
+			for _, ref := range r.Refs {
+				rule.Refs = append(rule.Refs, string(ref))
+			}
+			sh.Rules = append(sh.Rules, rule)
 		}
 		st.Intercepted = append(st.Intercepted, sh)
 	}

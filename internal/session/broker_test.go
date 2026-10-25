@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func TestStatusDescribesTheLiveSession(t *testing.T) {
 		t.Errorf("ports = %v", st.Ports)
 	}
 	want := StatusHost{Host: "api.github.com", Credential: true, Default: "allow", Rules: []StatusRule{{Method: "POST", Path: "/repos/*/*/releases", Action: "approve", Summary: "Create a release"}}}
-	if len(st.Intercepted) != 1 || st.Intercepted[0].Host != want.Host || !st.Intercepted[0].Credential || st.Intercepted[0].Default != want.Default || !slices.Equal(st.Intercepted[0].Rules, want.Rules) {
+	if len(st.Intercepted) != 1 || st.Intercepted[0].Host != want.Host || !st.Intercepted[0].Credential || st.Intercepted[0].Default != want.Default || !reflect.DeepEqual(st.Intercepted[0].Rules, want.Rules) {
 		t.Errorf("intercepted = %+v", st.Intercepted)
 	}
 	if len(st.Denied) != 1 || st.Denied[0].Target != "example.org" {

@@ -30,6 +30,9 @@ func (st Status) Describe() string {
 		fmt.Fprintf(&b, "Host %s (default %s%s):\n", h.Host, h.Default, cred)
 		for _, r := range h.Rules {
 			line := fmt.Sprintf("%s %s: %s", r.Method, r.Path, r.Action)
+			if len(r.Refs) > 0 {
+				line = fmt.Sprintf("%s %s refs %s: %s", r.Method, r.Path, strings.Join(r.Refs, ", "), r.Action)
+			}
 			if r.Summary != "" {
 				line += " (" + r.Summary + ")"
 			}

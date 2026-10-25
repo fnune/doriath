@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/fnune/doriath/internal/profile"
 )
 
 const refCommandsLimit = 64 << 10
@@ -48,8 +50,11 @@ func abbrev(id string) string {
 }
 
 func pushedRefs(r *http.Request) ([]refUpdate, bool) {
-	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/git-receive-pack") || r.Body == nil || !identityEncoding(r.Header.Get("Content-Encoding")) {
+	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/git-receive-pack") || r.Body == nil {
 		return nil, false
+	}
+	if !identityEncoding(r.Header.Get("Content-Encoding")) {
+		return nil, true
 	}
 	buffered := bufio.NewReaderSize(r.Body, refCommandsLimit)
 	ahead, _ := buffered.Peek(refCommandsLimit)
@@ -96,4 +101,15 @@ func objectID(s string) bool {
 		}
 	}
 	return true
+}
+
+func pushOf(refs []refUpdate, unread bool) *profile.Push {
+	if len(refs) == 0 && !unread {
+		return nil
+	}
+	push := &profile.Push{Unread: unread}
+	for _, u := range refs {
+		push.Refs = append(push.Refs, u.ref)
+	}
+	return push
 }

@@ -266,6 +266,9 @@ type Rule struct {
 	// MCPNone narrows the rule to JSON-RPC bodies that call no tool, such as
 	// listing tools. A body that is not JSON-RPC does not match.
 	MCPNone bool
+	// Refs narrows the rule to git pushes that update refs matching these
+	// patterns. An allow rule needs every ref to match; other actions need one.
+	Refs    []RefPattern
 	Action  Action
 	Summary string
 	// Credential replaces the host's credential for requests the rule
@@ -641,6 +644,12 @@ func (h HTTPHost) DecideRequest(method, path string, header http.Header, body []
 // DecideWithQuery is DecideRequest for a request whose query string rules
 // may look at too.
 func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header http.Header, body []byte) (Rule, bool) {
+	return h.DecidePush(method, path, query, header, body, nil)
+}
+
+// DecidePush is DecideWithQuery for a request whose git push rules may look
+// at. push is nil for a request that is not a push.
+func (h HTTPHost) DecidePush(method, path string, query url.Values, header http.Header, body []byte, push *Push) (Rule, bool) {
 	if reason := h.unclearOperation(method, path, query, header, body); reason != "" {
 		return Rule{Action: ActionDeny, Summary: reason}, true
 	}
@@ -656,7 +665,7 @@ func (h HTTPHost) DecideWithQuery(method, path string, query url.Values, header 
 		return mcpCalls{t, ok}
 	})
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) && r.matchRefs(push) {
 			return r, true
 		}
 	}
@@ -910,16 +919,22 @@ func ParsePathPattern(s string) (PathPattern, error) {
 	if !strings.HasPrefix(s, "/") {
 		return "", fmt.Errorf("path pattern %q: must start with /", s)
 	}
-	segments := strings.Split(strings.TrimPrefix(s, "/"), "/")
-	for i, seg := range segments {
-		if seg == "**" && i > 0 && segments[i-1] == "**" {
-			return "", fmt.Errorf("path pattern %q: ** twice in a row matches the same as once", s)
-		}
-		if strings.Contains(seg, "*") && seg != "*" && seg != "**" {
-			return "", fmt.Errorf("path pattern %q: * must be a whole segment", s)
-		}
+	if err := checkSegments(strings.Split(strings.TrimPrefix(s, "/"), "/")); err != nil {
+		return "", fmt.Errorf("path pattern %q: %w", s, err)
 	}
 	return PathPattern(s), nil
+}
+
+func checkSegments(segments []string) error {
+	for i, seg := range segments {
+		if seg == "**" && i > 0 && segments[i-1] == "**" {
+			return errors.New("** twice in a row matches the same as once")
+		}
+		if strings.Contains(seg, "*") && seg != "*" && seg != "**" {
+			return errors.New("* must be a whole segment")
+		}
+	}
+	return nil
 }
 
 func (p PathPattern) Match(path string) bool {
@@ -937,6 +952,10 @@ func (p PathPattern) Match(path string) bool {
 	if len(want) == 1 && want[0] == "" {
 		want = nil
 	}
+	return matchSegments(want, got)
+}
+
+func matchSegments(want, got []string) bool {
 	consumed := make([]bool, len(got)+1)
 	consumed[0] = true
 	for _, seg := range want {

@@ -1302,7 +1302,15 @@ func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("mcp_tools %q: want a tool name or a glob such as notion-create-*", g)
 		}
 	}
-	rule := Rule{Method: method, Path: path, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
+	var refs []RefPattern
+	for _, s := range r.Refs {
+		p, err := ParseRefPattern(s)
+		if err != nil {
+			return Rule{}, err
+		}
+		refs = append(refs, p)
+	}
+	rule := Rule{Method: method, Path: path, Refs: refs, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary}
 	if r.GraphQL != nil {
 		g, err := buildGraphQL(*r.GraphQL)
 		if err != nil {

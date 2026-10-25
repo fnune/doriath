@@ -14,7 +14,7 @@ func TestDescribeStatus(t *testing.T) {
 		Hosts:    []string{"proxy.golang.org"},
 		Intercepted: []StatusHost{{
 			Host: "api.github.com", Credential: true, Default: "approve",
-			Rules: []StatusRule{{Method: "GET", Path: "/**", Action: "allow"}, {Method: "POST", Path: "/graphql", Action: "allow", Summary: "queries"}},
+			Rules: []StatusRule{{Method: "GET", Path: "/**", Action: "allow"}, {Method: "POST", Path: "/graphql", Action: "allow", Summary: "queries"}, {Method: "POST", Path: "/**/git-receive-pack", Action: "allow", Refs: []string{"refs/heads/agent/**"}}},
 		}},
 		Ports:   []int{3000, 5432},
 		Signing: true,
@@ -27,7 +27,7 @@ func TestDescribeStatus(t *testing.T) {
 		"Writable paths:\n  - /home/u/app\n",
 		"Read-only paths:\n  - /home/u/notes\n",
 		"Reachable hosts (HTTPS through the proxy):\n  - proxy.golang.org\n",
-		"Host api.github.com (default approve, with a credential the proxy adds):\n  - GET /**: allow\n  - POST /graphql: allow (queries)\n",
+		"Host api.github.com (default approve, with a credential the proxy adds):\n  - GET /**: allow\n  - POST /graphql: allow (queries)\n  - POST /**/git-receive-pack refs refs/heads/agent/**: allow\n",
 		"Local ports: 3000, 5432\n",
 		"Commits are signed by an agent key",
 		"Containers: podman",

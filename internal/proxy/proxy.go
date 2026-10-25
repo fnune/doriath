@@ -312,7 +312,9 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			return
 		}
 	}
-	rule, matched := rules.DecideWithQuery(r.Method, reqPath, r.URL.Query(), r.Header, body)
+	refs, unread := pushedRefs(r)
+	push := pushOf(refs, unread)
+	rule, matched := rules.DecidePush(r.Method, reqPath, r.URL.Query(), r.Header, body, push)
 	action, summary := rule.Action, rule.Summary
 	switch action {
 	case profile.ActionDeny:
@@ -337,7 +339,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			summary += " " + tools
 		}
 		details := fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body))
-		if refs, unread := pushedRefs(r); len(refs) > 0 || unread {
+		if push != nil {
 			var names []string
 			for _, u := range refs {
 				names = append(names, u.short())
@@ -355,7 +357,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			Kind:    approval.KindHTTP,
 			Summary: summary,
 			Details: details,
-			Scope:   scope(rule, matched, r.Method, reqPath, host, body, rules.Repository(reqPath), operation),
+			Scope:   scope(rule, matched, r.Method, reqPath, host, body, push, rules.Repository(reqPath), operation),
 		}, s.cfg.ApprovalTTL)
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
@@ -483,7 +485,7 @@ func unavailable(err error) error {
 	return fmt.Errorf("%w. doriath tries again within 30 seconds", err)
 }
 
-func scope(r profile.Rule, matched bool, method, path, host string, body []byte, repo, operation string) string {
+func scope(r profile.Rule, matched bool, method, path, host string, body []byte, push *profile.Push, repo, operation string) string {
 	if !matched {
 		s := fmt.Sprintf("http %s %s %s", method, host, scopePath(path))
 		if gql := profile.DescribeGraphQL(body); gql != "" {
@@ -507,6 +509,13 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte,
 			tools[i] = url.PathEscape(t)
 		}
 		s += " mcp " + strings.Join(tools, ", ")
+	}
+	if len(r.Refs) > 0 && push != nil {
+		pushed := slices.Clone(push.Refs)
+		if push.Unread {
+			pushed = append(pushed, unreadRefs)
+		}
+		s += " refs " + strings.Join(pushed, ", ")
 	}
 	if r.HeaderGlob != "" {
 		s += " " + r.Header + "=" + r.HeaderGlob

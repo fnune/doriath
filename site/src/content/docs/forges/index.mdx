@@ -19,6 +19,29 @@ Reads and routine work go through. Approvals of pull requests, merges, releases,
 
 doriath holds each push for your approval. Set branch rules, such as no force push to `main`, in the branch protection of the repository.
 
+## Branches for the agent
+
+A push rule with `refs` matches the branches and tags that the push updates. With such a rule, the agent pushes its own branches without a question, and other pushes still wait for you. You then review each branch, and open the pull request yourself.
+
+Put the rule in a module of your own, such as `~/.config/doriath/modules/agent-branches.toml`. In the profile, list it after the forge module, so that its rules come first:
+
+```toml
+description = "Pushes to agent/ branches go through"
+
+[[http]]
+host = "github.com"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+refs = ["refs/heads/agent/**"]
+action = "allow"
+```
+
+An `allow` with `refs` matches only when each ref of the push matches. A `deny` or an `approve` matches when one ref matches. Some pushes have refs that doriath cannot read, such as a compressed push. Such a push matches no `allow` with `refs`, and every other rule with `refs`.
+
+Git pushes over HTTPS in the same way on each forge, so the rule works with each forge module. Change the host to the git host of the forge. To keep pull requests for you, add a `deny` rule in the same module for the API request that opens one, such as `POST /repos/*/*/pulls` on `api.github.com`.
+
 ## Links
 
 The agent can open pages of the forge in your browser without a question, such as an issue, a pull request or a search. Sign-in, account, settings and app pages of the forge ask you first. On such a page, one click from you can authorize an app, install an app or make a token. [Links](/reference/configuration/#links) describes the `[[open]]` rules.

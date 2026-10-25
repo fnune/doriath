@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -348,7 +349,7 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	push := profile.Rule{Method: "POST", Path: "/**/git-receive-pack", Action: profile.ActionApprove}
 	var forge profile.HTTPHost
 	at := func(path string) string {
-		return scope(push, true, "POST", path, "github.com", nil, forge.Repository(path), "")
+		return scope(push, true, "POST", path, "github.com", nil, nil, forge.Repository(path), "")
 	}
 	a := at("/fnune/project.git/git-receive-pack")
 	if a != "http POST github.com /**/git-receive-pack in /fnune/project" {
@@ -370,8 +371,8 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 
 func TestAnEncodedPathCannotSpellAnotherRulesScope(t *testing.T) {
 	release := profile.Rule{Method: "POST", Path: "/repos/*/*/releases", Action: profile.ActionApprove}
-	real := scope(release, true, "POST", "/repos/o/r/releases", "api.github.com", nil, "/repos/o/r", "")
-	forged := scope(profile.Rule{}, false, "POST", "/repos/*/*/releases in /repos/o/r", "api.github.com", nil, "", "")
+	real := scope(release, true, "POST", "/repos/o/r/releases", "api.github.com", nil, nil, "/repos/o/r", "")
+	forged := scope(profile.Rule{}, false, "POST", "/repos/*/*/releases in /repos/o/r", "api.github.com", nil, nil, "", "")
 	if real == forged {
 		t.Errorf("a request off the rules shares the release scope: %q", forged)
 	}
@@ -379,7 +380,7 @@ func TestAnEncodedPathCannotSpellAnotherRulesScope(t *testing.T) {
 	call := func(tool string) []byte {
 		return []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `"}}`)
 	}
-	if scope(tools, true, "POST", "/mcp", "h", call("t in /o/r"), "", "") == scope(tools, true, "POST", "/o/r/mcp", "h", call("t"), "/o/r", "") {
+	if scope(tools, true, "POST", "/mcp", "h", call("t in /o/r"), nil, "", "") == scope(tools, true, "POST", "/o/r/mcp", "h", call("t"), nil, "/o/r", "") {
 		t.Error("a tool name spells a repository in the scope")
 	}
 }
@@ -392,10 +393,10 @@ func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
 	}
 	gitlab := profile.HTTPHost{Repositories: []profile.PathPattern{pattern}}
 	path := "/api/v4/projects/42/merge_requests/7/merge"
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, gitlab.Repository(path), ""); !strings.HasSuffix(s, " in /api/v4/projects/42") {
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, nil, gitlab.Repository(path), ""); !strings.HasSuffix(s, " in /api/v4/projects/42") {
 		t.Errorf("scope = %q", s)
 	}
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, profile.HTTPHost{}.Repository(path), ""); strings.Contains(s, " in ") {
+	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, nil, profile.HTTPHost{}.Repository(path), ""); strings.Contains(s, " in ") {
 		t.Errorf("without repositories the API path names no repository: %q", s)
 	}
 }
@@ -937,6 +938,71 @@ summary = "Push"
 	}
 	if _, got := h.upstream.last(t); string(got) != payload {
 		t.Fatalf("the upstream got %d bytes of %d", len(got), len(payload))
+	}
+}
+
+func TestAPushToAllowedRefsNeedsNoApproval(t *testing.T) {
+	h := newHarnessWith(t, `
+[secrets.github]
+command = ["true"]
+
+[[http]]
+host = "github.com"
+credential = { secret = "github", scheme = "basic", username = "x-access-token" }
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+refs = ["refs/heads/agent/**"]
+action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/**/git-receive-pack"
+action = "approve"
+summary = "Push"
+`)
+	old, next := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	push := func(refs []string, encoding string) {
+		t.Helper()
+		var payload string
+		for i, ref := range refs {
+			caps := ""
+			if i == 0 {
+				caps = "\x00report-status"
+			}
+			payload += pktLine(old + " " + next + " " + ref + caps + "\n")
+		}
+		payload += "0000" + strings.Repeat("P", 200<<10)
+		req, _ := http.NewRequest(http.MethodPost, "https://github.com/o/r.git/git-receive-pack", strings.NewReader(payload))
+		if encoding != "" {
+			req.Header.Set("Content-Encoding", encoding)
+		}
+		resp, err := h.client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b := body(t, resp); resp.StatusCode != http.StatusOK {
+			t.Fatalf("status %d: %s", resp.StatusCode, b)
+		}
+	}
+	approvals := func() []approval.Request {
+		h.approver.mu.Lock()
+		defer h.approver.mu.Unlock()
+		return slices.Clone(h.approver.requests)
+	}
+
+	push([]string{"refs/heads/agent/fix"}, "")
+	if got := approvals(); len(got) != 0 {
+		t.Fatalf("a push to an agent branch waited for an answer: %+v", got)
+	}
+	push([]string{"refs/heads/agent/fix", "refs/heads/main"}, "")
+	if got := approvals(); len(got) != 1 || got[0].Summary != "Push in github.com/o/r: agent/fix, main" {
+		t.Fatalf("a push that also moves main went through: %+v", got)
+	}
+	push([]string{"refs/heads/agent/fix"}, "gzip")
+	if got := approvals(); len(got) != 2 || !strings.Contains(got[1].Summary, unreadRefs) {
+		t.Fatalf("a compressed push went through: %+v", got)
 	}
 }
 

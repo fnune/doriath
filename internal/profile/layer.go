@@ -150,6 +150,7 @@ type ruleLayer struct {
 	Form         map[string]string `toml:"form"`
 	MCPTools     []string          `toml:"mcp_tools"`
 	MCPNone      bool              `toml:"-"`
+	Refs         []string          `toml:"refs"`
 	Action       string            `toml:"action"`
 	Summary      string            `toml:"summary"`
 	Credential   *credentialLayer  `toml:"credential"`
