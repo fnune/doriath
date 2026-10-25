@@ -33,6 +33,7 @@ let
     approvals.web.enable = true;
     terminal.title = false;
     terminal.bar = false;
+    terminal.env.HERDR_AGENT = "{command}";
     direnv = true;
     skill.enable = true;
     modules.team = {

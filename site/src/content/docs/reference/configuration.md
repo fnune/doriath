@@ -602,6 +602,12 @@ tool_wait = "60s"
 # with the profile, the session name, the hosts and the requests that wait
 # for you. The agent gets one row less. With bar = false, doriath does not
 # stand between the agent and your terminal: the agent gets it as it is.
+#
+# env sets variables on bubblewrap, the process your terminal sees in place
+# of the agent. {command} is the name of the command doriath runs, such as
+# claude. The jail does not get these variables, but do not put secrets in
+# them. It is empty by default. To let herdr find the agent in its panes,
+# set env = { HERDR_AGENT = "{command}" }.
 [terminal]
 title = true
 bar = true

@@ -125,14 +125,10 @@ func openPty() (master, tty *os.File, err error) {
 	return master, tty, nil
 }
 
-// Start runs cmd on the pty, as the leader of a new session with the pty
-// as its controlling terminal.
+// Start runs cmd on the pty. cmd stays in your terminal's process group,
+// so it must make the pty its controlling terminal itself.
 func (b *Bar) Start(cmd *exec.Cmd) error {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = b.tty, b.tty, b.tty
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setsid, cmd.SysProcAttr.Setctty, cmd.SysProcAttr.Ctty = true, true, 0
 	err := cmd.Start()
 	_ = b.tty.Close()
 	if err != nil {

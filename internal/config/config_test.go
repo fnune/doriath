@@ -61,6 +61,16 @@ func TestLoadUser(t *testing.T) {
 		t.Fatalf("bar should be false: %+v, %v", u, err)
 	}
 
+	write("[terminal.env]\nHERDR_AGENT = \"{command}\"\n")
+	if u, err = LoadUser(path); err != nil || u.Terminal.Env["HERDR_AGENT"] != "{command}" {
+		t.Fatalf("env should hold HERDR_AGENT: %+v, %v", u, err)
+	}
+
+	write("[terminal.env]\n\"A=B\" = \"x\"\n")
+	if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "variable name") {
+		t.Fatalf("err = %v, want a variable name", err)
+	}
+
 	write("[approvals]\ndesktop = false\n")
 	u, err = LoadUser(path)
 	if err != nil || u.Approvals.Desktop {

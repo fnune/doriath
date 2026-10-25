@@ -159,7 +159,8 @@ let
       };
       terminal =
         lib.optionalAttrs (!cfg.terminal.title) { title = false; }
-        // lib.optionalAttrs (!cfg.terminal.bar) { bar = false; };
+        // lib.optionalAttrs (!cfg.terminal.bar) { bar = false; }
+        // lib.optionalAttrs (cfg.terminal.env != { }) { inherit (cfg.terminal) env; };
     }
   );
 
@@ -240,6 +241,15 @@ in
       type = lib.types.bool;
       default = true;
       description = "Show the session on the terminal's last row, below the agent.";
+    };
+
+    terminal.env = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = {
+        HERDR_AGENT = "{command}";
+      };
+      description = "Variables for the process your terminal sees in place of the agent. {command} is the name of the command doriath runs. The jail does not get them.";
     };
 
     approvals.web = {

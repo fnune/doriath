@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -115,6 +116,9 @@ type Terminal struct {
 	// Bar shows the session on the terminal's last row, below the agent.
 	// Without it, the agent gets your terminal as it is.
 	Bar bool
+	// Env is set on bubblewrap, the process your terminal sees in place of
+	// the agent. The jail does not get it.
+	Env map[string]string
 }
 
 type Approvals struct {
@@ -146,10 +150,13 @@ type userFile struct {
 		ToolWait *string `toml:"tool_wait"`
 	} `toml:"approvals"`
 	Terminal struct {
-		Title *bool `toml:"title"`
-		Bar   *bool `toml:"bar"`
+		Title *bool             `toml:"title"`
+		Bar   *bool             `toml:"bar"`
+		Env   map[string]string `toml:"env"`
 	} `toml:"terminal"`
 }
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
@@ -182,6 +189,12 @@ func LoadUser(path string) (User, error) {
 	if f.Terminal.Bar != nil {
 		u.Terminal.Bar = *f.Terminal.Bar
 	}
+	for k := range f.Terminal.Env {
+		if !envName.MatchString(k) {
+			return User{}, fmt.Errorf("%s: terminal.env %q: want a variable name, such as HERDR_AGENT", path, k)
+		}
+	}
+	u.Terminal.Env = f.Terminal.Env
 	if f.Approvals.HostWait != nil {
 		d, err := time.ParseDuration(*f.Approvals.HostWait)
 		if err != nil || d < 0 || d > time.Hour {

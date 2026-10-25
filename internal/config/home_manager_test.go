@@ -25,6 +25,7 @@ func TestHomeManagerConfig(t *testing.T) {
 	hostWait := 30 * time.Second
 	configured := User{
 		Approvals: Approvals{HostWait: &hostWait, ToolWait: 90 * time.Second},
+		Terminal:  Terminal{Env: map[string]string{"HERDR_AGENT": "{command}"}},
 	}
 	zeroWait := defaults
 	zeroWait.Approvals.HostWait = new(time.Duration)

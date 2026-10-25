@@ -769,6 +769,15 @@ func (s *Session) updateBar(bar *termbar.Bar, done <-chan struct{}) {
 	}
 }
 
+func (s *Session) terminalEnv() []string {
+	command := filepath.Base(s.req.Command[0])
+	var out []string
+	for _, k := range slices.Sorted(maps.Keys(s.deps.User.Terminal.Env)) {
+		out = append(out, k+"="+strings.ReplaceAll(s.deps.User.Terminal.Env[k], "{command}", command))
+	}
+	return out
+}
+
 func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	args, err := spec.ArgsFile()
 	if err != nil {
@@ -785,6 +794,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		cmd = exec.Command(s.deps.Nsenter, append([]string{"--target", target, "--user", "--net", "--", s.deps.Bwrap}, bwrapArgs...)...)
 	}
 	cmd = s.limited(cmd, "agent")
+	cmd.Env = append(cmd.Env, s.terminalEnv()...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.deps.Stdin, s.deps.Stdout, s.deps.Stderr
 	infoR, infoW, err := os.Pipe()
 	if err != nil {

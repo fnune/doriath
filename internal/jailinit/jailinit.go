@@ -131,6 +131,9 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); err != nil {
 		return 1, fmt.Errorf("init: become a subreaper: %w", err)
 	}
+	if err := takeTerminal(int(os.Stdin.Fd())); err != nil {
+		return 1, fmt.Errorf("init: take the terminal: %w", err)
+	}
 	cmd := exec.Command(path, argv[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
@@ -157,6 +160,19 @@ func Run(forwards []Forward, argv []string) (int, error) {
 		return 128 + int(ws.Signal()), nil
 	}
 	return ws.ExitStatus(), nil
+}
+
+func takeTerminal(fd int) error {
+	if _, err := unix.IoctlGetTermios(fd, unix.TCGETS); err != nil {
+		return nil
+	}
+	if _, err := unix.IoctlGetInt(fd, unix.TIOCGSID); !errors.Is(err, unix.ENOTTY) {
+		return nil
+	}
+	if _, err := unix.Setsid(); err != nil {
+		return err
+	}
+	return unix.IoctlSetInt(fd, unix.TIOCSCTTY, 0)
 }
 
 func reapUntil(pid int) (syscall.WaitStatus, error) {
