@@ -204,7 +204,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			s.log.Write("inform", p)
 			if s.deps.Informer != nil {
-				if err := s.deps.Informer.Inform(p.Title, p.Body); err != nil {
+				if err := s.deps.Informer.Inform(s.id, p.Title, p.Body); err != nil {
 					return nil, err
 				}
 			}

@@ -61,7 +61,7 @@ const (
 
 // Informer shows a message that needs no decision.
 type Informer interface {
-	Inform(title, body string) error
+	Inform(session, title, body string) error
 }
 
 // Secrets serves the profile's secrets, and tells which ones it could not

@@ -209,7 +209,7 @@ func TestDesktopShowsAndDecides(t *testing.T) {
 
 	id, decisions, withdraw := e.notify(t, request)
 	got := e.server.last(t)
-	if got.summary != request.Summary {
+	if got.summary != "s1: Run: push the branch" {
 		t.Errorf("summary = %q", got.summary)
 	}
 	for _, want := range []string{"Written by claude, not by doriath.", "<tt>git push origin &lt;main&gt;</tt>", "Profile kitchen, session s1.", "Expires in 1m0s."} {
@@ -355,11 +355,21 @@ func TestDesktopNotificationClosed(t *testing.T) {
 
 func TestDesktopInform(t *testing.T) {
 	e := newDesktopEnv(t)
-	if err := e.desktop.Inform("Task finished", "Tests <pass>"); err != nil {
+	if err := e.desktop.Inform("s1", "Task finished", "Tests <pass>"); err != nil {
 		t.Fatal(err)
 	}
 	got := e.server.last(t)
-	if got.summary != "Agent: Task finished" || got.body != "Tests &lt;pass&gt;" || len(got.actions) != 0 {
+	if got.summary != "Agent in s1: Task finished" || got.body != "Tests &lt;pass&gt;" || len(got.actions) != 0 {
 		t.Errorf("inform = %+v", got)
+	}
+}
+
+func TestALongSummaryKeepsTheSessionInTheTitle(t *testing.T) {
+	e := newDesktopEnv(t)
+	long := request
+	long.Summary = "Allow " + strings.Repeat("a", 200) + ".example.com for profile kitchen?"
+	e.notify(t, long)
+	if got := e.server.last(t).summary; !strings.HasPrefix(got, "s1: ") {
+		t.Errorf("summary = %q", got)
 	}
 }

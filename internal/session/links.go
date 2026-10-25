@@ -143,6 +143,6 @@ func (s *Session) linkRestored(path, found string) {
 	s.egress.Block(path, reason)
 	s.log.Write("link-restored", map[string]string{"path": path, "found": found})
 	if s.deps.Informer != nil {
-		_ = s.deps.Informer.Inform("doriath put back "+filepath.Base(path), Printable(path+": "+reason))
+		_ = s.deps.Informer.Inform(s.id, "doriath put back "+filepath.Base(path), Printable(path+": "+reason))
 	}
 }

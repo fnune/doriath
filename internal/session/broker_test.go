@@ -63,7 +63,7 @@ func TestStatusDescribesTheLiveSession(t *testing.T) {
 
 type informer struct{ titles []string }
 
-func (i *informer) Inform(title, _ string) error {
+func (i *informer) Inform(_, title, _ string) error {
 	i.titles = append(i.titles, title)
 	return nil
 }

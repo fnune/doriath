@@ -197,6 +197,6 @@ func (s *Session) heldMoved(path, moved, reason string, err error) {
 	s.egress.Block(path, text)
 	s.log.Write("held-moved", map[string]string{"path": path, "moved": moved})
 	if s.deps.Informer != nil {
-		_ = s.deps.Informer.Inform("doriath moved "+filepath.Base(path)+" out of the repository", Printable(path+": "+text))
+		_ = s.deps.Informer.Inform(s.id, "doriath moved "+filepath.Base(path)+" out of the repository", Printable(path+": "+text))
 	}
 }

@@ -203,7 +203,7 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
-		appName, uint32(0), "dialog-password", oneLineTitle(req.Summary), body, actions, hints, int32(0))
+		appName, uint32(0), "dialog-password", oneLineTitle(req.Session+": "+req.Summary), body, actions, hints, int32(0))
 	if err := call.Store(&id); err != nil {
 		return nil, fmt.Errorf("show notification: %w", err)
 	}
@@ -239,14 +239,14 @@ func Urgency(req approval.Request) byte {
 
 // Inform shows a message without buttons, for events that need attention
 // but no decision.
-func (d *Desktop) Inform(title, body string) error {
-	title = "Agent: " + oneLineTitle(title)
+func (d *Desktop) Inform(session, title, body string) error {
+	title = oneLineTitle("Agent in " + session + ": " + title)
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("doriath")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
 		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err
 }
 
-func (None) Inform(string, string) error { return nil }
+func (None) Inform(string, string, string) error { return nil }
 
 const maxTitle = 120
 
