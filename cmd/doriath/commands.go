@@ -119,6 +119,12 @@ type hookBroker struct {
 	timeout time.Duration
 }
 
+func (b hookBroker) Started() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return control.Call(ctx, b.socket, session.MethodStarted, session.StartedParams{Agent: b.agent}, nil)
+}
+
 func (b hookBroker) Describe() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

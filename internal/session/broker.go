@@ -26,6 +26,7 @@ const (
 	MethodSubmit        = "approval.submit"
 	MethodInform        = "inform"
 	MethodStatus        = "status"
+	MethodStarted       = "agent.started"
 	MethodRequestWrite  = "path.request_write"
 	MethodRequestRead   = "path.request_read"
 	MethodRequestModule = "module.request"
@@ -79,6 +80,10 @@ type SubmitParams struct {
 	TimeoutSeconds int `json:"timeout_seconds"`
 }
 
+type StartedParams struct {
+	Agent string `json:"agent"`
+}
+
 type InformParams struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
@@ -127,6 +132,16 @@ func (s *Session) startBroker(ctx context.Context) error {
 		},
 		MethodStatus: func(context.Context, json.RawMessage) (any, error) {
 			return s.status(), nil
+		},
+		MethodStarted: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[StartedParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			if s.agent == nil || s.agent.Name() != p.Agent {
+				return nil, fmt.Errorf("agent %q does not run in this session", p.Agent)
+			}
+			return struct{}{}, s.agentStarted()
 		},
 		MethodRequestWrite: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestWriteParams](raw)

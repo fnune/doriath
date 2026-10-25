@@ -15,10 +15,6 @@ path = "~/.claude/CLAUDE.md"
 missing = "skip"
 
 [[mounts]]
-path = "~/.claude/settings.json"
-missing = "skip"
-
-[[mounts]]
 path = "~/.claude/keybindings.json"
 missing = "skip"
 

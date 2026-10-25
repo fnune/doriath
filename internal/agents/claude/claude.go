@@ -70,7 +70,7 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := holdUserSettings(s, configDir); err != nil {
+	if err := placeUserSettings(s, configDir); err != nil {
 		return nil, nil, err
 	}
 	args := Args(argv, path)
@@ -96,12 +96,19 @@ func (Adapter) End(s agents.Session) error {
 	return copyTranscriptsBack(filepath.Join(private, "projects", project), filepath.Join(configDir, "projects", project))
 }
 
-func holdUserSettings(s agents.Session, configDir string) error {
+func placeUserSettings(s agents.Session, configDir string) error {
 	own := filepath.Join(configDir, "settings.json")
-	if _, err := os.Stat(own); !errors.Is(err, fs.ErrNotExist) {
-		return err
+	data, err := os.ReadFile(own)
+	if errors.Is(err, fs.ErrNotExist) {
+		data = []byte("{}\n")
+	} else if err != nil {
+		return fmt.Errorf("read your Claude settings: %w", err)
 	}
-	return s.Place(own, []byte("{}\n"))
+	return s.Place(own, data)
+}
+
+func (Adapter) Started(s agents.Session) error {
+	return s.Touch(filepath.Join(s.Home, ".claude", "settings.json"))
 }
 
 type osFiles struct{}

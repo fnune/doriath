@@ -24,6 +24,7 @@ type HookCall struct {
 
 // Broker is the session, as a hook inside the jail reaches it.
 type Broker interface {
+	Started() error
 	Describe() (string, error)
 	// Ask waits for your answer to a tool call, or returns verdict none
 	// when nobody answers in time.

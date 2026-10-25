@@ -15,6 +15,9 @@ func (Adapter) Hook(call agents.HookCall) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := call.Broker.Started(); err != nil {
+			fmt.Fprintln(call.Stderr, "doriath: "+err.Error())
+		}
 		return agents.SessionStart(text)
 	case "permission-request":
 		return agents.AnswerPermission(call, "Claude", asksYou)

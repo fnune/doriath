@@ -31,6 +31,7 @@ type Session struct {
 	// Place puts a file at a path in the jail, read-only, for config the
 	// agent must not change during the session.
 	Place func(jailPath string, data []byte) error
+	Touch func(jailPath string) error
 	// MCPConfig is the jail's path to the profile's MCP servers in the
 	// common mcpServers format, or "" when the profile names none.
 	MCPConfig string
@@ -61,6 +62,11 @@ type Adapter interface {
 	Start(s Session, argv []string) ([]string, map[string]string, error)
 	// End runs after the session ends.
 	End(s Session) error
+}
+
+// Starter is an adapter with work on the host once its agent runs.
+type Starter interface {
+	Started(s Session) error
 }
 
 type mcpServer struct {

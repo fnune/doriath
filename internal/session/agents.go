@@ -65,6 +65,24 @@ func (s *Session) place(jailPath string, data []byte) error {
 	return nil
 }
 
+func (s *Session) touch(jailPath string) error {
+	for _, b := range s.placed {
+		if b.Dest == jailPath {
+			now := s.deps.Clock.Now()
+			return os.Chtimes(b.Source, now, now)
+		}
+	}
+	return fmt.Errorf("touch %s: no file placed there", jailPath)
+}
+
+func (s *Session) agentStarted() error {
+	starter, ok := s.agent.(agents.Starter)
+	if !ok {
+		return nil
+	}
+	return starter.Started(s.agentSession())
+}
+
 func withSession(own []byte, session string) []byte {
 	own = bytes.TrimRight(own, "\n")
 	if len(own) == 0 {
@@ -116,6 +134,7 @@ func (s *Session) agentSession() agents.Session {
 		MCPConfig:    mcp,
 		Instructions: s.status().Describe(),
 		Place:        s.place,
+		Touch:        s.touch,
 		Profile:      s.req.Profile,
 		Home:         home,
 		Cwd:          s.req.Cwd,

@@ -159,7 +159,7 @@ func TestStartAndEnd(t *testing.T) {
 	}
 }
 
-func TestTheAgentCannotCreateUserSettingsYouDoNotHave(t *testing.T) {
+func TestYourSettingsArePlacedReadOnlyAndTheAgentCannotCreateThem(t *testing.T) {
 	home := t.TempDir()
 	settings := filepath.Join(home, ".claude", "settings.json")
 	placed := map[string]string{}
@@ -190,8 +190,22 @@ func TestTheAgentCannotCreateUserSettingsYouDoNotHave(t *testing.T) {
 	if _, _, err := (Adapter{}).Start(s, []string{"claude"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := placed[settings]; ok {
-		t.Error("your own settings, which the module mounts, must stay")
+	if placed[settings] != `{"model":"opus"}` {
+		t.Errorf("placed = %v, want your own settings", placed)
+	}
+}
+
+func TestStartedTouchesYourSettingsBecauseClaudeListsItsLSPToolOnlyAfterAStateChange(t *testing.T) {
+	var touched []string
+	s := agents.Session{Home: "/h", Touch: func(p string) error {
+		touched = append(touched, p)
+		return nil
+	}}
+	if err := (Adapter{}).Started(s); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(touched, []string{"/h/.claude/settings.json"}) {
+		t.Errorf("touched %v", touched)
 	}
 }
 

@@ -176,6 +176,9 @@ func TestHookSessionStart(t *testing.T) {
 	if h.HookSpecificOutput.HookEventName != "SessionStart" || !strings.Contains(ctx, `doriath profile "kitchen" (session s1)`) || !strings.Contains(ctx, "  - proxy.golang.org\n") {
 		t.Errorf("session-start = %s", out)
 	}
+	if len(b.started) != 1 || b.started[0] != "claude" {
+		t.Errorf("the session must learn that claude started, got %v", b.started)
+	}
 }
 
 func TestAQuestionToYouIsLeftToClaude(t *testing.T) {
