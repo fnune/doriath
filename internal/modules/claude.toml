@@ -43,10 +43,6 @@ path = "~/.claude/output-styles"
 missing = "skip"
 
 [[mounts]]
-path = "~/.claude/plugins"
-missing = "skip"
-
-[[mounts]]
 path = "~/.claude/skills"
 missing = "skip"
 

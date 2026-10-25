@@ -3,7 +3,7 @@ title: Claude Code
 description: What doriath sets up for Claude Code, and the choices left to you.
 ---
 
-Your Claude configuration needs no change. The [`claude` module](/reference/modules/#claude) gives each profile its own `~/.claude`, with your `CLAUDE.md`, settings, skills and plugins as read-only files. The login belongs to the profile, so run `/login` once in a session: doriath opens the sign-in page in your browser, and forwards the answer back into the jail. A new profile starts with your onboarding done.
+Your Claude configuration needs no change. The [`claude` module](/reference/modules/#claude) gives each profile its own `~/.claude`, with your `CLAUDE.md`, settings and skills as read-only files. Each session starts with a fresh copy of your plugins, which Claude can write to, and nothing it writes there reaches yours. The login belongs to the profile, so run `/login` once in a session: doriath opens the sign-in page in your browser, and forwards the answer back into the jail. A new profile starts with your onboarding done.
 
 ## The adapter
 

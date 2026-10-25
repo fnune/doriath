@@ -54,6 +54,9 @@ func (Adapter) Seeds(s agents.Session) []agents.Seed {
 func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]string, error) {
 	configDir := filepath.Join(s.Home, ".claude")
 	if private := s.HostPath(configDir); private != "" {
+		if err := copyPluginsIn(filepath.Join(configDir, "plugins"), filepath.Join(private, "plugins")); err != nil {
+			return nil, nil, fmt.Errorf("copy the Claude plugins: %w", err)
+		}
 		project := ProjectDir(s.Cwd)
 		if err := copyProjectIn(filepath.Join(configDir, "projects", project), filepath.Join(private, "projects", project)); err != nil {
 			return nil, nil, fmt.Errorf("copy the Claude project directory: %w", err)
