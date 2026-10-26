@@ -79,7 +79,7 @@ Inside a jail:
   doriath request read PATH [--reason TEXT]
   doriath request module MODULE PATH [--reason TEXT]
   doriath request host HOST [--reason TEXT]
-  doriath request open URL [--reason TEXT]
+  doriath request open URL|PATH [--reason TEXT]
   doriath request forward PORT[:JAIL_PORT] [--reason TEXT]
   doriath request wait ID|HOST|PATH
 `

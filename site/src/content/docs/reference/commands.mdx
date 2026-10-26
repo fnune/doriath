@@ -210,10 +210,10 @@ doriath refuses the request when the profile hides a path with content in that r
 ### `doriath request open`
 
 ```txt frame="none"
-doriath request open URL [--reason TEXT]
+doriath request open URL|PATH [--reason TEXT]
 ```
 
-Asks to open a link in your browser, as [links](/reference/configuration/#links) describes. In the jail, `xdg-open` and `$BROWSER` run this command. For a link to `localhost`, doriath first asks you to forward its port, as `doriath request forward` does.
+Asks to open a link in your browser, or a file with the app of your machine for it, as [links](/reference/configuration/#links) describes. In the jail, `xdg-open` and `$BROWSER` run this command. For a link to `localhost`, doriath first asks you to forward its port, as `doriath request forward` does.
 
 ### `doriath request forward`
 

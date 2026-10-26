@@ -26,6 +26,9 @@ const (
 )
 
 func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
+	if u, err := url.Parse(raw); err == nil && u.Scheme == "file" {
+		return s.requestOpenFile(u, reason)
+	}
 	u, err := checkLink(raw)
 	if err != nil {
 		return RequestResult{}, err
@@ -88,7 +91,7 @@ func checkLink(raw string) (*url.URL, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-		return nil, fmt.Errorf("%s: doriath opens only http and https links", raw)
+		return nil, fmt.Errorf("%s: doriath opens only http and https links, and file paths", raw)
 	}
 	if u.User != nil {
 		return nil, fmt.Errorf("%s: doriath does not open a link with a user name or password in it", raw)

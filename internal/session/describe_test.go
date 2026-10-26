@@ -39,6 +39,7 @@ func TestDescribeStatus(t *testing.T) {
 		"`doriath request host HOST --reason TEXT`",
 		"`doriath request read PATH --reason TEXT`",
 		"`doriath request open URL --reason TEXT`",
+		"`doriath request open PATH --reason TEXT`",
 		"`doriath request open http://localhost:PORT/ --reason TEXT`",
 		"`doriath request forward PORT[:JAIL_PORT] --reason TEXT`",
 		"Do not ask the user to run commands on their machine.",

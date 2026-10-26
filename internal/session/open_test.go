@@ -12,7 +12,6 @@ import (
 
 func TestOnlyPlainWebLinksAreOpened(t *testing.T) {
 	for raw, want := range map[string]string{
-		"file:///etc/passwd":                   "only http and https",
 		"javascript:alert(1)":                  "only http and https",
 		"vscode://file/x":                      "only http and https",
 		"https://user:pw@example.com/":         "user name or password",

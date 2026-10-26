@@ -79,6 +79,7 @@ func (st Status) Describe() string {
 		"Otherwise run `doriath request write PATH --reason TEXT`, for the narrowest file or directory that covers all your changes. A request asks the user on the approvals page, waits, and lasts until the session ends. " +
 		"To read a folder that this jail does not show, run `doriath request read PATH --reason TEXT`. " +
 		"To open a link in the user's browser, run `doriath request open URL --reason TEXT`. xdg-open and $BROWSER do the same, so sign-in flows that open a browser work. " +
+		"To show the user a file that this jail shows, such as a markdown, HTML, PDF or image file, run `doriath request open PATH --reason TEXT`: it opens in the user's app for that kind of file. " +
 		"To show the user a server that runs here, such as a preview, bind it to 127.0.0.1 and run `doriath request open http://localhost:PORT/ --reason TEXT`: it asks the user to forward PORT to their machine, then opens the link. " +
 		"To forward a port without a link, run `doriath request forward PORT[:JAIL_PORT] --reason TEXT`. A forward lasts until the session ends. " +
 		"When a secret is unavailable, doriath shows the user a card on the approvals page. Wait for it with the command in the error. Do not ask the user to run commands on their machine. " +
