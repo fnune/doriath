@@ -39,7 +39,12 @@ type Peer struct {
 type MappedFile struct {
 	Path string `json:"path"`
 	Ino  uint64 `json:"ino"`
-	File FileID `json:"file,omitzero"`
+	// Range and Offset place the mapping in the process and in the file. They
+	// let the proxy read the code from the process's memory, which is the
+	// only way to see a file that its program deleted after it loaded it.
+	Range  string `json:"range,omitempty"`
+	Offset uint64 `json:"offset,omitempty"`
+	File   FileID `json:"file,omitzero"`
 }
 
 // FileID changes when the file at a path is replaced or written.
@@ -134,11 +139,12 @@ func executableMappings(maps []byte) []MappedFile {
 			continue
 		}
 		path := strings.Join(fields[5:], " ")
-		if !strings.HasPrefix(path, "/") || slices.ContainsFunc(out, func(f MappedFile) bool { return f.Path == path }) {
+		offset, _ := strconv.ParseUint(fields[2], 16, 64)
+		if !strings.HasPrefix(path, "/") || slices.ContainsFunc(out, func(f MappedFile) bool { return f.Path == path && f.Offset == offset }) {
 			continue
 		}
 		ino, _ := strconv.ParseUint(fields[4], 10, 64)
-		out = append(out, MappedFile{Path: path, Ino: ino})
+		out = append(out, MappedFile{Path: path, Ino: ino, Range: fields[0], Offset: offset})
 	}
 	return out
 }

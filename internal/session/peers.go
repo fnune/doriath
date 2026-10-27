@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -108,4 +109,40 @@ func (h *hostPeers) initRunning(reaper int) bool {
 		}
 	}
 	return false
+}
+
+// hostPID finds the process that the jail's pid names. The jail reports pids
+// of its own namespace, which mean other processes outside.
+func hostPID(procRoot string, reaper, jailPID int) (int, error) {
+	space, err := os.Readlink(filepath.Join(procRoot, strconv.Itoa(reaper), "ns", "pid"))
+	if err != nil {
+		return 0, fmt.Errorf("find the pid namespace of the jail: %w", err)
+	}
+	entries, err := os.ReadDir(procRoot)
+	if err != nil {
+		return 0, err
+	}
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
+		dir := filepath.Join(procRoot, e.Name())
+		if got, err := os.Readlink(filepath.Join(dir, "ns", "pid")); err != nil || got != space {
+			continue
+		}
+		status, err := os.ReadFile(filepath.Join(dir, "status"))
+		if err != nil {
+			continue
+		}
+		for line := range strings.SplitSeq(string(status), "\n") {
+			if fields, ok := strings.CutPrefix(line, "NSpid:"); ok {
+				ids := strings.Fields(fields)
+				if len(ids) > 1 && ids[len(ids)-1] == strconv.Itoa(jailPID) {
+					return pid, nil
+				}
+			}
+		}
+	}
+	return 0, fmt.Errorf("no process of the jail has pid %d", jailPID)
 }

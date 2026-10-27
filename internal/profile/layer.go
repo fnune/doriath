@@ -27,6 +27,7 @@ type layer struct {
 	MCP         []mcpLayer             `toml:"mcp"`
 	Open        []openLayer            `toml:"open"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
+	Code        *codeLayer             `toml:"code"`
 	Limits      *limitsLayer           `toml:"limits"`
 	Agent       *agentLayer            `toml:"agent"`
 	Claude      *claudeLayer           `toml:"claude"`
@@ -176,6 +177,11 @@ type hardeningLayer struct {
 	Namespaces *bool `toml:"namespaces"`
 	Ptrace     *bool `toml:"ptrace"`
 	Landlock   *bool `toml:"landlock"`
+}
+
+type codeLayer struct {
+	Archives  []string `toml:"archives"`
+	Libraries []string `toml:"libraries"`
 }
 
 type nixLayer struct {

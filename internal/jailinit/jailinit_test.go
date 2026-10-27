@@ -175,6 +175,9 @@ func TestALibraryWrittenInPlaceIsAnotherFile(t *testing.T) {
 	if len(before.Code) != 1 || before.Code[0].File != FileIDOf(info) {
 		t.Fatalf("code = %+v, want %+v", before.Code, FileIDOf(info))
 	}
+	if before.Code[0].Range != "7f00-7f10" {
+		t.Errorf("range = %q: map_files opens a deleted file by it", before.Code[0].Range)
+	}
 	time.Sleep(20 * time.Millisecond)
 	if err := os.WriteFile(lib, []byte("two"), 0o600); err != nil {
 		t.Fatal(err)

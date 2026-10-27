@@ -390,6 +390,8 @@ type builder struct {
 	mcp         []mcpLayer
 	open        []openLayer
 	harden      Hardening
+	archives    []string
+	libraries   []string
 	limits      Limits
 	claude      claudeLayer
 	disable     bool
@@ -503,6 +505,14 @@ func (b *builder) apply(l layer) {
 		}
 		if lim.CPU != "" {
 			b.limits.CPU = lim.CPU
+		}
+	}
+	if c := l.Code; c != nil {
+		for _, a := range c.Archives {
+			b.archives = appendNew(b.archives, a)
+		}
+		for _, l := range c.Libraries {
+			b.libraries = appendNew(b.libraries, l)
 		}
 	}
 	if h := l.Hardening; h != nil {
@@ -942,6 +952,22 @@ func (b *builder) build(top layer) (*Profile, error) {
 			continue
 		}
 		p.Caches = append(p.Caches, Cache{Path: path})
+	}
+	for _, a := range b.archives {
+		path, err := b.expand(a)
+		if err != nil || !filepath.IsAbs(path) {
+			errs = append(errs, fmt.Errorf("code archive %q: a path must be absolute or start with ~/", a))
+			continue
+		}
+		p.CodeArchives = append(p.CodeArchives, path)
+	}
+	for _, l := range b.libraries {
+		path, err := b.expand(l)
+		if err != nil || !filepath.IsAbs(path) {
+			errs = append(errs, fmt.Errorf("code library %q: a path must be absolute or start with ~/", l))
+			continue
+		}
+		p.CodeLibraries = append(p.CodeLibraries, path)
 	}
 	for _, d := range b.devices {
 		if !strings.HasPrefix(filepath.Clean(d), "/dev/") {

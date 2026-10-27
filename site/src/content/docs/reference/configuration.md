@@ -255,6 +255,16 @@ store = true
 [clipboard]
 images = true
 
+# Zip and jar files, as globs. A program that a credential or egress entry
+# names can load the native libraries that these files ship, although it
+# unpacks them into a temporary folder. doriath reads the files when the
+# session starts. The bazel module names the install base of Bazel.
+# libraries are native libraries at a fixed path, which doriath pins like
+# the files next to a named program.
+[code]
+archives = ["~/.cache/bazel/_bazel_*/install/*/A-server.jar"]
+libraries = ["~/.cache/bazel/_bazel_*/install/*/libcpu_profiler.so"]
+
 # Less strict seccomp and Landlock limits, for tools that need them.
 [hardening]
 namespaces = false   # nested sandboxes such as bubblewrap

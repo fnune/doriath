@@ -342,7 +342,13 @@ func (s *Session) prepare(ctx context.Context) error {
 	}
 	var pinNotes []string
 	s.peers.pins, pinNotes = pinBinaries(p, s.deps.Paths.Home, s.cacheRoot(), agentWritable(s.deps, p))
-	for _, n := range pinNotes {
+	pinNotes = append(pinNotes, s.peers.pins.pinLibraries(p, s.deps.Paths.Home, s.cacheRoot(), agentWritable(s.deps, p))...)
+	var archiveNotes []string
+	s.peers.pins.archives, archiveNotes = pinArchives(p, s.deps.Paths.Home, s.cacheRoot(), "/proc", agentWritable(s.deps, p))
+	s.peers.pins.archives.hostPID = func(jailPID int) (int, error) {
+		return hostPID("/proc", s.peers.reaper(), jailPID)
+	}
+	for _, n := range append(pinNotes, archiveNotes...) {
 		s.notes = append(s.notes, note{term.Warn, n})
 	}
 	if err := s.startProxy(); err != nil {

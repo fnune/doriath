@@ -1,1 +1,5 @@
 description = "Bazel, with the proxy and the trust store for the JVM of its server."
+
+[code]
+archives = ["~/.cache/bazel/_bazel_*/install/*/A-server.jar"]
+libraries = ["~/.cache/bazel/_bazel_*/install/*/libcpu_profiler.so"]

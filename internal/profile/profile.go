@@ -471,6 +471,14 @@ type Profile struct {
 	// from Name in a composed profile, so that a secret keeps the login of
 	// the profile it belongs to.
 	SecretOwners map[string]string
+	// CodeArchives are globs of zip or jar files. A pinned program may load
+	// the native libraries that it unpacks from them, such as Bazel's JNI
+	// library, although the unpacked copy lives in a temporary folder.
+	CodeArchives []string
+	// CodeLibraries are globs of native libraries that sit in the session's
+	// files at a fixed path, such as one that Bazel unpacks into its install
+	// base. doriath pins them like the files next to a named program.
+	CodeLibraries []string
 	// Modules lists the modules the profile resolved to, in the order
 	// doriath applied them.
 	Modules []string

@@ -656,3 +656,24 @@ func TestAllowedMCPServersReachTheProfile(t *testing.T) {
 		t.Errorf("allowed MCP servers = %q", p.Claude.AllowedMCPServers)
 	}
 }
+
+func TestCodeArchivesMergeAcrossModulesAndExpandTheHome(t *testing.T) {
+	modules := fstest.MapFS{
+		"a.toml": file("[code]\narchives = [\"~/.cache/bazel/_bazel_*/install/*/A-server.jar\"]\nlibraries = [\"~/lib/a.so\"]\n"),
+		"b.toml": file("[code]\narchives = [\"/opt/tool/lib.jar\", \"~/.cache/bazel/_bazel_*/install/*/A-server.jar\"]\n"),
+	}
+	p, err := loader(fstest.MapFS{"p.toml": file("modules = [\"a\", \"b\"]\n")}, modules).Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/home/u/.cache/bazel/_bazel_*/install/*/A-server.jar", "/opt/tool/lib.jar"}
+	if !slices.Equal(p.CodeArchives, want) {
+		t.Errorf("archives = %v, want %v", p.CodeArchives, want)
+	}
+	if !slices.Equal(p.CodeLibraries, []string{"/home/u/lib/a.so"}) {
+		t.Errorf("libraries = %v", p.CodeLibraries)
+	}
+	if _, err := loader(fstest.MapFS{"p.toml": file("[code]\narchives = [\"relative/a.jar\"]\n")}, nil).Load("p"); err == nil || !strings.Contains(err.Error(), "code archive") {
+		t.Errorf("a relative archive path must fail: %v", err)
+	}
+}

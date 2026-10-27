@@ -18,6 +18,7 @@ import (
 type pins struct {
 	programs map[string]jailinit.FileID
 	code     map[string]jailinit.FileID
+	archives *codeArchives
 }
 
 const maxPinnedCode = 10000
@@ -55,6 +56,27 @@ func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) 
 	return out, notes
 }
 
+func (ps pins) pinLibraries(p *profile.Profile, home, cacheRoot string, writable []string) []string {
+	var notes []string
+	for _, pattern := range p.CodeLibraries {
+		for _, jailPath := range globInJail(p, home, cacheRoot, pattern) {
+			source, ok := hostSource(p, home, cacheRoot, jailPath)
+			if !ok {
+				continue
+			}
+			info, err := os.Lstat(source)
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			ps.code[jailPath] = jailinit.FileIDOf(info)
+			if inAny(source, writable) {
+				notes = append(notes, fmt.Sprintf("the agent can write %s: a file that it puts there gets no trust in this session, but the next session trusts it", shortPath(jailPath)))
+			}
+		}
+	}
+	return notes
+}
+
 func (ps pins) untrusted(id proxy.Identity) string {
 	if id.Exe == "" || profile.UnderTrustedRoot(id.Exe) {
 		return ps.foreignCode(id)
@@ -74,7 +96,11 @@ func (ps pins) foreignCode(id proxy.Identity) string {
 		if file, pinned := ps.code[code.Path]; (pinned && file == code.File) || profile.UnderTrustedRoot(code.Path) {
 			continue
 		}
-		return fmt.Sprintf("%s runs code from %s, which is outside the system paths and not as it was when the session started", id.Exe, code.Path)
+		reason := ps.archives.check(id.PID, code)
+		if reason == nil {
+			continue
+		}
+		return fmt.Sprintf("%s runs code from %s, which is outside the system paths and not as it was when the session started (not from a pinned archive: %v)", id.Exe, code.Path, reason)
 	}
 	return ""
 }
