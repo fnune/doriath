@@ -325,7 +325,7 @@ func TestPendingRequestsAreCapped(t *testing.T) {
 }
 
 func TestEveryButtonOfAKindMeansADecision(t *testing.T) {
-	for _, kind := range []Kind{KindHTTP, KindTool, KindHost, KindPath, KindRead, KindEdit, KindClipboard, KindSecret, KindOpen, KindForward} {
+	for _, kind := range []Kind{KindHTTP, KindTool, KindHost, KindPath, KindRead, KindEdit, KindClipboard, KindSecret, KindOpen, KindForward, KindConnect} {
 		for _, b := range kind.Buttons() {
 			d, ok := b.Answer.Decision("test")
 			if !ok || b.Label == "" || !kind.Offers(b.Answer) {
@@ -333,7 +333,7 @@ func TestEveryButtonOfAKindMeansADecision(t *testing.T) {
 			}
 		}
 	}
-	if KindHost.Offers(AnswerOnce) || KindPath.Offers(AnswerOnce) || KindRead.Offers(AnswerOnce) || KindForward.Offers(AnswerOnce) {
+	if KindHost.Offers(AnswerOnce) || KindPath.Offers(AnswerOnce) || KindRead.Offers(AnswerOnce) || KindForward.Offers(AnswerOnce) || KindConnect.Offers(AnswerOnce) {
 		t.Error("a request that stays reachable once allowed offers allow once")
 	}
 	if got := KindSecret.Answered(Decision{Verdict: VerdictAllow}); got != "Tried again" {

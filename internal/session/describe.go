@@ -46,6 +46,9 @@ func (st Status) Describe() string {
 		}
 		fmt.Fprintf(&b, "Local ports: %s\n", strings.Join(ports, ", "))
 	}
+	for _, c := range st.Connects {
+		fmt.Fprintf(&b, "Connecting to 127.0.0.1:%d in the jail reaches port %d on the user's machine.\n", c.Jail, c.Host)
+	}
 	for _, f := range st.Forwards {
 		fmt.Fprintf(&b, "Port %d in the jail is forwarded to localhost:%d on the user's machine.\n", f.Jail, f.Host)
 	}
@@ -82,6 +85,7 @@ func (st Status) Describe() string {
 		"To show the user a file that this jail shows, such as a markdown, HTML, PDF or image file, run `doriath request open PATH --reason TEXT`: it opens in the user's app for that kind of file. " +
 		"To show the user a server that runs here, such as a preview, bind it to 127.0.0.1 and run `doriath request open http://localhost:PORT/ --reason TEXT`: it asks the user to forward PORT to their machine, then opens the link. " +
 		"To forward a port without a link, run `doriath request forward PORT[:JAIL_PORT] --reason TEXT`. A forward lasts until the session ends. " +
+		"To reach a service on the user's machine, such as a database tunnel or a dev server, when a connection to 127.0.0.1 here is refused, run `doriath request connect HOST_PORT[:JAIL_PORT] --reason TEXT`. It connects 127.0.0.1:JAIL_PORT here to 127.0.0.1:HOST_PORT on the user's machine, for that TCP port only, until the session ends. " +
 		"When a secret is unavailable, doriath shows the user a card on the approvals page. Wait for it with the command in the error. Do not ask the user to run commands on their machine. " +
 		"Each `doriath request edit` asks the user again, so use it only where `doriath request write` refuses, such as .git/config when git or jj cannot write it: write the whole new content to a file and run `doriath request edit PATH --reason TEXT < FILE`, then run the git or jj command again. git here records a branch's upstream itself, and asks the user before `git remote add`. " +
 		"Errors that start with \"doriath:\" come from this sandbox. Do not look for another way around a block. " +

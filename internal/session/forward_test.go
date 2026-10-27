@@ -125,3 +125,58 @@ func TestALastingForwardTakesOverASignInForwardUntilTheSessionEnds(t *testing.T)
 	}
 	_ = ln.Close()
 }
+
+func TestAConnectAsksOnceAndShowsWhatItGrants(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1), decision: &approval.Decision{Verdict: approval.VerdictDeny}}
+	s := newTestSession(t, notifier)
+	if _, err := s.requestConnect(3309, 3306, "query the staging database"); err != nil {
+		t.Fatal(err)
+	}
+	req := <-notifier.seen
+	if req.Kind != approval.KindConnect || req.Scope != "connect 3309:3306" || req.Note != "query the staging database" || !strings.Contains(req.Summary, "port 3309 on your machine") {
+		t.Errorf("request = %+v", req)
+	}
+	for _, want := range []string{"127.0.0.1:3306", "127.0.0.1:3309", "until the session ends", "Only this TCP port"} {
+		if !strings.Contains(req.Details, want) {
+			t.Errorf("details lack %q: %s", want, req.Details)
+		}
+	}
+}
+
+func TestAConnectThatAlreadyHoldsIsNotAskedAgain(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1)}
+	s := newTestSession(t, notifier)
+	s.hostConnects = map[int]*hostConnect{3306: {hostPort: 3309}}
+	res, err := s.requestConnect(3309, 3306, "")
+	if err != nil || res.Decision.Verdict != approval.VerdictAllow || len(notifier.seen) != 0 {
+		t.Errorf("a lasting connect asked again: %+v, %v", res, err)
+	}
+	if got := s.connections(); len(got) != 1 || got[0] != (StatusForward{Host: 3309, Jail: 3306}) {
+		t.Errorf("connections = %+v", got)
+	}
+}
+
+func TestAConnectToAPortTheProfileOpensIsNotAskedAgain(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1)}
+	s := newTestSession(t, notifier)
+	s.req.Profile.Egress.TCPPorts = []int{3306}
+	res, err := s.requestConnect(3306, 3306, "")
+	if err != nil || res.Decision.Verdict != approval.VerdictAllow || len(notifier.seen) != 0 {
+		t.Errorf("a port of the profile asked: %+v, %v", res, err)
+	}
+}
+
+func TestAConnectRefusesAPortOutOfRangeOrOneThatTheProfileUses(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	for _, ports := range [][2]int{{0, 80}, {80, 70000}} {
+		if _, err := s.requestConnect(ports[0], ports[1], ""); err == nil {
+			t.Errorf("%v: no error", ports)
+		}
+	}
+	s.peers.init.Store(1)
+	s.deps.Nsenter = "nsenter"
+	s.req.Profile.Egress.Ports = []int{4200}
+	if err := s.connectPort(4300, 4200); err == nil || !strings.Contains(err.Error(), "already used by the profile") {
+		t.Errorf("a jail port of the profile: %v", err)
+	}
+}

@@ -23,17 +23,18 @@ import (
 type tlsCertificate = tls.Certificate
 
 const (
-	MethodSubmit        = "approval.submit"
-	MethodInform        = "inform"
-	MethodStatus        = "status"
-	MethodStarted       = "agent.started"
-	MethodRequestWrite  = "path.request_write"
-	MethodRequestRead   = "path.request_read"
-	MethodRequestModule = "module.request"
-	MethodRequestHost   = "host.request"
-	MethodRequestOpen   = "link.open"
-	MethodRequestPort   = "port.forward"
-	MethodWait          = "approval.wait"
+	MethodSubmit         = "approval.submit"
+	MethodInform         = "inform"
+	MethodStatus         = "status"
+	MethodStarted        = "agent.started"
+	MethodRequestWrite   = "path.request_write"
+	MethodRequestRead    = "path.request_read"
+	MethodRequestModule  = "module.request"
+	MethodRequestHost    = "host.request"
+	MethodRequestOpen    = "link.open"
+	MethodRequestPort    = "port.forward"
+	MethodRequestConnect = "port.connect"
+	MethodWait           = "approval.wait"
 )
 
 // WaitParams names a request by its id, or by what it asks for: a host or
@@ -178,6 +179,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.requestForward(p.HostPort, p.JailPort, p.Reason)
 		},
+		MethodRequestConnect: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[RequestConnectParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return s.requestConnect(p.HostPort, p.JailPort, p.Reason)
+		},
 		MethodRequestHost: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[RequestHostParams](raw)
 			if err != nil {
@@ -301,6 +309,7 @@ type Status struct {
 	Intercepted []StatusHost    `json:"intercepted"`
 	Ports       []int           `json:"ports"`
 	Forwards    []StatusForward `json:"forwards,omitempty"`
+	Connects    []StatusForward `json:"connects,omitempty"`
 	Signing     bool            `json:"signing"`
 	Podman      bool            `json:"podman"`
 	Pending     int             `json:"pending"`
@@ -345,6 +354,7 @@ func (s *Session) status() Status {
 		Profile:  p.Name,
 		Ports:    append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
 		Forwards: s.lastingForwards(),
+		Connects: s.connections(),
 		Signing:  p.SigningKey != "",
 		Podman:   p.Podman,
 		Pending:  len(s.manager.Pending()),

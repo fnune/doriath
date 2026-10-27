@@ -18,6 +18,7 @@ func TestDescribeStatus(t *testing.T) {
 		}},
 		Ports:    []int{3000, 5432},
 		Forwards: []StatusForward{{Host: 8080, Jail: 4321}},
+		Connects: []StatusForward{{Host: 3309, Jail: 3306}},
 		Signing:  true,
 		Podman:   true,
 		Pending:  2,
@@ -31,6 +32,7 @@ func TestDescribeStatus(t *testing.T) {
 		"Host api.github.com (default approve, with a credential the proxy adds):\n  - GET /**: allow\n  - POST /graphql: allow (queries)\n  - POST /**/git-receive-pack refs refs/heads/agent/**: allow\n",
 		"Local ports: 3000, 5432\n",
 		"Port 4321 in the jail is forwarded to localhost:8080 on the user's machine.\n",
+		"Connecting to 127.0.0.1:3306 in the jail reaches port 3309 on the user's machine.\n",
 		"Commits are signed by an agent key",
 		"Containers: podman",
 		"Requests waiting for the user: 2\n",
@@ -42,6 +44,8 @@ func TestDescribeStatus(t *testing.T) {
 		"`doriath request open PATH --reason TEXT`",
 		"`doriath request open http://localhost:PORT/ --reason TEXT`",
 		"`doriath request forward PORT[:JAIL_PORT] --reason TEXT`",
+		"`doriath request connect HOST_PORT[:JAIL_PORT] --reason TEXT`",
+		"connection to 127.0.0.1 here is refused",
 		"Do not ask the user to run commands on their machine.",
 	} {
 		if !strings.Contains(got, want) {
@@ -49,7 +53,7 @@ func TestDescribeStatus(t *testing.T) {
 		}
 	}
 	bare := Status{Session: "s1", Profile: "k"}.Describe()
-	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting", "is forwarded", "no other network access"} {
+	for _, absent := range []string{"Writable", "Local ports", "Blocked", "waiting", "is forwarded", "Connecting to", "no other network access"} {
 		if strings.Contains(bare, absent) {
 			t.Errorf("an empty status mentions %q:\n%s", absent, bare)
 		}

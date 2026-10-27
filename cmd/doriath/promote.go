@@ -47,9 +47,11 @@ func cmdRequest(args []string, w io.Writer) error {
 		return requestModule(ctx, broker, args[1:], w)
 	case len(args) >= 2 && args[0] == "forward":
 		return requestForward(ctx, broker, args[1:], w)
+	case len(args) >= 2 && args[0] == "connect":
+		return requestConnect(ctx, broker, args[1:], w)
 	case len(args) >= 2 && (args[0] == "write" || args[0] == "read"):
 	default:
-		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request read PATH [--reason TEXT] | doriath request module MODULE PATH [--reason TEXT] | doriath request host HOST [--reason TEXT] | doriath request open URL|PATH [--reason TEXT] | doriath request forward PORT[:JAIL_PORT] [--reason TEXT] | doriath request edit PATH [--reason TEXT] < NEW_CONTENT | doriath request wait ID|HOST|PATH")
+		return errors.New("request: usage: doriath request write PATH [--reason TEXT] | doriath request read PATH [--reason TEXT] | doriath request module MODULE PATH [--reason TEXT] | doriath request host HOST [--reason TEXT] | doriath request open URL|PATH [--reason TEXT] | doriath request forward PORT[:JAIL_PORT] [--reason TEXT] | doriath request connect HOST_PORT[:JAIL_PORT] [--reason TEXT] | doriath request edit PATH [--reason TEXT] < NEW_CONTENT | doriath request wait ID|HOST|PATH")
 	}
 	verb := args[0]
 	flags := flag.NewFlagSet("request "+verb, flag.ContinueOnError)

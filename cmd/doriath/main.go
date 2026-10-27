@@ -81,6 +81,7 @@ Inside a jail:
   doriath request host HOST [--reason TEXT]
   doriath request open URL|PATH [--reason TEXT]
   doriath request forward PORT[:JAIL_PORT] [--reason TEXT]
+  doriath request connect HOST_PORT[:JAIL_PORT] [--reason TEXT]
   doriath request wait ID|HOST|PATH
 `
 
@@ -115,6 +116,8 @@ func run(args []string) int {
 		err = cmdForward(args[1:])
 	case "__relay":
 		err = cmdRelay(args[1:])
+	case "__connect":
+		err = cmdConnect(args[1:], os.Stdin, os.Stdout)
 	case "__init":
 		code, err = cmdInit(args[1:])
 	case "__sandbox-exec":

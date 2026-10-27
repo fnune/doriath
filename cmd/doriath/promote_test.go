@@ -183,6 +183,24 @@ func TestRequestForwardSendsBothPortsAndReason(t *testing.T) {
 	}
 }
 
+func TestRequestConnectSendsBothPortsAndReason(t *testing.T) {
+	b := startBroker(t)
+	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)
+	out, err := request(t, "connect", "3309:3306", "--reason", "query the staging database")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.connects) != 1 || b.connects[0] != (session.RequestConnectParams{HostPort: 3309, JailPort: 3306, Reason: "query the staging database"}) {
+		t.Errorf("connects = %+v", b.connects)
+	}
+	if !strings.Contains(out, "Connecting to 127.0.0.1:3306 in the jail reaches 127.0.0.1:3309") {
+		t.Errorf("out = %q", out)
+	}
+	if _, err := request(t, "connect", "99999"); err == nil {
+		t.Error("an out of range port was sent")
+	}
+}
+
 func TestTheXDGOpenFrontAsksQuietlyAndRefusesWithoutASession(t *testing.T) {
 	b := startBroker(t)
 	b.set(approval.Decision{Verdict: approval.VerdictAllow}, nil)

@@ -223,6 +223,16 @@ doriath request forward PORT[:JAIL_PORT] [--reason TEXT]
 
 Asks you to connect a port on the loopback address of your machine to a port in the jail, until the session ends. Without `JAIL_PORT`, the two ports are the same. The agent uses it to show you a server that it runs, such as a preview of a site. See [ports](/guides/approvals/#ports).
 
+### `doriath request connect`
+
+```txt frame="none"
+doriath request connect HOST_PORT[:JAIL_PORT] [--reason TEXT]
+```
+
+Asks you to let the jail connect to a port on the loopback address of your machine, until the session ends. A connection to `127.0.0.1:JAIL_PORT` in the jail then reaches `127.0.0.1:HOST_PORT` on your machine. Without `JAIL_PORT`, the two ports are the same. The agent uses it for a service that runs on your machine, such as a database tunnel or a dev server. It is the reverse of [`doriath request forward`](#doriath-request-forward). See [ports](/guides/approvals/#ports).
+
+To allow a port for each session of a profile, put it in [`egress.tcp_ports`](/reference/configuration/#profile-keys).
+
 ### `doriath request host`
 
 ```txt frame="none"

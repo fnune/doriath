@@ -189,6 +189,7 @@ type Session struct {
 	listings         *listingCache
 	dismissedSecrets map[string]bool
 	hostForwards     map[int]*hostForward
+	hostConnects     map[int]*hostConnect
 	vcsEnv           map[string]string
 	// clipboardEnv points clipboard tools at the jail's Wayland display.
 	clipboardEnv map[string]string
@@ -285,7 +286,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
 	s.links = newLinkKeeper(s.linkRestored)
-	s.closers = append(s.closers, s.links.Close, s.stopForwards)
+	s.closers = append(s.closers, s.links.Close, s.stopForwards, s.stopConnects)
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})
@@ -484,25 +485,30 @@ func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
 		go func() { _ = srv.Serve(l) }()
 		return nil
 	}
-	go func() {
-		for {
-			conn, err := l.Accept()
+	go s.relayToHost(ctx, l, f.Port)
+	return nil
+}
+
+// relayToHost passes each connection on l to a port of the loopback address
+// of your machine.
+func (s *Session) relayToHost(ctx context.Context, l net.Listener, port int) {
+	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		go func() {
+			defer conn.Close()
+			up, err := s.localDialer().DialContext(ctx, "tcp", target)
 			if err != nil {
+				s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Reason: err.Error()})
 				return
 			}
-			go func() {
-				defer conn.Close()
-				up, err := s.localDialer().DialContext(ctx, "tcp", target)
-				if err != nil {
-					s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(f.Port), Reason: err.Error()})
-					return
-				}
-				defer up.Close()
-				splice(conn, up)
-			}()
-		}
-	}()
-	return nil
+			defer up.Close()
+			splice(conn, up)
+		}()
+	}
 }
 
 func (s *Session) httpForward(target string, port int) http.Handler {

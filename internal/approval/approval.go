@@ -41,6 +41,9 @@ const (
 	// KindForward asks to forward a port of your machine into the jail. An
 	// allow lasts for the session: the port stays open until it ends.
 	KindForward Kind = "forward"
+	// KindConnect asks to reach a port of your machine from the jail. An
+	// allow lasts for the session, like a forward.
+	KindConnect Kind = "connect"
 )
 
 type Answer string
@@ -57,11 +60,11 @@ type Button struct {
 }
 
 // Buttons are the answers that a request of the kind offers, each with its
-// label. A host, a write, a read or a forward stays reachable once allowed,
+// label. A host, a write, a read, a forward or a connect stays reachable once allowed,
 // so those offer no allow once. A secret card offers to try the source again.
 func (k Kind) Buttons() []Button {
 	switch k {
-	case KindHost, KindPath, KindRead, KindForward:
+	case KindHost, KindPath, KindRead, KindForward, KindConnect:
 		return []Button{{AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
 	case KindSecret:
 		return []Button{{AnswerOnce, "Try again"}, {AnswerDeny, "Dismiss"}}

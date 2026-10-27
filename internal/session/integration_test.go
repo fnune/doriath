@@ -948,6 +948,52 @@ echo done
 	}
 }
 
+func TestAConnectReachesAPortOfTheHostOnceAllowed(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	host, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	hostPort := host.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := host.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = c.Write([]byte("from the host\n"))
+			_ = c.Close()
+		}
+	}()
+	free, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jailPort := free.Addr().(*net.TCPAddr).Port
+	_ = free.Close()
+	code, out := e.run(e.profile(""), fmt.Sprintf(`
+G=/run/doriath-bin/doriath
+(exec 3<>/dev/tcp/127.0.0.1/%[2]d) 2>/dev/null && echo "FAIL the port was open before the request"
+$G request connect %[1]d:%[2]d --reason "query the staging database" || echo "FAIL request connect"
+$G request connect %[1]d:%[2]d || echo "FAIL the allowed connect asked again"
+exec 4<>/dev/tcp/127.0.0.1/%[2]d || echo "FAIL the jail cannot connect"
+read -r line <&4
+echo "got: $line"
+$G status | grep -q "127.0.0.1:%[2]d in the jail reaches port %[1]d" || echo "FAIL status does not list the connect"
+echo done
+`, hostPort, jailPort), func() {
+		allow := approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"}
+		if req := e.decideNext(allow); req.Kind != approval.KindConnect || req.Note != "query the staging database" || req.Scope != fmt.Sprintf("connect %d:%d", hostPort, jailPort) {
+			t.Errorf("connect request: %+v", req)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "got: from the host") || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
+
 func TestAnOptionalSecretThatCannotBeReadLeavesTheSessionRunning(t *testing.T) {
 	e := newEnv(t)
 	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}

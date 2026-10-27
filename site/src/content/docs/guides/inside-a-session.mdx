@@ -26,6 +26,8 @@ This connects port 3000 on the host to port 3000 in the jail. All local users of
 
 The agent asks for the same forward with `doriath request forward 3000`. When it opens a link such as `http://localhost:3000/`, doriath asks you to forward port 3000, and then opens the link. These forwards last until the session ends. See [ports](/guides/approvals/#ports).
 
+The agent reaches a port of your machine with `doriath request connect 3309`, for example a database tunnel that you opened on your machine. When a connection to `127.0.0.1` in the jail is refused, the agent can ask for the port. See [ports](/guides/approvals/#ports).
+
 doriath connects to `127.0.0.1` in the jail, so the server must listen on that address. A server that listens only on `::1` does not get the connection.
 
 To debug a browser in the jail, start it with `--remote-debugging-port=9222`. Then forward port 9222 and open `chrome://inspect` on the host.

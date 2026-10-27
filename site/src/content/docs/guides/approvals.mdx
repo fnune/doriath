@@ -136,6 +136,8 @@ When the agent runs `doriath request forward PORT`, the page asks you: "Forward 
 
 An allow makes doriath listen on the loopback address of your machine, and connect each connection to the port in the jail. Each program and each local user of your machine can then connect to the port. The forward lasts until the session ends. `doriath status` in the jail lists the forwards.
 
+When the agent runs `doriath request connect HOST_PORT[:JAIL_PORT]`, the page asks you: "Let the jail connect to port HOST_PORT on your machine?". The card shows the host port, the jail port and the agent's reason. This is the reverse direction: a program in the jail can then connect to `127.0.0.1:JAIL_PORT`, and reach `127.0.0.1:HOST_PORT` on your machine. It reaches only that TCP port. The service there sees a client on your loopback address, so a service that trusts such clients, such as a database tunnel that is already signed in, also trusts the agent. Allow it only for a service that you accept the agent using. The grant lasts until the session ends, and `doriath status` in the jail lists it. For a port that every session of a profile needs, use [`egress.tcp_ports`](/reference/configuration/#profile-keys).
+
 ## Clipboard images
 
 With the [clipboard module](/reference/modules/#clipboard), a paste of an image into the agent asks you first: "Let the agent read the image in your clipboard". Allow it once for each paste, or for the session. The agent can also ask when you did not paste, so a request that you did not expect means that the agent wants your clipboard on its own. Text is never offered.
