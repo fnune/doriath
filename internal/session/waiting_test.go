@@ -125,3 +125,21 @@ func TestHintNamesTheRequestAndHowToAnswerIt(t *testing.T) {
 		}
 	}
 }
+
+func TestHintNamesAHeldHost(t *testing.T) {
+	ts := newTestSession(t, &answering{})
+	proc, stderr := fakeProc(t)
+	ts.peers.proc = proc
+	ts.peers.setInit(4000)
+	summary := ts.hostSummary("drafted.example")
+	go func() {
+		_, _ = ts.manager.Submit(t.Context(), approval.Request{Session: "s1", Kind: approval.KindHost, Summary: summary}, 10*time.Minute)
+	}()
+	for len(ts.manager.Pending()) == 0 {
+	}
+	ts.hintPending(proxy.Identity{PID: 37}, approval.KindHost, summary)
+	got, _ := os.ReadFile(stderr)
+	if !strings.Contains(string(got), "waiting for approval of Allow drafted.example for profile p?") {
+		t.Errorf("hint = %q", got)
+	}
+}

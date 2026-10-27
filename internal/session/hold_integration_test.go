@@ -64,3 +64,18 @@ sed 's/^/curl said: /' curl.err
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+func TestHeldHostTellsTheProgramWhatItWaitsFor(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	code, out := e.run(e.profile(""), `
+curl -sS -o /dev/null https://drafted.example/held 2>curl.err
+sed 's/^/curl said: /' curl.err
+`, func() {
+		time.Sleep(8 * time.Second)
+		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+	})
+	if code != 0 || !strings.Contains(out, "curl said: doriath: waiting for approval of Allow drafted.example") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}

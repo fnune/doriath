@@ -44,7 +44,7 @@ When the timer ends, the agent gets an error and the request is parked. If you a
 | `http`, podman image pushes | 10 minutes                                           | fixed                                                                     |
 | `tool`                      | 60 seconds, then the agent shows its own prompt      | `tool_wait` in [`config.toml`](/reference/configuration/#configtoml-keys) |
 
-While an `http` request waits for more than 5 seconds, doriath writes one line to the standard error of the program that sent it. The line names the request and the ID, tells the agent not to retry, and gives the `doriath approvals allow` command. The agent then sees why the command is slow. doriath writes nothing when the program has no standard error, such as when it closed it or redirected it to a socket.
+While an `http` request or a connection to a host the profile does not name waits for more than 5 seconds, doriath writes one line to the standard error of the program that sent it. The line names the request and the ID, tells the agent not to retry, and gives the `doriath approvals allow` command. The agent then sees why the command is slow. doriath writes nothing when the program has no standard error, such as when it closed it or redirected it to a socket.
 
 ## Answers
 

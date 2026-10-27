@@ -22,8 +22,12 @@ const waitHintAfter = 5 * time.Second
 // carries the program's own TLS or HTTP bytes, and a program that waits for
 // a response prints nothing.
 func (s *Session) Waiting(caller proxy.Identity, summary string) {
+	s.hintPending(caller, approval.KindHTTP, summary)
+}
+
+func (s *Session) hintPending(caller proxy.Identity, kind approval.Kind, summary string) {
 	for _, req := range s.manager.Pending() {
-		if req.Kind == approval.KindHTTP && req.Session == s.id && req.Summary == summary {
+		if req.Kind == kind && req.Session == s.id && req.Summary == summary {
 			s.peers.writeToStderr(caller.PID, waitingLine(req, s.deps.Clock.Now()))
 			return
 		}

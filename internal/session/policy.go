@@ -95,6 +95,8 @@ const pendingTTL = 12 * time.Hour
 // the configured time. An allow lasts for the session, also when it comes
 // after the agent stopped waiting.
 func (s *Session) HoldHost(_ context.Context, host string, caller proxy.Identity) (bool, string) {
+	hint := time.AfterFunc(waitHintAfter, func() { s.hintPending(caller, approval.KindHost, s.hostSummary(host)) })
+	defer hint.Stop()
 	d, id := s.holdHost(host, s.hostDetails(host, caller), "")
 	if d.Verdict == approval.VerdictAllow {
 		return true, ""
@@ -129,12 +131,16 @@ func (s *Session) hostDetails(host string, caller proxy.Identity) string {
 	return b.String()
 }
 
+func (s *Session) hostSummary(host string) string {
+	return fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name)
+}
+
 func (s *Session) holdHost(host, details, reason string) (approval.Decision, string) {
 	req := approval.Request{
 		Session: s.id,
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindHost,
-		Summary: fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name),
+		Summary: s.hostSummary(host),
 		Details: details,
 		Note:    reason,
 		Keep:    egressLines([]string{host}),
