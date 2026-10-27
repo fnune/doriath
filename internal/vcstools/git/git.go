@@ -148,6 +148,8 @@ func config(desktop []byte, j vcstools.Jail, files map[string]string) []byte {
 	// .git/config, which the jail cannot write and nix cannot read. The jail
 	// sees each repository where you do, so absolute paths serve both.
 	set("worktree.useRelativePaths", "false")
+	set("gc.auto", "0")
+	set("maintenance.auto", "false")
 	if j.SSHCommand != "" {
 		set("core.sshCommand", j.SSHCommand)
 	}

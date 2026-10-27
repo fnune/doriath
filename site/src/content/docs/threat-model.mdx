@@ -134,8 +134,9 @@ The jail runs as your UID on the host kernel. A kernel or bubblewrap bug lets th
 
 With `vcs-readwrite` or `vcs-readonly`, the agent creates, moves and deletes branches and adds worktrees. At the end, doriath repairs the store and its submodules, as [guarded actions](#guarded-actions) describes.
 
-git on your machine follows the `.git` file and admin directory of an agent worktree. Thus `git status` there can run hooks that the agent wrote. doriath resets these files in milliseconds, again at the end or at the next `doriath run`, and reports each change. These cases stay open:
+git on your machine follows the `.git` file and admin directory of an agent worktree. Thus `git status` there can run hooks that the agent wrote. doriath resets these files in milliseconds, again at the end, and reports each change. These cases stay open:
 
+- If doriath stops before the end of a session, for example because it was killed, the repositories keep what the agent wrote: unchecked objects, worktree pointers and a rebase to continue. doriath does the end step when the next session uses the repository, or at `doriath clean`. Each other session that starts names the sessions that wait. Until then, git on your machine reads what the agent left.
 - doriath only reports a worktree that claims a path outside the writable mounts, or that reaches outside them through a symlink.
 - git on your machine follows the config and hooks of a `.git` directory that the agent creates elsewhere in a write mount. The same applies to an `.envrc`.
 - In the session's repository, and in a repository where the agent uses a module after [`doriath request module`](/reference/commands/#doriath-request-module), the [modules in every profile](/reference/modules/#modules-in-every-profile) keep the files of known tools read-only. They cover three triggers: git events, entering the folder and opening the editor. `vcs-readwrite` also keeps the files of mise and agents. A tool that no module lists, or a checkout that you mount writable yourself, leaves such files writable.

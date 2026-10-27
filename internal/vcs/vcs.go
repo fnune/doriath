@@ -307,7 +307,7 @@ func submoduleCheckout(store string) string {
 // first. It brings back objects the session deleted, keeps the start value
 // of each branch the agent moved under refs/doriath/<session>/, resets the
 // repository pointer of the worktrees the agent added, and reports.
-func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Writer) error {
+func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Writer, progress Progress) error {
 	var errs []error
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
@@ -323,7 +323,14 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			errs = append(errs, fmt.Errorf("bring back the jj store of %s: %w", r.Path, err))
 			continue
 		}
-		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects")) {
+		var packs Progress
+		if progress != nil {
+			packs = func(c PackCheck) {
+				c.Repo = r.Path
+				progress(c)
+			}
+		}
+		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects"), packs) {
 			fmt.Fprintf(w, "removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
 		}
 		now, err := refs(ctx, t, r.GitDir)

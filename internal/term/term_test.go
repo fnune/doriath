@@ -39,3 +39,28 @@ func TestABadgeTakesTheTerminalsBackgroundAsItsTextColor(t *testing.T) {
 		t.Errorf("with NO_COLOR = %q", got)
 	}
 }
+
+func TestABarDrawsInPlaceAndClears(t *testing.T) {
+	var out bytes.Buffer
+	b := (&Writer{w: &out, tty: true}).Bar()
+	b.Show(0.5, "pack 1 of 2")
+	b.Show(1.5, "pack 2 of 2")
+	b.Clear()
+	b.Clear()
+	want := "\r\x1b[2K  ━━━━━━━━━━━━━━━━━━━━  50% pack 1 of 2" +
+		"\r\x1b[2K  ━━━━━━━━━━━━━━━━━━━━ 100% pack 2 of 2" +
+		"\r\x1b[2K"
+	if out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
+	}
+}
+
+func TestABarOutsideATerminalDrawsNothing(t *testing.T) {
+	var out bytes.Buffer
+	b := New(&out).Bar()
+	b.Show(0.5, "pack 1 of 2")
+	b.Clear()
+	if out.Len() != 0 {
+		t.Errorf("got %q", out.String())
+	}
+}

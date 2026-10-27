@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/term"
@@ -46,21 +47,49 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 // finishInterrupted runs the end step of sessions that ended without one,
 // for example because doriath was killed.
 func finishInterrupted(p config.Paths, w io.Writer) {
+	finishInterruptedOf(p, w, func(*vcs.Record) bool { return true })
+}
+
+func finishInterruptedOf(p config.Paths, w io.Writer, uses func(*vcs.Record) bool) []string {
 	t := term.New(w)
 	recs, err := records(p)
 	if err != nil {
 		t.Problem(err.Error())
-		return
+		return nil
 	}
+	var notes []string
 	for _, rec := range recs {
 		if rec.Finished {
 			continue
 		}
-		t.Header("session "+rec.Session, "ended without checking its repositories; checking them now")
-		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Warn)); err != nil {
+		repos := strings.Join(repoPaths(rec), ", ")
+		if !uses(rec) {
+			notes = append(notes, fmt.Sprintf("session %s ended before doriath checked its repositories: %s. doriath checks a repository when a session uses it, or at %s", rec.Session, repos, cli.Code(cli.Line("clean"))))
+			continue
+		}
+		t.Header("session "+rec.Session, "ended before doriath checked its repositories")
+		t.Line(term.Info, "doriath checks the objects that the agent wrote in "+repos+" before they are used again")
+		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Warn), w); err != nil {
 			t.Line(term.Problem, err.Error())
 		}
 	}
+	return notes
+}
+
+func usesStores(stores []string) func(*vcs.Record) bool {
+	return func(rec *vcs.Record) bool {
+		return slices.ContainsFunc(rec.Repos, func(r vcs.Repo) bool {
+			return slices.Contains(stores, filepath.Clean(r.GitDir))
+		})
+	}
+}
+
+func repoPaths(rec *vcs.Record) []string {
+	var out []string
+	for _, r := range rec.Repos {
+		out = append(out, r.Path)
+	}
+	return out
 }
 
 func cmdRestore(args []string, w io.Writer) error {
@@ -71,13 +100,20 @@ func cmdRestore(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	finishInterrupted(p, w)
 	path := filepath.Join(p.Backups(), args[0]+".json")
 	rec, err := vcs.Load(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("restore: no record of session %s, or `doriath clean` removed it", args[0])
 	}
 	if err != nil {
+		return err
+	}
+	var stores []string
+	for _, r := range rec.Repos {
+		stores = append(stores, filepath.Clean(r.GitDir))
+	}
+	finishInterruptedOf(p, w, usesStores(stores))
+	if rec, err = vcs.Load(path); err != nil {
 		return err
 	}
 	chosen, err := vcs.Load(path)

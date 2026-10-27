@@ -11,15 +11,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 )
 
-func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []string {
+func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string, progress Progress) []string {
 	newHash := sha1.New
 	if format, err := runStore(ctx, t, gitDir, "rev-parse", "--show-object-format"); err == nil && strings.TrimSpace(format) == "sha256" {
 		newHash = sha256.New
@@ -51,43 +48,39 @@ func dropForgedObjects(ctx context.Context, t Tools, gitDir, mirror string) []st
 		case dir == "pack" && strings.HasSuffix(name, ".pack"):
 			packs = append(packs, p)
 		case dir == "pack" && rebuiltIndex(name), strings.HasPrefix(rel, filepath.Join("info", "commit-graph")):
-			drop(p)
+			_ = os.Remove(p)
 		}
 		return nil
 	})
+	var verify []string
+	var total int64
 	for _, pack := range packs {
-		base := strings.TrimSuffix(pack, ".pack")
-		if verifyPack(ctx, t, gitDir, pack) == nil {
+		if unpackNewObjects(ctx, t, gitDir, mirror, pack, newHash) == nil {
+			removePack(pack)
 			continue
 		}
-		matches, _ := filepath.Glob(base + ".*")
-		for _, m := range matches {
-			drop(m)
+		verify = append(verify, pack)
+		total += fileSize(pack)
+	}
+	var checked int64
+	for i, pack := range verify {
+		size := fileSize(pack)
+		seen := func(done float64) {
+			if progress != nil && total > 0 {
+				progress(PackCheck{Pack: i + 1, Packs: len(verify), Bytes: total, Done: (float64(checked) + done*float64(size)) / float64(total)})
+			}
 		}
+		seen(0)
+		if verifyPack(ctx, t, gitDir, pack, seen) != nil {
+			for _, m := range removePack(pack) {
+				rel, _ := filepath.Rel(gitDir, m)
+				dropped = append(dropped, rel)
+			}
+		}
+		seen(1)
+		checked += size
 	}
 	return dropped
-}
-
-const (
-	verifyBase    = time.Minute
-	verifyPerMiB  = time.Second
-	verifyMaxWait = 5 * time.Second
-)
-
-func verifyPack(ctx context.Context, t Tools, gitDir, pack string) error {
-	info, err := os.Stat(pack)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(ctx, verifyBase+time.Duration(info.Size()>>20)*verifyPerMiB)
-	defer cancel()
-	idx := strings.TrimSuffix(pack, ".pack") + ".idx"
-	cmd := exec.CommandContext(ctx, t.Git, "--git-dir", gitDir, "--work-tree", gitDir, "verify-pack", idx)
-	cmd.Env = append(os.Environ(), gitEnv...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
-	cmd.WaitDelay = verifyMaxWait
-	return cmd.Run()
 }
 
 func rebuiltIndex(name string) bool {

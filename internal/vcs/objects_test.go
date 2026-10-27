@@ -198,7 +198,7 @@ func TestAPackThatStallsVerificationFailsIt(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	began := time.Now()
-	if err := verifyPack(ctx, Tools{Git: stalls}, dir, pack); err == nil {
+	if err := verifyPack(ctx, Tools{Git: stalls}, dir, pack, func(float64) {}); err == nil {
 		t.Fatal("a stalled verification must fail")
 	}
 	if took := time.Since(began); took > 3*time.Second {

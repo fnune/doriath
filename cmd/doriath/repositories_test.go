@@ -120,7 +120,7 @@ func TestCleanFinishesAnInterruptedSessionAndDropsItsBackups(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"doriath · session s1 · ended without checking its repositories; checking them now\n",
+		"doriath · session s1 · ended before doriath checked its repositories\n",
 		"start values of session s1 (Oct 13 09:30): refs/heads/main\n",
 		"Remove these? [y/N] ",
 	} {
@@ -179,5 +179,34 @@ func TestCleanUsage(t *testing.T) {
 		if err := cmdClean(args, strings.NewReader(""), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("clean %q = %v", args, err)
 		}
+	}
+}
+
+func TestARunChecksOnlyTheInterruptedSessionsThatUseItsRepositories(t *testing.T) {
+	p := testPaths(t)
+	used, start, _ := movedRepo(t)
+	other, otherStart, _ := movedRepo(t)
+	usedPath := saveRecord(t, p, &vcs.Record{Session: "s1", Repos: []vcs.Repo{{
+		Path: used, GitDir: filepath.Join(used, ".git"), Branches: map[string]string{"refs/heads/main": start},
+	}}})
+	otherPath := saveRecord(t, p, &vcs.Record{Session: "s2", Repos: []vcs.Repo{{
+		Path: other, GitDir: filepath.Join(other, ".git"), Branches: map[string]string{"refs/heads/main": otherStart},
+	}}})
+
+	var out bytes.Buffer
+	notes := finishInterruptedOf(p, &out, usesStores([]string{filepath.Join(used, ".git")}))
+
+	if rec, err := vcs.Load(usedPath); err != nil || !rec.Finished {
+		t.Errorf("the session on the same repository stays unchecked: %v\n%s", err, out.String())
+	}
+	if rec, err := vcs.Load(otherPath); err != nil || rec.Finished {
+		t.Errorf("the run checked a session on another repository: %v", err)
+	}
+	if strings.Contains(out.String(), "session s2") {
+		t.Errorf("the run printed the other session:\n%s", out.String())
+	}
+	want := "session s2 ended before doriath checked its repositories: " + other + ". doriath checks a repository when a session uses it, or at `doriath clean`"
+	if len(notes) != 1 || notes[0] != want {
+		t.Errorf("notes = %q, want %q", notes, want)
 	}
 }

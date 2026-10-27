@@ -120,6 +120,10 @@ type Deps struct {
 	UpstreamRoots *x509.CertPool
 	// Promote makes a path writable in the running jail.
 	Promote func(context.Context, promote.Request) error
+	// Interrupted runs the end step of the sessions that ended without one
+	// and used one of the git stores. It returns a note for each other such
+	// session.
+	Interrupted func(ctx context.Context, stores []string) []string
 	// Read shows a host directory read-only in the running jail.
 	Read func(context.Context, promote.Request) error
 	Open func(url string) error

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/profile"
@@ -118,7 +119,7 @@ func TestFinishRecordSavesTheRecordAlsoWhenTheEndStepFails(t *testing.T) {
 		{"a repository git cannot read", &vcs.Record{Session: "s2", Repos: []vcs.Repo{{Path: broken, GitDir: filepath.Join(broken, ".git")}}}, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "/nonexistent/git"}, c.rec, &bytes.Buffer{})
+			err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "/nonexistent/git"}, c.rec, &bytes.Buffer{}, io.Discard)
 			if (err != nil) != c.failing {
 				t.Fatalf("err = %v", err)
 			}
@@ -189,10 +190,31 @@ func TestTheEndOfASessionPutsBackTheStartValuesEarlierSessionsKept(t *testing.T)
 	if err := earlier.Save(recordPath(paths, "s1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "git"}, &vcs.Record{Session: "s2"}, io.Discard); err != nil {
+	if err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "git"}, &vcs.Record{Session: "s2"}, io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if got := run("rev-parse", vcs.BackupRef("s1", "refs/heads/main")); got != first {
 		t.Fatalf("backup ref = %q, want %q", got, first)
+	}
+}
+
+func TestTimeLeftWaitsForAMeasureAndRounds(t *testing.T) {
+	for _, c := range []struct {
+		elapsed time.Duration
+		done    float64
+		want    string
+	}{
+		{time.Second, 0.5, ""},
+		{10 * time.Second, 0.01, ""},
+		{10 * time.Second, 1, ""},
+		{10 * time.Second, 0.5, "10 s"},
+		{10 * time.Second, 0.9, "5 s"},
+		{11 * time.Second, 0.5, "15 s"},
+		{30 * time.Second, 0.25, "2 min"},
+	} {
+		got, ok := timeLeft(c.elapsed, c.done)
+		if got != c.want || ok != (c.want != "") {
+			t.Errorf("timeLeft(%v, %v) = %q, %v, want %q", c.elapsed, c.done, got, ok, c.want)
+		}
 	}
 }

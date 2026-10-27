@@ -71,6 +71,24 @@ func TestGitConfigKeepsWorktreePathsAbsolute(t *testing.T) {
 	}
 }
 
+func TestGitConfigStopsAutomaticGCWhichCannotRemoveTheReadOnlyPacks(t *testing.T) {
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not installed")
+	}
+	data := config([]byte("gc.auto\n6700\x00maintenance.auto\ntrue\x00"), vcstools.Jail{}, nil)
+	path := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"gc.auto": "0", "maintenance.auto": "false"} {
+		out, err := exec.Command(gitBin, "config", "-f", path, "--get", key).Output()
+		if err != nil || strings.TrimSpace(string(out)) != want {
+			t.Errorf("%s = %q, %v, want %s over your own setting", key, out, err, want)
+		}
+	}
+}
+
 func TestGitConfigWithoutSigning(t *testing.T) {
 	data := string(config([]byte(desktopGit), vcstools.Jail{}, nil))
 	if !strings.Contains(data, "gpgsign = \"false\"") || strings.Contains(data, "signingkey") {

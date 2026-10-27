@@ -507,14 +507,17 @@ In the jail, git reads a global config that doriath builds from yours. It leaves
 
 In a linked git worktree or a secondary jj workspace, doriath mounts the store of the main repository. Because `.git/config` stays read-only, git in the jail warns that it cannot remove the upstream settings of a deleted branch. The agent changes them through [edits](#edits).
 
-At the start, doriath records your branches and bookmarks, and copies the loose objects. Existing packs, which hold almost all history, stay read-only. Thus a `git gc` in the jail cannot remove the objects that your branches point to. It cannot remove old packs either, and its background runs warn about this.
+At the start, doriath records your branches and bookmarks, and copies the loose objects. Existing packs, which hold almost all history, stay read-only. Thus a `git gc` in the jail cannot remove the objects that your branches point to. It cannot remove old packs either, so each gc writes the whole history to one more pack. For this reason, the git config of the jail sets `gc.auto = 0` and `maintenance.auto = false`.
 
 At the end, doriath does these steps:
 
+- It checks that the content of each object that the agent wrote has the name of that object, and removes the objects that fail. In a new pack, it checks only the objects that the start did not have. If few objects are new, doriath keeps them as loose objects and removes the pack. A pack of the whole history, from a `git gc`, thus takes less than a second. A large pack of mostly new objects, such as one from a fetch, can take a minute. doriath shows a progress bar while it checks.
 - It keeps the start value of each branch that the agent moved, as `refs/doriath/<session>/<branch>`.
 - It removes new LFS objects whose content does not match their name, because your checkout takes file content from the object with that name.
 - It repairs each worktree that the agent added. The `.git` file and `commondir` point to your repository again, and doriath removes a `config.worktree` that the agent added.
 - It moves aside, to `NAME.doriath-<session>`, what the agent left in a store for git on your machine to act on: a rebase, cherry-pick or revert to continue, a new `rr-cache`, and a new submodule store.
+
+If doriath stops before the end, for example because it was killed, it does these steps when the next session uses the repository, or at [`doriath clean`](/reference/commands/#doriath-clean). Each other session that starts names the sessions that wait.
 
 Until the session ends, do not run git in an agent worktree, and do not continue a rebase that the agent started. `doriath restore SESSION [BRANCH...]` puts moved branches and bookmarks back. It never runs on its own, because doriath cannot tell the moves of the agent from your moves. [`doriath clean`](/reference/commands/#doriath-clean) removes old agent worktrees and backups.
 

@@ -5,6 +5,7 @@ package term
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -47,10 +48,12 @@ var marks = map[Level]struct{ mark, color string }{
 type Writer struct {
 	w     io.Writer
 	color bool
+	tty   bool
 }
 
 func New(w io.Writer) *Writer {
-	return &Writer{w: w, color: IsTerminal(w) && os.Getenv("NO_COLOR") == ""}
+	tty := IsTerminal(w)
+	return &Writer{w: w, color: tty && os.Getenv("NO_COLOR") == "", tty: tty}
 }
 
 // Colored colors its output whatever w is, for a reader that shows colors
@@ -184,4 +187,50 @@ func (l *lines) Write(p []byte) (int, error) {
 		l.t.Line(l.level, string(l.buf[:i]))
 		l.buf = l.buf[i+1:]
 	}
+}
+
+// Bar draws a progress bar on one line and draws it again in place, for a
+// step that takes long. Outside a terminal it draws nothing.
+type Bar struct {
+	t     *Writer
+	drawn bool
+}
+
+func (t *Writer) Bar() *Bar { return &Bar{t: t} }
+
+const barWidth = 20
+
+// Show draws the bar with the part done, between 0 and 1, and text after it.
+func (b *Bar) Show(done float64, text string) {
+	if !b.t.tty {
+		return
+	}
+	done = min(max(done, 0), 1)
+	full := int(done * barWidth)
+	head := fmt.Sprintf("%3d%% ", int(done*100))
+	if cols := Width(b.t.w); cols > 0 {
+		text = cut(text, cols-1-len("  ")-barWidth-len(" ")-len(head))
+	}
+	bar := b.t.paint(cyan, strings.Repeat("━", full)) + b.t.paint(dim, strings.Repeat("━", barWidth-full))
+	_, _ = io.WriteString(b.t.w, "\r\x1b[2K  "+bar+" "+head+text)
+	b.drawn = true
+}
+
+// Clear removes the bar, so that the next line starts where it was.
+func (b *Bar) Clear() {
+	if b.drawn {
+		_, _ = io.WriteString(b.t.w, "\r\x1b[2K")
+		b.drawn = false
+	}
+}
+
+func cut(s string, n int) string {
+	r := []rune(s)
+	if n <= 0 {
+		return ""
+	}
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
 }

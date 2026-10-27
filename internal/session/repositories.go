@@ -97,19 +97,23 @@ func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host 
 	if r.finished {
 		return nil, errors.New("the session has ended")
 	}
-	var repos []string
+	var repos, stores []string
 	for _, repo := range storeRepositories(p, host) {
 		if r.rec == nil || !slices.ContainsFunc(r.rec.Repos, func(known vcs.Repo) bool { return known.GitDir == vcs.Store(repo) }) {
 			repos = append(repos, repo)
+			stores = append(stores, vcs.Store(repo))
 		}
 	}
+	var notes []string
+	if s.deps.Interrupted != nil {
+		notes = s.deps.Interrupted(ctx, stores)
+	}
 	if len(repos) == 0 {
-		return nil, nil
+		return notes, nil
 	}
 	if s.deps.Git == "" {
-		return nil, fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
+		return notes, fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
 	}
-	var notes []string
 	for _, repo := range repos {
 		n, err := vcs.Prepare(ctx, s.vcsTools(), repo)
 		if err != nil {
@@ -177,20 +181,48 @@ func (s *Session) finishRepositories(w io.Writer) {
 	if err != nil {
 		return
 	}
-	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, w); err != nil {
+	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, w, s.deps.Stderr); err != nil {
 		fmt.Fprintln(w, err)
 	}
 }
 
 // FinishRecord runs the end step of a session's repositories and saves the
 // result. doriath run calls it for sessions that ended without one.
-func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, w io.Writer) error {
-	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, w)
+func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, w, status io.Writer) error {
+	bar := term.New(status).Bar()
+	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, w, packProgress(bar, time.Now))
+	bar.Clear()
 	if saveErr := rec.Save(recordPath(paths, rec.Session)); err == nil {
 		err = saveErr
 	}
 	keepBackups(ctx, paths, t)
 	return err
+}
+
+func packProgress(bar *term.Bar, now func() time.Time) vcs.Progress {
+	var began time.Time
+	var repo string
+	return func(c vcs.PackCheck) {
+		if c.Repo != repo {
+			repo, began = c.Repo, now()
+		}
+		text := fmt.Sprintf("checking pack %d of %d (%s in all) that the agent wrote in %s", c.Pack, c.Packs, gigabytes(c.Bytes), filepath.Base(c.Repo))
+		if left, ok := timeLeft(now().Sub(began), c.Done); ok {
+			text = "about " + left + " left, " + text
+		}
+		bar.Show(c.Done, text)
+	}
+}
+
+func timeLeft(elapsed time.Duration, done float64) (string, bool) {
+	if done < 0.02 || done >= 1 || elapsed < 2*time.Second {
+		return "", false
+	}
+	left := time.Duration(float64(elapsed) * (1 - done) / done)
+	if left < time.Minute {
+		return fmt.Sprintf("%d s", max(5, (int(left.Seconds())+4)/5*5)), true
+	}
+	return fmt.Sprintf("%d min", int(left.Minutes()+0.5)), true
 }
 
 func keepBackups(ctx context.Context, paths config.Paths, t vcs.Tools) {
