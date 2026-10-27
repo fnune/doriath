@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"maps"
 	"net"
 	"net/http"
@@ -468,8 +469,20 @@ func (s *Server) forwardWith(w http.ResponseWriter, r *http.Request, scheme, hos
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
 			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: upstream %s failed: %v", host, err))
 		},
+		// The default logger writes to the terminal that the agent shares.
+		ErrorLog: log.New(eventLog{s: s, host: host, method: r.Method, path: r.URL.Path}, "", 0),
 	}
 	rp.ServeHTTP(noCloseNotify{w}, r.WithContext(context.WithoutCancel(r.Context())))
+}
+
+type eventLog struct {
+	s                  *Server
+	host, method, path string
+}
+
+func (l eventLog) Write(p []byte) (int, error) {
+	l.s.record(Event{Kind: "error", Host: l.host, Method: l.method, Path: l.path, Reason: strings.TrimSpace(string(p))})
+	return len(p), nil
 }
 
 type noCloseNotify struct{ http.ResponseWriter }

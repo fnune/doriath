@@ -1222,3 +1222,15 @@ func TestAnAnsweredRequestStaysQuiet(t *testing.T) {
 		t.Errorf("%d hints for a request answered at once", n)
 	}
 }
+
+func TestReverseProxyErrorsGoToTheEventLog(t *testing.T) {
+	rec := &events{}
+	s := &Server{recorder: rec}
+	log := eventLog{s: s, host: "example.com", method: "POST", path: "/stream"}
+	if _, err := log.Write([]byte("httputil: ReverseProxy read error during body copy: client disconnected\n")); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.list) != 1 || rec.list[0].Kind != "error" || rec.list[0].Host != "example.com" || rec.list[0].Reason != "httputil: ReverseProxy read error during body copy: client disconnected" {
+		t.Fatalf("events: %+v", rec.list)
+	}
+}
