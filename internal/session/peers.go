@@ -19,10 +19,11 @@ type hostPeers struct {
 	once  sync.Once
 	exe   string
 	pins  pins
+	proc  string
 }
 
 func newHostPeers(exe string) *hostPeers {
-	return &hostPeers{exe: exe, known: make(chan struct{})}
+	return &hostPeers{exe: exe, known: make(chan struct{}), proc: "/proc"}
 }
 
 func (h *hostPeers) setInit(pid int) {

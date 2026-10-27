@@ -46,3 +46,21 @@ curl -sS -o /dev/null -w "after %{http_code}\n" https://drafted.example/after
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
+
+// TestHeldRequestTellsTheProgramWhatItWaitsFor reads what curl wrote to its
+// own standard error, as an agent reads the output of a command.
+func TestHeldRequestTellsTheProgramWhatItWaitsFor(t *testing.T) {
+	e := newEnv(t)
+	code, out := e.run(e.profile(""), `
+echo "before the hold" >curl.err
+curl -sS -o /dev/null -X POST -d '{}' https://api.github.com/repos/fnune/project/releases 2>>curl.err
+echo "status $?"
+sed 's/^/curl said: /' curl.err
+`, func() {
+		time.Sleep(8 * time.Second)
+		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"})
+	})
+	if code != 0 || !strings.Contains(out, "curl said: before the hold\ncurl said: doriath: waiting for approval of Create a GitHub release") || !strings.Contains(out, "doriath approvals allow ") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}

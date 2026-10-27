@@ -1157,3 +1157,68 @@ func TestAGRPCCallGetsTheCredentialOverHTTP2WithItsTrailers(t *testing.T) {
 		t.Errorf("upstream Authorization = %q", got.Header.Get("Authorization"))
 	}
 }
+
+type heldApprover struct {
+	release chan struct{}
+}
+
+func (a heldApprover) Submit(context.Context, approval.Request, time.Duration) (approval.Decision, error) {
+	<-a.release
+	return approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce}, nil
+}
+
+type waitNotes struct {
+	mu    sync.Mutex
+	calls []string
+	heard chan struct{}
+}
+
+func (w *waitNotes) Waiting(_ Identity, summary string) {
+	w.mu.Lock()
+	w.calls = append(w.calls, summary)
+	w.mu.Unlock()
+	close(w.heard)
+}
+
+func (w *waitNotes) count() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.calls)
+}
+
+func sendRelease(t *testing.T, h *harness, notes *waitNotes, approver Approver, after time.Duration) {
+	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool(), Waiting: notes, WaitingAfter: after}, loadPolicy(t), approver, mapSecrets{"github": "t"}, h.session, h.dialer(), h.events)
+	req := httptest.NewRequest(http.MethodPost, "https://api.github.com/repos/fnune/project/releases", strings.NewReader(`{}`))
+	host, _ := srv.policy.Intercepted("api.github.com")
+	srv.intercepted(httptest.NewRecorder(), req, "api.github.com", "api.github.com", host)
+}
+
+func TestAHeldRequestTellsTheCallerAfterTheDelay(t *testing.T) {
+	h := newHarness(t)
+	notes := &waitNotes{heard: make(chan struct{})}
+	approver := heldApprover{release: make(chan struct{})}
+	done := make(chan struct{})
+	go func() {
+		sendRelease(t, h, notes, approver, 10*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-notes.heard:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the caller heard nothing while the request was held")
+	}
+	close(approver.release)
+	<-done
+	if notes.calls[0] != "Create a GitHub release in api.github.com/repos/fnune/project" {
+		t.Errorf("summary = %q", notes.calls[0])
+	}
+}
+
+func TestAnAnsweredRequestStaysQuiet(t *testing.T) {
+	h := newHarness(t)
+	notes := &waitNotes{heard: make(chan struct{})}
+	sendRelease(t, h, notes, h.approver, time.Hour)
+	if n := notes.count(); n != 0 {
+		t.Errorf("%d hints for a request answered at once", n)
+	}
+}

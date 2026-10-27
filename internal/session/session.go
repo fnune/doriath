@@ -463,6 +463,8 @@ func (s *Session) startProxy() error {
 		ApprovalTTL:   approvalTTL,
 		UpstreamRoots: s.deps.UpstreamRoots,
 		Holder:        s,
+		Waiting:       s,
+		WaitingAfter:  waitHintAfter,
 	}, s.policy, s.manager, carding{s}, issuer, s.upstreamDialer(), s.egress)
 	l, err := s.listen(ProxySocket)
 	if err != nil {

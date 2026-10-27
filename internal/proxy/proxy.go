@@ -47,6 +47,13 @@ type HostHolder interface {
 	HoldHost(ctx context.Context, host string, caller Identity) (allowed bool, pending string)
 }
 
+// WaitNotifier tells the program that sent a request that doriath holds the
+// request for an answer, because the program has no other way to know why
+// it hangs.
+type WaitNotifier interface {
+	Waiting(caller Identity, summary string)
+}
+
 type Approver interface {
 	Submit(ctx context.Context, req approval.Request, ttl time.Duration) (approval.Decision, error)
 }
@@ -90,6 +97,10 @@ type Config struct {
 	// Holder, when set, asks you about hosts the profile does not name
 	// instead of refusing them at once.
 	Holder HostHolder
+	// Waiting, when set, hears of a request that is still held after
+	// WaitingAfter.
+	Waiting      WaitNotifier
+	WaitingAfter time.Duration
 }
 
 type Server struct {
@@ -351,6 +362,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			}
 			summary += ": " + strings.Join(names, ", ")
 		}
+		stopHint := s.hintWhenHeld(r.Context(), summary)
 		d, err := s.approver.Submit(r.Context(), approval.Request{
 			Session: s.cfg.Session,
 			Profile: s.cfg.Profile,
@@ -359,6 +371,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			Details: details,
 			Scope:   scope(rule, matched, r.Method, reqPath, host, body, push, rules.Repository(reqPath), operation),
 		}, s.cfg.ApprovalTTL)
+		stopHint()
 		if err != nil || d.Verdict != approval.VerdictAllow {
 			reason, message := "denied", fmt.Sprintf("doriath: %s was denied", summary)
 			if d.Verdict == approval.VerdictNone {
@@ -678,6 +691,17 @@ func matchPath(u *url.URL, encodedSlashes bool) (string, bool) {
 func identityEncoding(enc string) bool {
 	enc = strings.TrimSpace(strings.ToLower(enc))
 	return enc == "" || enc == "identity"
+}
+
+// hintWhenHeld waits first, so that a request you answer within seconds
+// stays quiet.
+func (s *Server) hintWhenHeld(ctx context.Context, summary string) (stop func()) {
+	if s.cfg.Waiting == nil {
+		return func() {}
+	}
+	caller := IdentityFrom(ctx)
+	t := time.AfterFunc(s.cfg.WaitingAfter, func() { s.cfg.Waiting.Waiting(caller, summary) })
+	return func() { t.Stop() }
 }
 
 const ReasonNotInProfile = "host not in the profile"
