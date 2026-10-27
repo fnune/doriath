@@ -1040,7 +1040,7 @@ func TestARefusedHostIsRefusedWithoutAsking(t *testing.T) {
 	p := e.profile("")
 	p.Egress.Deny = []profile.HostPattern{"example.org"}
 	code, out := e.run(p, `curl -sS -o /dev/null https://example.org 2>&1; echo; echo done`, nil)
-	if code != 0 || !strings.Contains(out, "example.org refused 1 time, as the profile says") || strings.Contains(out, "pending") {
+	if code != 0 || !strings.Contains(out, "example.org ×1") || strings.Contains(out, "pending") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }

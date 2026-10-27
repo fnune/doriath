@@ -119,7 +119,7 @@ func TestFinishRecordSavesTheRecordAlsoWhenTheEndStepFails(t *testing.T) {
 		{"a repository git cannot read", &vcs.Record{Session: "s2", Repos: []vcs.Repo{{Path: broken, GitDir: filepath.Join(broken, ".git")}}}, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "/nonexistent/git"}, c.rec, &bytes.Buffer{}, io.Discard)
+			err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "/nonexistent/git"}, c.rec, &bytes.Buffer{}, &bytes.Buffer{}, io.Discard)
 			if (err != nil) != c.failing {
 				t.Fatalf("err = %v", err)
 			}
@@ -137,7 +137,7 @@ func TestFinishRepositoriesWithoutARecordStopsTheWatchQuietly(t *testing.T) {
 	stopped := false
 	s.repos.repairs = &repairLog{log: s.log}
 	s.repos.stop = func() { stopped = true }
-	s.finishRepositories(&out)
+	s.finishRepositories(&out, &out)
 	if !stopped || out.Len() != 0 {
 		t.Errorf("stopped = %v, out = %q", stopped, out.String())
 	}
@@ -190,7 +190,7 @@ func TestTheEndOfASessionPutsBackTheStartValuesEarlierSessionsKept(t *testing.T)
 	if err := earlier.Save(recordPath(paths, "s1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "git"}, &vcs.Record{Session: "s2"}, io.Discard, io.Discard); err != nil {
+	if err := FinishRecord(context.Background(), paths, vcs.Tools{Git: "git"}, &vcs.Record{Session: "s2"}, io.Discard, io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if got := run("rev-parse", vcs.BackupRef("s1", "refs/heads/main")); got != first {

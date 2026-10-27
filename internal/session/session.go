@@ -910,24 +910,27 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	s.log.Write("session-end", map[string]any{"exit": code, "denied": s.egress.Denials()})
 	t := term.New(s.deps.Stderr)
-	var repos bytes.Buffer
+	var fixed, needs bytes.Buffer
 	if s.roots != nil {
 		s.roots.Close()
-		_, _ = repos.Write(s.rootLog.lines.Bytes())
+		_, _ = fixed.Write(s.rootLog.lines.Bytes())
 	}
 	s.links.Check()
-	s.finishRepositories(&repos)
-	var end []note
-	for _, line := range strings.Split(strings.TrimSpace(repos.String()), "\n") {
-		if line != "" {
-			end = append(end, note{term.Warn, Printable(line)})
-		}
-	}
+	s.finishRepositories(&fixed, &needs)
+	var end ending
+	end.fixed = notesOf(term.Action, fixed.String())
+	end.needs = notesOf(term.Warn, needs.String())
 	if s.agent != nil {
 		if err := s.agent.End(s.agentSession()); err != nil {
-			end = append(end, note{term.Problem, Printable(err.Error())})
+			end.needs = append(end.needs, note{term.Problem, Printable(err.Error())})
 		}
 	}
+	if large := largeScratchFolders(s.scratchHome()); len(large) > 0 {
+		end.needs = append(end.needs, note{term.Info, scratchNote(large, s.req.Profile.Name)})
+	}
+	pathsFixed, network := summary(s.egress.Denials(), s.manager.History())
+	end.fixed = append(end.fixed, pathsFixed...)
+	end.network = network
 	if learned := s.policy.Learned(); len(learned) > 0 {
 		by := s.policy.LearnedBy()
 		s.log.Write("learned", map[string]any{"hosts": learned, "by_program": by})
@@ -936,16 +939,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 			text += fmt.Sprintf("\n%s: %s", PrintableLine(prog), PrintableLine(strings.Join(by[prog], " ")))
 		}
 		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines(learned)
-		end = append(end, note{term.Info, text})
+		end.network = append(end.network, note{term.Info, text})
 	}
-	if large := largeScratchFolders(s.scratchHome()); len(large) > 0 {
-		end = append(end, note{term.Info, scratchNote(large, s.req.Profile.Name)})
-	}
-	end = append(end, summary(s.egress.Denials(), s.manager.History())...)
-	if len(end) > 0 {
-		end = append(end, note{term.Info, t.Dim("details: doriath log --session " + s.id)})
-	}
-	printBlock(t, end, s.req.Profile.Name, "session "+s.id+" ended")
+	end.print(t, "doriath log --session "+s.id, s.req.Profile.Name, "session "+s.id+" ended")
 	return code, nil
 }
 

@@ -1,9 +1,12 @@
 package session
 
 import (
+	"cmp"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/proxy"
@@ -15,18 +18,52 @@ type note struct {
 	text  string
 }
 
-func summary(denied []Denial, history []approval.Outcome) []note {
-	var out []note
+type ending struct {
+	fixed, needs, network []note
+}
+
+const hostsShown = 5
+
+func summary(denied []Denial, history []approval.Outcome) (fixed, network []note) {
+	type group struct {
+		level term.Level
+		label string
+		total int
+		hosts []string
+	}
+	var groups []*group
+	byLabel := map[string]*group{}
 	for _, d := range denied {
-		times := "1 time"
-		if d.Count != 1 {
-			times = fmt.Sprintf("%d times", d.Count)
-		}
-		if d.Reason == proxy.ReasonRefused {
-			out = append(out, note{term.Refused, Printable(fmt.Sprintf("%s refused %s, as the profile says", d.Target, times))})
+		if d.Path {
+			fixed = append(fixed, note{term.Action, Printable(d.Target + ": " + d.Reason)})
 			continue
 		}
-		out = append(out, note{term.Problem, Printable(fmt.Sprintf("%s blocked %s: %s", d.Target, times, d.Reason))})
+		level, label := term.Blocked, "blocked: "+d.Reason
+		if d.Reason == proxy.ReasonRefused {
+			level, label = term.Refused, d.Reason
+		}
+		g := byLabel[label]
+		if g == nil {
+			g = &group{level: level, label: label}
+			byLabel[label] = g
+			groups = append(groups, g)
+		}
+		g.total += d.Count
+		g.hosts = append(g.hosts, fmt.Sprintf("%s ×%d", d.Target, d.Count))
+	}
+	slices.SortStableFunc(groups, func(a, b *group) int { return cmp.Compare(b.level, a.level) })
+	width := 0
+	for _, g := range groups {
+		g.label = fmt.Sprintf("%d %s", g.total, g.label)
+		width = max(width, utf8.RuneCountInString(g.label))
+	}
+	for _, g := range groups {
+		hosts := g.hosts
+		if len(hosts) > hostsShown {
+			hosts = append(hosts[:hostsShown:hostsShown], fmt.Sprintf("and %d more", len(g.hosts)-hostsShown))
+		}
+		pad := strings.Repeat(" ", width-utf8.RuneCountInString(g.label)+3)
+		network = append(network, note{g.level, Printable(g.label + pad + strings.Join(hosts, ", "))})
 	}
 	counts := map[approval.Verdict]int{}
 	for _, o := range history {
@@ -43,9 +80,39 @@ func summary(denied []Denial, history []approval.Outcome) []note {
 		}
 	}
 	if len(decided) > 0 {
-		out = append(out, note{term.Info, "requests: " + strings.Join(decided, ", ")})
+		network = append(network, note{term.OK, strings.Join(decided, ", ")})
+	}
+	return fixed, network
+}
+
+func notesOf(level term.Level, text string) []note {
+	var out []note
+	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
+		if line != "" {
+			out = append(out, note{level, Printable(line)})
+		}
 	}
 	return out
+}
+
+func (e ending) print(t *term.Writer, details string, header ...string) {
+	if len(e.fixed)+len(e.needs)+len(e.network) == 0 {
+		return
+	}
+	t.Header(header...)
+	for _, s := range []struct {
+		title string
+		notes []note
+	}{{"Fixed for you", e.fixed}, {"Needs you", e.needs}, {"Network", e.network}} {
+		if len(s.notes) == 0 {
+			continue
+		}
+		in := t.Section(s.title)
+		for _, n := range s.notes {
+			in.Line(n.level, n.text)
+		}
+	}
+	t.Line(term.Next, t.Dim(details))
 }
 
 const noteIndent = len("  · ")

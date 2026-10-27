@@ -23,6 +23,8 @@ const (
 	Problem
 	Action
 	Refused
+	Blocked
+	Next
 )
 
 const (
@@ -42,13 +44,16 @@ var marks = map[Level]struct{ mark, color string }{
 	Warn:    {"!", yellow},
 	Problem: {"✕", red},
 	Action:  {"↺", cyan},
-	Refused: {"⊘", dim},
+	Refused: {"−", dim},
+	Blocked: {"⛨", yellow},
+	Next:    {"→", dim},
 }
 
 type Writer struct {
-	w     io.Writer
-	color bool
-	tty   bool
+	w      io.Writer
+	color  bool
+	tty    bool
+	indent string
 }
 
 func New(w io.Writer) *Writer {
@@ -149,12 +154,21 @@ func (t *Writer) Header(parts ...string) {
 func (t *Writer) Line(level Level, text string) {
 	m := marks[level]
 	first, rest, _ := strings.Cut(strings.TrimRight(text, "\n"), "\n")
-	_, _ = io.WriteString(t.w, "  "+t.paint(m.color, m.mark)+" "+first+"\n")
+	_, _ = io.WriteString(t.w, t.indent+"  "+t.paint(m.color, m.mark)+" "+first+"\n")
 	if rest != "" {
 		for _, l := range strings.Split(rest, "\n") {
-			_, _ = io.WriteString(t.w, "      "+t.paint(dim, l)+"\n")
+			_, _ = io.WriteString(t.w, t.indent+"      "+t.paint(dim, l)+"\n")
 		}
 	}
+}
+
+// Section prints a title in a block, and returns a writer whose lines go
+// under it.
+func (t *Writer) Section(title string) *Writer {
+	_, _ = io.WriteString(t.w, t.indent+"  "+t.paint(bold, title)+"\n")
+	inner := *t
+	inner.indent += "  "
+	return &inner
 }
 
 // Problem prints an error on its own, outside a block.

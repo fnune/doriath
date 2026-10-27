@@ -139,7 +139,7 @@ func TestVCSReadwriteInAShownRepositoryKeepsItsGuardsAndRecordsItsBranches(t *te
 	if w, ok := s.req.Profile.PathRules.Warning(filepath.Join(other, ".envrc"), false); !ok || w.Path != filepath.Join(other, ".envrc") {
 		t.Errorf("a later write request of .envrc does not warn: %+v, %v", w, ok)
 	}
-	s.finishRepositories(io.Discard)
+	s.finishRepositories(io.Discard, io.Discard)
 }
 
 func TestClaudeInAnUnseenRepositoryShowsItAndWritesItsWorktrees(t *testing.T) {

@@ -69,7 +69,7 @@ func startWith(t *testing.T, tools Tools, rec *Record, repos ...string) *fixture
 func (f *fixture) finish() string {
 	f.t.Helper()
 	var out strings.Builder
-	if err := Finish(f.ctx, f.tools, f.backup, f.rec, &out, nil); err != nil {
+	if err := Finish(f.ctx, f.tools, f.backup, f.rec, &out, &out, nil); err != nil {
 		f.t.Fatalf("Finish: %v\n%s", err, out.String())
 	}
 	return out.String()
@@ -353,7 +353,7 @@ func TestFinishDoesNotRepairThroughLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out strings.Builder
-	if err := Finish(ctx, tools, backup, rec, &out, nil); err != nil {
+	if err := Finish(ctx, tools, backup, rec, &out, &out, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"commondir", "config.worktree"} {
@@ -466,7 +466,7 @@ func TestFinishKeepsTheBackupUntilItSucceeds(t *testing.T) {
 	if err := os.WriteFile(head, []byte("not a ref\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Finish(f.ctx, f.tools, f.backup, rec, io.Discard, nil); err == nil {
+	if err := Finish(f.ctx, f.tools, f.backup, rec, io.Discard, io.Discard, nil); err == nil {
 		t.Fatal("Finish must report a store git cannot read")
 	}
 	if _, err := os.Stat(f.backup); err != nil || rec.Finished {
@@ -571,7 +571,7 @@ func TestAFinishedSessionWhoseRepositoryIsGoneIsFinished(t *testing.T) {
 	gone := filepath.Join(t.TempDir(), "repo")
 	rec := &Record{Session: "s1", Repos: []Repo{{Path: gone, GitDir: filepath.Join(gone, ".git")}}}
 	var out bytes.Buffer
-	if err := Finish(context.Background(), Tools{Git: "git"}, filepath.Join(t.TempDir(), "backup"), rec, &out, nil); err != nil {
+	if err := Finish(context.Background(), Tools{Git: "git"}, filepath.Join(t.TempDir(), "backup"), rec, &out, &out, nil); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if !rec.Finished || !strings.Contains(out.String(), "is gone") {

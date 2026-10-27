@@ -18,6 +18,7 @@ type egressLog struct {
 type denialKey struct {
 	Host   string
 	Reason string
+	Path   bool
 }
 
 type Denial struct {
@@ -26,6 +27,7 @@ type Denial struct {
 	Target string `json:"host"`
 	Reason string `json:"reason"`
 	Count  int    `json:"count"`
+	Path   bool   `json:"path,omitempty"`
 }
 
 func newEgressLog(next proxy.Recorder) *egressLog {
@@ -52,7 +54,7 @@ func (l *egressLog) Egress(e proxy.Event) {
 
 func (l *egressLog) Block(what, reason string) {
 	l.mu.Lock()
-	l.denied[denialKey{Host: what, Reason: reason}]++
+	l.denied[denialKey{Host: what, Reason: reason, Path: true}]++
 	l.mu.Unlock()
 }
 
@@ -63,7 +65,7 @@ func (l *egressLog) Denials() []Denial {
 	defer l.mu.Unlock()
 	out := make([]Denial, 0, len(l.denied))
 	for k, n := range l.denied {
-		out = append(out, Denial{Target: k.Host, Reason: k.Reason, Count: n})
+		out = append(out, Denial{Target: k.Host, Reason: k.Reason, Count: n, Path: k.Path})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {

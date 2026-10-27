@@ -69,7 +69,7 @@ func finishInterruptedOf(p config.Paths, w io.Writer, uses func(*vcs.Record) boo
 		}
 		t.Header("session "+rec.Session, "ended before doriath checked its repositories")
 		t.Line(term.Info, "doriath checks the objects that the agent wrote in "+repos+" before they are used again")
-		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Warn), w); err != nil {
+		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Action), t.Lines(term.Warn), w); err != nil {
 			t.Line(term.Problem, err.Error())
 		}
 	}

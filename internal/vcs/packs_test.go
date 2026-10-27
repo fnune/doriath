@@ -77,7 +77,7 @@ func TestFinishVerifiesAPackOfNewObjectsAndReportsItsProgress(t *testing.T) {
 	newPacks := len(packs(t, r))
 
 	var seen []PackCheck
-	if err := Finish(f.ctx, f.tools, f.backup, f.rec, &strings.Builder{}, func(c PackCheck) { seen = append(seen, c) }); err != nil {
+	if err := Finish(f.ctx, f.tools, f.backup, f.rec, &strings.Builder{}, &strings.Builder{}, func(c PackCheck) { seen = append(seen, c) }); err != nil {
 		t.Fatal(err)
 	}
 	if len(packs(t, r)) != newPacks {

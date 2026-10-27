@@ -307,12 +307,12 @@ func submoduleCheckout(store string) string {
 // first. It brings back objects the session deleted, keeps the start value
 // of each branch the agent moved under refs/doriath/<session>/, resets the
 // repository pointer of the worktrees the agent added, and reports.
-func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Writer, progress Progress) error {
+func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, notices io.Writer, progress Progress) error {
 	var errs []error
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
 		if _, err := os.Stat(r.GitDir); errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(w, "%s is gone, so there is nothing to check in it\n", r.Path)
+			fmt.Fprintf(notices, "%s is gone, so there is nothing to check in it\n", r.Path)
 			continue
 		}
 		if err := unmirror(filepath.Join(backup, fmt.Sprint(i), "objects"), filepath.Join(r.GitDir, "objects")); err != nil {
@@ -331,7 +331,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			}
 		}
 		for _, bad := range dropForgedObjects(ctx, t, r.GitDir, filepath.Join(backup, fmt.Sprint(i), "objects"), packs) {
-			fmt.Fprintf(w, "removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
+			fmt.Fprintf(fixed, "removed %s from %s: the agent wrote it and git could not verify it\n", bad, r.Path)
 		}
 		now, err := refs(ctx, t, r.GitDir)
 		if err != nil {
@@ -360,7 +360,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 			}
 		}
 		for _, bad := range dropForgedLFS(filepath.Join(r.GitDir, "lfs", "objects"), rec.Started) {
-			fmt.Fprintf(w, "removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
+			fmt.Fprintf(fixed, "removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
 		}
 		r.AgentWorktrees = nil
 		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
@@ -368,14 +368,14 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, w io.Write
 				continue
 			}
 			r.AgentWorktrees = append(r.AgentWorktrees, name)
-			if err := repairWorktree(filepath.Join(r.GitDir, "worktrees", name), rec, r.Path, w, false); err != nil {
+			if err := repairWorktree(filepath.Join(r.GitDir, "worktrees", name), rec, r.Path, fixed, false); err != nil {
 				errs = append(errs, err)
 			}
 		}
-		if err := setAsideAgentState(r.GitDir, rec, w); err != nil {
+		if err := setAsideAgentState(r.GitDir, rec, fixed); err != nil {
 			errs = append(errs, err)
 		}
-		report(w, rec.Session, r)
+		report(notices, rec.Session, r)
 	}
 	if err := errors.Join(errs...); err != nil {
 		return err

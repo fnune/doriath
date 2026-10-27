@@ -167,13 +167,13 @@ func (r *repairLog) Write(p []byte) (int, error) {
 	return r.lines.Write(p)
 }
 
-func (s *Session) finishRepositories(w io.Writer) {
+func (s *Session) finishRepositories(fixed, needs io.Writer) {
 	r := &s.repos
 	r.mu.Lock()
 	r.finished = true
 	if r.stop != nil {
 		r.stop()
-		_, _ = w.Write(r.repairs.lines.Bytes())
+		_, _ = fixed.Write(r.repairs.lines.Bytes())
 	}
 	r.mu.Unlock()
 	path := recordPath(s.deps.Paths, s.id)
@@ -181,16 +181,16 @@ func (s *Session) finishRepositories(w io.Writer) {
 	if err != nil {
 		return
 	}
-	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, w, s.deps.Stderr); err != nil {
-		fmt.Fprintln(w, err)
+	if err := FinishRecord(context.Background(), s.deps.Paths, s.vcsTools(), rec, fixed, needs, s.deps.Stderr); err != nil {
+		fmt.Fprintln(needs, err)
 	}
 }
 
 // FinishRecord runs the end step of a session's repositories and saves the
 // result. doriath run calls it for sessions that ended without one.
-func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, w, status io.Writer) error {
+func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, fixed, needs, status io.Writer) error {
 	bar := term.New(status).Bar()
-	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, w, packProgress(bar, time.Now))
+	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, fixed, needs, packProgress(bar, time.Now))
 	bar.Clear()
 	if saveErr := rec.Save(recordPath(paths, rec.Session)); err == nil {
 		err = saveErr
