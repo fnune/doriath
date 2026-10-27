@@ -106,7 +106,10 @@ type Spec struct {
 	UID      int
 	Home     string
 	Tmpfs    []string
-	Dirs     []string
+	// EtcOverlay is a host directory whose files appear in /etc, read-only.
+	// A bind cannot add a file there, because the root bind is read-only.
+	EtcOverlay string
+	Dirs       []string
 	// Symlinks maps a path in the jail to the target it points at.
 	Symlinks map[string]string
 	// Links are guarded paths that are symlinks inside a writable mount.
@@ -143,6 +146,8 @@ type Options struct {
 	SeccompFD  int
 	SetIDs     bool
 	GID        int
+	// EtcOverlay is a host directory whose files appear in the jail's /etc.
+	EtcOverlay string
 	// JailDirWritable lets a helper such as the podman service create its
 	// socket in the doriath directory.
 	JailDirWritable bool
@@ -171,6 +176,7 @@ func Plan(p *profile.Profile, layout Layout, opts Options, host Host) (Spec, err
 		Hostname:   "doriath-" + p.Label(),
 		UID:        opts.UID,
 		Home:       opts.Home,
+		EtcOverlay: opts.EtcOverlay,
 		Env:        map[string]string{},
 		Cwd:        opts.Cwd,
 		Command:    opts.Command,
@@ -799,6 +805,9 @@ func (s Spec) options() []string {
 		"--dev", "/dev",
 		"--proc", "/proc",
 	)
+	if s.EtcOverlay != "" {
+		args = append(args, "--overlay-src", "/etc", "--overlay-src", s.EtcOverlay, "--ro-overlay", "/etc")
+	}
 	for _, t := range s.Tmpfs {
 		args = append(args, "--tmpfs", t)
 	}

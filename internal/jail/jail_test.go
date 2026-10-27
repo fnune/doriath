@@ -674,3 +674,22 @@ func TestAGrantKeepsAGuardedLinkInPlaceAsThePlanDoes(t *testing.T) {
 		t.Errorf("a link into the checkout: err = %v", err)
 	}
 }
+
+func TestEtcOverlayAddsFilesToTheReadOnlyEtc(t *testing.T) {
+	o := opts()
+	o.EtcOverlay = "/run/user/1000/g/s1/jail/etc"
+	s, err := Plan(testProfile(), layout(), o, host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if args := strings.Join(s.Args(), " "); !strings.Contains(args, "--overlay-src /etc --overlay-src /run/user/1000/g/s1/jail/etc --ro-overlay /etc") {
+		t.Errorf("args = %s", args)
+	}
+	s, err = Plan(testProfile(), layout(), opts(), host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(s.Args(), " "), "overlay") {
+		t.Error("no overlay without files to add")
+	}
+}

@@ -57,3 +57,23 @@ func TestJavaReachesTheNetworkThroughTheProxyBecauseItIgnoresHTTPSProxy(t *testi
 		t.Errorf("JAVA_TOOL_OPTIONS = %q: the profile's own options come first", got)
 	}
 }
+
+func TestBazelRCKeepsTheHostRCFirstAndGivesTheServerJVMTheProxy(t *testing.T) {
+	got := string(BazelRC([]byte("build --jobs=4"), javaProperties()))
+	if !strings.HasPrefix(got, "build --jobs=4\n# Written by doriath") {
+		t.Errorf("the host's lines come first, so that doriath's win:\n%s", got)
+	}
+	for _, want := range []string{
+		"startup --host_jvm_args=-Djavax.net.ssl.trustStore=/run/doriath/truststore.p12\n",
+		"startup --host_jvm_args=-Dhttps.proxyHost=127.0.0.1\n",
+		"startup --host_jvm_args=-Dhttps.proxyPort=" + strconv.Itoa(jail.ProxyPort) + "\n",
+		"startup --host_jvm_args=-Dhttp.nonProxyHosts=localhost|127.0.0.1|[::1]\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.HasPrefix(string(BazelRC(nil, nil)), "\n") {
+		t.Error("no host file leaves no blank line")
+	}
+}

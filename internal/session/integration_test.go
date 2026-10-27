@@ -379,7 +379,8 @@ test -e "$HOME/.ssh" && echo "FAIL ssh visible"
 test -z "$(ls -A /run/user/$(id -u))" || echo "FAIL runtime dir not empty"
 test -n "$GH_TOKEN" && test "$GH_TOKEN" = leak && echo "FAIL GH_TOKEN leaked"
 grep -q "BEGIN CERTIFICATE" "$NODE_EXTRA_CA_CERTS" || echo "FAIL NODE_EXTRA_CA_CERTS holds no certificate"
-grep -q "trustStore=/run/doriath/truststore.p12" "$HOME/.bazelrc" || echo "FAIL no bazelrc with the trust store"
+test -e "$HOME/.bazelrc" && echo "FAIL bazelrc without the bazel module"
+test -e /etc/bazel.bazelrc && echo "FAIL system bazelrc without the bazel module"
 test -s /run/doriath/truststore.p12 || echo "FAIL no Java trust store"
 test -n "$SSH_AUTH_SOCK" && echo "FAIL ssh agent leaked"
 test -n "$DBUS_SESSION_BUS_ADDRESS" && echo "FAIL session bus"
@@ -395,6 +396,25 @@ exit 4
 	}
 	if _, err := os.Stat(filepath.Join(e.work, "written")); err != nil {
 		t.Fatal("the worktree write did not reach the host")
+	}
+}
+
+func TestBazelModuleWritesTheSystemRC(t *testing.T) {
+	e := newEnv(t)
+	e.modules = []string{"bazel"}
+	code, out := e.run(e.profile(""), `
+for want in javax.net.ssl.trustStore=/run/doriath/truststore.p12 https.proxyHost=127.0.0.1 https.proxyPort=3128; do
+  grep -q "startup --host_jvm_args=-D$want" /etc/bazel.bazelrc || echo "FAIL no $want"
+done
+test -e "$HOME/.bazelrc" && echo "FAIL home bazelrc"
+echo x > /etc/bazel.bazelrc 2>/dev/null && echo "FAIL system bazelrc writable"
+echo x > /etc/other 2>/dev/null && echo "FAIL etc writable"
+test -e /etc/passwd || echo "FAIL etc lost its files"
+echo done
+exit 4
+`, nil)
+	if code != 4 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
 

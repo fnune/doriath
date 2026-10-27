@@ -71,16 +71,17 @@ func JavaTrustStore(bundle []byte) ([]byte, error) {
 	return pkcs12.Modern.EncodeTrustStore(certs, JavaTrustStorePassword)
 }
 
-// BazelRC sets the trust store as JVM startup flags, because the Bazel client
-// drops JAVA_TOOL_OPTIONS before it starts its server.
-func BazelRC(trustStore string) []byte {
+// BazelRC appends the JVM properties to the host's system rc as startup
+// flags, because the Bazel client drops JAVA_TOOL_OPTIONS before it starts
+// its server.
+func BazelRC(host []byte, jvmProperties []string) []byte {
 	var b strings.Builder
+	b.Write(host)
+	if len(host) > 0 && !bytes.HasSuffix(host, []byte("\n")) {
+		b.WriteString("\n")
+	}
 	b.WriteString("# Written by doriath for this session.\n")
-	for _, opt := range []string{
-		"-Djavax.net.ssl.trustStore=" + trustStore,
-		"-Djavax.net.ssl.trustStoreType=PKCS12",
-		"-Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword,
-	} {
+	for _, opt := range jvmProperties {
 		b.WriteString("startup --host_jvm_args=" + opt + "\n")
 	}
 	return []byte(b.String())

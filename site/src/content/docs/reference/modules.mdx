@@ -143,6 +143,14 @@ Maven Central, and a cache for the local repository. Java ignores `HTTPS_PROXY`,
 
 <ModuleSource name="maven" />
 
+## bazel
+
+The Bazel client removes `JAVA_TOOL_OPTIONS` before it starts its server, so the server JVM would use neither the proxy nor the trust store. This module gives the server both. doriath writes the proxy and trust store settings as `startup --host_jvm_args` lines to `/etc/bazel.bazelrc` in the jail. Bazel reads that file in addition to the rc file of the workspace and your own `~/.bazelrc`. If your machine has an `/etc/bazel.bazelrc`, the jail keeps its lines and adds these after them.
+
+The module allows no hosts. Add the hosts of your registry, remote cache and remote executors to `[egress]`. Older doriath versions wrote `~/.bazelrc` into every profile. A profile that relied on that file now needs `bazel` in `modules`.
+
+<ModuleSource name="bazel" />
+
 ## playwright
 
 A cache for the browsers that Playwright downloads.

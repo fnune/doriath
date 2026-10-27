@@ -178,7 +178,10 @@ type Session struct {
 	command  []string
 	agentEnv map[string]string
 	placed   []jail.Bind
-	netnsPID int
+	// etcOverlay holds files that appear in the jail's /etc, which the root
+	// bind makes read-only so that no bind can create a file there.
+	etcOverlay string
+	netnsPID   int
 
 	repository          string
 	containerBroker     *containers.Broker
@@ -454,8 +457,10 @@ func (s *Session) startProxy() error {
 	if err := writeFile(s.jailPath("truststore.p12"), store, 0o644); err != nil {
 		return err
 	}
-	if err := writeFile(s.jailPath("bazelrc"), BazelRC(jail.InJail("truststore.p12")), 0o644); err != nil {
-		return err
+	if slices.Contains(p.Modules, "bazel") {
+		if err := s.writeBazelRC(); err != nil {
+			return err
+		}
 	}
 	srv := proxy.New(proxy.Config{
 		Session:       s.id,
@@ -717,11 +722,7 @@ func (s *Session) plan() (jail.Spec, error) {
 	for k, v := range s.agentEnv {
 		env[k] = v
 	}
-	var extra []jail.Bind
-	if b, ok := s.bazelrc(home); ok {
-		extra = append(extra, b)
-	}
-	extra = append(extra, s.placed...)
+	extra := slices.Clone(s.placed)
 	argv := []string{jail.ExePath, "__init", "--identify", strconv.Itoa(jail.ProxyPort)}
 	for _, f := range forwards {
 		argv = append(argv, "--forward", f)
@@ -753,6 +754,7 @@ func (s *Session) plan() (jail.Spec, error) {
 		HostEnv:     envMap(s.deps.Environ),
 		ExtraEnv:    env,
 		ExtraBinds:  extra,
+		EtcOverlay:  s.etcOverlay,
 		PathPrepend: []string{jail.InJail(FrontsDir)},
 	}, s.listings)
 }
@@ -1245,27 +1247,42 @@ func (s *Session) saveEntry() {
 	}
 }
 
-func javaToolOptions(profile string) string {
+func javaProperties() []string {
 	port := strconv.Itoa(jail.ProxyPort)
-	opts := "-Djavax.net.ssl.trustStore=" + jail.InJail("truststore.p12") +
-		" -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword +
-		" -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=" + port +
-		" -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=" + port +
-		" -Dhttp.nonProxyHosts=localhost|127.0.0.1|[::1]"
+	return []string{
+		"-Djavax.net.ssl.trustStore=" + jail.InJail("truststore.p12"),
+		"-Djavax.net.ssl.trustStoreType=PKCS12",
+		"-Djavax.net.ssl.trustStorePassword=" + JavaTrustStorePassword,
+		"-Dhttp.proxyHost=127.0.0.1", "-Dhttp.proxyPort=" + port,
+		"-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=" + port,
+		"-Dhttp.nonProxyHosts=localhost|127.0.0.1|[::1]",
+	}
+}
+
+func javaToolOptions(profile string) string {
+	opts := strings.Join(javaProperties(), " ")
 	if profile != "" {
 		return profile + " " + opts
 	}
 	return opts
 }
 
-func (s *Session) bazelrc(home string) (jail.Bind, bool) {
-	dest := filepath.Join(home, ".bazelrc")
-	for _, m := range s.req.Profile.Mounts {
-		if m.Path == dest {
-			return jail.Bind{}, false
-		}
+const bazelSystemRC = "bazel.bazelrc"
+
+// writeBazelRC puts the system rc in a directory that the jail overlays on
+// /etc. Bazel reads that path in addition to the user's and the workspace's
+// rc files, so a profile that mounts its own ~/.bazelrc keeps both.
+func (s *Session) writeBazelRC() error {
+	host, err := os.ReadFile(filepath.Join("/etc", bazelSystemRC))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("read /etc/%s: %w", bazelSystemRC, err)
 	}
-	return jail.Bind{Source: s.jailPath("bazelrc"), Dest: dest, ReadOnly: true}, true
+	dir := s.jailPath("etc")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	s.etcOverlay = dir
+	return writeFile(filepath.Join(dir, bazelSystemRC), BazelRC(host, javaProperties()), 0o644)
 }
 
 func shortPath(p string) string {
