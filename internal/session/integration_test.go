@@ -893,6 +893,7 @@ echo done
 
 func TestALinkToAServerInTheJailForwardsItsPortOnceAllowed(t *testing.T) {
 	e := newEnv(t)
+	e.hostWait = 30 * time.Second
 	release := filepath.Join(e.work, "release")
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
