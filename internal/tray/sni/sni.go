@@ -71,7 +71,7 @@ func New(idle, waiting []*image.NRGBA, activate func(token string)) (*Item, erro
 }
 
 func (it *Item) start() error {
-	for iface, obj := range map[string]any{itemIface: methods{}, propsIface: properties{it}, introIface: introspection{}} {
+	for iface, obj := range map[string]any{itemIface: repliesOnly{}, propsIface: properties{it}, introIface: introspection{}} {
 		if err := it.conn.Export(obj, itemPath, iface); err != nil {
 			return fmt.Errorf("export the tray icon: %w", err)
 		}
@@ -190,17 +190,17 @@ func header[T any](msg *dbus.Message, field dbus.HeaderField) T {
 	return v
 }
 
-type methods struct{}
+type repliesOnly struct{}
 
-func (methods) Activate(int32, int32) *dbus.Error { return nil }
+func (repliesOnly) Activate(int32, int32) *dbus.Error { return nil }
 
-func (methods) ContextMenu(int32, int32) *dbus.Error { return nil }
+func (repliesOnly) ContextMenu(int32, int32) *dbus.Error { return nil }
 
-func (methods) SecondaryActivate(int32, int32) *dbus.Error { return nil }
+func (repliesOnly) SecondaryActivate(int32, int32) *dbus.Error { return nil }
 
-func (methods) Scroll(int32, string) *dbus.Error { return nil }
+func (repliesOnly) Scroll(int32, string) *dbus.Error { return nil }
 
-func (methods) ProvideXdgActivationToken(string) *dbus.Error { return nil }
+func (repliesOnly) ProvideXdgActivationToken(string) *dbus.Error { return nil }
 
 type properties struct{ it *Item }
 
