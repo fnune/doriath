@@ -1,6 +1,7 @@
 package sni
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"slices"
@@ -80,7 +81,7 @@ func newFixture(t *testing.T) fixture {
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", dbustest.PrivateBus(t))
 	watcherConn, watcher := startWatcher(t)
 	t.Cleanup(func() { _ = watcherConn.Close() })
-	activated := make(chan string, 1)
+	activated := make(chan string, 256)
 	idle := []*image.NRGBA{square(color.NRGBA{R: 1, G: 2, B: 3, A: 255})}
 	waiting := []*image.NRGBA{square(color.NRGBA{R: 9, G: 8, B: 7, A: 128})}
 	item, err := New(idle, waiting, func(token string) { activated <- token })
@@ -178,37 +179,38 @@ func TestItemOpensWithTheActivationToken(t *testing.T) {
 	}
 }
 
-func TestItemWaitsForATokenThatArrivesAfterTheClick(t *testing.T) {
+func TestItemUsesTheTokenSentJustBeforeEachClick(t *testing.T) {
 	f := newFixture(t)
 	obj := f.client.Object(f.item.name, itemPath)
-	if err := obj.Call(itemIface+".Activate", 0, int32(0), int32(0)).Err; err != nil {
-		t.Fatal(err)
+	const clicks = 200
+	for i := range clicks {
+		obj.Go(itemIface+".ProvideXdgActivationToken", dbus.FlagNoReplyExpected, nil, fmt.Sprint("token-", i))
+		obj.Go(itemIface+".Activate", dbus.FlagNoReplyExpected, nil, int32(0), int32(0))
 	}
-	if err := obj.Call(itemIface+".ProvideXdgActivationToken", 0, "late").Err; err != nil {
-		t.Fatal(err)
+	got := map[string]bool{}
+	for range clicks {
+		select {
+		case token := <-f.activated:
+			got[token] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%d of %d clicks opened the page", len(got), clicks)
+		}
 	}
-	if got := <-f.activated; got != "late" {
-		t.Errorf("token = %q", got)
-	}
-	select {
-	case got := <-f.activated:
-		t.Errorf("one click opened twice, again with %q", got)
-	case <-time.After(2 * tokenGrace):
+	for i := range clicks {
+		if want := fmt.Sprint("token-", i); !got[want] {
+			t.Errorf("no click used %s; tokens used: %d", want, len(got))
+			break
+		}
 	}
 }
 
-func TestItemOpensWithoutATokenAfterTheGrace(t *testing.T) {
+func TestItemOpensWithoutAToken(t *testing.T) {
 	f := newFixture(t)
 	if err := f.client.Object(f.item.name, itemPath).Call(itemIface+".Activate", 0, int32(0), int32(0)).Err; err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case got := <-f.activated:
-		if got != "" {
-			t.Errorf("token = %q", got)
-		}
-	case <-time.After(10 * tokenGrace):
-		t.Fatal("a status area without tokens must still open the page")
+	if got := <-f.activated; got != "" {
+		t.Errorf("token = %q", got)
 	}
 }
 

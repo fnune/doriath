@@ -8,7 +8,6 @@ import (
 	"image"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/godbus/dbus/v5"
 
@@ -44,29 +43,26 @@ type Item struct {
 	waiting  []pixmap
 	activate func(token string)
 
-	mu      sync.Mutex
-	state   tray.State
-	token   string
-	opening bool
+	mu    sync.Mutex
+	state tray.State
+	token string
 }
-
-const tokenGrace = 200 * time.Millisecond
 
 // New registers the icon with the status area, and again each time a
 // status area starts. activate runs on a click, with the activation token
 // that lets the compositor raise the window it opens.
 func New(idle, waiting []*image.NRGBA, activate func(token string)) (*Item, error) {
-	conn, err := dbus.ConnectSessionBus()
-	if err != nil {
-		return nil, fmt.Errorf("connect to the session bus: %w", err)
-	}
 	it := &Item{
-		conn:     conn,
 		name:     fmt.Sprintf("org.kde.StatusNotifierItem-%d-1", os.Getpid()),
 		idle:     pixmaps(idle),
 		waiting:  pixmaps(waiting),
 		activate: activate,
 	}
+	conn, err := dbus.ConnectSessionBus(dbus.WithIncomingInterceptor(it.handleClicksInArrivalOrder))
+	if err != nil {
+		return nil, fmt.Errorf("connect to the session bus: %w", err)
+	}
+	it.conn = conn
 	if err := it.start(); err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -75,7 +71,7 @@ func New(idle, waiting []*image.NRGBA, activate func(token string)) (*Item, erro
 }
 
 func (it *Item) start() error {
-	for iface, obj := range map[string]any{itemIface: methods{it}, propsIface: properties{it}, introIface: introspection{}} {
+	for iface, obj := range map[string]any{itemIface: methods{}, propsIface: properties{it}, introIface: introspection{}} {
 		if err := it.conn.Export(obj, itemPath, iface); err != nil {
 			return fmt.Errorf("export the tray icon: %w", err)
 		}
@@ -168,58 +164,43 @@ func (it *Item) props() map[string]dbus.Variant {
 	}
 }
 
-func (it *Item) open() {
-	it.mu.Lock()
-	defer it.mu.Unlock()
-	if it.token != "" {
-		it.openWith(it.token)
+func (it *Item) handleClicksInArrivalOrder(msg *dbus.Message) {
+	if msg.Type != dbus.TypeMethodCall || header[dbus.ObjectPath](msg, dbus.FieldPath) != itemPath || header[string](msg, dbus.FieldInterface) != itemIface {
 		return
 	}
-	it.opening = true
-	time.AfterFunc(tokenGrace, func() {
-		it.mu.Lock()
-		defer it.mu.Unlock()
-		if it.opening {
-			it.openWith("")
+	switch header[string](msg, dbus.FieldMember) {
+	case "ProvideXdgActivationToken":
+		if len(msg.Body) == 1 {
+			token, _ := msg.Body[0].(string)
+			it.mu.Lock()
+			it.token = token
+			it.mu.Unlock()
 		}
-	})
-}
-
-func (it *Item) provideToken(token string) {
-	it.mu.Lock()
-	defer it.mu.Unlock()
-	if it.opening {
-		it.openWith(token)
-		return
+	case "Activate", "ContextMenu":
+		it.mu.Lock()
+		token := it.token
+		it.token = ""
+		it.mu.Unlock()
+		go it.activate(token)
 	}
-	it.token = token
 }
 
-func (it *Item) openWith(token string) {
-	it.token, it.opening = "", false
-	go it.activate(token)
+func header[T any](msg *dbus.Message, field dbus.HeaderField) T {
+	v, _ := msg.Headers[field].Value().(T)
+	return v
 }
 
-type methods struct{ it *Item }
+type methods struct{}
 
-func (m methods) Activate(int32, int32) *dbus.Error {
-	m.it.open()
-	return nil
-}
+func (methods) Activate(int32, int32) *dbus.Error { return nil }
 
-func (m methods) ContextMenu(int32, int32) *dbus.Error {
-	m.it.open()
-	return nil
-}
+func (methods) ContextMenu(int32, int32) *dbus.Error { return nil }
 
 func (methods) SecondaryActivate(int32, int32) *dbus.Error { return nil }
 
 func (methods) Scroll(int32, string) *dbus.Error { return nil }
 
-func (m methods) ProvideXdgActivationToken(token string) *dbus.Error {
-	m.it.provideToken(token)
-	return nil
-}
+func (methods) ProvideXdgActivationToken(string) *dbus.Error { return nil }
 
 type properties struct{ it *Item }
 
