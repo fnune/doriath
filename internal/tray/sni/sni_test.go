@@ -130,7 +130,7 @@ func TestItemRegistersAndShowsTheState(t *testing.T) {
 		t.Fatal(err)
 	}
 	var names []string
-	for range 3 {
+	for range 2 {
 		select {
 		case s := <-signals:
 			names = append(names, s.Name)
@@ -138,11 +138,11 @@ func TestItemRegistersAndShowsTheState(t *testing.T) {
 			t.Fatalf("signals = %v", names)
 		}
 	}
-	if want := []string{itemIface + ".NewIcon", itemIface + ".NewStatus", itemIface + ".NewToolTip"}; !slices.Equal(names, want) {
+	if want := []string{itemIface + ".NewIcon", itemIface + ".NewToolTip"}; !slices.Equal(names, want) {
 		t.Errorf("signals = %v, want %v", names, want)
 	}
-	if got := f.prop(t, "Status"); got != "NeedsAttention" {
-		t.Errorf("status = %v", got)
+	if got := f.prop(t, "Status"); got != "Active" {
+		t.Errorf("status = %v: NeedsAttention makes Plasma pulse the icon until the requests are answered", got)
 	}
 	if err := dbus.Store([]any{f.prop(t, "IconPixmap")}, &icon); err != nil {
 		t.Fatal(err)

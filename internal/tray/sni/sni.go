@@ -123,18 +123,8 @@ func (it *Item) Show(s tray.State) error {
 		if err := it.conn.Emit(itemPath, itemIface+".NewIcon"); err != nil {
 			return err
 		}
-		if err := it.conn.Emit(itemPath, itemIface+".NewStatus", status(s)); err != nil {
-			return err
-		}
 	}
 	return it.conn.Emit(itemPath, itemIface+".NewToolTip")
-}
-
-func status(s tray.State) string {
-	if s.Waiting > 0 {
-		return "NeedsAttention"
-	}
-	return "Active"
 }
 
 func (it *Item) props() map[string]dbus.Variant {
@@ -149,14 +139,14 @@ func (it *Item) props() map[string]dbus.Variant {
 		"Category":            dbus.MakeVariant("ApplicationStatus"),
 		"Id":                  dbus.MakeVariant("doriath"),
 		"Title":               dbus.MakeVariant("Doriath"),
-		"Status":              dbus.MakeVariant(status(s)),
+		"Status":              dbus.MakeVariant("Active"),
 		"WindowId":            dbus.MakeVariant(int32(0)),
 		"IconName":            dbus.MakeVariant(""),
 		"IconPixmap":          dbus.MakeVariant(icon),
 		"OverlayIconName":     dbus.MakeVariant(""),
 		"OverlayIconPixmap":   dbus.MakeVariant([]pixmap{}),
 		"AttentionIconName":   dbus.MakeVariant(""),
-		"AttentionIconPixmap": dbus.MakeVariant(it.waiting),
+		"AttentionIconPixmap": dbus.MakeVariant([]pixmap{}),
 		"AttentionMovieName":  dbus.MakeVariant(""),
 		"ToolTip":             dbus.MakeVariant(tooltip{Pixmaps: []pixmap{}, Title: "Doriath", Text: s.Text()}),
 		"ItemIsMenu":          dbus.MakeVariant(false),
