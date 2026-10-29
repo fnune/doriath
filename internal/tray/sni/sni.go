@@ -8,6 +8,7 @@ import (
 	"image"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 
@@ -43,10 +44,13 @@ type Item struct {
 	waiting  []pixmap
 	activate func(token string)
 
-	mu    sync.Mutex
-	state tray.State
-	token string
+	mu      sync.Mutex
+	state   tray.State
+	token   string
+	opening bool
 }
+
+const tokenGrace = 200 * time.Millisecond
 
 // New registers the icon with the status area, and again each time a
 // status area starts. activate runs on a click, with the activation token
@@ -166,9 +170,33 @@ func (it *Item) props() map[string]dbus.Variant {
 
 func (it *Item) open() {
 	it.mu.Lock()
-	token := it.token
-	it.token = ""
-	it.mu.Unlock()
+	defer it.mu.Unlock()
+	if it.token != "" {
+		it.openWith(it.token)
+		return
+	}
+	it.opening = true
+	time.AfterFunc(tokenGrace, func() {
+		it.mu.Lock()
+		defer it.mu.Unlock()
+		if it.opening {
+			it.openWith("")
+		}
+	})
+}
+
+func (it *Item) provideToken(token string) {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.opening {
+		it.openWith(token)
+		return
+	}
+	it.token = token
+}
+
+func (it *Item) openWith(token string) {
+	it.token, it.opening = "", false
 	go it.activate(token)
 }
 
@@ -189,9 +217,7 @@ func (methods) SecondaryActivate(int32, int32) *dbus.Error { return nil }
 func (methods) Scroll(int32, string) *dbus.Error { return nil }
 
 func (m methods) ProvideXdgActivationToken(token string) *dbus.Error {
-	m.it.mu.Lock()
-	m.it.token = token
-	m.it.mu.Unlock()
+	m.it.provideToken(token)
 	return nil
 }
 

@@ -178,6 +178,40 @@ func TestItemOpensWithTheActivationToken(t *testing.T) {
 	}
 }
 
+func TestItemWaitsForATokenThatArrivesAfterTheClick(t *testing.T) {
+	f := newFixture(t)
+	obj := f.client.Object(f.item.name, itemPath)
+	if err := obj.Call(itemIface+".Activate", 0, int32(0), int32(0)).Err; err != nil {
+		t.Fatal(err)
+	}
+	if err := obj.Call(itemIface+".ProvideXdgActivationToken", 0, "late").Err; err != nil {
+		t.Fatal(err)
+	}
+	if got := <-f.activated; got != "late" {
+		t.Errorf("token = %q", got)
+	}
+	select {
+	case got := <-f.activated:
+		t.Errorf("one click opened twice, again with %q", got)
+	case <-time.After(2 * tokenGrace):
+	}
+}
+
+func TestItemOpensWithoutATokenAfterTheGrace(t *testing.T) {
+	f := newFixture(t)
+	if err := f.client.Object(f.item.name, itemPath).Call(itemIface+".Activate", 0, int32(0), int32(0)).Err; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-f.activated:
+		if got != "" {
+			t.Errorf("token = %q", got)
+		}
+	case <-time.After(10 * tokenGrace):
+		t.Fatal("a status area without tokens must still open the page")
+	}
+}
+
 func TestItemRegistersAgainWhenAStatusAreaStarts(t *testing.T) {
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", dbustest.PrivateBus(t))
 	item, err := New(nil, nil, func(string) {})
