@@ -84,7 +84,7 @@ func newFixture(t *testing.T) fixture {
 	activated := make(chan string, 256)
 	idle := []*image.NRGBA{square(color.NRGBA{R: 1, G: 2, B: 3, A: 255})}
 	waiting := []*image.NRGBA{square(color.NRGBA{R: 9, G: 8, B: 7, A: 128})}
-	item, err := New(idle, waiting, func(token string) { activated <- token })
+	item, err := New(Icons{Idle: idle, Waiting: waiting}, func(token string) { activated <- token })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestItemOpensWithoutAToken(t *testing.T) {
 
 func TestItemRegistersAgainWhenAStatusAreaStarts(t *testing.T) {
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", dbustest.PrivateBus(t))
-	item, err := New(nil, nil, func(string) {})
+	item, err := New(Icons{}, func(string) {})
 	if err != nil {
 		t.Fatalf("a missing status area is not an error: %v", err)
 	}
@@ -224,4 +224,36 @@ func TestItemRegistersAgainWhenAStatusAreaStarts(t *testing.T) {
 	conn, watcher := startWatcher(t)
 	t.Cleanup(func() { _ = conn.Close() })
 	eventually(t, func() bool { return slices.Equal(watcher.services(), []string{item.name}) })
+}
+
+func TestItemNamesItsIconOnlyWithAThemePath(t *testing.T) {
+	f := newFixture(t)
+	if got := f.prop(t, "IconName"); got != "" {
+		t.Errorf("icon name without a theme path = %q", got)
+	}
+
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", dbustest.PrivateBus(t))
+	item, err := New(Icons{ThemePath: "/run/icons", IdleName: "idle", WaitingName: "waiting"}, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = item.Close() })
+	client, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	named := fixture{item: item, client: client}
+	if got := named.prop(t, "IconThemePath"); got != "/run/icons" {
+		t.Errorf("theme path = %q", got)
+	}
+	if got := named.prop(t, "IconName"); got != "idle" {
+		t.Errorf("idle icon name = %q", got)
+	}
+	if err := item.Show(tray.State{Waiting: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if got := named.prop(t, "IconName"); got != "waiting" {
+		t.Errorf("waiting icon name = %q", got)
+	}
 }

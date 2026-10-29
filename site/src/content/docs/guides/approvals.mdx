@@ -76,7 +76,7 @@ The [home-manager](/guides/home-manager/#the-module) module runs the page as a s
 
 ## The tray icon
 
-While the page runs, its icon shows in the status area of your desktop. A dot marks the icon while requests wait for an answer. A click opens the page. The icon shows on desktops that support the StatusNotifierItem protocol, such as KDE Plasma, waybar, Xfce and LXQt. GNOME needs the AppIndicator extension.
+While the page runs, its icon shows in the status area of your desktop. A dot marks the icon while requests wait for an answer. A click opens the page. The icon shows on desktops that support the StatusNotifierItem protocol, such as KDE Plasma, waybar, Xfce and LXQt. GNOME needs the AppIndicator extension. On KDE Plasma, the icon takes the colors of your panel and the accent color of your theme. Other desktops show it in doriath's colors.
 
 To turn the icon off, set `[desktop] tray = false` in `config.toml`, or `programs.doriath.desktop.tray = false` in home-manager.
 

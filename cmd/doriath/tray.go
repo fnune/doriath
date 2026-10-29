@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/tray"
 	"github.com/fnune/doriath/internal/tray/sni"
 	"github.com/fnune/doriath/internal/ui"
@@ -14,7 +18,7 @@ import (
 
 const trayPoll = 2 * time.Second
 
-func showTray(ctx context.Context, counter tray.Counter, addr, token string, out io.Writer) {
+func showTray(ctx context.Context, counter tray.Counter, addr, token, themePath string, out io.Writer) {
 	idle, err := trayImages(false)
 	if err != nil {
 		fmt.Fprintf(out, "The tray icon is off: %v\n", err)
@@ -25,7 +29,15 @@ func showTray(ctx context.Context, counter tray.Counter, addr, token string, out
 		fmt.Fprintf(out, "The tray icon is off: %v\n", err)
 		return
 	}
-	item, err := sni.New(idle, waiting, func(activation string) {
+	icons := sni.Icons{Idle: idle, Waiting: waiting}
+	if themePath != "" {
+		if err := tray.WriteSymbolic(themePath); err != nil {
+			fmt.Fprintf(out, "The tray icon shows without the panel's colors: %v\n", err)
+		} else {
+			icons.ThemePath, icons.IdleName, icons.WaitingName = themePath, tray.IdleName, tray.WaitingName
+		}
+	}
+	item, err := sni.New(icons, func(activation string) {
 		if err := openPage(context.Background(), addr, token, "", opener{activation: activation}, false, io.Discard); err != nil {
 			fmt.Fprintf(out, "doriath: %v\n", err)
 		}
@@ -42,6 +54,13 @@ func showTray(ctx context.Context, counter tray.Counter, addr, token string, out
 			fmt.Fprintf(out, "The tray icon is off: %v\n", err)
 		}
 	}()
+}
+
+func symbolicTrayPath(p config.Paths, desktop string) string {
+	if !slices.Contains(strings.Split(desktop, ":"), "KDE") {
+		return ""
+	}
+	return filepath.Join(p.Runtime, "tray")
 }
 
 func trayImages(waiting bool) ([]*image.NRGBA, error) {

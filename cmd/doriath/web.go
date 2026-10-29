@@ -90,7 +90,7 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if user.Desktop.Tray {
-		showTray(ctx, liveApprovals{paths: p}, addr, token, out)
+		showTray(ctx, liveApprovals{paths: p}, addr, token, symbolicTrayPath(p, os.Getenv("XDG_CURRENT_DESKTOP")), out)
 	}
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	go func() {

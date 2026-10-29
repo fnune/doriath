@@ -36,11 +36,21 @@ type tooltip struct {
 	Text     string
 }
 
+// Icons are what the item shows in each state. A status area that finds
+// IdleName or WaitingName in ThemePath draws that icon, and any other draws
+// the pixmaps. Without a ThemePath the item sends only the pixmaps.
+type Icons struct {
+	Idle, Waiting         []*image.NRGBA
+	ThemePath             string
+	IdleName, WaitingName string
+}
+
 type Item struct {
 	conn     *dbus.Conn
 	name     string
 	idle     []pixmap
 	waiting  []pixmap
+	icons    Icons
 	activate func(token string)
 
 	mu    sync.Mutex
@@ -51,11 +61,12 @@ type Item struct {
 // New registers the icon with the status area, and again each time a
 // status area starts. activate runs on a click, with the activation token
 // that lets the compositor raise the window it opens.
-func New(idle, waiting []*image.NRGBA, activate func(token string)) (*Item, error) {
+func New(icons Icons, activate func(token string)) (*Item, error) {
 	it := &Item{
 		name:     fmt.Sprintf("org.kde.StatusNotifierItem-%d-1", os.Getpid()),
-		idle:     pixmaps(idle),
-		waiting:  pixmaps(waiting),
+		idle:     pixmaps(icons.Idle),
+		waiting:  pixmaps(icons.Waiting),
+		icons:    icons,
 		activate: activate,
 	}
 	conn, err := dbus.ConnectSessionBus(dbus.WithIncomingInterceptor(it.handleClicksInArrivalOrder))
@@ -131,9 +142,12 @@ func (it *Item) props() map[string]dbus.Variant {
 	it.mu.Lock()
 	s := it.state
 	it.mu.Unlock()
-	icon := it.idle
+	icon, name := it.idle, it.icons.IdleName
 	if s.Waiting > 0 {
-		icon = it.waiting
+		icon, name = it.waiting, it.icons.WaitingName
+	}
+	if it.icons.ThemePath == "" {
+		name = ""
 	}
 	return map[string]dbus.Variant{
 		"Category":            dbus.MakeVariant("ApplicationStatus"),
@@ -141,7 +155,8 @@ func (it *Item) props() map[string]dbus.Variant {
 		"Title":               dbus.MakeVariant("Doriath"),
 		"Status":              dbus.MakeVariant("Active"),
 		"WindowId":            dbus.MakeVariant(int32(0)),
-		"IconName":            dbus.MakeVariant(""),
+		"IconName":            dbus.MakeVariant(name),
+		"IconThemePath":       dbus.MakeVariant(it.icons.ThemePath),
 		"IconPixmap":          dbus.MakeVariant(icon),
 		"OverlayIconName":     dbus.MakeVariant(""),
 		"OverlayIconPixmap":   dbus.MakeVariant([]pixmap{}),
@@ -250,6 +265,7 @@ const introspectXML = `<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object I
     <property name="Status" type="s" access="read"/>
     <property name="WindowId" type="i" access="read"/>
     <property name="IconName" type="s" access="read"/>
+    <property name="IconThemePath" type="s" access="read"/>
     <property name="IconPixmap" type="a(iiay)" access="read"/>
     <property name="OverlayIconName" type="s" access="read"/>
     <property name="OverlayIconPixmap" type="a(iiay)" access="read"/>
