@@ -110,6 +110,8 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 		listings:         newListingCache(),
 		links:            newLinkKeeper(func(string, string) {}),
 		dismissedSecrets: map[string]bool{},
+		informs:          newRateLimit(informBurst),
+		describes:        newRateLimit(describeBurst),
 	}
 	s.egress = newEgressLog(log)
 	s.policy = newLivePolicy(s.req.Profile, false)

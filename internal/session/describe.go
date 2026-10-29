@@ -9,6 +9,11 @@ import (
 func (st Status) Describe() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This session runs in doriath profile %q (session %s).\n", st.Profile, st.Session)
+	if st.Description == "" {
+		b.WriteString("Tell the user what you work on: run `doriath describe TEXT` with a few words, such as `doriath describe \"Fix the login redirect\"`. Run it again when the task changes.\n")
+	} else {
+		fmt.Fprintf(&b, "You describe this session as %q. When the task changes, run `doriath describe TEXT` again.\n", st.Description)
+	}
 	list := func(title string, items []string) {
 		if len(items) == 0 {
 			return

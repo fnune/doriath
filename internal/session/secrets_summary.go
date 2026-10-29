@@ -10,7 +10,11 @@ import (
 // Summary is the session in one line, for the bar. The
 // secrets take at most secretsWidth characters.
 func (st Status) Summary(secretsWidth int) string {
-	parts := []string{"doriath " + st.Profile, "session " + st.Session, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
+	session := "session " + st.Session
+	if st.Description != "" {
+		session += " “" + st.Description + "”"
+	}
+	parts := []string{"doriath " + st.Profile, session, fmt.Sprintf("%d hosts", len(st.Hosts)+len(st.Intercepted))}
 	if st.Pending > 0 {
 		parts = append(parts, fmt.Sprintf("%d waiting for you", st.Pending))
 	}

@@ -213,6 +213,13 @@ func (s *Session) startBroker(ctx context.Context) error {
 			}
 			return s.manager.Wait(ctx, p.ID)
 		},
+		MethodDescribe: func(_ context.Context, raw json.RawMessage) (any, error) {
+			p, err := control.Decode[DescribeParams](raw)
+			if err != nil {
+				return nil, err
+			}
+			return struct{}{}, s.describe(p.Text)
+		},
 		MethodInform: func(_ context.Context, raw json.RawMessage) (any, error) {
 			p, err := control.Decode[InformParams](raw)
 			if err != nil {
@@ -223,7 +230,7 @@ func (s *Session) startBroker(ctx context.Context) error {
 				if firstDropped {
 					s.log.Write("inform-dropped", p)
 				}
-				return nil, fmt.Errorf("too many notifications: doriath shows %d at once and one more each %s", informBurst, informEvery)
+				return nil, fmt.Errorf("too many notifications: doriath shows %d at once and one more each %s", informBurst, refillEvery)
 			}
 			s.log.Write("inform", p)
 			if s.deps.Informer != nil {
@@ -299,7 +306,9 @@ func (s *Session) pathScope(path string) string {
 // Status is what the agent and the person can learn about a running session.
 type Status struct {
 	Session string `json:"session"`
-	Profile string `json:"profile"`
+	// Description is the agent's own account of its task.
+	Description string `json:"description,omitempty"`
+	Profile     string `json:"profile"`
 	// Modules are the modules that the agent can ask to use in another
 	// repository.
 	Modules     []string        `json:"modules,omitempty"`
@@ -350,15 +359,16 @@ type StatusRule struct {
 func (s *Session) status() Status {
 	p := s.req.Profile
 	st := Status{
-		Session:  s.id,
-		Profile:  p.Name,
-		Ports:    append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
-		Forwards: s.lastingForwards(),
-		Connects: s.connections(),
-		Signing:  p.SigningKey != "",
-		Podman:   p.Podman,
-		Pending:  len(s.manager.Pending()),
-		Denied:   s.egress.Denials(),
+		Session:     s.id,
+		Description: s.describedAs(),
+		Profile:     p.Name,
+		Ports:       append(append([]int(nil), p.Egress.Ports...), p.Egress.TCPPorts...),
+		Forwards:    s.lastingForwards(),
+		Connects:    s.connections(),
+		Signing:     p.SigningKey != "",
+		Podman:      p.Podman,
+		Pending:     len(s.manager.Pending()),
+		Denied:      s.egress.Denials(),
 	}
 	if s.unresolved != nil {
 		st.Modules = s.unresolved.RepositoryModules()

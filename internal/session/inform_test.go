@@ -6,7 +6,7 @@ import (
 )
 
 func TestInformIsRateLimited(t *testing.T) {
-	var l informLimit
+	l := newRateLimit(informBurst)
 	now := time.Unix(1000, 0)
 	for i := range informBurst {
 		if ok, _ := l.allow(now); !ok {
@@ -19,7 +19,7 @@ func TestInformIsRateLimited(t *testing.T) {
 	if _, first := l.allow(now); first {
 		t.Error("only the first drop is reported")
 	}
-	if ok, _ := l.allow(now.Add(informEvery)); !ok {
+	if ok, _ := l.allow(now.Add(refillEvery)); !ok {
 		t.Error("a notification must pass once the limit refills")
 	}
 }

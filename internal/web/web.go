@@ -29,10 +29,12 @@ import (
 )
 
 type Session struct {
-	ID       string
-	Profile  string
-	Cwd      string
-	Requests []approval.Request
+	ID      string
+	Profile string
+	Cwd     string
+	// Description is the agent's own account of its task.
+	Description string
+	Requests    []approval.Request
 }
 
 type Answered struct {

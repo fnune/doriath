@@ -130,3 +130,10 @@ func TestAWarnedRequestShowsTheWarningFirstAndOffersNoSessionAllow(t *testing.T)
 		t.Errorf("actions = %v", got)
 	}
 }
+
+func TestTheSessionDescriptionShowsAsTheAgentsWords(t *testing.T) {
+	req := approval.Request{Session: "s1", Profile: "p", Agent: "claude", Kind: approval.KindHost, SessionDescription: "Fix <b>login</b>"}
+	if got := Body(req, time.Now()); !strings.Contains(got, "session s1, which claude describes as <i>Fix &lt;b&gt;login&lt;/b&gt;</i>.") {
+		t.Errorf("body = %q", got)
+	}
+}

@@ -7,23 +7,28 @@ import (
 
 const (
 	informBurst = 10
-	informEvery = time.Minute
+	refillEvery = time.Minute
 )
 
-type informLimit struct {
+type rateLimit struct {
+	burst    float64
 	mu       sync.Mutex
 	tokens   float64
 	last     time.Time
 	dropping bool
 }
 
-func (l *informLimit) allow(now time.Time) (ok, firstDropped bool) {
+func newRateLimit(burst float64) *rateLimit {
+	return &rateLimit{burst: burst}
+}
+
+func (l *rateLimit) allow(now time.Time) (ok, firstDropped bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.last.IsZero() {
-		l.tokens = informBurst
+		l.tokens = l.burst
 	} else {
-		l.tokens = min(informBurst, l.tokens+float64(now.Sub(l.last))/float64(informEvery))
+		l.tokens = min(l.burst, l.tokens+float64(now.Sub(l.last))/float64(refillEvery))
 	}
 	l.last = now
 	if l.tokens >= 1 {

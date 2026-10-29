@@ -98,7 +98,11 @@ func Body(req approval.Request, now time.Time) string {
 	if req.Scope != "" && req.Offers(approval.AnswerSession) {
 		fmt.Fprintf(&b, "Allow for this session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
 	}
-	fmt.Fprintf(&b, "Profile %s, session %s.", html.EscapeString(req.Profile), html.EscapeString(req.Session))
+	fmt.Fprintf(&b, "Profile %s, session %s", html.EscapeString(req.Profile), html.EscapeString(req.Session))
+	if req.SessionDescription != "" {
+		fmt.Fprintf(&b, ", which %s describes as <i>%s</i>", html.EscapeString(agent), html.EscapeString(req.SessionDescription))
+	}
+	b.WriteString(".")
 	if !req.Expires.IsZero() {
 		fmt.Fprintf(&b, " Expires in %s.", req.Expires.Sub(now).Round(time.Second))
 	}

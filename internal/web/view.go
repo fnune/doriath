@@ -59,10 +59,11 @@ type blockedView struct {
 }
 
 type sessionView struct {
-	ID      string
-	Profile string
-	Cwd     string
-	Hue     string
+	ID          string
+	Profile     string
+	Cwd         string
+	Description string
+	Hue         string
 }
 
 type requestView struct {
@@ -113,7 +114,7 @@ func (s *Server) view(ctx context.Context, selected string, orOldest bool) (page
 	var p page
 	p.HasSessions = len(sessions) > 0
 	for _, sess := range sessions {
-		sv := sessionView{ID: sess.ID, Profile: sess.Profile, Cwd: sess.Cwd, Hue: hue(sess.Profile)}
+		sv := sessionView{ID: sess.ID, Profile: sess.Profile, Cwd: sess.Cwd, Description: sess.Description, Hue: hue(sess.Profile)}
 		p.Sessions = append(p.Sessions, sv)
 		for _, r := range sess.Requests {
 			p.Pending = append(p.Pending, requestOf(r, sv, now))

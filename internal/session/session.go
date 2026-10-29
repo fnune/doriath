@@ -153,26 +153,29 @@ type Info struct {
 	Command []string  `json:"command"`
 	PID     int       `json:"pid"`
 	Started time.Time `json:"started"`
+	// Description is the agent's own account of its task.
+	Description string `json:"description,omitempty"`
 }
 
 type Session struct {
-	links   *linkKeeper
-	deps    Deps
-	req     Request
-	id      string
-	dir     string
-	jailDir string
-	log     *audit.Log
-	egress  *egressLog
-	policy  *livePolicy
-	peers   *hostPeers
-	logFile io.Closer
-	repos   repositoryRecord
-	notes   []note
-	manager *approval.Manager
-	informs informLimit
-	closers []func()
-	entry   Entry
+	links     *linkKeeper
+	deps      Deps
+	req       Request
+	id        string
+	dir       string
+	jailDir   string
+	log       *audit.Log
+	egress    *egressLog
+	policy    *livePolicy
+	peers     *hostPeers
+	logFile   io.Closer
+	repos     repositoryRecord
+	notes     []note
+	manager   *approval.Manager
+	informs   *rateLimit
+	describes *rateLimit
+	closers   []func()
+	entry     Entry
 
 	agent    agents.Adapter
 	command  []string
@@ -189,6 +192,8 @@ type Session struct {
 	modulesByRepository map[string][]string
 
 	mu               sync.Mutex
+	started          time.Time
+	description      string
 	listings         *listingCache
 	dismissedSecrets map[string]bool
 	hostForwards     map[int]*hostForward
@@ -231,7 +236,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, unresolved: unresolved, modulesByRepository: map[string][]string{}, listings: listings, dismissedSecrets: map[string]bool{}}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, unresolved: unresolved, modulesByRepository: map[string][]string{}, listings: listings, dismissedSecrets: map[string]bool{}, informs: newRateLimit(informBurst), describes: newRateLimit(describeBurst)}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -294,7 +299,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})
 	}
-	s.manager = approval.NewManager(s.deps.Clock, s.deps.Notifier, s.log, randomIDs{})
+	s.manager = approval.NewManager(s.deps.Clock, describedNotifier{next: s.deps.Notifier, session: s}, s.log, randomIDs{})
 
 	for _, d := range []string{s.cacheRoot(), s.tmp(), s.scratchHome()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
@@ -670,7 +675,12 @@ func CheckSigning(p *profile.Profile, tools []vcstools.Tool) error {
 }
 
 func (s *Session) writeInfo() error {
-	info := Info{ID: s.id, Profile: s.req.Profile.Name, Cwd: s.req.Cwd, Command: s.req.Command, PID: os.Getpid(), Started: s.deps.Clock.Now()}
+	s.mu.Lock()
+	if s.started.IsZero() {
+		s.started = s.deps.Clock.Now()
+	}
+	info := Info{ID: s.id, Profile: s.req.Profile.Name, Cwd: s.req.Cwd, Command: s.req.Command, PID: os.Getpid(), Started: s.started, Description: s.description}
+	s.mu.Unlock()
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return err

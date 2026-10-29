@@ -189,6 +189,14 @@ Prints the version.
 
 ## Inside a jail
 
+### `doriath describe`
+
+```txt frame="none"
+doriath describe TEXT
+```
+
+Sets a short description of the agent's task, such as `doriath describe "Fix the login redirect"`, at most 60 characters. The terminal bar, `doriath status`, the approvals page and the notifications show it next to the session name, as text that the agent wrote. The `doriath status` text in the jail tells the agent to set it, and to set it again when the task changes. doriath takes 3 descriptions at once and one more each minute.
+
 ### `doriath request write`
 
 ```txt frame="none"

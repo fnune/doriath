@@ -143,6 +143,8 @@ type Request struct {
 	// Note is the agent's own account of the request, such as a command's
 	// description or its reason for a write, shown as the agent's words.
 	Note string `json:"note,omitempty"`
+	// SessionDescription is the agent's own account of the session's task.
+	SessionDescription string `json:"session_description,omitempty"`
 	// Keep holds the profile lines that would keep an allow after the
 	// session ends.
 	Keep string `json:"keep,omitempty"`

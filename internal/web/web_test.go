@@ -531,6 +531,19 @@ func TestSelectingARequestAddsNoHistorySoANewerTabCanCloseThisOne(t *testing.T) 
 	}
 }
 
+func TestThePageShowsTheSessionDescriptionAsTheAgentsWords(t *testing.T) {
+	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app", Description: "Fix <b>login</b>", Requests: []approval.Request{request("a1", approval.KindHost, "Allow registry.example?")}}}}
+	srv, err := New(sessions, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := get(srv.Handler(), "/?request=s1/a1", true).Body.String()
+	want := `<span class="described" title="Written by the agent, not by doriath">“Fix &lt;b&gt;login&lt;/b&gt;”</span>`
+	if n := strings.Count(page, want); n != 2 {
+		t.Errorf("the description shows %d times, want in the session list and the request: %s", n, page)
+	}
+}
+
 func TestACardSaysHowYouAnsweredTheSameRequestBefore(t *testing.T) {
 	pending := request("a1", approval.KindHost, "Allow registry.example for profile my-app?")
 	pending.Scope = "host egress registry.example"

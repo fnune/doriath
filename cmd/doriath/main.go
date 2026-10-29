@@ -75,6 +75,7 @@ Setup:
 
 Inside a jail:
   doriath status
+  doriath describe TEXT
   doriath request write PATH [--reason TEXT]
   doriath request read PATH [--reason TEXT]
   doriath request module MODULE PATH [--reason TEXT]
@@ -134,6 +135,8 @@ func run(args []string) int {
 		err = cmdClean(args[1:], os.Stdin, os.Stdout)
 	case "restore":
 		err = cmdRestore(args[1:], os.Stdout)
+	case "describe":
+		err = cmdDescribe(args[1:])
 	case "request":
 		err = cmdRequest(args[1:], os.Stdout)
 	case "__agent-command":

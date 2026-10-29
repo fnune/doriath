@@ -29,7 +29,7 @@
       <div><h1>Doriath</h1><small>{{.Count}}</small></div>
     </a>
     <div class="sessions">
-      {{range .Sessions}}<span class="who" title="{{.Cwd}}">{{template "profile" .}}<span class="sid">{{.ID}}</span></span>{{end}}
+      {{range .Sessions}}<span class="who" title="{{.Cwd}}">{{template "profile" .}}<span class="sid">{{.ID}}</span>{{template "described" .}}</span>{{end}}
     </div>
   </div>
 </header>
@@ -160,6 +160,8 @@
 {{end}}
 {{end}}
 
+{{define "described"}}{{with .Description}}<span class="described" title="Written by the agent, not by doriath">“{{.}}”</span>{{end}}{{end}}
+
 {{define "profile"}}<span class="profile {{.Hue}}">{{.Profile}}</span>{{end}}
 
 {{define "detail"}}
@@ -204,7 +206,7 @@
 {{end}}
 <dl class="facts">
   <dt>Session</dt>
-  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span><span class="sid">{{.Session.Cwd}}</span></dd>
+  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span>{{template "described" .Session}}<span class="sid">{{.Session.Cwd}}</span></dd>
   {{with .History}}<dt>Before</dt><dd>{{.}}</dd>{{end}}
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
   {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}

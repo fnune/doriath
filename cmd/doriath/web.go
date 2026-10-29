@@ -305,7 +305,7 @@ func (l liveApprovals) Sessions(ctx context.Context) ([]web.Session, error) {
 		if err := control.Call(ctx, s.control, session.MethodList, struct{}{}, &reqs); err != nil {
 			continue
 		}
-		out = append(out, web.Session{ID: s.info.ID, Profile: s.info.Profile, Cwd: s.info.Cwd, Requests: reqs})
+		out = append(out, web.Session{ID: s.info.ID, Profile: s.info.Profile, Cwd: s.info.Cwd, Description: s.info.Description, Requests: reqs})
 	}
 	return out, nil
 }

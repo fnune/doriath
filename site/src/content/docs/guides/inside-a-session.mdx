@@ -5,7 +5,7 @@ description: Run commands in a jail, reach its ports, and read what it did.
 
 The agent can start a server in the jail, for example a development server on port 3000. Only programs in the jail can connect to it. To use it from the host, run `doriath exec` or `doriath forward` in another terminal. The agent can also ask you to forward the port.
 
-If more than one session runs, add `--session ID` to these commands. `doriath status` lists the sessions and their IDs.
+If more than one session runs, add `--session ID` to these commands. `doriath status` lists the sessions and their IDs, with the description that each agent gave its task through [`doriath describe`](/reference/commands/#doriath-describe).
 
 ## Run a command in the jail
 
