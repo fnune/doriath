@@ -412,10 +412,11 @@ Set `required = true` to stop the session when the secret fails. The secret of `
 
 ## Mounts
 
-Two placeholders resolve when a session starts, so one profile can serve many projects:
+These placeholders resolve when doriath loads a profile, so one profile can serve many projects and machines:
 
 - `{current}` is the folder where `doriath run` starts, or the folder of `--current DIR`.
 - `{repository}` is the root of the git or jj repository that holds `{current}`. Outside a repository, doriath skips the entries with `{repository}`.
+- `{user}` is your login name, anywhere in a path. Some programs name a directory in `/tmp` after it. If doriath cannot find your login name, it skips the entries with `{user}`.
 
 doriath and modules add these entries:
 

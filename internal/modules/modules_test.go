@@ -462,3 +462,22 @@ func TestTheClaudeModuleRefusesUsageEventsButFetchesFeatureFlags(t *testing.T) {
 		t.Error("DISABLE_TELEMETRY is set, so Claude Code fetches no feature flags and leaves out the LSP tool")
 	}
 }
+
+func TestTheClaudeModuleShowsTheChromeBridgeOfYourUser(t *testing.T) {
+	load := func(user string) *profile.Profile {
+		l := &profile.Loader{Profiles: fstest.MapFS{"c.toml": {Data: []byte(`modules = ["claude"]`)}}, Modules: []fs.FS{FS}, Home: "/home/u", User: user}
+		p, err := l.Load("c")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	bridge := func(m profile.Mount) bool { return strings.HasPrefix(m.Path, "/tmp/claude-mcp-browser-bridge-") }
+	i := slices.IndexFunc(load("u").Mounts, bridge)
+	if i < 0 || load("u").Mounts[i].Path != "/tmp/claude-mcp-browser-bridge-u" || load("u").Mounts[i].Mode != profile.ModeRead {
+		t.Errorf("mounts %+v, want /tmp/claude-mcp-browser-bridge-u read-only", load("u").Mounts)
+	}
+	if slices.ContainsFunc(load("").Mounts, bridge) {
+		t.Error("without a known user, the bridge mount must be skipped")
+	}
+}

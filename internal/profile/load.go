@@ -27,13 +27,14 @@ import (
 // repository. Private holds the paths that a repository profile cannot
 // mount, such as doriath's own state, besides the refuse lists of the
 // modules. Builtins name the modules that every profile loads before its
-// own layers.
+// own layers. User is your login name, which fills {user} in paths.
 type Loader struct {
 	Profiles       fs.FS
 	Modules        []fs.FS
 	Repository     fs.FS
 	RepositoryRoot string
 	Home           string
+	User           string
 	Private        []string
 	Builtins       []string
 }
@@ -174,6 +175,7 @@ func (l *Loader) Load(name string) (*Profile, error) {
 	}
 
 	b := newBuilder(l.Home)
+	b.user = l.User
 	b.private = l.Private
 	b.apply(defaults)
 	for _, ly := range layers {
@@ -363,6 +365,7 @@ func (l *Loader) repoProfileData(name string) ([]byte, error) {
 
 type builder struct {
 	home        string
+	user        string
 	private     []string
 	refuse      []string
 	warn        []warnLayer
@@ -900,6 +903,9 @@ func (b *builder) build(top layer) (*Profile, error) {
 			}
 			continue
 		}
+		if strings.Contains(m.Path, User) && b.user == "" {
+			continue
+		}
 		path, placeholder := placeholderPath(m.Path)
 		if !placeholder {
 			var err error
@@ -1432,6 +1438,12 @@ func (b *builder) buildClaude() Claude {
 }
 
 func (b *builder) expand(p string) (string, error) {
+	if strings.Contains(p, User) {
+		if b.user == "" {
+			return "", fmt.Errorf("path %q: %s is unknown", p, User)
+		}
+		p = strings.ReplaceAll(p, User, b.user)
+	}
 	switch {
 	case p == "~":
 		p = b.home

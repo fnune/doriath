@@ -47,6 +47,10 @@ path = "~/.claude/chrome"
 missing = "skip"
 
 [[mounts]]
+path = "/tmp/claude-mcp-browser-bridge-{user}"
+missing = "skip"
+
+[[mounts]]
 path = "{repository}/.claude/worktrees"
 mode = "write"
 

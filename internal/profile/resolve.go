@@ -14,6 +14,9 @@ const (
 	// Repository is the root of the git or jj repository that holds
 	// {current}. Entries that use it are skipped outside a repository.
 	Repository = "{repository}"
+	// User is your login name. Programs that name a shared directory
+	// after it, such as /tmp/claude-mcp-browser-bridge-{user}, need it.
+	User = "{user}"
 )
 
 func placeholderPath(p string) (string, bool) {

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -215,9 +216,18 @@ func loader(p config.Paths, dir string) *profile.Loader {
 		Repository:     profiles,
 		RepositoryRoot: root,
 		Home:           p.Home,
+		User:           loginName(),
 		Private:        p.Private(),
 		Builtins:       modules.Builtins,
 	}
+}
+
+func loginName() string {
+	u, err := user.Current()
+	if err != nil {
+		return ""
+	}
+	return u.Username
 }
 
 func workingDir() string {

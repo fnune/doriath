@@ -42,6 +42,12 @@ allow = ["mcp-proxy.anthropic.com"]
 
 Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `claude` module refuses while connectors are off. To find the name and URL of each connector, run `/mcp` in a session outside doriath.
 
+## Claude in Chrome
+
+Claude in Chrome works in the jail with no change to the profile. Chrome starts a native host outside the jail, which puts a socket in `/tmp/claude-mcp-browser-bridge-<user>`. The `claude` module shows that directory read-only, so Claude in the jail connects to the socket. Open Chrome before the session starts, because doriath skips the directory if it does not exist yet.
+
+The browser runs outside the jail, with your sign-ins, and its requests do not go through the proxy. The `claude` module makes `javascript_tool` and `file_upload` ask first. The other Chrome tools, such as navigation and clicks, do not ask. To make them ask, add them to `ask`, or turn Chrome off with `/chrome` in the session.
+
 ## Remote Control
 
 To continue a session from claude.ai or the Claude app, start `claude --remote-control` or run `/remote-control`. Remote Control uses the claude.ai login of the profile. Remote Control needs Claude's feature flags, which the `claude` module keeps, as [Telemetry](#telemetry) explains.
