@@ -58,7 +58,7 @@ A request with a warning from doriath offers only Allow once and Deny, also for 
 
 ## Desktop notifications
 
-On a machine with a desktop session, each request shows as a notification, through `[approvals] desktop = true` in `config.toml`. The notification has the same answers as buttons as the [approvals page](#the-approvals-page). While the page runs, a click on the notification itself opens the page at that request. Without a desktop session, doriath turns notifications off and tells you, as [remote hosts](#remote-hosts) describes.
+On a machine with a desktop session, each request shows as a notification, through `[desktop] notifications = true` in `config.toml`. The notification has the same answers as buttons as the [approvals page](#the-approvals-page). While the page runs, a click on the notification itself opens the page at that request. Without a desktop session, doriath turns notifications off and tells you, as [remote hosts](#remote-hosts) describes.
 
 ## The approvals page
 
@@ -70,7 +70,13 @@ The page shows the requests of all running sessions and the answers of the last 
 
 `doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests.
 
-To run the page as a systemd user service, set `programs.doriath.approvals.web.enable = true` in [home-manager](/guides/home-manager/#the-module). Without the service, start it with `doriath web`.
+The [home-manager](/guides/home-manager/#the-module) module runs the page as a systemd user service. To turn the service off, set `programs.doriath.desktop.web.enable = false`. Without the service, start the page with `doriath web`.
+
+## The tray icon
+
+While the page runs, its icon shows in the status area of your desktop. A dot marks the icon while requests wait for an answer. A click opens the page. The icon shows on desktops that support the StatusNotifierItem protocol, such as KDE Plasma, waybar, Xfce and LXQt. GNOME needs the AppIndicator extension.
+
+To turn the icon off, set `[desktop] tray = false` in `config.toml`, or `programs.doriath.desktop.tray = false` in home-manager.
 
 ## The terminal
 

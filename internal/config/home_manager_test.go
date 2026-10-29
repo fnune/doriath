@@ -17,11 +17,12 @@ func TestHomeManagerConfig(t *testing.T) {
 		t.Skip("run through the home-manager-module flake check")
 	}
 	defaults := User{
-		Approvals: Approvals{Desktop: true, ToolWait: time.Minute},
+		Approvals: Approvals{ToolWait: time.Minute},
+		Desktop:   Desktop{Notifications: true, Tray: true},
 		Terminal:  Terminal{Title: true, Bar: true},
 	}
 	headless := defaults
-	headless.Approvals.Desktop = false
+	headless.Desktop = Desktop{}
 	hostWait := 30 * time.Second
 	configured := User{
 		Approvals: Approvals{HostWait: &hostWait, ToolWait: 90 * time.Second},
@@ -45,8 +46,8 @@ func TestHomeManagerConfig(t *testing.T) {
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %+v, want %+v", got, want)
 			}
-			if got.Approvals.DefaultHostWait() != want.Approvals.DefaultHostWait() {
-				t.Fatalf("host wait: got %s, want %s", got.Approvals.DefaultHostWait(), want.Approvals.DefaultHostWait())
+			if got.DefaultHostWait() != want.DefaultHostWait() {
+				t.Fatalf("host wait: got %s, want %s", got.DefaultHostWait(), want.DefaultHostWait())
 			}
 		})
 	}

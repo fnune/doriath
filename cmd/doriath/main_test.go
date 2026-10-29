@@ -60,16 +60,16 @@ func (desktopNotifier) Notify(context.Context, approval.Request, func(approval.D
 func TestHostWaitHoldsRequestsOnlyWhereSomeoneSeesThem(t *testing.T) {
 	five := 5 * time.Second
 	for name, tc := range map[string]struct {
-		approvals config.Approvals
-		notifier  approval.Notifier
-		want      time.Duration
+		user     config.User
+		notifier approval.Notifier
+		want     time.Duration
 	}{
-		"no notifications":             {config.Approvals{Desktop: true}, notify.None{}, 0},
-		"no notifications, configured": {config.Approvals{HostWait: &five}, notify.None{}, five},
-		"desktop notifications":        {config.Approvals{Desktop: true}, desktopNotifier{}, 2 * time.Minute},
-		"desktop, configured":          {config.Approvals{Desktop: true, HostWait: &five}, desktopNotifier{}, five},
+		"no notifications":             {config.User{Desktop: config.Desktop{Notifications: true}}, notify.None{}, 0},
+		"no notifications, configured": {config.User{Approvals: config.Approvals{HostWait: &five}}, notify.None{}, five},
+		"desktop notifications":        {config.User{Desktop: config.Desktop{Notifications: true}}, desktopNotifier{}, 2 * time.Minute},
+		"desktop, configured":          {config.User{Approvals: config.Approvals{HostWait: &five}, Desktop: config.Desktop{Notifications: true}}, desktopNotifier{}, five},
 	} {
-		if got := hostWait(tc.approvals, tc.notifier); got != tc.want {
+		if got := hostWait(tc.user, tc.notifier); got != tc.want {
 			t.Errorf("%s: host wait = %v, want %v", name, got, tc.want)
 		}
 	}

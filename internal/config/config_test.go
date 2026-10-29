@@ -47,7 +47,7 @@ func TestLoadUser(t *testing.T) {
 	}
 
 	u, err := LoadUser(filepath.Join(dir, "missing.toml"))
-	if err != nil || !u.Approvals.Desktop || !u.Terminal.Title || !u.Terminal.Bar {
+	if err != nil || !u.Desktop.Notifications || !u.Desktop.Tray || !u.Terminal.Title || !u.Terminal.Bar {
 		t.Fatalf("missing file: %+v, %v", u, err)
 	}
 
@@ -71,10 +71,21 @@ func TestLoadUser(t *testing.T) {
 		t.Fatalf("err = %v, want a variable name", err)
 	}
 
-	write("[approvals]\ndesktop = false\n")
+	write("[desktop]\nnotifications = false\n")
 	u, err = LoadUser(path)
-	if err != nil || u.Approvals.Desktop {
-		t.Fatalf("desktop should be false: %+v, %v", u, err)
+	if err != nil || u.Desktop.Notifications || !u.Desktop.Tray {
+		t.Fatalf("notifications should be false: %+v, %v", u, err)
+	}
+
+	write("[desktop]\ntray = false\n")
+	u, err = LoadUser(path)
+	if err != nil || u.Desktop.Tray || !u.Desktop.Notifications {
+		t.Fatalf("tray should be false: %+v, %v", u, err)
+	}
+
+	write("[approvals]\ndesktop = false\n")
+	if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "desktop.notifications") {
+		t.Fatalf("err = %v, want the new key named", err)
 	}
 
 	write("[secrets.x]\nfile = \"~/token\"\n")
@@ -104,16 +115,16 @@ func TestHostWait(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	for content, want := range map[string]time.Duration{
 		"":                                   2 * time.Minute,
-		"[approvals]\ndesktop = false\n":     0,
+		"[desktop]\nnotifications = false\n": 0,
 		"[approvals]\nhost_wait = \"30s\"\n": 30 * time.Second,
-		"[approvals]\ndesktop = false\nhost_wait = \"1h\"\n": time.Hour,
+		"[desktop]\nnotifications = false\n[approvals]\nhost_wait = \"1h\"\n": time.Hour,
 	} {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		u, err := LoadUser(path)
-		if err != nil || u.Approvals.DefaultHostWait() != want {
-			t.Errorf("%q: wait %v, %v; want %v", content, u.Approvals.DefaultHostWait(), err, want)
+		if err != nil || u.DefaultHostWait() != want {
+			t.Errorf("%q: wait %v, %v; want %v", content, u.DefaultHostWait(), err, want)
 		}
 	}
 	for _, bad := range []string{"soon", "-1s", "2h"} {

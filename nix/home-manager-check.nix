@@ -27,10 +27,10 @@ let
 
   home = homeWith {
     enable = true;
-    approvals.desktop = false;
+    desktop.notifications = false;
+    desktop.tray = false;
     approvals.host_wait = "30s";
     approvals.tool_wait = "90s";
-    approvals.web.enable = true;
     terminal.title = false;
     terminal.bar = false;
     terminal.env.HERDR_AGENT = "{command}";
@@ -119,7 +119,8 @@ let
     defaults = homeWith { enable = true; };
     headless = homeWith {
       enable = true;
-      approvals.desktop = false;
+      desktop.notifications = false;
+      desktop.web.enable = false;
     };
     configured = home;
     zero-wait = homeWith {
@@ -167,6 +168,13 @@ let
       oauth.mcp = "https://mcp.team.example/mcp";
     }
   ];
+  trayWithoutPage = homeWith {
+    enable = true;
+    desktop.web.enable = false;
+    desktop.tray = true;
+  };
+  trayWithoutPageFails = !(builtins.tryEval trayWithoutPage.activationPackage.drvPath).success;
+
   invalidSecretsFail = builtins.all (
     secret:
     let
@@ -179,6 +187,7 @@ let
   ) invalidSecrets;
 in
 assert builtins.isString home.activationPackage.drvPath;
+assert lib.assertMsg trayWithoutPageFails "desktop.tray needs desktop.web.enable";
 assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of file, command or oauth";
 pkgs.runCommand "doriath-home-manager-module"
   {
@@ -188,6 +197,7 @@ pkgs.runCommand "doriath-home-manager-module"
       pkgs.gnugrep
     ];
     homeFiles = home.config.home-files;
+    defaultFiles = userConfigs.defaults.config.home-files;
     inherit configCheck;
     hello = "${lib.getBin pkgs.hello}/bin";
   }
@@ -222,6 +232,8 @@ pkgs.runCommand "doriath-home-manager-module"
     done
     grep -q 'completion zsh' $homeFiles/.zshrc || { echo "no completion in .zshrc"; exit 1; }
     grep -q ' web --listen 127.0.0.1:7341' $homeFiles/.config/systemd/user/doriath-web.service || { echo "no approvals page service"; exit 1; }
+    grep -q 'WantedBy=default.target' $homeFiles/.config/systemd/user/doriath-web.service || { echo "without the tray, the page starts with the user manager"; exit 1; }
+    grep -q 'WantedBy=graphical-session.target' $defaultFiles/.config/systemd/user/doriath-web.service || { echo "the tray starts the page with the graphical session"; exit 1; }
 
     touch $out
   ''

@@ -57,6 +57,10 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	if err := web.Loopback(*listen); err != nil {
 		return fmt.Errorf("web: %w", err)
 	}
+	user, err := config.LoadUser(p.UserConfig())
+	if err != nil {
+		return fmt.Errorf("web: %w", err)
+	}
 	token, err := webToken(p.WebToken())
 	if err != nil {
 		return fmt.Errorf("web: %w", err)
@@ -85,6 +89,9 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	fmt.Fprint(out, "The approvals page is running.\n"+openHint(addr)+"Press Ctrl+C to stop.\n")
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if user.Desktop.Tray {
+		showTray(ctx, liveApprovals{paths: p}, addr, token, out)
+	}
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()

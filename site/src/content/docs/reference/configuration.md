@@ -614,9 +614,15 @@ Containers can bind only what the profile mounts, with the same limits. doriath 
 ## config.toml keys
 
 ```toml
-# Show approvals as desktop notifications with buttons.
+# notifications shows approvals as desktop notifications with buttons.
+#
+# tray shows an icon in the status area of the desktop while doriath web
+# runs. A dot marks it while requests wait, and a click opens the page.
+[desktop]
+notifications = true
+tray = true
+
 [approvals]
-desktop = true
 # How long a held request waits for you before the agent gets an error.
 # The default is 2m with desktop notifications and 0s without them.
 # The maximum is 1h.

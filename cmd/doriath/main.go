@@ -298,7 +298,7 @@ func cmdRun(args []string) (int, error) {
 	clock := realClock{}
 	var notifier approval.Notifier = notify.None{}
 	var informer session.Informer = notify.None{}
-	if user.Approvals.Desktop {
+	if user.Desktop.Notifications {
 		desktop, err := notify.NewDesktop(time.Now)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use `doriath approvals`\n", err)
@@ -333,7 +333,7 @@ func cmdRun(args []string) (int, error) {
 		Podman:      lookPath("podman"),
 		Git:         lookPath("git"),
 		JJ:          lookPath("jj"),
-		HostWait:    hostWait(user.Approvals, notifier),
+		HostWait:    hostWait(user, notifier),
 		ToolWait:    user.Approvals.ToolWait,
 		SystemdRun:  lookPath("systemd-run"),
 		Promote:     promote.Writable,
@@ -472,11 +472,11 @@ func startDirs(current, cwd string) (string, string, error) {
 	return abs, abs, nil
 }
 
-func hostWait(a config.Approvals, n approval.Notifier) time.Duration {
-	if _, none := n.(notify.None); none && a.HostWait == nil {
+func hostWait(u config.User, n approval.Notifier) time.Duration {
+	if _, none := n.(notify.None); none && u.Approvals.HostWait == nil {
 		return 0
 	}
-	return a.DefaultHostWait()
+	return u.DefaultHostWait()
 }
 
 func vcsJailTools(p config.Paths) []vcstools.Tool {

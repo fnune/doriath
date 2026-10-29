@@ -155,7 +155,10 @@ let
   configFile = toml.generate "doriath-config.toml" (
     lib.filterAttrs (_: v: v != { }) {
       approvals = withoutNull {
-        inherit (cfg.approvals) desktop host_wait tool_wait;
+        inherit (cfg.approvals) host_wait tool_wait;
+      };
+      desktop = {
+        inherit (cfg.desktop) notifications tray;
       };
       terminal =
         lib.optionalAttrs (!cfg.terminal.title) { title = false; }
@@ -211,10 +214,34 @@ in
       };
     };
 
-    approvals.desktop = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Show approval requests as desktop notifications with buttons.";
+    desktop = {
+      notifications = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Show approval requests as desktop notifications with buttons.";
+      };
+      web = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Run the approvals page as a systemd user service; `doriath web open` opens it.";
+        };
+        listen = lib.mkOption {
+          type = lib.types.str;
+          default = "127.0.0.1:7341";
+          description = "The loopback HOST:PORT the page serves on.";
+        };
+      };
+      tray = lib.mkOption {
+        type = lib.types.bool;
+        default = cfg.desktop.web.enable;
+        defaultText = lib.literalExpression "config.programs.doriath.desktop.web.enable";
+        description = ''
+          Show an icon in the desktop's status area while the approvals page
+          runs. It marks requests that wait for an answer, and a click opens
+          the page. The service then starts with the graphical session.
+        '';
+      };
     };
 
     approvals.host_wait = lib.mkOption {
@@ -252,15 +279,6 @@ in
       description = "Variables for the process your terminal sees in place of the agent. {command} is the name of the command doriath runs. The jail does not get them.";
     };
 
-    approvals.web = {
-      enable = lib.mkEnableOption "the approvals page as a systemd user service; `doriath web open` opens it";
-      listen = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1:7341";
-        description = "The loopback HOST:PORT the page serves on.";
-      };
-    };
-
     modules = lib.mkOption {
       type = lib.types.attrsOf layerType;
       default = { };
@@ -275,7 +293,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    assertions = lib.flatten (
+    assertions = [
+      {
+        assertion = cfg.desktop.tray -> cfg.desktop.web.enable;
+        message = "programs.doriath.desktop.tray needs desktop.web.enable: a click on the icon opens the approvals page.";
+      }
+    ]
+    ++ lib.flatten (
       lib.mapAttrsToList (
         profile: p:
         lib.mapAttrsToList (name: s: {
@@ -292,13 +316,19 @@ in
 
     home.packages = [ cfg.package ];
 
-    systemd.user.services.doriath-web = lib.mkIf cfg.approvals.web.enable {
-      Unit.Description = "Doriath approvals page";
+    systemd.user.services.doriath-web = lib.mkIf cfg.desktop.web.enable {
+      Unit = {
+        Description = "Doriath approvals page";
+      }
+      // lib.optionalAttrs cfg.desktop.tray {
+        PartOf = [ "graphical-session.target" ];
+        After = [ "graphical-session.target" ];
+      };
       Service = {
-        ExecStart = "${lib.getExe cfg.package} web --listen ${cfg.approvals.web.listen}";
+        ExecStart = "${lib.getExe cfg.package} web --listen ${cfg.desktop.web.listen}";
         Restart = "on-failure";
       };
-      Install.WantedBy = [ "default.target" ];
+      Install.WantedBy = [ (if cfg.desktop.tray then "graphical-session.target" else "default.target") ];
     };
 
     home.file = lib.mkIf cfg.skill.enable (

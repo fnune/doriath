@@ -17,7 +17,7 @@ document.addEventListener("click", async (event) => {
 
 function showWaiting() {
   const waiting = document.getElementById("main")?.hasAttribute("data-waiting");
-  const href = waiting ? "/assets/favicon-waiting.svg" : "/assets/favicon.svg";
+  const href = waiting ? "/ui/icon-waiting.svg" : "/ui/icon.svg";
   const icon = document.getElementById("favicon");
   if (icon.getAttribute("href") !== href) icon.setAttribute("href", href);
 }

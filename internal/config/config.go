@@ -106,7 +106,16 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 // Secrets belong to the profiles that use them.
 type User struct {
 	Approvals Approvals
+	Desktop   Desktop
 	Terminal  Terminal
+}
+
+type Desktop struct {
+	// Notifications shows approval requests with buttons.
+	Notifications bool
+	// Tray shows an icon while doriath web runs, which marks waiting
+	// requests and opens the page.
+	Tray bool
 }
 
 type Terminal struct {
@@ -122,7 +131,6 @@ type Terminal struct {
 }
 
 type Approvals struct {
-	Desktop bool
 	// HostWait is how long a request doriath refused waits for your
 	// decision before the agent gets an error. Nil means the default.
 	HostWait *time.Duration
@@ -133,11 +141,11 @@ type Approvals struct {
 
 // DefaultHostWait holds requests while desktop notifications can show them,
 // and not at all without them, where nobody sees the request in time.
-func (a Approvals) DefaultHostWait() time.Duration {
+func (u User) DefaultHostWait() time.Duration {
 	switch {
-	case a.HostWait != nil:
-		return *a.HostWait
-	case a.Desktop:
+	case u.Approvals.HostWait != nil:
+		return *u.Approvals.HostWait
+	case u.Desktop.Notifications:
 		return 2 * time.Minute
 	}
 	return 0
@@ -145,10 +153,13 @@ func (a Approvals) DefaultHostWait() time.Duration {
 
 type userFile struct {
 	Approvals struct {
-		Desktop  *bool   `toml:"desktop"`
 		HostWait *string `toml:"host_wait"`
 		ToolWait *string `toml:"tool_wait"`
 	} `toml:"approvals"`
+	Desktop struct {
+		Notifications *bool `toml:"notifications"`
+		Tray          *bool `toml:"tray"`
+	} `toml:"desktop"`
 	Terminal struct {
 		Title *bool             `toml:"title"`
 		Bar   *bool             `toml:"bar"`
@@ -160,7 +171,11 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
-	u := User{Approvals: Approvals{Desktop: true, ToolWait: time.Minute}, Terminal: Terminal{Title: true, Bar: true}}
+	u := User{
+		Approvals: Approvals{ToolWait: time.Minute},
+		Desktop:   Desktop{Notifications: true, Tray: true},
+		Terminal:  Terminal{Title: true, Bar: true},
+	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return u, nil
@@ -173,6 +188,9 @@ func LoadUser(path string) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("%s: %w", path, err)
 	}
+	if md.IsDefined("approvals", "desktop") {
+		return User{}, fmt.Errorf("%s: approvals.desktop is now desktop.notifications", path)
+	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
 		keys := make([]string, len(undecoded))
 		for i, k := range undecoded {
@@ -180,8 +198,11 @@ func LoadUser(path string) (User, error) {
 		}
 		return User{}, fmt.Errorf("%s: unknown keys: %s", path, strings.Join(keys, ", "))
 	}
-	if f.Approvals.Desktop != nil {
-		u.Approvals.Desktop = *f.Approvals.Desktop
+	if f.Desktop.Notifications != nil {
+		u.Desktop.Notifications = *f.Desktop.Notifications
+	}
+	if f.Desktop.Tray != nil {
+		u.Desktop.Tray = *f.Desktop.Tray
 	}
 	if f.Terminal.Title != nil {
 		u.Terminal.Title = *f.Terminal.Title
