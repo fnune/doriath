@@ -23,3 +23,7 @@ function showWaiting() {
 }
 document.addEventListener("DOMContentLoaded", showWaiting);
 document.addEventListener("htmx:afterSettle", showWaiting);
+
+const pageTabs = new BroadcastChannel("doriath-page");
+pageTabs.addEventListener("message", () => window.close());
+pageTabs.postMessage("opened");

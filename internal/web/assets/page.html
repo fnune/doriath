@@ -24,7 +24,7 @@
 <input type="hidden" id="selected" name="request" value="{{with .Selected}}{{.Key}}{{else}}{{with .Answer}}{{.Key}}{{end}}{{end}}">
 <header>
   <div class="wrap">
-    <a class="brand" href="/" hx-get="/main" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/" title="Status">
+    <a class="brand" href="/" hx-get="/main" hx-target="#main" hx-swap="morph:outerHTML" hx-replace-url="/" title="Status">
       <svg width="38" height="38" aria-hidden="true"><use href="/ui/ornaments.svg#mark"/></svg>
       <div><h1>Doriath</h1><small>{{.Count}}</small></div>
     </a>
@@ -40,7 +40,7 @@
       <h2 class="section-title">At the gate</h2>
       <nav class="list" aria-label="Waiting requests">
         {{range .Pending}}
-        <a class="item" id="item-{{.Key}}" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
+        <a class="item" id="item-{{.Key}}" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-replace-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
           <span class="sum">{{.Summary}}</span>
           <span class="timer {{.Pace}}">{{.Timer}}</span>
           <span class="who">{{template "profile" .Session}}{{if .Warning}}<span class="warned">warning</span>{{end}}</span>
@@ -53,7 +53,7 @@
       <h2 class="section-title">Answered</h2>
       <div class="list done">
         {{range .Answered}}
-        <a class="item" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-push-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
+        <a class="item" href="/?request={{.Key}}" hx-get="/main?request={{.Key}}" hx-target="#main" hx-swap="morph:outerHTML" hx-replace-url="/?request={{.Key}}"{{if .Selected}} aria-current="true"{{end}}>
           <span class="sum">{{.Summary}}</span>
           <span class="verdict {{.Verdict}}"{{with .By}} title="Answered {{.}}"{{end}}>{{.Label}}</span>
           <span class="who">{{template "profile" .Profile}}<span class="dot">·</span><span>{{.Ago}}</span></span>

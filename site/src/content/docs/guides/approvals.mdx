@@ -70,6 +70,8 @@ The page shows the requests of all running sessions and the answers of the last 
 
 `doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests.
 
+Each open shows the page in a new tab, and the page then closes its older tabs. The browser lets a page close only a tab that has not gone to another page, so such a tab stays open.
+
 The [home-manager](/guides/home-manager/#the-module) module runs the page as a systemd user service. To turn the service off, set `programs.doriath.desktop.web.enable = false`. Without the service, start the page with `doriath web`.
 
 ## The tray icon

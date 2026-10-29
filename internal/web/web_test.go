@@ -519,6 +519,18 @@ func TestThePageScriptIsServed(t *testing.T) {
 	}
 }
 
+func TestSelectingARequestAddsNoHistorySoANewerTabCanCloseThisOne(t *testing.T) {
+	_, h := setup(t, request("a1", approval.KindHost, "Allow registry.example?"))
+	page := get(h, "/", true).Body.String()
+	if !strings.Contains(page, `hx-replace-url="/?request=`) || strings.Contains(page, "hx-push-url") {
+		t.Errorf("selecting a request must replace the URL: browsers let a script close only a tab with one history entry")
+	}
+	script := get(h, "/assets/page.js", false).Body.String()
+	if !strings.Contains(script, `new BroadcastChannel("doriath-page")`) || !strings.Contains(script, "window.close()") {
+		t.Errorf("the page does not close its older tabs: %s", script)
+	}
+}
+
 func TestACardSaysHowYouAnsweredTheSameRequestBefore(t *testing.T) {
 	pending := request("a1", approval.KindHost, "Allow registry.example for profile my-app?")
 	pending.Scope = "host egress registry.example"
