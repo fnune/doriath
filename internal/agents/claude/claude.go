@@ -34,7 +34,7 @@ func (Adapter) Matches(argv []string) bool {
 }
 
 var seeded = []string{
-	"hasCompletedOnboarding", "lastOnboardingVersion", "lastReleaseNotesSeen",
+	"hasCompletedOnboarding", "lastOnboardingVersion", "lastReleaseNotesSeen", "claudeInChromeDefaultEnabled", "cachedChromeExtensionInstalled",
 	"hasSeenTasksHint", "hasShownOpus45Notice", "hasShownOpus46Notice", "effortCalloutV2Dismissed",
 	"migrationVersion", "opus45MigrationComplete", "opusProMigrationComplete",
 	"sonnet45MigrationComplete", "sonnet1m45MigrationComplete", "thinkingMigrationComplete",

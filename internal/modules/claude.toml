@@ -3,9 +3,9 @@ description = "Claude Code, with its own login, your settings read-only and clau
 set = { DISABLE_AUTOUPDATER = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
 [egress]
-allow = ["console.anthropic.com", "claude.ai", "platform.claude.com"]
+allow = ["console.anthropic.com", "claude.ai", "platform.claude.com", "bridge.claudeusercontent.com"]
 deny = ["downloads.claude.ai", "mcp-proxy.anthropic.com", "*.datadoghq.com"]
-notes = { "mcp-proxy.anthropic.com" = "Claude Code reaches claude.ai connectors through this host. Connectors reach your accounts through Anthropic, where doriath cannot see the calls.", "downloads.claude.ai" = "Claude Code downloads its updates from this host. A jailed Claude has nothing to update.", "*.datadoghq.com" = "Claude Code sends usage events to Datadog. doriath refuses them, so that Claude can still fetch its feature flags." }
+notes = { "bridge.claudeusercontent.com" = "Claude in Chrome reaches the Chrome extension through this host. The browser then acts with your sign-ins, outside the proxy.", "mcp-proxy.anthropic.com" = "Claude Code reaches claude.ai connectors through this host. Connectors reach your accounts through Anthropic, where doriath cannot see the calls.", "downloads.claude.ai" = "Claude Code downloads its updates from this host. A jailed Claude has nothing to update.", "*.datadoghq.com" = "Claude Code sends usage events to Datadog. doriath refuses them, so that Claude can still fetch its feature flags." }
 
 [[caches]]
 path = "~/.claude"
