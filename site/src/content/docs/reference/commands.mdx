@@ -72,10 +72,10 @@ Allows a request, once, for the session, or for a duration such as `30m`.
 ### `doriath approvals deny`
 
 ```txt frame="none"
-doriath approvals deny ID [--reason TEXT]
+doriath approvals deny ID [--for once|session|DURATION] [--reason TEXT]
 ```
 
-Denies a request. The agent sees the reason.
+Denies a request, once, for the session, or for a duration such as `30m`. A deny for longer than once refuses identical requests without asking you. The agent sees the reason.
 
 ### `doriath secrets provide`
 

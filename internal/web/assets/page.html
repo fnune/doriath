@@ -112,11 +112,17 @@
   <dt>Session</dt>
   <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span></dd>
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
-  {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>An answer for the session covers</dt><dd><code>{{.}}</code></dd>{{end}}
 </dl>
 {{with .Keep}}
 <div class="keep">
   <p class="caption">To allow it in every session, add to profile {{$.Detail.Session.Profile}}:</p>
+  <pre>{{.}}</pre>
+</div>
+{{end}}
+{{with .KeepDeny}}
+<div class="keep">
+  <p class="caption">To deny it in every session, add to profile {{$.Detail.Session.Profile}}:</p>
   <pre>{{.}}</pre>
 </div>
 {{end}}
@@ -209,7 +215,7 @@
   <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span>{{template "described" .Session}}<span class="sid">{{.Session.Cwd}}</span></dd>
   {{with .History}}<dt>Before</dt><dd>{{.}}</dd>{{end}}
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
-  {{with .Scope}}<dt>An allow covers</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>An answer for the session covers</dt><dd><code>{{.}}</code></dd>{{end}}
 </dl>
 {{with .Command}}
 <div class="keep">
@@ -220,6 +226,12 @@
 {{with .Keep}}
 <div class="keep">
   <p class="caption">To keep it after this session, add to profile {{$.Session.Profile}}:</p>
+  <pre>{{.}}</pre>
+</div>
+{{end}}
+{{with .KeepDeny}}
+<div class="keep">
+  <p class="caption">To deny it after this session, add to profile {{$.Session.Profile}}:</p>
   <pre>{{.}}</pre>
 </div>
 {{end}}

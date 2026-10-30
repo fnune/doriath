@@ -30,6 +30,7 @@ const (
 	actionAllowOnce    = "allow-once"
 	actionAllowSession = "allow-session"
 	actionDeny         = "deny"
+	actionDenySession  = "deny-session"
 	actionDefault      = "default"
 )
 
@@ -51,9 +52,10 @@ func Actions(req approval.Request) []string {
 }
 
 var actionFor = map[approval.Answer]string{
-	approval.AnswerOnce:    actionAllowOnce,
-	approval.AnswerSession: actionAllowSession,
-	approval.AnswerDeny:    actionDeny,
+	approval.AnswerOnce:        actionAllowOnce,
+	approval.AnswerSession:     actionAllowSession,
+	approval.AnswerDeny:        actionDeny,
+	approval.AnswerDenySession: actionDenySession,
 }
 
 func safeURL(raw string) bool {
@@ -92,11 +94,14 @@ func Body(req approval.Request, now time.Time) string {
 	if req.Keep != "" {
 		fmt.Fprintf(&b, "To keep it, add to profile %s: <tt>%s</tt>\n", html.EscapeString(req.Profile), html.EscapeString(req.Keep))
 	}
+	if req.KeepDeny != "" {
+		fmt.Fprintf(&b, "To deny it in later sessions, add to profile %s: <tt>%s</tt>\n", html.EscapeString(req.Profile), html.EscapeString(req.KeepDeny))
+	}
 	if safeURL(req.URL) {
 		fmt.Fprintf(&b, "Link: %s\n", html.EscapeString(req.URL))
 	}
 	if req.Scope != "" && req.Offers(approval.AnswerSession) {
-		fmt.Fprintf(&b, "Allow for this session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
+		fmt.Fprintf(&b, "An answer for the session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
 	}
 	fmt.Fprintf(&b, "Profile %s, session %s", html.EscapeString(req.Profile), html.EscapeString(req.Session))
 	if req.SessionDescription != "" {

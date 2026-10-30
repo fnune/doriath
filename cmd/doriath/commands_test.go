@@ -154,7 +154,7 @@ func TestApprovalsListAllowDeny(t *testing.T) {
 	if _, err := approvals(t, "deny", dropID, "--reason", "not today"); err != nil {
 		t.Fatal(err)
 	}
-	if d := receive(t, drop); d.Verdict != approval.VerdictDeny || d.Reason != "not today" || d.By != "cli" {
+	if d := receive(t, drop); d.Verdict != approval.VerdictDeny || d.Lasting != "" || d.Reason != "not today" || d.By != "cli" {
 		t.Errorf("deny = %+v", d)
 	}
 
@@ -171,12 +171,15 @@ func TestApprovalsListAllowDeny(t *testing.T) {
 
 func TestApprovalsAllowFor(t *testing.T) {
 	now := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
-	d, err := allowDecision("30m", now)
+	d, err := lastingDecision(approval.VerdictAllow, "30m", now)
 	if err != nil || d.Lasting != approval.LastingUntil || !d.Until.Equal(now.Add(30*time.Minute)) {
 		t.Errorf("30m = %+v, %v", d, err)
 	}
+	if d, err := lastingDecision(approval.VerdictDeny, "session", now); err != nil || d.Verdict != approval.VerdictDeny || d.Lasting != approval.LastingSession {
+		t.Errorf("deny --for session = %+v, %v", d, err)
+	}
 	for _, bad := range []string{"forever", "profile", "-5m", "0s"} {
-		if _, err := allowDecision(bad, now); err == nil {
+		if _, err := lastingDecision(approval.VerdictAllow, bad, now); err == nil {
 			t.Errorf("--for %s must fail", bad)
 		}
 	}

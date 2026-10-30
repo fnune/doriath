@@ -49,10 +49,11 @@ While an `http` request or a connection to a host the profile does not name wait
 ## Answers
 
 - Allow once lets this request through. The next identical request asks again.
-- Allow for this session lets identical requests through until the session ends. The line "An allow covers" on the request shows what is identical.
-- Deny refuses the request, and the agent gets an error.
+- Allow for this session lets identical requests through until the session ends. The line "An answer for the session covers" on the request shows what is identical.
+- Deny for this session refuses identical requests until the session ends, and doriath does not ask you again. Requests for hosts, paths, reads, forwards and connects offer it.
+- Deny refuses the request, and the agent gets an error. The next identical request asks again.
 
-Hosts and writable paths have no "once", because the first allow opens them for the session. To keep an allow after the session, add the profile lines from the request to the [profile](/reference/configuration/). doriath does not edit profiles, because a profile can come from Nix.
+Hosts and writable paths have no "once", because the first allow opens them for the session. To keep an answer after the session, add the profile lines from the request to the [profile](/reference/configuration/). A request for a host shows the lines for an allow and the lines for a deny. doriath does not edit profiles, because a profile can come from Nix.
 
 A request with a warning from doriath offers only Allow once and Deny, also for a path. doriath adds the warning to a request for a path that your machine runs or reads on its own, as [path lists](/reference/configuration/#path-lists) describes. The warning shows above the agent's text, and in red.
 
@@ -88,7 +89,7 @@ doriath approvals allow ID --for session
 doriath approvals deny ID --reason "use the staging stack"
 ```
 
-`allow --for` takes `once`, `session` or a duration such as `30m`. [Commands](/reference/commands/) lists the flags.
+`allow --for` and `deny --for` take `once`, `session` or a duration such as `30m`. [Commands](/reference/commands/) lists the flags.
 
 ## Remote hosts
 

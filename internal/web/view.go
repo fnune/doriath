@@ -79,6 +79,7 @@ type requestView struct {
 	URL       string
 	Scope     string
 	Keep      string
+	KeepDeny  string
 	Command   string
 	History   string
 	Session   sessionView
@@ -246,6 +247,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		URL:       session.Printable(r.URL),
 		Scope:     session.Printable(r.Scope),
 		Keep:      session.Printable(r.Keep),
+		KeepDeny:  session.Printable(r.KeepDeny),
 		Command:   session.Printable(r.Command),
 		Session:   sv,
 		Buttons:   buttons(r),
@@ -253,7 +255,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		created:   r.Created,
 	}
 	if r.Warning != "" {
-		v.Keep = ""
+		v.Keep, v.KeepDeny = "", ""
 	}
 	if r.Kind == approval.KindSecret {
 		v.Timer, v.Pace, v.Fill = "", "parked", "0%"
@@ -291,9 +293,15 @@ func clock(d time.Duration) string {
 
 func answeredOf(a Answered, now time.Time) answeredView {
 	sv := sessionView{ID: a.Request.Session, Profile: a.Request.Profile, Hue: hue(a.Request.Profile)}
+	detail := requestOf(a.Request, sv, now)
+	if a.Decision.Verdict == approval.VerdictDeny {
+		detail.Keep = ""
+	} else {
+		detail.KeepDeny = ""
+	}
 	return answeredView{
 		Key:     a.Request.Session + "/" + a.Request.ID,
-		Detail:  requestOf(a.Request, sv, now),
+		Detail:  detail,
 		Summary: session.Printable(a.Request.Summary),
 		Kind:    string(a.Request.Kind),
 		Profile: sessionView{Profile: a.Request.Profile, Hue: hue(a.Request.Profile)},
@@ -356,7 +364,7 @@ func buttons(r approval.Request) []buttonView {
 	for i, b := range r.Buttons() {
 		class := "secondary"
 		switch {
-		case b.Answer == approval.AnswerDeny:
+		case b.Answer == approval.AnswerDeny, b.Answer == approval.AnswerDenySession:
 			class = "deny"
 		case i == 0:
 			class = "primary"

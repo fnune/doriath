@@ -70,6 +70,7 @@
 .doriath-ui .btn.primary { background: var(--allow); border-color: var(--allow); color: var(--allow-ink); }
 .doriath-ui .btn.secondary { border-color: var(--allow); color: var(--allow); }
 .doriath-ui .btn.deny { color: var(--deny); margin-left: auto; }
+.doriath-ui .btn.deny + .btn.deny { margin-left: 0; }
 .doriath-ui .btn.deny:hover { background: var(--deny-soft); border-color: var(--deny-soft); }
 .doriath-ui .btn.primary:hover { filter: brightness(1.08); }
 .doriath-ui .btn.secondary:hover { background: color-mix(in srgb, var(--allow) 10%, transparent); }

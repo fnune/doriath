@@ -237,23 +237,27 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdout io.Writer)
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		d := approval.Decision{Verdict: approval.VerdictDeny, By: "cli", Reason: *reason}
-		if sub == "allow" {
-			d, err = allowDecision(*lasting, c.Now())
-			if err != nil {
-				return err
-			}
+		verdict := approval.VerdictAllow
+		if sub == "deny" {
+			verdict = approval.VerdictDeny
 		}
+		d, err := lastingDecision(verdict, *lasting, c.Now())
+		if err != nil {
+			return err
+		}
+		d.Reason = *reason
 		return decide(ctx, p, id, d)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
 }
 
-func allowDecision(lasting string, now time.Time) (approval.Decision, error) {
-	d := approval.Decision{Verdict: approval.VerdictAllow, By: "cli"}
+func lastingDecision(verdict approval.Verdict, lasting string, now time.Time) (approval.Decision, error) {
+	d := approval.Decision{Verdict: verdict, By: "cli"}
 	switch lasting {
 	case "once":
-		d.Lasting = approval.LastingOnce
+		if verdict == approval.VerdictAllow {
+			d.Lasting = approval.LastingOnce
+		}
 	case "session":
 		d.Lasting = approval.LastingSession
 	default:
@@ -326,6 +330,9 @@ func requestText(r approval.Request) string {
 	}
 	if r.Keep != "" {
 		parts = append(parts, fmt.Sprintf("To keep it for later sessions, add to profile %s:\n%s", r.Profile, r.Keep))
+	}
+	if r.KeepDeny != "" {
+		parts = append(parts, fmt.Sprintf("To deny it in later sessions, add to profile %s:\n%s", r.Profile, r.KeepDeny))
 	}
 	return strings.Join(parts, "\n")
 }

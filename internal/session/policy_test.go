@@ -85,6 +85,9 @@ func TestHoldHostAllowsTheHostForTheRestOfTheSession(t *testing.T) {
 	if req.Keep != "[egress]\nallow = [\"drafted.example\"]" {
 		t.Errorf("keep = %q", req.Keep)
 	}
+	if req.KeepDeny != "[egress]\ndeny = [\"drafted.example\"]" {
+		t.Errorf("refuse = %q", req.KeepDeny)
+	}
 }
 
 // A grant answers without the decided callback, so HoldHost itself must
@@ -131,7 +134,7 @@ func TestHoldHostNamesTheRequestThatIsStillPending(t *testing.T) {
 }
 
 func TestEgressLinesQuoteEveryHost(t *testing.T) {
-	got := egressLines([]string{"a.example", `b"c`})
+	got := egressLines("allow", []string{"a.example", `b"c`})
 	want := "[egress]\nallow = [\"a.example\", \"b\\\"c\"]"
 	if got != want {
 		t.Errorf("egressLines =\n%s\nwant\n%s", got, want)

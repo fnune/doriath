@@ -49,9 +49,10 @@ const (
 type Answer string
 
 const (
-	AnswerOnce    Answer = "once"
-	AnswerSession Answer = "session"
-	AnswerDeny    Answer = "deny"
+	AnswerOnce        Answer = "once"
+	AnswerSession     Answer = "session"
+	AnswerDeny        Answer = "deny"
+	AnswerDenySession Answer = "deny-session"
 )
 
 type Button struct {
@@ -59,13 +60,10 @@ type Button struct {
 	Label  string
 }
 
-// Buttons are the answers that a request of the kind offers, each with its
-// label. A host, a write, a read, a forward or a connect stays reachable once allowed,
-// so those offer no allow once. A secret card offers to try the source again.
 func (k Kind) Buttons() []Button {
 	switch k {
 	case KindHost, KindPath, KindRead, KindForward, KindConnect:
-		return []Button{{AnswerSession, "Allow for this session"}, {AnswerDeny, "Deny"}}
+		return []Button{{AnswerSession, "Allow for this session"}, {AnswerDenySession, "Deny for this session"}, {AnswerDeny, "Deny"}}
 	case KindSecret:
 		return []Button{{AnswerOnce, "Try again"}, {AnswerDeny, "Dismiss"}}
 	}
@@ -107,6 +105,8 @@ func (a Answer) Decision(by string) (Decision, bool) {
 		return Decision{Verdict: VerdictAllow, Lasting: LastingSession, By: by}, true
 	case AnswerDeny:
 		return Decision{Verdict: VerdictDeny, By: by}, true
+	case AnswerDenySession:
+		return Decision{Verdict: VerdictDeny, Lasting: LastingSession, By: by}, true
 	}
 	return Decision{}, false
 }
@@ -123,6 +123,10 @@ func (k Kind) Answered(d Decision) string {
 		return "Allowed until " + d.Until.Local().Format("15:04")
 	case d.Verdict == VerdictAllow:
 		return "Allowed for the session"
+	case d.Verdict == VerdictDeny && d.Lasting == LastingSession:
+		return "Denied for the session"
+	case d.Verdict == VerdictDeny && d.Lasting == LastingUntil:
+		return "Denied until " + d.Until.Local().Format("15:04")
 	case d.Verdict == VerdictDeny:
 		return "Denied"
 	}
@@ -147,7 +151,8 @@ type Request struct {
 	SessionDescription string `json:"session_description,omitempty"`
 	// Keep holds the profile lines that would keep an allow after the
 	// session ends.
-	Keep string `json:"keep,omitempty"`
+	Keep     string `json:"keep,omitempty"`
+	KeepDeny string `json:"keep_deny,omitempty"`
 	// Command is what the person can run on the host instead of an answer,
 	// such as the command that gives the session a secret.
 	Command string    `json:"command,omitempty"`
@@ -171,8 +176,6 @@ const (
 	VerdictNone Verdict = "none"
 )
 
-// Lasting says how long an allow decision holds for requests with the same
-// scope.
 type Lasting string
 
 const (
@@ -203,7 +206,16 @@ func (d Decision) Validate() error {
 		}
 		return fmt.Errorf("lasting %q: want once, session or until", d.Lasting)
 	case VerdictDeny:
-		return nil
+		switch d.Lasting {
+		case "", LastingOnce, LastingSession:
+			return nil
+		case LastingUntil:
+			if d.Until.IsZero() {
+				return errors.New("a deny until a time needs the time")
+			}
+			return nil
+		}
+		return fmt.Errorf("lasting %q: want once, session or until", d.Lasting)
 	}
 	return fmt.Errorf("verdict %q: want allow or deny", d.Verdict)
 }
@@ -220,7 +232,6 @@ type Notifier interface {
 	Notify(ctx context.Context, req Request, respond func(Decision)) (withdraw func(), err error)
 }
 
-// ByGrant marks a decision that an earlier allow for the session gave.
 const ByGrant = "grant"
 
 type Recorder interface {
@@ -304,7 +315,10 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
 		if g.forever || now.Before(g.until) {
 			m.mu.Unlock()
-			d := Decision{Verdict: VerdictAllow, Lasting: g.decision.Lasting, Until: g.until, By: ByGrant}
+			d := Decision{Verdict: g.decision.Verdict, Lasting: g.decision.Lasting, Until: g.until, By: ByGrant}
+			if d.Verdict == VerdictDeny {
+				d.Reason = "the user denied it for this session"
+			}
 			m.recorder.Decided(req, d)
 			return d, nil
 		}
@@ -400,7 +414,7 @@ func (m *Manager) Decide(id string, d Decision) error {
 		return fmt.Errorf("request %s comes with a warning, so you can allow it once only", id)
 	}
 	delete(m.pending, id)
-	if d.Verdict == VerdictAllow && p.req.Scope != "" {
+	if p.req.Scope != "" {
 		switch d.Lasting {
 		case LastingSession:
 			m.grants[grantKey(p.req)] = grant{forever: true, decision: d}

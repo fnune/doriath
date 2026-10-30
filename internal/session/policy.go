@@ -137,14 +137,15 @@ func (s *Session) hostSummary(host string) string {
 
 func (s *Session) holdHost(host, details, reason string) (approval.Decision, string) {
 	req := approval.Request{
-		Session: s.id,
-		Profile: s.req.Profile.Name,
-		Kind:    approval.KindHost,
-		Summary: s.hostSummary(host),
-		Details: details,
-		Note:    reason,
-		Keep:    egressLines([]string{host}),
-		Scope:   "host egress " + host,
+		Session:  s.id,
+		Profile:  s.req.Profile.Name,
+		Kind:     approval.KindHost,
+		Summary:  s.hostSummary(host),
+		Details:  details,
+		Note:     reason,
+		Keep:     egressLines("allow", []string{host}),
+		KeepDeny: egressLines("deny", []string{host}),
+		Scope:    "host egress " + host,
 	}
 	d, id := s.manager.Hold(req, pendingTTL, s.deps.HostWait, func(d approval.Decision) {
 		if d.Verdict == approval.VerdictAllow {
@@ -157,12 +158,12 @@ func (s *Session) holdHost(host, details, reason string) (approval.Decision, str
 	return d, id
 }
 
-func egressLines(hosts []string) string {
+func egressLines(list string, hosts []string) string {
 	quoted := make([]string, len(hosts))
 	for i, h := range hosts {
 		quoted[i] = strconv.Quote(h)
 	}
-	return fmt.Sprintf("[egress]\nallow = [%s]", strings.Join(quoted, ", "))
+	return fmt.Sprintf("[egress]\n%s = [%s]", list, strings.Join(quoted, ", "))
 }
 
 func publicAddr(ip netip.Addr) bool {

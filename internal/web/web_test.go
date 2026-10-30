@@ -467,6 +467,39 @@ func TestAnAnsweredRequestOpensWithWhatToAddToTheProfile(t *testing.T) {
 	}
 }
 
+func TestAHostCanBeDeniedForTheSession(t *testing.T) {
+	req := request("h1", approval.KindHost, "Allow edgedl.me.gvt1.com?")
+	req.KeepDeny = "[egress]\ndeny = [\"edgedl.me.gvt1.com\"]"
+	sessions, h := setup(t, req)
+	body := get(h, "/?request=s1/h1", true).Body.String()
+	for _, want := range []string{`value="deny-session">Deny for this session</button>`, "To deny it after this session, add to profile", `deny = [&#34;edgedl.me.gvt1.com&#34;]`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if w := post(h, url.Values{"session": {"s1"}, "id": {"h1"}, "answer": {"deny-session"}}, "http://"+testAddr, false); w.Code >= 400 {
+		t.Fatalf("deny for the session: status %d", w.Code)
+	}
+	if len(sessions.decided) != 1 || sessions.decided[0].decision.Verdict != approval.VerdictDeny || sessions.decided[0].decision.Lasting != approval.LastingSession {
+		t.Errorf("decided %+v", sessions.decided)
+	}
+}
+
+func TestAnAnsweredDenyOpensWithTheLinesToDenyIt(t *testing.T) {
+	req := request("h1", approval.KindHost, "Allow edgedl.me.gvt1.com?")
+	req.Keep = "[egress]\nallow = [\"edgedl.me.gvt1.com\"]"
+	req.KeepDeny = "[egress]\ndeny = [\"edgedl.me.gvt1.com\"]"
+	history := fakeHistory{{Time: testNow.Add(-time.Minute), Request: req, Decision: approval.Decision{Verdict: approval.VerdictDeny, Lasting: approval.LastingSession, By: "web"}}}
+	srv, err := New(&fakeSessions{}, history, &fakeChecks{}, fixedClock{}, testToken, testAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := get(srv.Handler(), "/?request=s1/h1", true).Body.String()
+	if !strings.Contains(body, "Denied for the session") || !strings.Contains(body, "To deny it in every session") || strings.Contains(body, "To allow it in every session") {
+		t.Errorf("page:\n%s", body)
+	}
+}
+
 func TestACodeLinkOpensItsRequest(t *testing.T) {
 	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app"}}}
 	srv, err := New(sessions, fakeHistory{}, &fakeChecks{}, fixedClock{}, testToken, testAddr)

@@ -938,7 +938,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		for _, prog := range slices.Sorted(maps.Keys(by)) {
 			text += fmt.Sprintf("\n%s: %s", PrintableLine(prog), PrintableLine(strings.Join(by[prog], " ")))
 		}
-		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines(learned)
+		text += "\nTo allow them, add to profile " + s.req.Profile.Name + ", or under [[egress.programs]] for one program only:\n" + egressLines("allow", learned)
 		end.network = append(end.network, note{term.Info, text})
 	}
 	end.print(t, "doriath log --session "+s.id, s.req.Profile.Name, "session "+s.id+" ended")

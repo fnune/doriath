@@ -388,7 +388,7 @@ func decision(req approval.Request, answer string) (approval.Decision, error) {
 	a := approval.Answer(answer)
 	d, ok := a.Decision("web")
 	if !ok {
-		return approval.Decision{}, fmt.Errorf("answer %q: want once, session or deny", answer)
+		return approval.Decision{}, fmt.Errorf("answer %q: want once, session, deny or deny-session", answer)
 	}
 	if !req.Offers(a) {
 		return approval.Decision{}, fmt.Errorf("this %s request has no %s answer", req.Kind, answer)

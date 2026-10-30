@@ -234,6 +234,8 @@ func TestValidate(t *testing.T) {
 		{Verdict: "maybe"},
 		{Verdict: VerdictAllow},
 		{Verdict: VerdictAllow, Lasting: LastingUntil},
+		{Verdict: VerdictDeny, Lasting: LastingUntil},
+		{Verdict: VerdictDeny, Lasting: "forever"},
 	}
 	for _, d := range bad {
 		if d.Validate() == nil {
@@ -335,6 +337,14 @@ func TestEveryButtonOfAKindMeansADecision(t *testing.T) {
 	}
 	if KindHost.Offers(AnswerOnce) || KindPath.Offers(AnswerOnce) || KindRead.Offers(AnswerOnce) || KindForward.Offers(AnswerOnce) || KindConnect.Offers(AnswerOnce) {
 		t.Error("a request that stays reachable once allowed offers allow once")
+	}
+	for _, kind := range []Kind{KindHost, KindPath, KindRead, KindForward, KindConnect} {
+		if !kind.Offers(AnswerDenySession) {
+			t.Errorf("%s offers an allow for the session, so it must offer a deny for the session", kind)
+		}
+	}
+	if got := KindHost.Answered(Decision{Verdict: VerdictDeny, Lasting: LastingSession}); got != "Denied for the session" {
+		t.Errorf("deny for the session answered = %q", got)
 	}
 	if got := KindSecret.Answered(Decision{Verdict: VerdictAllow}); got != "Tried again" {
 		t.Errorf("secret answered = %q", got)

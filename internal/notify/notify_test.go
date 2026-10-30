@@ -56,12 +56,20 @@ func TestActionsAndBody(t *testing.T) {
 
 func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
 	for kind, want := range map[approval.Kind][]string{
-		approval.KindHost: {"allow-session", "Allow for this session", "deny", "Deny"},
-		approval.KindPath: {"allow-session", "Allow for this session", "deny", "Deny"},
+		approval.KindHost: {"allow-session", "Allow for this session", "deny-session", "Deny for this session", "deny", "Deny"},
+		approval.KindPath: {"allow-session", "Allow for this session", "deny-session", "Deny for this session", "deny", "Deny"},
 	} {
 		if got := Actions(approval.Request{Kind: kind, URL: "https://example.com"}); !slices.Equal(got, want) {
 			t.Errorf("%s: actions = %v, want %v", kind, got, want)
 		}
+	}
+}
+
+func TestAHostBodyShowsTheLinesToDenyIt(t *testing.T) {
+	req := approval.Request{Kind: approval.KindHost, Profile: "p", Scope: "host egress a.example", KeepDeny: "[egress]\ndeny = [\"a.example\"]"}
+	body := Body(req, time.Unix(0, 0))
+	if !strings.Contains(body, "To deny it in later sessions, add to profile p: <tt>[egress]\ndeny = [&#34;a.example&#34;]</tt>") || !strings.Contains(body, "An answer for the session covers") {
+		t.Errorf("body = %q", body)
 	}
 }
 
