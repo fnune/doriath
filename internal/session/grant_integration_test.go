@@ -126,6 +126,44 @@ echo done
 	}
 }
 
+func TestAWriteRequestOfAProjectKeepsTheMountsInside(t *testing.T) {
+	e := newEnv(t)
+	e.hostWait = 30 * time.Second
+	project := filepath.Join(e.home, "project")
+	for _, d := range []string{filepath.Join(project, "src", "presets"), filepath.Join(project, "vendor"), filepath.Join(project, "secret")} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(project, "secret", "key"), []byte("k\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, project, "init", "-q", "-b", "main")
+	e.cwd = project
+	p := e.profile(fmt.Sprintf("\n[[mounts]]\npath = %[1]q\nmode = \"read\"\n\n[[mounts]]\npath = \"%[1]s/vendor\"\nmode = \"read\"\n\n[[mounts]]\npath = \"%[1]s/secret\"\nmode = \"hide\"\n", project))
+	code, out := e.run(p, fmt.Sprintf(`
+set -u
+G=/run/doriath-bin/doriath
+P=%[1]s
+$G request write $P/src/presets --reason "edit the presets" || echo "FAIL request of the part"
+$G request write $P --reason "work on the whole project" || echo "FAIL request of the project"
+touch $P/README.md || echo "FAIL the project is not writable"
+touch $P/src/presets/a || echo "FAIL the part granted first is not writable"
+touch $P/vendor/x 2>/dev/null && echo "FAIL the read-only vendor mount became writable"
+[ -e $P/secret/key ] && echo "FAIL the hidden mount shows its files"
+echo x >> $P/.git/config 2>/dev/null && echo "FAIL .git/config is writable"
+echo done
+`, project), func() {
+		e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "test"})
+		if req := e.decideNext(approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingOnce, By: "test"}); req.Warning == "" {
+			t.Errorf("a write of the repository root must warn: %+v", req)
+		}
+	})
+	if code != 0 || !strings.Contains(out, "done") || strings.Contains(out, "FAIL") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
+
 func TestTheAgentAsksToReadAndWriteFoldersTheJailDoesNotShow(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second

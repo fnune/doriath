@@ -96,6 +96,7 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
+	guards = s.dropGuardsHeldByNestedMounts(path, guards)
 	if err := jail.CheckLinks(asWriteMount, listings, guards...); err != nil {
 		return err
 	}
@@ -127,6 +128,16 @@ func (s *Session) grantWrite(ctx context.Context, path string) error {
 	}
 	s.log.Write("granted", map[string]any{"path": path, "mode": "write"})
 	return nil
+}
+
+func (s *Session) dropGuardsHeldByNestedMounts(path string, guards []string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.DeleteFunc(guards, func(g string) bool {
+		return slices.ContainsFunc(s.req.Profile.Mounts, func(m profile.Mount) bool {
+			return m.Mode != profile.ModeWrite && m.Path != path && within(m.Path, path) && within(g, m.Path)
+		})
+	})
 }
 
 func (s *Session) mountLines(path string) string {
@@ -162,11 +173,12 @@ func (s *Session) checkGrant(path string, write bool) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	visible := s.visibleLocked(path)
 	for _, m := range s.req.Profile.Mounts {
 		switch {
 		case m.Mode == profile.ModeHide && (within(path, m.Path) || !write && within(m.Path, path)):
 			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
-		case m.Path != path && within(m.Path, path):
+		case m.Path != path && within(m.Path, path) && (!write || attachingLoosens(m, visible)):
 			return "", fmt.Errorf("%s: it holds %s, which the jail mounts with its own guards, and a grant of the parent would cover them. Ask for a path beside it", path, m.Path)
 		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
 			return "", fmt.Errorf("%s is already writable", path)
@@ -180,6 +192,10 @@ func (s *Session) checkGrant(path string, write bool) (string, error) {
 		}
 	}
 	return path, nil
+}
+
+func attachingLoosens(nested profile.Mount, visible bool) bool {
+	return !visible && nested.Mode != profile.ModeWrite
 }
 
 func (s *Session) landlockAllows(path string) error {
@@ -257,6 +273,10 @@ func (s *Session) privatePaths() []string {
 func (s *Session) visible(path string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.visibleLocked(path)
+}
+
+func (s *Session) visibleLocked(path string) bool {
 	for _, m := range s.req.Profile.Mounts {
 		if m.Mode != profile.ModeHide && within(path, m.Path) {
 			return true

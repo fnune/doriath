@@ -122,7 +122,7 @@ The agent asks for a path from inside the jail:
 - `doriath request read PATH --reason TEXT` shows a folder that the jail does not show, read-only.
 - `doriath request edit PATH --reason TEXT` changes one read-only file, such as `.git/config`, with the new content as input. You see what changes, and doriath writes it once.
 
-An allow lasts until the session ends. A folder that the jail does not show must exist. doriath refuses some paths before it asks you, such as `.git`, `.ssh`, the paths that the profile hides and its own configuration, as [approvals](/reference/configuration/#approvals) lists. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
+An allow lasts until the session ends. A folder that the jail does not show must exist. A write request can cover paths that are already writable, such as a folder of the project that you allowed before. In a folder that the jail shows, the read-only and hidden paths inside keep their modes. doriath refuses a folder that the jail does not show when the profile mounts a read-only or hidden path inside it. doriath refuses some paths before it asks you, such as `.git`, `.ssh`, the paths that the profile hides and its own configuration, as [approvals](/reference/configuration/#approvals) lists. [Edits](/reference/configuration/#edits) lists the changes that need no answer.
 
 To commit in another repository, the agent runs [`doriath request module MODULE PATH --reason TEXT`](/reference/commands/#doriath-request-module), such as with `vcs-readwrite`. The module applies there as in a session that starts there. A write request covers files only: git and jj cannot write the store of another repository with it.
 

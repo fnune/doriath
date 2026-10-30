@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/vcs"
 )
 
 func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
@@ -338,5 +340,67 @@ func TestAPathThatTheProfileRefusesIsRefusedLikeYourKeys(t *testing.T) {
 		if _, err := s.checkPromotion(path); err == nil || !strings.Contains(err.Error(), "holds keys, logins, config that names programs the host runs, or doriath's own state") {
 			t.Errorf("%s: err = %v", path, err)
 		}
+	}
+}
+
+func TestAWriteGrantOfAVisibleParentKeepsTheMountsInside(t *testing.T) {
+	s := newTestSession(t, nil)
+	project := filepath.Join(s.home, "project")
+	mkdirAll(t, filepath.Join(project, "src", "presets"), filepath.Join(project, "vendor"), filepath.Join(project, "secret"))
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: project, Mode: profile.ModeRead},
+		{Path: filepath.Join(project, "src", "presets"), Mode: profile.ModeWrite},
+		{Path: filepath.Join(project, "vendor"), Mode: profile.ModeRead},
+		{Path: filepath.Join(project, "secret"), Mode: profile.ModeHide},
+	}
+	for _, path := range []string{project, filepath.Join(project, "src")} {
+		if _, err := s.checkPromotion(path); err != nil {
+			t.Errorf("checkPromotion(%s) = %v", path, err)
+		}
+	}
+}
+
+func TestAWriteGrantOfAnUnseenParentCoversOnlyWritableMounts(t *testing.T) {
+	s := newTestSession(t, nil)
+	project := filepath.Join(s.home, "project")
+	mkdirAll(t, filepath.Join(project, "presets"), filepath.Join(project, "vendor"), filepath.Join(project, "secret"))
+	presets := profile.Mount{Path: filepath.Join(project, "presets"), Mode: profile.ModeWrite}
+	s.req.Profile.Mounts = []profile.Mount{presets}
+	if _, err := s.checkPromotion(project); err != nil {
+		t.Fatalf("a host directory attached over a writable mount opens nothing: %v", err)
+	}
+	for _, nested := range []profile.Mount{{Path: filepath.Join(project, "vendor"), Mode: profile.ModeRead}, {Path: filepath.Join(project, "secret"), Mode: profile.ModeHide}} {
+		s.req.Profile.Mounts = []profile.Mount{presets, nested}
+		if _, err := s.checkPromotion(project); err == nil || !strings.Contains(err.Error(), "it holds "+nested.Path) {
+			t.Errorf("a host directory attached over a %s mount must be refused: %v", nested.Mode, err)
+		}
+	}
+}
+
+func TestAWriteGrantLeavesGuardsInsideAReadOnlyMountToThatMount(t *testing.T) {
+	s := newTestSession(t, nil)
+	s.peers.setInit(4242)
+	roots, err := vcs.NewRootGuard(io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(roots.Close)
+	s.roots = roots
+	project := filepath.Join(s.home, "project")
+	vendored := filepath.Join(project, "vendor", "lib")
+	mkdirAll(t, filepath.Join(project, ".git"), filepath.Join(vendored, ".git"))
+	s.req.Profile.Mounts = []profile.Mount{
+		{Path: project, Mode: profile.ModeRead},
+		{Path: filepath.Join(project, "vendor"), Mode: profile.ModeRead},
+	}
+	if err := s.grantWrite(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	guards := s.promoted.requests[0].Guards
+	if !slices.ContainsFunc(guards, func(g string) bool { return within(g, filepath.Join(project, ".git")) }) {
+		t.Errorf("the project's own repository lost its guards: %v", guards)
+	}
+	if slices.ContainsFunc(guards, func(g string) bool { return within(g, vendored) }) {
+		t.Errorf("a guard inside the read-only vendor mount would pin it writable: %v", guards)
 	}
 }
