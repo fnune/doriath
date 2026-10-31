@@ -1,0 +1,38 @@
+description = "Download hosts that accept no uploads, and public storage where reads pass and other requests wait for you."
+[egress]
+allow = [
+  "objects.githubusercontent.com",
+  "release-assets.githubusercontent.com",
+  "codeload.github.com",
+  "cdn.jsdelivr.net",
+  "unpkg.com",
+  "cdnjs.cloudflare.com",
+]
+
+[[http]]
+host = "storage.googleapis.com"
+default = "approve"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"
+
+[[http]]
+host = "*.blob.core.windows.net"
+default = "approve"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+action = "allow"
+
+[[http.rules]]
+method = "HEAD"
+path = "/**"
+action = "allow"

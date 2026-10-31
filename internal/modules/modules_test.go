@@ -481,3 +481,30 @@ func TestTheClaudeModuleShowsTheChromeBridgeOfYourUser(t *testing.T) {
 		t.Error("without a known user, the bridge mount must be skipped")
 	}
 }
+
+func TestTheCDNModuleLetsStorageReadsThroughAndHoldsUploads(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"c.toml": {Data: []byte(`modules = ["cdns"]`)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ host, method, path, want string }{
+		{"storage.googleapis.com", "GET", "/chrome-for-testing-public/1/linux64/chrome-linux64.zip", "allow"},
+		{"storage.googleapis.com", "HEAD", "/bucket/object", "allow"},
+		{"storage.googleapis.com", "POST", "/upload/storage/v1/b/bucket/o", "approve"},
+		{"storage.googleapis.com", "PUT", "/bucket/object", "approve"},
+		{"account.blob.core.windows.net", "GET", "/container/blob", "allow"},
+		{"account.blob.core.windows.net", "PUT", "/container/blob", "approve"},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok {
+			t.Fatalf("%s is not inspected, so uploads pass", c.host)
+		}
+		if r, _ := h.Decide(c.method, c.path, nil); string(r.Action) != c.want {
+			t.Errorf("%s %s%s: %s, want %s", c.method, c.host, c.path, r.Action, c.want)
+		}
+	}
+	if !p.AllowsHost("cdn.jsdelivr.net") {
+		t.Error("cdn.jsdelivr.net is not allowed")
+	}
+}

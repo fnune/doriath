@@ -71,6 +71,14 @@ Documentation sites that the agent reads without an approval. No host in this li
 
 <ModuleSource name="docs" />
 
+## cdns
+
+Hosts that many tools download from. The CDNs and the download hosts of GitHub accept no uploads, so the agent reaches them without an approval.
+
+Anyone with an account can upload to Google Cloud Storage and Azure Blob Storage. Thus the proxy inspects these hosts: `GET` and `HEAD` requests pass, and other requests wait for you. A read can still send data out in its path, if the owner of the bucket logs the requests. To close this, give the host of your tool an `[[http]]` rule that allows only its bucket, as in [profile keys](/reference/configuration/#profile-keys).
+
+<ModuleSource name="cdns" />
+
 ## github
 
 Your token for `gh` and `git`, from `[secrets.github]`. See [GitHub](/forges/#github).
