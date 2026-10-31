@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/jail"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
@@ -80,7 +81,7 @@ func (s *Session) checkModule(module, path string) (string, *profile.Profile, er
 	root := profile.FindRepository(filepath.Clean(path), exists)
 	switch root {
 	case "":
-		return "", nil, fmt.Errorf("%s is not in a git or jj repository", path)
+		return "", nil, fmt.Errorf("%s is not in a git or jj repository, so no module applies to it. To write a plain folder, run: %s", path, cli.Code(cli.Line("request", "write", path, "--reason", "TEXT")))
 	case s.repository:
 		return "", nil, fmt.Errorf("%s is the repository of this session, where the profile applies already", root)
 	}

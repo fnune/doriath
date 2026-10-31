@@ -70,7 +70,7 @@ mode = "hide"
 		name, module, path, refusal string
 	}{
 		{"a relative path", "vcs-readwrite", "other", "name an absolute path"},
-		{"a folder outside a repository", "vcs-readwrite", plain, "is not in a git or jj repository"},
+		{"a folder outside a repository", "vcs-readwrite", plain, "is not in a git or jj repository, so no module applies to it. To write a plain folder, run: "},
 		{"the session's repository", "vcs-readwrite", s.repository, "the repository of this session"},
 		{"a module the profile does not use", "github", other, `does not use module "github"`},
 		{"a hidden path with content", "vcs-readwrite", filepath.Join(other, "src"), "cannot hide a path while the jail runs"},
