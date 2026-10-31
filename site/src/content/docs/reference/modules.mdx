@@ -163,9 +163,15 @@ The module allows no hosts. Add the hosts of your registry, remote cache and rem
 
 ## playwright
 
-A cache for the browsers that Playwright downloads.
+A cache for the browsers that Playwright downloads. The module lists [`chromium`](#chromium), so the browsers do not ask you for their updater hosts.
 
 <ModuleSource name="playwright" />
+
+## chromium
+
+The module refuses the component updater of Chromium. Chromium starts the updater on its own, also in headless mode, and asks for its hosts in each session. The parts that it downloads, such as the Widevine module, are not necessary for a task in the jail. List this module in a profile that runs Chromium outside Playwright, such as Chromium from Nix.
+
+<ModuleSource name="chromium" />
 
 ## pre-commit
 

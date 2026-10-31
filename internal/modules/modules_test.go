@@ -508,3 +508,19 @@ func TestTheCDNModuleLetsStorageReadsThroughAndHoldsUploads(t *testing.T) {
 		t.Error("cdn.jsdelivr.net is not allowed")
 	}
 }
+
+func TestPlaywrightRefusesTheComponentUpdaterOfItsChromium(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"p.toml": {Data: []byte(`modules = ["playwright"]`)}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{"clients2.google.com", "update.googleapis.com", "redirector.gvt1.com", "edgedl.me.gvt1.com"} {
+		if !p.Refuses(host) {
+			t.Errorf("%s is not refused, so each session asks for it", host)
+		}
+	}
+	if !p.AllowsHost("cdn.playwright.dev") {
+		t.Error("cdn.playwright.dev is not allowed")
+	}
+}
