@@ -1,4 +1,4 @@
 description = "Chromium without its component updater, which downloads browser parts that no task needs."
 [egress]
 deny = ["clients2.google.com", "update.googleapis.com", "*.gvt1.com"]
-notes = { "clients2.google.com" = "Chromium asks this host for updates of its components.", "update.googleapis.com" = "Chromium asks this host for updates of its components.", "*.gvt1.com" = "Chromium downloads its components from these hosts." }
+notes = { "clients2.google.com" = "Chromium asks this host for updates of its components.", "update.googleapis.com" = "Chromium asks this host for updates of its components.", "*.gvt1.com" = "Chromium downloads its components from these hosts. To stop the requests, start Chromium with --disable-component-update." }
