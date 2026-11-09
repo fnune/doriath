@@ -182,6 +182,7 @@ These paths let you resume sessions, read output, reuse build caches and add pat
 - A profile can change without your edit, such as a module after an upgrade. doriath asks before the first session of each profile in each repository, and again when a profile gives more than you allowed. Read the lines that it shows before you answer.
 - OAuth refresh tokens stay in doriath's state directory. Your user can read them outside the jail, as with your other logins.
 - Keyring secrets stay in the keyring of your desktop. Other programs of your user can read them from an unlocked keyring outside the jail.
+- The dialog for a keyring secret opens only when a session starts, or after you click **Try again** on the card of the secret. The agent cannot open it. The program in `SSH_ASKPASS` runs on the host with your environment.
 - Claude's Remote Control lets each person signed in to the profile's claude.ai account control the session and answer Claude's permission prompts. The jail and the proxy rules still apply.
 - The session description comes from the agent, through `doriath describe`. doriath shows it in quotes, marked as the agent's text, and never in a notification title. The agent can write a description that does not match its task.
 - Tool requests carry text that the agent wrote, and the notification says so. Many requests in a row make a click on allow likely. Thus doriath refuses new requests while 32 wait. It shows 10 other notifications at once, then one each minute.

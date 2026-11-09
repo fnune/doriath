@@ -147,7 +147,7 @@ type fakeAsker struct {
 	calls  int
 }
 
-func (f *fakeAsker) Ask(string) (Value, error) {
+func (f *fakeAsker) Ask(context.Context, string, string) (Value, error) {
 	f.calls++
 	return NewValue([]byte(f.answer)), f.err
 }
@@ -165,17 +165,23 @@ func TestAMissingKeyringEntryIsAskedForOnceAndKept(t *testing.T) {
 	}
 }
 
-func TestARetryDuringTheSessionDoesNotAskOnTheTerminal(t *testing.T) {
+func TestAClosedDialogComesBackOnlyAfterRetry(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{}}
-	ask := &fakeAsker{err: errors.New("interrupted")}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask)
+	ask := &fakeAsker{err: errors.New("you closed the dialog without a value")}
+	c := &clock{t: time.Unix(0, 0)}
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask).WithClock(c.now)
 	if _, err := s.Get(context.Background(), "forge"); err == nil {
-		t.Fatal("a failed answer gives the secret")
+		t.Fatal("a closed dialog gives the secret")
 	}
-	s.Retry("forge")
+	c.t = c.t.Add(time.Hour)
 	_, err := s.Get(context.Background(), "forge")
 	if ask.calls != 1 || err == nil || !strings.Contains(err.Error(), "doriath profiles login work forge") {
-		t.Errorf("after Retry: asked %d times, err = %v", ask.calls, err)
+		t.Errorf("a later read: asked %d times, err = %v", ask.calls, err)
+	}
+	ask.err, ask.answer = nil, "tok"
+	s.Retry("forge")
+	if v, err := s.Get(context.Background(), "forge"); err != nil || string(v.Reveal()) != "tok" || ask.calls != 2 {
+		t.Errorf("after Retry: %q, %v, asked %d times", v.Reveal(), err, ask.calls)
 	}
 }
 

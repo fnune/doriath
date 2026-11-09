@@ -50,6 +50,7 @@ type Options struct {
 	FetchSecrets bool
 	Runner       secret.Runner
 	Keyring      secret.Keyring
+	Asker        secret.Asker
 	Allow        func(*profile.Profile) error
 	// Dir, when it is in a repository, adds checks of that repository with
 	// Profile, or the profile its .envrc names, or DefaultProfile.
@@ -184,7 +185,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner)
+		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name

@@ -115,10 +115,10 @@ type Keyring interface {
 
 var ErrNotInKeyring = errors.New("not in the keyring")
 
-// Asker asks you for the value of a secret on the terminal that starts the
-// session.
+// Asker asks you for the value of a profile's secret in a dialog of your
+// desktop, outside the terminal that the agent uses.
 type Asker interface {
-	Ask(name string) (Value, error)
+	Ask(ctx context.Context, profile, name string) (Value, error)
 }
 
 // Command is one run of a secret's command. With Terminal, the command may
@@ -162,7 +162,6 @@ type Configured struct {
 	keyring Keyring
 	owner   func(name string) string
 	ask     Asker
-	asked   map[string]bool
 
 	mu     sync.Mutex
 	cache  map[string]cached
@@ -236,14 +235,15 @@ func (c *Configured) WithKeyring(k Keyring, owner func(name string) string) *Con
 }
 
 // WithAsker lets the store ask you for a keyring secret that has no entry,
-// on the first read only, and keep your answer in the keyring.
+// and keep your answer in the keyring. It asks on the first read, and again
+// only after Retry, so a dialog that you close does not come back on its own.
 func (c *Configured) WithAsker(a Asker) *Configured {
 	c.ask = a
 	return c
 }
 
 func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
-	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}, asked: map[string]bool{}}
+	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
 }
 
 // WithClock replaces the clock that decides when a secret is due.
@@ -364,7 +364,7 @@ func credentialProcessExpiry(data []byte) (time.Time, bool) {
 	return doc.Expiration, true
 }
 
-func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal bool) (Value, error) {
+func (c *Configured) fetch(ctx context.Context, name string, b Backend, firstTry bool) (Value, error) {
 	if b.File != "" {
 		info, err := c.files.Stat(b.File)
 		if err != nil {
@@ -380,28 +380,26 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 		return trimmed(name, data)
 	}
 	if b.Keyring {
-		return c.readKeyring(name, terminal)
+		return c.readKeyring(ctx, name, firstTry)
 	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
-	stdout, stderr, err := c.run.Output(ctx, Command{Secret: name, Argv: b.Command, Terminal: terminal})
+	stdout, stderr, err := c.run.Output(ctx, Command{Secret: name, Argv: b.Command, Terminal: firstTry})
 	if err != nil {
 		return Value{}, &CommandError{Secret: name, Program: b.Command[0], Err: err, Stderr: lastLine(strings.TrimSpace(string(stderr)))}
 	}
 	return trimmed(name, stdout)
 }
 
-func (c *Configured) readKeyring(name string, terminal bool) (Value, error) {
+func (c *Configured) readKeyring(ctx context.Context, name string, firstTry bool) (Value, error) {
 	if c.keyring == nil {
 		return Value{}, fmt.Errorf("secret %q: the keyring is not available here", name)
 	}
 	owner := c.owner(name)
-	firstRead := !c.asked[name]
-	c.asked[name] = true
 	v, err := c.keyring.Read(owner, name)
 	switch {
-	case errors.Is(err, ErrNotInKeyring) && terminal && firstRead && c.ask != nil:
-		return c.askAndKeep(owner, name)
+	case errors.Is(err, ErrNotInKeyring) && firstTry && c.ask != nil:
+		return c.askAndKeep(ctx, owner, name)
 	case errors.Is(err, ErrNotInKeyring):
 		return Value{}, fmt.Errorf("secret %q is not in the keyring: run %s", name, cli.Code(cli.Line("profiles", "login", owner, name)))
 	case err != nil:
@@ -410,8 +408,10 @@ func (c *Configured) readKeyring(name string, terminal bool) (Value, error) {
 	return trimmed(name, v.b)
 }
 
-func (c *Configured) askAndKeep(owner, name string) (Value, error) {
-	answer, err := c.ask.Ask(name)
+func (c *Configured) askAndKeep(ctx context.Context, owner, name string) (Value, error) {
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+	answer, err := c.ask.Ask(ctx, owner, name)
 	if err != nil {
 		return Value{}, fmt.Errorf("secret %q: %w", name, err)
 	}

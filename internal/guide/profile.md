@@ -84,7 +84,7 @@ Ask which password manager the person uses. `command -v rbw bw op secret-tool` s
 - `bw`: `["sh", "-c", "bw get password ITEM --session \"$(bw unlock --raw)\""]`, which asks for the password one time for each session
 - `op`: `["op", "read", "op://VAULT/ITEM/credential"]`
 - `secret-tool`: `["secret-tool", "lookup", "KEY", "VALUE"]`
-- the keyring of the desktop, without a command: `keyring = true`. doriath asks the person for the value at the start of the first session.
+- the keyring of the desktop, without a command: `keyring = true`. doriath asks the person for the value in a dialog of the desktop at the start of the first session.
 - a file with mode 600: `file = "~/.config/doriath/keys/NAME"`
 
 Run `command -v` for the program of the command. If the path is a shim of a version manager, such as mise or asdf, use the absolute path of the real program. A shim selects its tool from a config in the working folder, and the agent can write that config.

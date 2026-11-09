@@ -22,6 +22,7 @@ import (
 	"github.com/fnune/doriath/internal/agents"
 	"github.com/fnune/doriath/internal/allowed"
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/askpass"
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/confine"
@@ -457,7 +458,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	allow := func(prof *profile.Profile) error {
 		return confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, cwd), os.Stdin, os.Stderr, isTerminal(os.Stdin))
 	}
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Keyring: keyring.Desktop{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Keyring: keyring.Desktop{}, Asker: askpass.New(os.Getenv, exec.LookPath), Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}
