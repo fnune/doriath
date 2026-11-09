@@ -180,18 +180,34 @@ func (s *Session) checkGrant(path string, write bool) (string, error) {
 			return "", fmt.Errorf("%s: the profile hides %s", path, m.Path)
 		case m.Path != path && within(m.Path, path) && (!write || attachingLoosens(m, visible)):
 			return "", fmt.Errorf("%s: it holds %s, which the jail mounts with its own guards, and a grant of the parent would cover them. Ask for a path beside it", path, m.Path)
-		case write && m.Mode == profile.ModeWrite && within(path, m.Path):
-			return "", fmt.Errorf("%s is already writable", path)
 		case !write && m.Mode != profile.ModeHide && within(path, m.Path):
 			return "", fmt.Errorf("%s is already readable", path)
 		}
 	}
-	if write {
-		if err := s.landlockAllows(path); err != nil {
-			return "", err
-		}
+	if !write {
+		return path, nil
+	}
+	if m, ok := deepestCovering(s.req.Profile.Mounts, path); ok && m.Mode == profile.ModeWrite {
+		return "", fmt.Errorf("%s is already writable", path)
+	}
+	if info, err := os.Stat(path); err == nil && !info.IsDir() {
+		return "", fmt.Errorf("%s is a file, and doriath makes only directories writable. To change it, run: %s", path, cli.Code(cli.Line("request", "edit", path, "--reason", "TEXT")+" < NEW_CONTENT"))
+	}
+	if err := s.landlockAllows(path); err != nil {
+		return "", err
 	}
 	return path, nil
+}
+
+func deepestCovering(mounts []profile.Mount, path string) (profile.Mount, bool) {
+	var out profile.Mount
+	found := false
+	for _, m := range mounts {
+		if within(path, m.Path) && (!found || len(m.Path) > len(out.Path)) {
+			out, found = m, true
+		}
+	}
+	return out, found
 }
 
 func attachingLoosens(nested profile.Mount, visible bool) bool {

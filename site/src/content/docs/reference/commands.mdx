@@ -203,7 +203,7 @@ Sets a short description of the agent's task, such as `doriath describe "Fix the
 doriath request write PATH [--reason TEXT]
 ```
 
-Asks you to make a path writable until the session ends. The path can be a folder that the jail does not show, if the folder exists.
+Asks you to make a folder writable until the session ends. The folder can be one that the jail does not show, if it exists. A read-only file, such as `flake.nix` in a writable repository, changes through [`doriath request edit`](#doriath-request-edit).
 
 ### `doriath request module`
 

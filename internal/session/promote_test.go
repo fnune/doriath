@@ -30,6 +30,10 @@ func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
 		{Path: filepath.Join(repo, "secret"), Mode: profile.ModeHide},
 		{Path: filepath.Join(home, "work"), Mode: profile.ModeWrite},
 		{Path: filepath.Join(home, "dev", "app"), Mode: profile.ModeRead},
+		{Path: filepath.Join(home, "work", "flake.nix"), Mode: profile.ModeRead},
+	}
+	if err := os.WriteFile(filepath.Join(home, "work", "flake.nix"), nil, 0o644); err != nil {
+		t.Fatal(err)
 	}
 	s.req.Profile.Caches = []profile.Cache{{Path: filepath.Join(home, ".claude")}}
 	for _, c := range []struct {
@@ -52,6 +56,7 @@ func TestPromotionRefusesPathsThatWouldWeakenTheJail(t *testing.T) {
 		{"a jj store", filepath.Join(repo, ".jj", "repo"), "inside .git or .jj"},
 		{"a hidden path", filepath.Join(repo, "secret", "key"), "the profile hides " + filepath.Join(repo, "secret")},
 		{"a writable path", filepath.Join(home, "work", "sub"), "already writable"},
+		{"a held file in a writable path", filepath.Join(home, "work", "flake.nix"), "To change it, run: `doriath request edit " + filepath.Join(home, "work", "flake.nix")},
 		{"the parent of a mount", filepath.Join(home, "dev"), "it holds " + filepath.Join(home, "dev", "app")},
 		{"a path Landlock cannot open later", "/etc/doriath-test", "Landlock fixes its rules"},
 	} {
