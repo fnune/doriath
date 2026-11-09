@@ -131,6 +131,15 @@ func TestARepositoryProfileCannotRunASecretCommandOnTheHost(t *testing.T) {
 	}
 }
 
+func TestARepositoryProfileCannotReadYourKeyring(t *testing.T) {
+	l := repoLoader()
+	l.Repository.(fstest.MapFS)["keyring.toml"] = file("[secrets.token]\nkeyring = true\n")
+	_, err := l.Load("work+repo:keyring")
+	if err == nil || !strings.Contains(err.Error(), `secret "token": a repository profile cannot read your keyring`) || !strings.Contains(err.Error(), "my-app+repo:keyring") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestARepositoryProfileCannotRedirectYourSecrets(t *testing.T) {
 	l := repoLoader()
 	l.Profiles.(fstest.MapFS)["app.toml"] = file(`[secrets.gh]

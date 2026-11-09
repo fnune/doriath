@@ -557,6 +557,10 @@ func (b *builder) apply(l layer) {
 			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot run a command on your machine. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
 			continue
 		}
+		if l.fromRepository() && v.Keyring {
+			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot read your keyring. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
+			continue
+		}
 		b.secrets[k] = v
 		if strings.HasPrefix(l.source, "profile") {
 			b.secretOwner[k] = l.stateName
@@ -723,6 +727,8 @@ func describeSecretSource(v secretLayer) string {
 		return "command " + strings.Join(v.Command, " ")
 	case v.File != "":
 		return "file " + v.File
+	case v.Keyring:
+		return "keyring"
 	case v.OAuth != nil && v.OAuth.MCP != "":
 		return "login to MCP server " + v.OAuth.MCP
 	case v.OAuth != nil:
@@ -1086,7 +1092,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", name))
 			continue
 		}
-		backend := secret.Backend{File: s.File, Command: s.Command, Required: s.Required || name == b.signing}
+		backend := secret.Backend{File: s.File, Command: s.Command, Keyring: s.Keyring, Required: s.Required || name == b.signing}
 		if s.Refresh != "" {
 			d, err := time.ParseDuration(s.Refresh)
 			if err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/doctor"
 	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/keyring"
 	"github.com/fnune/doriath/internal/landlock"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/session"
@@ -411,7 +412,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		return profilesAllow(loader(p, dir), allowed.NewStore(p.AllowedProfiles()), args[1], dir, stdout)
 	}
 	if args[0] == "login" && (len(args) == 2 || len(args) == 3) {
-		return cmdLogin(p, l, args[1:], stdout)
+		return cmdLogin(p, l, args[1:], stdin, keyring.Desktop{}, stdout)
 	}
 	if args[0] == "clean" && len(args) == 2 {
 		return cleanCaches(args[1], stdout)
@@ -456,7 +457,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	allow := func(prof *profile.Profile) error {
 		return confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, cwd), os.Stdin, os.Stderr, isTerminal(os.Stdin))
 	}
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Keyring: keyring.Desktop{}, Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}

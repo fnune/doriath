@@ -369,7 +369,7 @@ doriath profiles allow my-app --current ~/src/my-app
 
 ## Secrets
 
-A secret has a name that you choose, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints the secret, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
+A secret has a name that you choose, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
 
 | Key                          | Uses the secret as                       |
 | ---------------------------- | ---------------------------------------- |
@@ -579,6 +579,28 @@ If a server has a secret or holds, doriath intercepts its host. Traffic to the e
 doriath cannot hold the tools of a local server, because the server talks to the agent where doriath cannot see the traffic. A module can give a server with its holds, and the profile adds the secret.
 
 Each adapter gives the list to its agent in the format of that agent, such as `--mcp-config` for Claude Code or `mcp_servers` in the config of Codex. doriath also writes the list to `/run/doriath/mcp.json` in the common `mcpServers` format, for an agent without an adapter. For Claude Code, the `.mcp.json` of a repository also applies.
+
+## Keyring secrets
+
+A secret with `keyring = true` is an entry in the keyring of your desktop. On Linux, doriath uses the Secret Service, which KWallet, GNOME Keyring and KeePassXC provide. This keyring is not the kernel keyring that the jail refuses.
+
+```toml
+[secrets.forgejo]
+keyring = true
+```
+
+To store the values, run this command on the host. It asks for each keyring secret of the profile that has no entry, and does not show what you type:
+
+```sh
+doriath profiles login NAME
+```
+
+To replace a value, name the secret, such as `doriath profiles login my-app forgejo`. A script can give the value on standard input.
+
+- doriath reads the entry when the session starts. If the keyring is locked, your desktop asks you to unlock it.
+- Each profile has its own entries, so two profiles can give different values to one secret name. An entry has the service `doriath` and the account `PROFILE/NAME`.
+- If no keyring answers, the secret is unavailable. doriath does not read the value from a file or another source.
+- A repository profile cannot use `keyring`, because the keyring holds your own values.
 
 ## OAuth logins
 

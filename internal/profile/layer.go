@@ -273,6 +273,7 @@ func tomlFieldNames(t reflect.Type, names map[string]bool) map[string]bool {
 type secretLayer struct {
 	File     string      `toml:"file"`
 	Command  []string    `toml:"command"`
+	Keyring  bool        `toml:"keyring"`
 	OAuth    *oauthLayer `toml:"oauth"`
 	Refresh  string      `toml:"refresh"`
 	Required bool        `toml:"required"`

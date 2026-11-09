@@ -49,6 +49,7 @@ type Options struct {
 	// accepts, as a session would.
 	FetchSecrets bool
 	Runner       secret.Runner
+	Keyring      secret.Keyring
 	Allow        func(*profile.Profile) error
 	// Dir, when it is in a repository, adds checks of that repository with
 	// Profile, or the profile its .envrc names, or DefaultProfile.
@@ -183,7 +184,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner))
+		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -207,6 +208,8 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 					continue
 				}
 				checkSecret(label+" (file)", b, err)
+			case b.Keyring:
+				checkSecret(label+" (keyring)", b, nil)
 			default:
 				_, err := exec.LookPath(b.Command[0])
 				checkSecret(label+" (command "+b.Command[0]+")", b, err)

@@ -32,7 +32,7 @@ func (s *Session) secretCard(name string, cause error) string {
 	}
 	p := s.req.Profile
 	command := cli.Line("secrets", "provide", "--session", s.id, name)
-	if p.Secrets[name].OAuth != nil {
+	if b := p.Secrets[name]; b.OAuth != nil || b.Keyring {
 		command = cli.Line("profiles", "login", p.SecretOwner(name), name)
 	}
 	req := approval.Request{

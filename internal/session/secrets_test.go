@@ -136,6 +136,14 @@ func TestAnOAuthCardNamesTheLoginCommand(t *testing.T) {
 	}
 }
 
+func TestAKeyringCardNamesTheLoginCommand(t *testing.T) {
+	s := sessionWithSecrets(t, map[string]secret.Backend{"forge": {Keyring: true}})
+	s.secretCard("forge", errors.New("not in the keyring"))
+	if p := s.manager.Pending(); len(p) != 1 || p[0].Command != "doriath profiles login deploy forge" {
+		t.Errorf("pending = %+v", p)
+	}
+}
+
 type countingLogins struct{ calls int }
 
 func (c *countingLogins) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {

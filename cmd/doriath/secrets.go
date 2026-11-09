@@ -59,19 +59,20 @@ func cmdSecrets(args []string, in *os.File, w io.Writer) error {
 	return nil
 }
 
-func readSecretValue(in *os.File, prompt io.Writer, name string) ([]byte, error) {
-	termios, err := unix.IoctlGetTermios(int(in.Fd()), unix.TCGETS)
+func readSecretValue(in io.Reader, prompt io.Writer, name string) ([]byte, error) {
+	f, _ := in.(*os.File)
+	termios, err := terminalSettings(f)
 	if err != nil {
 		data, err := io.ReadAll(in)
 		return bytes.TrimRight(data, "\r\n"), err
 	}
 	quiet := *termios
 	quiet.Lflag &^= unix.ECHO
-	if err := unix.IoctlSetTermios(int(in.Fd()), unix.TCSETS, &quiet); err != nil {
+	if err := unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, &quiet); err != nil {
 		return nil, err
 	}
 	defer func() {
-		_ = unix.IoctlSetTermios(int(in.Fd()), unix.TCSETS, termios)
+		_ = unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, termios)
 		fmt.Fprintln(prompt)
 	}()
 	fmt.Fprintf(prompt, "Value for secret %s: ", name)
@@ -80,4 +81,11 @@ func readSecretValue(in *os.File, prompt io.Writer, name string) ([]byte, error)
 		return nil, err
 	}
 	return bytes.TrimRight(line, "\r\n"), nil
+}
+
+func terminalSettings(f *os.File) (*unix.Termios, error) {
+	if f == nil {
+		return nil, errors.New("not a file")
+	}
+	return unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
 }

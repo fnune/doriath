@@ -14,6 +14,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
 )
 
@@ -482,6 +483,52 @@ file = "`+key+`"
 	}
 	if err := cmdProfiles([]string{"login", "app", "key"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
 		t.Errorf("a secret without oauth: %v", err)
+	}
+}
+
+type memoryKeyring map[string]string
+
+func (m memoryKeyring) Read(profile, name string) (secret.Value, error) {
+	v, ok := m[profile+"/"+name]
+	if !ok {
+		return secret.Value{}, secret.ErrNotInKeyring
+	}
+	return secret.NewValue([]byte(v)), nil
+}
+
+func (m memoryKeyring) Write(profile, name string, v secret.Value) error {
+	m[profile+"/"+name] = string(v.Reveal())
+	return nil
+}
+
+func TestLoginStoresKeyringSecretsThatAreMissing(t *testing.T) {
+	p := testPaths(t)
+	writeProfile(t, p, "app", `modules = []
+
+[secrets.forge]
+keyring = true
+
+[secrets.stored]
+keyring = true
+`)
+	kr := memoryKeyring{"app/stored": "old"}
+	var out bytes.Buffer
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app"}, strings.NewReader("tok\n"), kr, &out); err != nil {
+		t.Fatal(err)
+	}
+	if kr["app/forge"] != "tok" || kr["app/stored"] != "old" {
+		t.Errorf("keyring = %v", kr)
+	}
+	for _, want := range []string{"Stored forge in the keyring for profile app.", "Secret stored is already in the keyring; name it to replace it."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output %q lacks %q", out.String(), want)
+		}
+	}
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "stored"}, strings.NewReader("new\n"), kr, &out); err != nil || kr["app/stored"] != "new" {
+		t.Errorf("naming a stored secret replaces it: %v, %v", kr, err)
+	}
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "forge"}, strings.NewReader("\n"), kr, &out); err == nil || !strings.Contains(err.Error(), "is empty") {
+		t.Errorf("an empty value: %v", err)
 	}
 }
 

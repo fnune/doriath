@@ -26,6 +26,7 @@ import (
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/clipboard"
 	"github.com/fnune/doriath/internal/config"
+	"github.com/fnune/doriath/internal/keyring"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/notify"
 	"github.com/fnune/doriath/internal/oauth"
@@ -326,7 +327,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

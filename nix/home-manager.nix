@@ -35,6 +35,11 @@ let
         ];
         description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
       };
+      keyring = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = "Keep the secret in the keyring of your desktop. Store it with `doriath profiles login NAME`.";
+      };
       oauth = lib.mkOption {
         type = lib.types.nullOr (
           lib.types.submodule {
@@ -304,12 +309,13 @@ in
         profile: p:
         lib.mapAttrsToList (name: s: {
           assertion =
-            lib.count (source: source != null) [
+            lib.count (source: source != null && source != false) [
               s.file
               s.command
+              s.keyring
               s.oauth
             ] == 1;
-          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file, command or oauth.";
+          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file, command, keyring or oauth.";
         }) p.secrets
       ) cfg.profiles
     );

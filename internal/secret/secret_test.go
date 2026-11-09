@@ -86,8 +86,73 @@ func TestBackendValidate(t *testing.T) {
 	if (Backend{}).Validate() == nil || (Backend{File: "a", Command: []string{"b"}}).Validate() == nil {
 		t.Fatal("want errors")
 	}
-	if (Backend{File: "a"}).Validate() != nil {
-		t.Fatal("file alone is valid")
+	if (Backend{File: "a"}).Validate() != nil || (Backend{Keyring: true}).Validate() != nil {
+		t.Fatal("file alone and keyring alone are valid")
+	}
+	if (Backend{File: "a", Keyring: true}).Validate() == nil {
+		t.Fatal("a keyring secret with a file is invalid")
+	}
+}
+
+type fakeKeyring struct {
+	entries map[string]string
+	err     error
+	reads   int
+}
+
+func (f *fakeKeyring) Read(profile, name string) (Value, error) {
+	f.reads++
+	if f.err != nil {
+		return Value{}, f.err
+	}
+	v, ok := f.entries[profile+"/"+name]
+	if !ok {
+		return Value{}, ErrNotInKeyring
+	}
+	return NewValue([]byte(v)), nil
+}
+
+func (f *fakeKeyring) Write(profile, name string, v Value) error {
+	f.entries[profile+"/"+name] = string(v.Reveal())
+	return nil
+}
+
+func ownedBy(profile string) func(string) string { return func(string) string { return profile } }
+
+func TestKeyringSecretsAreReadOnceFromTheEntryOfTheirProfile(t *testing.T) {
+	kr := &fakeKeyring{entries: map[string]string{"work/forge": "tok\n", "home/forge": "other"}}
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedBy("work"))
+	for range 3 {
+		v, err := s.Get(context.Background(), "forge")
+		if err != nil || string(v.Reveal()) != "tok" {
+			t.Fatalf("Get = %q, %v", v.Reveal(), err)
+		}
+	}
+	if kr.reads != 1 {
+		t.Errorf("reads = %d, want 1", kr.reads)
+	}
+}
+
+func TestAMissingKeyringEntryNamesTheLoginCommand(t *testing.T) {
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{entries: map[string]string{}}, ownedBy("work"))
+	_, err := s.Get(context.Background(), "forge")
+	if want := "secret \"forge\" is not in the keyring: run `doriath profiles login work forge`"; err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %s", err, want)
+	}
+}
+
+func TestAKeyringThatFailsLeavesTheSecretUnavailable(t *testing.T) {
+	broken := errors.New("read the keyring: no Secret Service")
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{err: broken}, ownedBy("work"))
+	if _, err := s.Get(context.Background(), "forge"); !errors.Is(err, broken) {
+		t.Errorf("err = %v, want %v", err, broken)
+	}
+	if _, ok := s.Unavailable()["forge"]; !ok {
+		t.Error("the secret is not marked unavailable")
+	}
+	without := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{})
+	if _, err := without.Get(context.Background(), "forge"); err == nil || !strings.Contains(err.Error(), "the keyring is not available here") {
+		t.Errorf("without a keyring: %v", err)
 	}
 }
 

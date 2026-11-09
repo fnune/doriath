@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fnune/doriath/internal/cli"
 )
 
 // Value holds secret material. Its String method never prints the secret,
@@ -38,11 +40,12 @@ var ErrUnknown = errors.New("unknown secret")
 // read yet, until the next try is due.
 var ErrUnavailable = errors.New("unavailable")
 
-// Backend is the configuration for one secret: a file, a command, or an
-// OAuth login that doriath refreshes.
+// Backend is the configuration for one secret: a file, a command, an entry
+// in the keyring of your desktop, or an OAuth login that doriath refreshes.
 type Backend struct {
 	File    string
 	Command []string
+	Keyring bool
 	OAuth   *OAuth
 	// Refresh reads a file or command secret again after this long, for a
 	// short-lived token whose source prints no expiry.
@@ -65,13 +68,13 @@ type OAuth struct {
 
 func (b Backend) Validate() error {
 	set := 0
-	for _, ok := range []bool{b.File != "", len(b.Command) > 0, b.OAuth != nil} {
+	for _, ok := range []bool{b.File != "", len(b.Command) > 0, b.Keyring, b.OAuth != nil} {
 		if ok {
 			set++
 		}
 	}
 	if set != 1 {
-		return errors.New("set exactly one of file, command or oauth")
+		return errors.New("set exactly one of file, command, keyring or oauth")
 	}
 	switch {
 	case b.Refresh != 0 && b.OAuth != nil:
@@ -102,6 +105,15 @@ func (b Backend) Validate() error {
 type OAuthTokens interface {
 	Token(ctx context.Context, name string, o OAuth) (Value, error)
 }
+
+// Keyring keeps the keyring secrets of each profile in the keyring of your
+// desktop. Read returns ErrNotInKeyring for a secret that has no entry yet.
+type Keyring interface {
+	Read(profile, name string) (Value, error)
+	Write(profile, name string, v Value) error
+}
+
+var ErrNotInKeyring = errors.New("not in the keyring")
 
 // Command is one run of a secret's command. With Terminal, the command may
 // ask you for a password there. A refresh during the session never gets the
@@ -140,6 +152,9 @@ type Configured struct {
 	now      func() time.Time
 
 	oauth OAuthTokens
+
+	keyring Keyring
+	owner   func(name string) string
 
 	mu     sync.Mutex
 	cache  map[string]cached
@@ -202,6 +217,13 @@ type cached struct {
 // WithOAuth lets the store serve OAuth secrets.
 func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 	c.oauth = t
+	return c
+}
+
+// WithKeyring lets the store serve keyring secrets. owner names the profile
+// that gives each secret, which keeps the entries of two profiles apart.
+func (c *Configured) WithKeyring(k Keyring, owner func(name string) string) *Configured {
+	c.keyring, c.owner = k, owner
 	return c
 }
 
@@ -342,6 +364,9 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 		}
 		return trimmed(name, data)
 	}
+	if b.Keyring {
+		return c.readKeyring(name)
+	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
 	stdout, stderr, err := c.run.Output(ctx, Command{Secret: name, Argv: b.Command, Terminal: terminal})
@@ -349,6 +374,21 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 		return Value{}, &CommandError{Secret: name, Program: b.Command[0], Err: err, Stderr: lastLine(strings.TrimSpace(string(stderr)))}
 	}
 	return trimmed(name, stdout)
+}
+
+func (c *Configured) readKeyring(name string) (Value, error) {
+	if c.keyring == nil {
+		return Value{}, fmt.Errorf("secret %q: the keyring is not available here", name)
+	}
+	owner := c.owner(name)
+	v, err := c.keyring.Read(owner, name)
+	switch {
+	case errors.Is(err, ErrNotInKeyring):
+		return Value{}, fmt.Errorf("secret %q is not in the keyring: run %s", name, cli.Code(cli.Line("profiles", "login", owner, name)))
+	case err != nil:
+		return Value{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	return trimmed(name, v.b)
 }
 
 func trimmed(name string, data []byte) (Value, error) {

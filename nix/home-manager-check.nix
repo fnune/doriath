@@ -81,6 +81,7 @@ let
           refresh = "45m";
         };
         signing.file = "/run/secrets/signing";
+        forge.keyring = true;
         api.oauth.mcp = "https://mcp.team.example/mcp";
         issuer.oauth = {
           issuer = "https://login.team.example";
@@ -163,6 +164,11 @@ let
       oauth.mcp = "https://mcp.team.example/mcp";
     }
     {
+      file = "/run/secrets/both";
+      keyring = true;
+    }
+    { keyring = false; }
+    {
       file = "/run/secrets/all";
       command = [ "true" ];
       oauth.mcp = "https://mcp.team.example/mcp";
@@ -188,7 +194,7 @@ let
 in
 assert builtins.isString home.activationPackage.drvPath;
 assert lib.assertMsg trayWithoutPageFails "desktop.tray needs desktop.web.enable";
-assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of file, command or oauth";
+assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of file, command, keyring or oauth";
 pkgs.runCommand "doriath-home-manager-module"
   {
     nativeBuildInputs = [
@@ -214,6 +220,7 @@ pkgs.runCommand "doriath-home-manager-module"
     expect '[.Mounts[] | select(.Mode == "write")] | length == 1'
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
     expect '.Secrets.signing.File == "/run/secrets/signing"'
+    expect '.Secrets.forge.Keyring == true'
     expect '.Secrets.github.Refresh == 2700000000000'
     expect '.Secrets.api.OAuth.MCP == "https://mcp.team.example/mcp"'
     expect '.Secrets.issuer.OAuth | .Issuer == "https://login.team.example" and .ClientID == "doriath" and .Scopes == ["read", "write"]'
