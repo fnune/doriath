@@ -589,7 +589,9 @@ A secret with `keyring = true` is an entry in the keyring of your desktop. On Li
 keyring = true
 ```
 
-To store the values, run this command on the host. It asks for each keyring secret of the profile that has no entry, and does not show what you type:
+doriath reads the entry when the session starts. If the entry is missing and the session starts in a terminal, doriath asks you for the value there. It keeps your answer in the keyring, so the next session does not ask. doriath does not show what you type.
+
+A session without a terminal starts without the secret. To store the values before a session, run this command on the host:
 
 ```sh
 doriath profiles login NAME
@@ -597,7 +599,8 @@ doriath profiles login NAME
 
 To replace a value, name the secret, such as `doriath profiles login my-app forgejo`. A script can give the value on standard input.
 
-- doriath reads the entry when the session starts. If the keyring is locked, your desktop asks you to unlock it.
+- If the keyring is locked, your desktop asks you to unlock it.
+- doriath asks only at the start of the session, because the agent uses the terminal after that.
 - Each profile has its own entries, so two profiles can give different values to one secret name. An entry has the service `doriath` and the account `PROFILE/NAME`.
 - If no keyring answers, the secret is unavailable. doriath does not read the value from a file or another source.
 - A repository profile cannot use `keyring`, because the keyring holds your own values.

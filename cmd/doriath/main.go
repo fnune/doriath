@@ -327,7 +327,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(terminalAsker(os.Stdin)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,
@@ -410,6 +410,24 @@ func (execRunner) Output(ctx context.Context, c secret.Command) ([]byte, []byte,
 	}
 	out, err := cmd.Output()
 	return out, stderr.b, err
+}
+
+type askOnTerminal struct{ in *os.File }
+
+func terminalAsker(in *os.File) secret.Asker {
+	if !isTerminal(in) {
+		return nil
+	}
+	return askOnTerminal{in}
+}
+
+func (a askOnTerminal) Ask(name string) (secret.Value, error) {
+	term.New(os.Stderr).Line(term.Info, fmt.Sprintf("Secret %s is not in the keyring yet. doriath keeps the value that you give there.", name))
+	value, err := readSecretValue(a.in, os.Stderr, name)
+	if err != nil {
+		return secret.Value{}, err
+	}
+	return secret.NewValue(value), nil
 }
 
 type lineCloser struct {

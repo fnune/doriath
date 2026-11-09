@@ -117,11 +117,11 @@ func (f *fakeKeyring) Write(profile, name string, v Value) error {
 	return nil
 }
 
-func ownedBy(profile string) func(string) string { return func(string) string { return profile } }
+func ownedByWork(string) string { return "work" }
 
 func TestKeyringSecretsAreReadOnceFromTheEntryOfTheirProfile(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{"work/forge": "tok\n", "home/forge": "other"}}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedBy("work"))
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork)
 	for range 3 {
 		v, err := s.Get(context.Background(), "forge")
 		if err != nil || string(v.Reveal()) != "tok" {
@@ -134,16 +134,62 @@ func TestKeyringSecretsAreReadOnceFromTheEntryOfTheirProfile(t *testing.T) {
 }
 
 func TestAMissingKeyringEntryNamesTheLoginCommand(t *testing.T) {
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{entries: map[string]string{}}, ownedBy("work"))
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{entries: map[string]string{}}, ownedByWork)
 	_, err := s.Get(context.Background(), "forge")
 	if want := "secret \"forge\" is not in the keyring: run `doriath profiles login work forge`"; err == nil || err.Error() != want {
 		t.Errorf("err = %v, want %s", err, want)
 	}
 }
 
+type fakeAsker struct {
+	answer string
+	err    error
+	calls  int
+}
+
+func (f *fakeAsker) Ask(string) (Value, error) {
+	f.calls++
+	return NewValue([]byte(f.answer)), f.err
+}
+
+func TestAMissingKeyringEntryIsAskedForOnceAndKept(t *testing.T) {
+	kr := &fakeKeyring{entries: map[string]string{}}
+	ask := &fakeAsker{answer: "tok"}
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask)
+	v, err := s.Get(context.Background(), "forge")
+	if err != nil || string(v.Reveal()) != "tok" || kr.entries["work/forge"] != "tok" {
+		t.Fatalf("Get = %q, %v; keyring = %v", v.Reveal(), err, kr.entries)
+	}
+	if _, err := s.Get(context.Background(), "forge"); err != nil || ask.calls != 1 {
+		t.Errorf("second Get: %v, asked %d times", err, ask.calls)
+	}
+}
+
+func TestARetryDuringTheSessionDoesNotAskOnTheTerminal(t *testing.T) {
+	kr := &fakeKeyring{entries: map[string]string{}}
+	ask := &fakeAsker{err: errors.New("interrupted")}
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask)
+	if _, err := s.Get(context.Background(), "forge"); err == nil {
+		t.Fatal("a failed answer gives the secret")
+	}
+	s.Retry("forge")
+	_, err := s.Get(context.Background(), "forge")
+	if ask.calls != 1 || err == nil || !strings.Contains(err.Error(), "doriath profiles login work forge") {
+		t.Errorf("after Retry: asked %d times, err = %v", ask.calls, err)
+	}
+}
+
+func TestAnEmptyAnswerIsNotKept(t *testing.T) {
+	kr := &fakeKeyring{entries: map[string]string{}}
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(&fakeAsker{answer: "\n"})
+	if _, err := s.Get(context.Background(), "forge"); err == nil || len(kr.entries) != 0 {
+		t.Errorf("err = %v, keyring = %v", err, kr.entries)
+	}
+}
+
 func TestAKeyringThatFailsLeavesTheSecretUnavailable(t *testing.T) {
 	broken := errors.New("read the keyring: no Secret Service")
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{err: broken}, ownedBy("work"))
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{err: broken}, ownedByWork)
 	if _, err := s.Get(context.Background(), "forge"); !errors.Is(err, broken) {
 		t.Errorf("err = %v, want %v", err, broken)
 	}

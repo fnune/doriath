@@ -115,6 +115,12 @@ type Keyring interface {
 
 var ErrNotInKeyring = errors.New("not in the keyring")
 
+// Asker asks you for the value of a secret on the terminal that starts the
+// session.
+type Asker interface {
+	Ask(name string) (Value, error)
+}
+
 // Command is one run of a secret's command. With Terminal, the command may
 // ask you for a password there. A refresh during the session never gets the
 // terminal, which the agent uses.
@@ -155,6 +161,8 @@ type Configured struct {
 
 	keyring Keyring
 	owner   func(name string) string
+	ask     Asker
+	asked   map[string]bool
 
 	mu     sync.Mutex
 	cache  map[string]cached
@@ -227,8 +235,15 @@ func (c *Configured) WithKeyring(k Keyring, owner func(name string) string) *Con
 	return c
 }
 
+// WithAsker lets the store ask you for a keyring secret that has no entry,
+// on the first read only, and keep your answer in the keyring.
+func (c *Configured) WithAsker(a Asker) *Configured {
+	c.ask = a
+	return c
+}
+
 func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
-	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
+	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}, asked: map[string]bool{}}
 }
 
 // WithClock replaces the clock that decides when a secret is due.
@@ -365,7 +380,7 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 		return trimmed(name, data)
 	}
 	if b.Keyring {
-		return c.readKeyring(name)
+		return c.readKeyring(name, terminal)
 	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
@@ -376,19 +391,38 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, terminal
 	return trimmed(name, stdout)
 }
 
-func (c *Configured) readKeyring(name string) (Value, error) {
+func (c *Configured) readKeyring(name string, terminal bool) (Value, error) {
 	if c.keyring == nil {
 		return Value{}, fmt.Errorf("secret %q: the keyring is not available here", name)
 	}
 	owner := c.owner(name)
+	firstRead := !c.asked[name]
+	c.asked[name] = true
 	v, err := c.keyring.Read(owner, name)
 	switch {
+	case errors.Is(err, ErrNotInKeyring) && terminal && firstRead && c.ask != nil:
+		return c.askAndKeep(owner, name)
 	case errors.Is(err, ErrNotInKeyring):
 		return Value{}, fmt.Errorf("secret %q is not in the keyring: run %s", name, cli.Code(cli.Line("profiles", "login", owner, name)))
 	case err != nil:
 		return Value{}, fmt.Errorf("secret %q: %w", name, err)
 	}
 	return trimmed(name, v.b)
+}
+
+func (c *Configured) askAndKeep(owner, name string) (Value, error) {
+	answer, err := c.ask.Ask(name)
+	if err != nil {
+		return Value{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	v, err := trimmed(name, answer.b)
+	if err != nil {
+		return Value{}, err
+	}
+	if err := c.keyring.Write(owner, name, v); err != nil {
+		return Value{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	return v, nil
 }
 
 func trimmed(name string, data []byte) (Value, error) {

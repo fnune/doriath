@@ -114,7 +114,7 @@ doriath profiles [list | show NAME [--json] | edit NAME | allow NAME [--current 
 - `list` and `show` list the profiles and show one. `show` names the module behind each mount, host and rule, and `--json` prints the whole profile for scripts.
 - `edit` opens a profile in your editor, and checks it when you save.
 - `allow` shows what a profile gives, and allows it for sessions in the repository of `--current DIR` or of the working folder. Use it for a session without a terminal. See [allowed profiles](/reference/configuration/#allowed-profiles).
-- `login` signs in to the OAuth secrets of a profile, and asks for the values of its keyring secrets. See [OAuth logins](/reference/configuration/#oauth-logins) and [keyring secrets](/reference/configuration/#keyring-secrets).
+- `login` signs in to the OAuth secrets of a profile, and asks for the values of its keyring secrets that have no entry. See [OAuth logins](/reference/configuration/#oauth-logins) and [keyring secrets](/reference/configuration/#keyring-secrets).
 - `clean` removes the caches of a profile. No session of the profile can run at that time.
 
 ### `doriath modules`
