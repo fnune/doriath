@@ -458,11 +458,11 @@ exit 0
 func TestApprovals(t *testing.T) {
 	e := newEnv(t)
 	script := `
-curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
+curl -sS -X POST -d '{}' https://api.github.com/repos/acme/app/releases
 echo
-curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
+curl -sS -X POST -d '{}' https://api.github.com/repos/acme/app/releases
 echo
-curl -sS -X POST -d '{}' https://api.github.com/repos/fnune/project/releases
+curl -sS -X POST -d '{}' https://api.github.com/repos/acme/app/releases
 `
 	var first approval.Request
 	code, out := e.run(e.profile(""), script, func() {

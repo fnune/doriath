@@ -230,7 +230,7 @@ func TestDesktopIgnoresOtherSenders(t *testing.T) {
 func TestDesktopShowsLinksWithoutOpeningThem(t *testing.T) {
 	e := newDesktopEnv(t)
 	withLink := request
-	withLink.URL = "https://github.com/fnune/app/pull/1"
+	withLink.URL = "https://github.com/acme/app/pull/1"
 	_, _, _ = e.notify(t, withLink)
 	if got := e.server.last(t); slices.Contains(got.actions, "open") || !strings.Contains(got.body, "Link: "+withLink.URL) {
 		t.Errorf("a https link shows in the body, without a button: %v %q", got.actions, got.body)

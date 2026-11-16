@@ -80,8 +80,8 @@ func TestSettings(t *testing.T) {
 
 func TestProjectDir(t *testing.T) {
 	for in, want := range map[string]string{
-		"/home/u/.home.nix":                         "-home-u--home-nix",
-		"/home/u/Development/acme/acme-service": "-home-u-Development-acme-acme-service",
+		"/home/u/.home.nix":            "-home-u--home-nix",
+		"/home/u/Development/acme/app": "-home-u-Development-acme-app",
 	} {
 		if got := ProjectDir(in); got != want {
 			t.Errorf("ProjectDir(%q) = %q", in, got)

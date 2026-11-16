@@ -44,7 +44,7 @@ func allSafe(c []Change) bool {
 }
 
 func TestUpstreamTrackingIsSafe(t *testing.T) {
-	c := changes(t, current+"[branch \"fnune/topic\"]\n\tremote = origin\n\tmerge = refs/heads/fnune/topic\n")
+	c := changes(t, current+"[branch \"ada/topic\"]\n\tremote = origin\n\tmerge = refs/heads/ada/topic\n")
 	if len(c) != 2 || !allSafe(c) {
 		t.Errorf("changes = %+v", c)
 	}

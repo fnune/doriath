@@ -26,13 +26,13 @@ func TestSecretsProvideSendsThePipedValueToTheSession(t *testing.T) {
 	p := testPaths(t)
 	s := startSession(t, p, "s1", "deploy", time.Now())
 	var out bytes.Buffer
-	if err := cmdSecrets([]string{"provide", "acme"}, pipeWith(t, "pul-token\n"), &out); err != nil {
+	if err := cmdSecrets([]string{"provide", "acme"}, pipeWith(t, "acme-token\n"), &out); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.provided["acme"]; got != "pul-token" {
+	if got := s.provided["acme"]; got != "acme-token" {
 		t.Errorf("provided %q", got)
 	}
-	if out.String() != "Session s1 uses this value for secret acme until it ends.\n" || strings.Contains(out.String(), "pul-token") {
+	if out.String() != "Session s1 uses this value for secret acme until it ends.\n" || strings.Contains(out.String(), "acme-token") {
 		t.Errorf("out = %q", out.String())
 	}
 }

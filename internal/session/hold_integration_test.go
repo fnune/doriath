@@ -53,7 +53,7 @@ func TestHeldRequestTellsTheProgramWhatItWaitsFor(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
 echo "before the hold" >curl.err
-curl -sS -o /dev/null -X POST -d '{}' https://api.github.com/repos/fnune/project/releases 2>>curl.err
+curl -sS -o /dev/null -X POST -d '{}' https://api.github.com/repos/acme/app/releases 2>>curl.err
 echo "status $?"
 sed 's/^/curl said: /' curl.err
 `, func() {

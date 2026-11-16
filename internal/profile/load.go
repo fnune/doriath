@@ -135,7 +135,7 @@ func pathCause(err error) error {
 }
 
 // Load reads a profile, or several joined with "+", such as
-// acme-service+review-stacks. Each later profile applies over the earlier
+// work+review. Each later profile applies over the earlier
 // ones as a module does: access adds up, and where two give the same mount,
 // the lesser access holds. Two that give one secret different sources, or
 // different signing keys, are refused.

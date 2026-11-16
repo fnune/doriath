@@ -317,7 +317,7 @@ func TestProofNeedsTheToken(t *testing.T) {
 func TestAnsweredShowsTheVerdictAndWhoGaveIt(t *testing.T) {
 	sessions := &fakeSessions{}
 	history := fakeHistory{
-		{Time: testNow.Add(-6 * time.Minute), Request: request("b1", approval.KindHTTP, "Push to fnune/my-app"), Decision: approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}},
+		{Time: testNow.Add(-6 * time.Minute), Request: request("b1", approval.KindHTTP, "Push to acme/my-app"), Decision: approval.Decision{Verdict: approval.VerdictAllow, Lasting: approval.LastingSession, By: "desktop"}},
 		{Time: testNow.Add(-time.Hour), Request: request("b2", approval.KindHost, "Allow t.example?"), Decision: approval.Decision{Verdict: approval.VerdictNone}},
 	}
 	srv, err := New(sessions, history, &fakeChecks{}, fixedClock{}, testToken, testAddr)

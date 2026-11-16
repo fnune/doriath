@@ -10,7 +10,7 @@ import (
 	"github.com/fnune/doriath/internal/vcstools"
 )
 
-const desktopGit = "user.name\nTest User\x00user.email\nf@example.org\x00user.signingkey\n/home/u/.ssh/id_ed25519.pub\x00" +
+const desktopGit = "user.name\nAda Example\x00user.email\nada@example.org\x00user.signingkey\n/home/u/.ssh/id_ed25519.pub\x00" +
 	"credential.helper\n/usr/lib/git-core/git-credential-libsecret\x00url.ssh://git@github.com/acme/.insteadof\nhttps://github.com/acme/\x00" +
 	"include.path\n/home/u/.local/gitconfig\x00core.fsmonitor\nrm -rf /\x00push.autosetupremote\ntrue\x00alias.lg\nlog --graph \"--format=%h\"\x00"
 
@@ -32,7 +32,7 @@ func TestGitConfigWithRealGit(t *testing.T) {
 		return strings.TrimSpace(string(out))
 	}
 	for key, want := range map[string]string{
-		"user.name":            "Test User",
+		"user.name":            "Ada Example",
 		"user.signingkey":      "/run/doriath/signing.pub",
 		"gpg.format":           "ssh",
 		"commit.gpgsign":       "true",

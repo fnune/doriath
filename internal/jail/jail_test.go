@@ -53,10 +53,10 @@ func held(p *profile.Profile, h fakeHost) fakeHost {
 
 func testProfile() *profile.Profile {
 	return &profile.Profile{
-		Name: "project",
+		Name: "app",
 		Mounts: []profile.Mount{
-			{Path: "/home/u/Development/project/site", Mode: profile.ModeRead},
-			{Path: "/home/u/Development/project", Mode: profile.ModeWrite},
+			{Path: "/home/u/Development/app/site", Mode: profile.ModeRead},
+			{Path: "/home/u/Development/app", Mode: profile.ModeWrite},
 			{Path: "/home/u/.nix-profile", Mode: profile.ModeRead, Missing: profile.MissingSkip},
 			{Path: "/home/u/.missing", Mode: profile.ModeRead, Missing: profile.MissingSkip},
 		},
@@ -69,22 +69,22 @@ func testProfile() *profile.Profile {
 func host() fakeHost {
 	return fakeHost{
 		"/home": "dir", "/run": "dir", "/tmp": "dir", "/var/tmp": "dir", "/mnt": "dir",
-		"/home/u/Development/project":      "dir",
-		"/home/u/Development/project/site": "dir",
-		"/home/u/.nix-profile":              "other",
-		"/dev/tpmrm0":                       "other",
+		"/home/u/Development/app":      "dir",
+		"/home/u/Development/app/site": "dir",
+		"/home/u/.nix-profile":         "other",
+		"/dev/tpmrm0":                  "other",
 	}
 }
 
 func layout() Layout {
-	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/project", Tmp: "/home/u/.cache/g/agents/project/tmp", Home: "/home/u/.cache/g/agents/project/scratch/s1", Exe: "/nix/store/x/bin/doriath"}
+	return Layout{JailDir: "/run/user/1000/g/s1/jail", CacheRoot: "/home/u/.cache/g/agents/app", Tmp: "/home/u/.cache/g/agents/app/tmp", Home: "/home/u/.cache/g/agents/app/scratch/s1", Exe: "/nix/store/x/bin/doriath"}
 }
 
 func opts() Options {
 	return Options{
 		UID:      1000,
 		Home:     "/home/u",
-		Cwd:      "/home/u/Development/project",
+		Cwd:      "/home/u/Development/app",
 		Command:  []string{ExePath, "init", "--", "claude"},
 		HostEnv:  map[string]string{"PATH": "/usr/bin", "TERM": "xterm", "GH_TOKEN": "secret", "SSH_AUTH_SOCK": "/run/user/1000/ssh-agent"},
 		ExtraEnv: map[string]string{"HTTPS_PROXY": "http://127.0.0.1:3128"},
@@ -110,8 +110,8 @@ func TestPlan(t *testing.T) {
 		"/dev/tpmrm0",
 		"/home/u/.nix-profile",
 		"/run/doriath-bin/doriath",
-		"/home/u/Development/project",
-		"/home/u/Development/project/site",
+		"/home/u/Development/app",
+		"/home/u/Development/app/site",
 		"/home/u/.cache/go-build",
 	}
 	slices.Sort(dests)
@@ -122,11 +122,11 @@ func TestPlan(t *testing.T) {
 	idx := func(dest string) int {
 		return slices.IndexFunc(s.Binds, func(b Bind) bool { return b.Dest == dest })
 	}
-	if idx("/home/u/Development/project") > idx("/home/u/Development/project/site") {
+	if idx("/home/u/Development/app") > idx("/home/u/Development/app/site") {
 		t.Error("the parent mount must come before the read-only child")
 	}
 	cache := s.Binds[idx("/home/u/.cache/go-build")]
-	if cache.Source != "/home/u/.cache/g/agents/project/home/.cache/go-build" || cache.ReadOnly {
+	if cache.Source != "/home/u/.cache/g/agents/app/home/.cache/go-build" || cache.ReadOnly {
 		t.Errorf("cache bind = %+v", cache)
 	}
 	if b := s.Binds[idx("/run/doriath")]; !b.ReadOnly {
@@ -162,7 +162,7 @@ func TestArgsOrder(t *testing.T) {
 	if root > pos("--proc", "/proc") || root > pos("--tmpfs", "/home") {
 		t.Error("the root bind must come before /proc and the tmpfs mounts")
 	}
-	if pos("--tmpfs", "/home") > pos("--bind", "/home/u/Development/project", "/home/u/Development/project") {
+	if pos("--tmpfs", "/home") > pos("--bind", "/home/u/Development/app", "/home/u/Development/app") {
 		t.Error("the home tmpfs must come before the binds into home")
 	}
 	if pos("--unshare-net") > root {
@@ -177,7 +177,7 @@ func TestArgsOrder(t *testing.T) {
 		t.Errorf("command = %v", args[sep+1:])
 	}
 	pos("--dev-bind", "/dev/tpmrm0", "/dev/tpmrm0")
-	pos("--chdir", "/home/u/Development/project")
+	pos("--chdir", "/home/u/Development/app")
 }
 
 func TestPlanErrors(t *testing.T) {
@@ -205,7 +205,7 @@ func TestPlanErrors(t *testing.T) {
 
 func TestCwdPrefixIsPathAware(t *testing.T) {
 	o := opts()
-	o.Cwd = "/home/u/Development/project-backup"
+	o.Cwd = "/home/u/Development/app-backup"
 	if _, err := Plan(testProfile(), layout(), o, host()); err == nil {
 		t.Fatal("a sibling directory sharing a prefix is not inside the mount")
 	}
@@ -213,14 +213,14 @@ func TestCwdPrefixIsPathAware(t *testing.T) {
 
 func TestGitGuards(t *testing.T) {
 	h := host()
-	h["/home/u/Development/project/.git"] = "dir"
-	h["/home/u/Development/project/.git/config"] = "file"
-	h["/home/u/Development/project/.git/hooks"] = "dir"
+	h["/home/u/Development/app/.git"] = "dir"
+	h["/home/u/Development/app/.git/config"] = "file"
+	h["/home/u/Development/app/.git/hooks"] = "dir"
 	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"/home/u/Development/project/.git/config", "/home/u/Development/project/.git/hooks", "/home/u/Development/project/.git/info"} {
+	for _, p := range []string{"/home/u/Development/app/.git/config", "/home/u/Development/app/.git/hooks", "/home/u/Development/app/.git/info"} {
 		if mode(s.Binds, p) != "read" {
 			t.Errorf("%s must be bound read-only", p)
 		}
@@ -228,7 +228,7 @@ func TestGitGuards(t *testing.T) {
 }
 
 func TestMissingControlPathsAreHeld(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.git"] = "dir"
 	h[repo+"/.git/config"] = "file"
@@ -265,7 +265,7 @@ func TestMissingControlPathsAreHeld(t *testing.T) {
 }
 
 func TestTheAgentCannotNameARemoteThroughAFileGitReadsOnTheHost(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.git"] = "dir"
 	h[repo+"/.git/remotes"] = "dir"
@@ -282,7 +282,7 @@ func TestTheAgentCannotNameARemoteThroughAFileGitReadsOnTheHost(t *testing.T) {
 }
 
 func TestSecondaryWorkspacePointerIsReadOnly(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.jj"] = "dir"
 	h[repo+"/.jj/repo"] = "file"
@@ -297,18 +297,18 @@ func TestSecondaryWorkspacePointerIsReadOnly(t *testing.T) {
 
 func TestGitGuardsOnGitDirMount(t *testing.T) {
 	h := host()
-	h["/home/u/Development/project/.git"] = "dir"
-	h["/home/u/Development/project/.git/hooks"] = "dir"
+	h["/home/u/Development/app/.git"] = "dir"
+	h["/home/u/Development/app/.git/hooks"] = "dir"
 	p := testProfile()
 	p.Mounts = []profile.Mount{
-		{Path: "/home/u/Development/project", Mode: profile.ModeRead},
-		{Path: "/home/u/Development/project/.git", Mode: profile.ModeWrite},
+		{Path: "/home/u/Development/app", Mode: profile.ModeRead},
+		{Path: "/home/u/Development/app/.git", Mode: profile.ModeWrite},
 	}
 	s, err := Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mode(s.Binds, "/home/u/Development/project/.git/hooks") != "read" {
+	if mode(s.Binds, "/home/u/Development/app/.git/hooks") != "read" {
 		t.Fatal("hooks must be read-only when .git itself is the mount")
 	}
 }
@@ -336,7 +336,7 @@ func TestNixDaemonHiddenUnlessGranted(t *testing.T) {
 
 func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 	h := host()
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	for p, k := range map[string]string{
 		repo + "/.git":                    "dir",
 		repo + "/.git/config":             "file",
@@ -365,7 +365,7 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 		t.Errorf("the root guard must watch the store and its submodules: %q", roots)
 	}
 	w := host()
-	w["/home/u/Development/project/.git"] = "file"
+	w["/home/u/Development/app/.git"] = "file"
 	s, err = Plan(testProfile(), layout(), opts(), w)
 	if err != nil {
 		t.Fatal(err)
@@ -377,15 +377,15 @@ func TestGitGuardsRedirectsAndSubmodules(t *testing.T) {
 
 func TestNestedRepositoriesAreGuarded(t *testing.T) {
 	h := host()
-	nested := "/home/u/Development/project/vendor-not/inner"
+	nested := "/home/u/Development/app/vendor-not/inner"
 	for p, k := range map[string]string{
-		"/home/u/Development/project/vendor-not": "dir",
-		nested:                                  "dir",
-		nested + "/.git":                        "dir",
-		nested + "/.git/config":                 "file",
-		"/home/u/Development/project/.jj":      "dir",
-		"/home/u/Development/project/.jj/repo": "dir",
-		"/home/u/Development/project/.jj/repo/config.toml": "file",
+		"/home/u/Development/app/vendor-not":           "dir",
+		nested:                                         "dir",
+		nested + "/.git":                               "dir",
+		nested + "/.git/config":                        "file",
+		"/home/u/Development/app/.jj":                  "dir",
+		"/home/u/Development/app/.jj/repo":             "dir",
+		"/home/u/Development/app/.jj/repo/config.toml": "file",
 	} {
 		h[p] = k
 	}
@@ -393,7 +393,7 @@ func TestNestedRepositoriesAreGuarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{nested + "/.git/config", "/home/u/Development/project/.jj/repo/config.toml"} {
+	for _, p := range []string{nested + "/.git/config", "/home/u/Development/app/.jj/repo/config.toml"} {
 		if mode(s.Binds, p) != "read" {
 			t.Errorf("%s must be read-only", p)
 		}
@@ -435,20 +435,20 @@ func TestVarAndOptAreHidden(t *testing.T) {
 func TestHiddenPathsShowNothing(t *testing.T) {
 	p := testProfile()
 	p.Mounts = append(p.Mounts,
-		profile.Mount{Path: "/home/u/Development/project/secrets", Mode: profile.ModeHide},
-		profile.Mount{Path: "/home/u/Development/project/.env", Mode: profile.ModeHide},
-		profile.Mount{Path: "/home/u/Development/project/gone", Mode: profile.ModeHide},
+		profile.Mount{Path: "/home/u/Development/app/secrets", Mode: profile.ModeHide},
+		profile.Mount{Path: "/home/u/Development/app/.env", Mode: profile.ModeHide},
+		profile.Mount{Path: "/home/u/Development/app/gone", Mode: profile.ModeHide},
 	)
 	h := host()
-	h["/home/u/Development/project/secrets"] = "dir"
-	h["/home/u/Development/project/.env"] = "file"
+	h["/home/u/Development/app/secrets"] = "dir"
+	h["/home/u/Development/app/.env"] = "file"
 	s, err := Plan(p, layout(), opts(), h)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		"/home/u/Development/project/secrets": layout().EmptyDir(),
-		"/home/u/Development/project/.env":    "/dev/null",
+		"/home/u/Development/app/secrets": layout().EmptyDir(),
+		"/home/u/Development/app/.env":    "/dev/null",
 	}
 	seen := map[string]int{}
 	for i, b := range s.Binds {
@@ -458,7 +458,7 @@ func TestHiddenPathsShowNothing(t *testing.T) {
 			}
 			seen[b.Dest] = i
 		}
-		if b.Dest == "/home/u/Development/project/gone" {
+		if b.Dest == "/home/u/Development/app/gone" {
 			t.Error("a hidden path that does not exist needs no mount")
 		}
 	}
@@ -468,14 +468,14 @@ func TestHiddenPathsShowNothing(t *testing.T) {
 		}
 	}
 	for i, b := range s.Binds {
-		if b.Dest == "/home/u/Development/project" && i > seen["/home/u/Development/project/secrets"] {
+		if b.Dest == "/home/u/Development/app" && i > seen["/home/u/Development/app/secrets"] {
 			t.Error("the hiding mount must come after the mount it hides in")
 		}
 	}
 }
 
 func TestLinksInWritableMountsAreRefused(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	for name, h := range map[string]fakeHost{
 		"a mount under a linked directory":     {repo + "/.claude": "link", repo + "/.claude/worktrees": "dir"},
 		"a guard that links into the checkout": {repo + "/.git": "dir", repo + "/.git/config": "file", repo + "/.git/hooks": "link", "target " + repo + "/.git/hooks": repo + "/hooks"},
@@ -505,7 +505,7 @@ func TestLinksOutsideWritableMountsAreBound(t *testing.T) {
 
 func TestRepositoriesSkipLinkedDirectories(t *testing.T) {
 	h := host()
-	root := "/home/u/Development/project"
+	root := "/home/u/Development/app"
 	h[root+"/other"] = "link"
 	h[root+"/other/.git"] = "dir"
 	if got := Repositories(root, h); slices.Contains(got, root+"/other") {
@@ -574,7 +574,7 @@ func TestRepositoriesFindRepositoriesUpToTheirDepth(t *testing.T) {
 }
 
 func TestTheJJConfigIDOfAWritableRepositoryStaysReadOnly(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := held(testProfile(), host())
 	h[repo+"/.jj"] = "dir"
 	h[repo+"/.jj/repo"] = "dir"
@@ -591,9 +591,9 @@ func TestTheJJConfigIDOfAWritableRepositoryStaysReadOnly(t *testing.T) {
 
 func TestJJReposListsTheReposWhoseControlFilesTheJailGuards(t *testing.T) {
 	h := host()
-	writable := "/home/u/Development/project"
-	readOnly := "/home/u/Development/project/site/vendor"
-	workspace := "/home/u/Development/project/ws"
+	writable := "/home/u/Development/app"
+	readOnly := "/home/u/Development/app/site/vendor"
+	workspace := "/home/u/Development/app/ws"
 	for p, k := range map[string]string{
 		writable + "/.jj":       "dir",
 		writable + "/.jj/repo":  "dir",
@@ -615,7 +615,7 @@ func TestJJReposListsTheReposWhoseControlFilesTheJailGuards(t *testing.T) {
 }
 
 func TestALinkInAReadOnlyCheckoutNeedsNoMountOfItsOwn(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.pre-commit-config.yaml"] = "link"
 	p := &profile.Profile{Name: "default", Mounts: []profile.Mount{
@@ -634,7 +634,7 @@ func TestALinkInAReadOnlyCheckoutNeedsNoMountOfItsOwn(t *testing.T) {
 }
 
 func TestALinkInAWritableCheckoutIsKeptInPlaceInsteadOfMounted(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.git"] = "dir"
 	h[repo+"/.git/config"] = "file"
@@ -655,7 +655,7 @@ func TestALinkInAWritableCheckoutIsKeptInPlaceInsteadOfMounted(t *testing.T) {
 }
 
 func TestAGrantKeepsAGuardedLinkInPlaceAsThePlanDoes(t *testing.T) {
-	repo := "/home/u/Development/project"
+	repo := "/home/u/Development/app"
 	h := host()
 	h[repo+"/.git"] = "dir"
 	h[repo+"/.git/config"] = "file"

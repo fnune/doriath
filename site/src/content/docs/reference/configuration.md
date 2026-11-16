@@ -14,7 +14,7 @@ doriath reads its configuration from `~/.config/doriath`, or from `$DORIATH_CONF
 doriath also reads profiles from the folders in `profiles/`, and follows symlinks. One symlink can thus add a repository of profiles, such as private profiles that stay out of a public home-manager configuration:
 
 ```sh
-ln -s ~/Development/doriath-profiles ~/.config/doriath/profiles/private
+ln -s ~/Development/my-profiles ~/.config/doriath/profiles/private
 ```
 
 The file name is the profile name. Two files with the same name are an error. doriath skips folders whose names start with a dot, such as `.git`.

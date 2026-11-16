@@ -309,7 +309,7 @@ func TestInterceptInjectsCredential(t *testing.T) {
 func TestBasicCredentialForGit(t *testing.T) {
 	h := newHarness(t)
 	payload := bytes.Repeat([]byte("pack"), 2<<20)
-	resp, err := h.client().Post("https://github.com/fnune/project.git/git-receive-pack", "application/x-git-receive-pack-request", bytes.NewReader(payload))
+	resp, err := h.client().Post("https://github.com/acme/app.git/git-receive-pack", "application/x-git-receive-pack-request", bytes.NewReader(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestBasicCredentialForGit(t *testing.T) {
 
 func TestRuleDeny(t *testing.T) {
 	h := newHarness(t)
-	req, _ := http.NewRequest(http.MethodPut, "https://api.github.com/repos/fnune/project/pulls/3/merge", nil)
+	req, _ := http.NewRequest(http.MethodPut, "https://api.github.com/repos/acme/app/pulls/3/merge", nil)
 	resp, err := h.client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -351,17 +351,17 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	at := func(path string) string {
 		return scope(push, true, "POST", path, "github.com", nil, nil, forge.Repository(path), "")
 	}
-	a := at("/fnune/project.git/git-receive-pack")
-	if a != "http POST github.com /**/git-receive-pack in /fnune/project" {
+	a := at("/acme/app.git/git-receive-pack")
+	if a != "http POST github.com /**/git-receive-pack in /acme/app" {
 		t.Fatalf("scope = %q", a)
 	}
-	if b := at("/fnune/Project/git-receive-pack"); b != a {
+	if b := at("/acme/App/git-receive-pack"); b != a {
 		t.Errorf("the same repository with and without .git must share a grant: %q", b)
 	}
-	if c := at("/fnune/other/git-receive-pack"); c == a {
+	if c := at("/acme/other/git-receive-pack"); c == a {
 		t.Error("a push grant for one repository must not answer a push to another")
 	}
-	if e := at("/fnune/project.git/git-receive-pack/"); e != a {
+	if e := at("/acme/app.git/git-receive-pack/"); e != a {
 		t.Errorf("a trailing slash must keep the repository in the scope: %q", e)
 	}
 	if d := at("/group/sub/proj.git/git-receive-pack"); !strings.HasSuffix(d, " in /group/sub/proj") {
@@ -404,7 +404,7 @@ func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
 func TestRuleApprove(t *testing.T) {
 	h := newHarness(t)
 	post := func() *http.Response {
-		resp, err := h.client().Post("https://api.github.com/repos/fnune/project/releases", "application/json", strings.NewReader(`{"tag_name":"v1"}`))
+		resp, err := h.client().Post("https://api.github.com/repos/acme/app/releases", "application/json", strings.NewReader(`{"tag_name":"v1"}`))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -417,11 +417,11 @@ func TestRuleApprove(t *testing.T) {
 	req := h.approver.requests[0]
 	h.approver.verdict = approval.VerdictDeny
 	h.approver.mu.Unlock()
-	if req.Summary != "Create a GitHub release in api.github.com/repos/fnune/project" || req.Scope != "http POST api.github.com /repos/*/*/releases in /repos/fnune/project" || req.Session != "s1" {
+	if req.Summary != "Create a GitHub release in api.github.com/repos/acme/app" || req.Scope != "http POST api.github.com /repos/*/*/releases in /repos/acme/app" || req.Session != "s1" {
 		t.Fatalf("approval request = %+v", req)
 	}
 	resp := post()
-	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release in api.github.com/repos/fnune/project was denied: not today") {
+	if b := body(t, resp); resp.StatusCode != http.StatusForbidden || !strings.Contains(b, "Create a GitHub release in api.github.com/repos/acme/app was denied: not today") {
 		t.Fatalf("denied: status %d: %s", resp.StatusCode, b)
 	}
 	if h.upstream.count() != 1 {
@@ -1188,7 +1188,7 @@ func (w *waitNotes) count() int {
 
 func sendRelease(t *testing.T, h *harness, notes *waitNotes, approver Approver, after time.Duration) {
 	srv := New(Config{Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: h.upCA.Pool(), Waiting: notes, WaitingAfter: after}, loadPolicy(t), approver, mapSecrets{"github": "t"}, h.session, h.dialer(), h.events)
-	req := httptest.NewRequest(http.MethodPost, "https://api.github.com/repos/fnune/project/releases", strings.NewReader(`{}`))
+	req := httptest.NewRequest(http.MethodPost, "https://api.github.com/repos/acme/app/releases", strings.NewReader(`{}`))
 	host, _ := srv.policy.Intercepted("api.github.com")
 	srv.intercepted(httptest.NewRecorder(), req, "api.github.com", "api.github.com", host)
 }
@@ -1209,7 +1209,7 @@ func TestAHeldRequestTellsTheCallerAfterTheDelay(t *testing.T) {
 	}
 	close(approver.release)
 	<-done
-	if notes.calls[0] != "Create a GitHub release in api.github.com/repos/fnune/project" {
+	if notes.calls[0] != "Create a GitHub release in api.github.com/repos/acme/app" {
 		t.Errorf("summary = %q", notes.calls[0])
 	}
 }

@@ -279,14 +279,14 @@ func TestTheParentsOfGuardedFilesAreMountPointsInWriteMounts(t *testing.T) {
 
 func TestNothingIsPinnedUnderAReadOnlyMount(t *testing.T) {
 	h := host()
-	h["/home/u/Development/project/site/.git"] = "dir"
-	h["/home/u/Development/project/site/.git/config"] = "file"
+	h["/home/u/Development/app/site/.git"] = "dir"
+	h["/home/u/Development/app/site/.git/config"] = "file"
 	p := testProfile()
 	s, err := Plan(p, layout(), opts(), held(p, h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mode(s.Binds, "/home/u/Development/project/site/.git"); got != "none" {
+	if got := mode(s.Binds, "/home/u/Development/app/site/.git"); got != "none" {
 		t.Errorf("a read-only mount needs no pins, got %s", got)
 	}
 }

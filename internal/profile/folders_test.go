@@ -42,10 +42,10 @@ func dirLoader(dir string) *Loader {
 func TestProfilesInFoldersAndLinkedFolders(t *testing.T) {
 	root := t.TempDir()
 	profiles := filepath.Join(root, "profiles")
-	clone := filepath.Join(root, "doriath-profiles")
+	clone := filepath.Join(root, "my-profiles")
 	write(t, filepath.Join(profiles, "public.toml"), minimalProfile)
 	write(t, filepath.Join(profiles, "work", "team.toml"), minimalProfile)
-	write(t, filepath.Join(clone, "acme-service.toml"), minimalProfile)
+	write(t, filepath.Join(clone, "acme-app.toml"), minimalProfile)
 	write(t, filepath.Join(clone, "README.md"), "# Profiles")
 	write(t, filepath.Join(clone, "nested", "deeper", "tools.toml"), minimalProfile)
 	link(t, clone, filepath.Join(profiles, "private"))
@@ -57,7 +57,7 @@ func TestProfilesInFoldersAndLinkedFolders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"from-nix", "public", "acme-service", "team", "tools"}
+	want := []string{"acme-app", "from-nix", "public", "team", "tools"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("names = %q, want %q", names, want)
 	}

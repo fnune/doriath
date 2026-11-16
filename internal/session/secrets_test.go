@@ -28,7 +28,7 @@ func sessionWithSecrets(t *testing.T, backends map[string]secret.Backend) *testS
 	s.req.Profile = &profile.Profile{
 		Name:    "deploy",
 		Secrets: backends,
-		HTTP:    []profile.HTTPHost{{Host: "api.acme.com", Credential: &profile.Credential{Secret: "acme"}}},
+		HTTP:    []profile.HTTPHost{{Host: "api.acme.test", Credential: &profile.Credential{Secret: "acme"}}},
 	}
 	return s
 }
@@ -38,14 +38,14 @@ func TestASessionStartsWithoutAnOptionalSecretAndSaysWhatFails(t *testing.T) {
 	if err := s.fetchSecrets(context.Background()); err != nil {
 		t.Fatalf("an optional secret stopped the session: %v", err)
 	}
-	if len(s.notes) != 1 || !strings.Contains(s.notes[0].text, `secret "acme"`) || !strings.Contains(s.notes[0].text, "requests to api.acme.com") {
+	if len(s.notes) != 1 || !strings.Contains(s.notes[0].text, `secret "acme"`) || !strings.Contains(s.notes[0].text, "requests to api.acme.test") {
 		t.Errorf("notes = %v", s.notes)
 	}
 	st := s.status()
 	if len(st.Unavailable) != 1 || st.Unavailable[0].Secret != "acme" {
 		t.Fatalf("unavailable = %+v", st.Unavailable)
 	}
-	if text := st.Describe(); !strings.Contains(text, "acme (requests to api.acme.com)") || !strings.Contains(text, "exit status 1") {
+	if text := st.Describe(); !strings.Contains(text, "acme (requests to api.acme.test)") || !strings.Contains(text, "exit status 1") {
 		t.Errorf("describe lacks the missing secret:\n%s", text)
 	}
 	if text := st.Describe(); strings.Contains(text, "not logged in") {

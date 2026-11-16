@@ -26,7 +26,7 @@ Then find where profiles live:
 
 1. Run `ls -la ~/.config/doriath/profiles`.
 2. If the profile files are links into `/nix/store`, home-manager writes them. Ask the person for the path of the home-manager configuration, and find `programs.doriath` in it.
-3. If a link points to a folder, such as `private -> ~/Development/doriath-profiles`, the person keeps those profiles in a repository. Ask whether the new profile goes there.
+3. If a link points to a folder, such as `private -> ~/Development/my-profiles`, the person keeps those profiles in a repository. Ask whether the new profile goes there.
 4. Otherwise, the profile is a TOML file at `~/.config/doriath/profiles/NAME.toml`.
 
 A profile for one project can also live in the project, at `.doriath/NAME.toml`. Sessions name it `repo:NAME`, and everyone who works on the project gets it. Put only what the project needs there: modules, hosts, mounts and caches. Keep secrets, signing keys and personal folders in a profile of the person's own, and compose the two, such as `my-app+repo:dev`. `.doriath` must be a folder in the repository, not a link. Ask the person where the profile goes. See https://doriath.fnune.com/reference/configuration/#repository-profiles.

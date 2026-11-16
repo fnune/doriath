@@ -31,7 +31,7 @@ let
         example = [
           "rbw"
           "get"
-          "github-project"
+          "github-app"
         ];
         description = "A command whose standard output is the secret, such as sops, rbw, op or secret-tool.";
       };

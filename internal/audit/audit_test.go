@@ -19,7 +19,7 @@ import (
 func TestRecords(t *testing.T) {
 	var buf bytes.Buffer
 	now := func() time.Time { return time.Date(2026, 10, 13, 12, 0, 0, 0, time.FixedZone("CEST", 7200)) }
-	l := New(&buf, now, "s1", "project")
+	l := New(&buf, now, "s1", "app")
 	l.Egress(proxy.Event{Kind: "denied", Host: "evil.example"})
 	l.Requested(approval.Request{ID: "r1", Summary: "Create a release"})
 	l.Decided(approval.Request{ID: "r1"}, approval.Decision{Verdict: approval.VerdictDeny, By: "cli"})
@@ -38,7 +38,7 @@ func TestRecords(t *testing.T) {
 		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
 			t.Fatal(err)
 		}
-		if r.Session != "s1" || r.Profile != "project" || r.Time.Location() != time.UTC {
+		if r.Session != "s1" || r.Profile != "app" || r.Time.Location() != time.UTC {
 			t.Errorf("record = %+v", r)
 		}
 		events = append(events, r.Event)

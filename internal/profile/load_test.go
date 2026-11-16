@@ -47,15 +47,15 @@ summary = "Create a release"
 `),
 	}
 	profiles := fstest.MapFS{
-		"project.toml": file(`
+		"app.toml": file(`
 modules = ["github", "base"]
 
 [secrets.github]
-command = ["rbw", "get", "github-project"]
+command = ["rbw", "get", "github-app"]
 
 
 [[mounts]]
-path = "~/Development/project"
+path = "~/Development/app"
 mode = "write"
 
 [env]
@@ -70,7 +70,7 @@ path = "/repos/*/*/pulls/*/merge"
 action = "deny"
 `),
 	}
-	p, err := loader(profiles, modules).Load("project")
+	p, err := loader(profiles, modules).Load("app")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ action = "deny"
 	if p.Env.Set["LANG"] != "en_US.UTF-8" {
 		t.Errorf("profile env must override module env, got %q", p.Env.Set["LANG"])
 	}
-	if got := p.Secrets["github"].Command; len(got) != 3 || got[2] != "github-project" {
+	if got := p.Secrets["github"].Command; len(got) != 3 || got[2] != "github-app" {
 		t.Errorf("secrets = %v", p.Secrets)
 	}
 	if src := p.Sources["secret github for github"]; !slices.Equal(src, []string{"github"}) {
@@ -93,10 +93,10 @@ action = "deny"
 	if len(host.Rules) != 2 || host.Rules[0].Method != http.MethodPut {
 		t.Errorf("profile rules must come before module rules, got %+v", host.Rules)
 	}
-	if r, ok := host.Decide("POST", "/repos/fnune/project/releases", nil); !ok || r.Action != ActionApprove || r.Summary != "Create a release" {
+	if r, ok := host.Decide("POST", "/repos/acme/app/releases", nil); !ok || r.Action != ActionApprove || r.Summary != "Create a release" {
 		t.Errorf("Decide = %+v %v", r, ok)
 	}
-	if r, ok := host.Decide("GET", "/repos/fnune/project", nil); ok || r.Action != ActionApprove {
+	if r, ok := host.Decide("GET", "/repos/acme/app", nil); ok || r.Action != ActionApprove {
 		t.Errorf("a credentialed host must hold unnamed requests, got %+v", r)
 	}
 }

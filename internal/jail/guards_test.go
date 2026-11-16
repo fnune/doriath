@@ -18,7 +18,7 @@ func (h sortedHost) List(dir string) []Entry {
 
 func TestPlanRejectsRelativeDirectories(t *testing.T) {
 	o := opts()
-	o.Cwd = "Development/project"
+	o.Cwd = "Development/app"
 	if _, err := Plan(testProfile(), layout(), o, host()); err == nil {
 		t.Error("a relative working directory must be an error")
 	}
@@ -65,7 +65,7 @@ func TestBindsOfEqualDepthKeepTheirOrder(t *testing.T) {
 
 func TestRepositoryAfterASkippedDirectoryIsGuarded(t *testing.T) {
 	h := host()
-	root := "/home/u/Development/project"
+	root := "/home/u/Development/app"
 	for p, k := range map[string]string{
 		root + "/.cache":            "dir",
 		root + "/node_modules":      "dir",
