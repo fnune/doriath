@@ -93,6 +93,13 @@ vendor-hash:
     mv nix/vendor-hash.new nix/vendor-hash
     cat nix/vendor-hash
 
+# Refresh the hash of the site's npm dependencies after a change to site/package-lock.json.
+site-npm-hash:
+    echo 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' > nix/site-npm-hash
+    nix build .#site 2>&1 | sed -n 's/.*got: *//p' | tr -d ' ' > nix/site-npm-hash.new || true
+    mv nix/site-npm-hash.new nix/site-npm-hash
+    cat nix/site-npm-hash
+
 # The documentation site, at http://localhost:4321.
 site-dev:
     cd site && npm ci && npm run dev

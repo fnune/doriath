@@ -57,10 +57,29 @@
             platforms = nixpkgs.lib.platforms.linux;
           };
         };
+
+      siteFor =
+        pkgs:
+        pkgs.buildNpmPackage {
+          pname = "doriath-site";
+          inherit version;
+          # The site imports files from outside site/: the shared styles, the
+          # modules and the profile guide.
+          src = nixpkgs.lib.cleanSource ./.;
+          sourceRoot = "source/site";
+          npmDepsHash = nixpkgs.lib.fileContents ./nix/site-npm-hash;
+          env.ASTRO_TELEMETRY_DISABLED = "1";
+          installPhase = ''
+            runHook preInstall
+            cp -r dist $out
+            runHook postInstall
+          '';
+        };
     in
     {
       packages = forAllSystems (pkgs: rec {
         doriath = doriathFor pkgs;
+        site = siteFor pkgs;
         default = doriath;
       });
 
