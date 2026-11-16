@@ -70,7 +70,7 @@ Words to avoid, with what to say instead:
 - Code blocks have a language tag.
 - Config examples show only the keys that matter, not a whole file.
 - Use Starlight's `<Aside>` for notes and cautions.
-- Describe doriath as it is meant to work, with no "yet", "so far", "known issues" or release status. Where the code falls short, the gap goes in the project's TODO list outside the repository, not on a page.
+- Describe doriath as it is meant to work, with no "yet", "so far", "known issues" or release status. Where the code falls short, the gap goes in the project's backlog, which lives outside the repository, not on a page.
 - The limits on the threat model page are the exception: a protection the code does not provide stays listed there as a limit until it does.
 - Each topic has one page. Link to it instead of repeating it on another.
 - Link a config key, module, command or concept to its reference the first time a page names it.

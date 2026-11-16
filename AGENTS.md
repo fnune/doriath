@@ -1,7 +1,7 @@
 # Notes for agents
 
 - Read [docs/engineering.md](docs/engineering.md) before changing code: it sets the principles, the layering, the testing seams and the commit conventions.
-- Before each commit, run the `stripping-code-comments` skill on your change.
+- Before each commit, strip the comments from your change. A comment explains why, never what. Delete narration comments that restate the code.
 - Write prose in Simplified Technical English (ASD-STE100), in a pragmatic form. Put the conclusion first and conditions before instructions. Keep sentences short, at most 20 words for an instruction and 25 for a description. Use active voice, simple tenses and one word for each concept. Do not use phrasal verbs, idioms, contractions or semicolons. Technical terms, commands and identifiers stay exact. Keep paragraphs to four lines on a desktop screen, about 70 words. [site/STYLE.md](site/STYLE.md) has the full list.
 - Prose you write, in docs, the site, comments, commit messages and error messages, follows [site/STYLE.md](site/STYLE.md). Its list of patterns that read as generated applies everywhere: no sentences in matching pairs or triplets, no "not X, but Y", no question headings, and none of the listed words.
 - Keep generic code free of agent and forge names. An agent's specifics live in its module, and in its adapter under `internal/agents/` only where data cannot express them. A forge's specifics live in its module, as `[[http]]` entries and rules. Choose behaviour from the profile's modules, never from a command name or a host name in Go.
@@ -10,7 +10,7 @@
 - The approvals page and the documentation site share their look through `internal/ui`. Change it there, and check both.
 - User documentation lives in `site/src/content/docs` and is published at https://doriath.fnune.com. Link there from Markdown in the repository instead of repeating it. `docs/` holds only what contributors need.
 - [site/STYLE.md](site/STYLE.md) also sets how pages are structured: cross-link keys, modules and commands to their reference, introduce examples, explain outside tools before using them, cover remote hosts, and give real reasons instead of labels. Apply the same habits to READMEs and to Markdown elsewhere in the repository.
-- Docs describe doriath as it is meant to work. Track where the code falls short in the todo list, and remove an item when a change closes it.
+- Docs describe doriath as it is meant to work. Track where the code falls short in the backlog, which lives outside the repository, and remove an item when a change closes it.
 - When a change opens or closes a gap, update the limits on the threat model page with it. Escape scripts marked `expect: gap` fail until it matches.
 - Shipped modules keep the two rules in the profiles section of the [threat model](site/src/content/docs/threat-model.mdx). Most profiles only combine modules, so a module that breaks a rule breaks most sessions.
     - Do not make a path writable if the host runs files from it on its own, such as shell startup files, `~/.local/bin` or git hooks. Put agent state in `[[caches]]`, which are copies for each profile, and never in a writable mount of the home.
