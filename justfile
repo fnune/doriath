@@ -106,3 +106,9 @@ site-dev:
 
 site-build:
     cd site && npm ci && npm run build
+
+# Screenshots the approvals page with made-up data, in light and dark. Runs a
+# real jail against a throwaway home, and needs `shot-scraper install` once.
+visuals: build
+    nix shell nixpkgs#shot-scraper nixpkgs#oxipng --command contrib/visuals/approvals-page.sh ./doriath site/public/visuals
+    nix shell nixpkgs#oxipng --command oxipng --quiet --opt 4 --strip safe site/public/visuals/*.png

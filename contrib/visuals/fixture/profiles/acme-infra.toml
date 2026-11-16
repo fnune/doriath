@@ -1,0 +1,2 @@
+description = "Acme infrastructure: read-only checkout and docs"
+modules = ["vcs-readonly", "docs"]

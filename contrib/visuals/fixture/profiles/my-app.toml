@@ -1,0 +1,5 @@
+description = "Acme app: Go, git and the acme/app repository on GitHub"
+modules = ["vcs-readwrite", "docs", "go", "github"]
+
+[secrets.github]
+file = "~/.config/doriath/keys/github-my-app"
