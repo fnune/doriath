@@ -12,7 +12,7 @@ doriath assumes an agent that acts against your intent, after a prompt injection
 
 ## Other sandboxes
 
-doriath shares your kernel, and nobody has audited its code. Its profiles set what each project can reach, and requests wait for your answer. Each cell gives the default or documented setup of the tool, read in October 2026.
+doriath shares your kernel, and nobody has audited its code. Its profiles set what each project can reach, and requests wait for your answer. Each cell gives the default or documented setup of the tool, as the public documentation in the Sources list below described it in October 2026. The other tools may have changed since then. A cell that says "not documented" means the author did not find the answer in those pages, not that the tool lacks the feature.
 
 <Cover level="yes" /> Covered, <Cover level="part" /> partly covered or
 optional, <Cover level="no" /> not covered, <Cover level="unknown" /> not
@@ -35,6 +35,8 @@ documented.
 | Trusted code   | <Cover level="no" /> Jail, proxy and TLS interception of its own | <Cover level="part" /> bubblewrap and a proxy     | <Cover level="part" /> Supervisor and proxy               | <Cover level="part" /> VM and proxy, closed source  | <Cover level="part" /> The provider and its VM                 | <Cover level="yes" /> The container runtime            | <Cover level="yes" /> The kernel only              | <Cover level="part" /> Supervisor and proxy             |
 
 </div>
+
+The table compares defaults and documented options on the threats that doriath was built for. It does not rank the tools, and it says nothing about threats that it leaves out. Check the documentation of each tool before you rely on a cell.
 
 If a kernel exploit is your main threat, run doriath in a VM, or use a microVM tool with its coarser rules.
 
