@@ -3,7 +3,7 @@
   "doriath_audit": {
     "title": "doriath audit log",
     "description": "One line per session start and end, egress decision and approval.",
-    "url": "https://github.com/fnune/doriath/blob/main/docs/configuration.md",
+    "url": "https://doriath.fnune.com/reference/configuration/",
     "json": true,
     "file-pattern": "doriath/audit\\.jsonl$",
     "timestamp-field": "time",
