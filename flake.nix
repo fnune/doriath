@@ -27,7 +27,7 @@
 
       doriathFor =
         pkgs:
-        pkgs.buildGoModule {
+        pkgs.buildGo126Module {
           pname = "doriath";
           inherit version;
           src = nixpkgs.lib.cleanSource ./.;
@@ -86,7 +86,8 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = [
-            pkgs.go
+            pkgs.git
+            pkgs.go_1_26
             pkgs.gopls
             pkgs.gofumpt
             pkgs.golangci-lint
