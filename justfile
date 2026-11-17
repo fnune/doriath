@@ -48,7 +48,7 @@ fuzz time="30s":
     done
 
 # Fixed in Go 1.26.10: empty this once the flake has it.
-vuln_known := "GO-2026-6809"
+vuln_known := ""
 
 # Fails on any vulnerability doriath calls that vuln_known does not list.
 vuln:
