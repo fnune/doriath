@@ -10,8 +10,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// signedNamespace reads the namespace the way ssh-keygen -Y verify does:
-// the first string after the magic.
 func signedNamespace(data []byte) (string, bool) {
 	rest := data[len(sshsigMagic):]
 	if len(rest) < 4 {

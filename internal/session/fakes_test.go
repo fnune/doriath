@@ -20,8 +20,6 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-// stillClock never lets a request expire, and lets a wait of zero end at
-// once, so a test decides whether a request is answered or left pending.
 type stillClock struct{}
 
 func (stillClock) Now() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }
@@ -35,8 +33,6 @@ func (stillClock) After(d time.Duration) <-chan time.Time {
 	return ch
 }
 
-// answering is a person who answers every request with decision, or
-// never answers when it is nil.
 type answering struct {
 	decision *approval.Decision
 	seen     chan approval.Request
@@ -76,8 +72,6 @@ func (p *promotions) Readable(_ context.Context, r promote.Request) error {
 	return p.err
 }
 
-// testSession is a session that has not started a jail: its home is a
-// fresh directory, and paths under it can become writable.
 type testSession struct {
 	*Session
 	home     string
@@ -149,8 +143,6 @@ func mkdirAll(t *testing.T, dirs ...string) {
 	}
 }
 
-// waitFor polls for the effect of a callback that runs on a goroutine of
-// its own and signals nothing when it is done.
 func waitFor(t *testing.T, done func() bool, failure string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

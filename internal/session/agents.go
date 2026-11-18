@@ -114,8 +114,6 @@ func adapterFor(p *profile.Profile, argv []string) (agents.Adapter, string) {
 	return nil, ""
 }
 
-// AgentCommand is the command of the agent whose module the profile lists,
-// for a project's direnv shim.
 func AgentCommand(p *profile.Profile) (string, error) {
 	var found []agents.Adapter
 	for _, a := range adapters {

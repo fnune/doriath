@@ -13,7 +13,6 @@ import (
 	"github.com/fnune/doriath/internal/proxy"
 )
 
-// Resolver looks up the addresses of a host name.
 type Resolver interface {
 	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }

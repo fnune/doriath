@@ -1,6 +1,3 @@
-// Package proxy is the jail's only way to the network. It tunnels connections
-// to allowed hosts, refuses everything else, and terminates TLS for
-// intercepted hosts so that it can add credentials and apply request rules.
 package proxy
 
 import (
@@ -33,24 +30,16 @@ import (
 )
 
 type Policy interface {
-	// AllowsHostFor reports whether the program exe may reach host.
 	AllowsHostFor(host, exe string) bool
-	// ProgramsFor names the programs that alone may reach host, if any.
 	ProgramsFor(host string) []string
-	// Refuses reports whether the profile refuses host without asking.
 	Refuses(host string) bool
 	Intercepted(host string) (profile.HTTPHost, bool)
 }
 
-// HostHolder asks you about a host the profile does not allow, and waits a
-// while for your answer. pending names the request when it is still open.
 type HostHolder interface {
 	HoldHost(ctx context.Context, host string, caller Identity) (allowed bool, pending string)
 }
 
-// WaitNotifier tells the program that sent a request that doriath holds the
-// request for an answer, because the program has no other way to know why
-// it hangs.
 type WaitNotifier interface {
 	Waiting(caller Identity, summary string)
 }
@@ -97,9 +86,7 @@ type Config struct {
 	UpstreamRoots *x509.CertPool
 	// Holder, when set, asks you about hosts the profile does not name
 	// instead of refusing them at once.
-	Holder HostHolder
-	// Waiting, when set, hears of a request that is still held after
-	// WaitingAfter.
+	Holder       HostHolder
 	Waiting      WaitNotifier
 	WaitingAfter time.Duration
 }
@@ -142,7 +129,6 @@ func New(cfg Config, policy Policy, approver Approver, secrets Secrets, issuer I
 	return s
 }
 
-// Serve accepts proxy clients until the listener closes.
 func (s *Server) Serve(l net.Listener) error {
 	srv := &http.Server{
 		Handler:           http.HandlerFunc(s.handle),
@@ -706,8 +692,6 @@ func identityEncoding(enc string) bool {
 	return enc == "" || enc == "identity"
 }
 
-// hintWhenHeld waits first, so that a request you answer within seconds
-// stays quiet.
 func (s *Server) hintWhenHeld(ctx context.Context, summary string) (stop func()) {
 	if s.cfg.Waiting == nil {
 		return func() {}

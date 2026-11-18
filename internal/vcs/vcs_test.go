@@ -42,7 +42,6 @@ func repo(t *testing.T) string {
 	return dir
 }
 
-// fixture is a session that started on a repository and has yet to finish.
 type fixture struct {
 	t      *testing.T
 	ctx    context.Context
@@ -65,7 +64,6 @@ func startWith(t *testing.T, tools Tools, rec *Record, repos ...string) *fixture
 	return f
 }
 
-// finish ends the session and returns what it told the person.
 func (f *fixture) finish() string {
 	f.t.Helper()
 	var out strings.Builder

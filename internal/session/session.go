@@ -1,5 +1,3 @@
-// Package session runs one agent inside a jail, with the proxy, broker,
-// approvals and signing agent that serve it.
 package session
 
 import (
@@ -59,13 +57,10 @@ const (
 	InfoFile      = "session.json"
 )
 
-// Informer shows a message that needs no decision.
 type Informer interface {
 	Inform(session, title, body string) error
 }
 
-// Secrets serves the profile's secrets, and tells which ones it could not
-// read.
 type Secrets interface {
 	secret.Store
 	Unavailable() map[string]error
@@ -91,73 +86,44 @@ type Deps struct {
 	Stdin       io.Reader
 	Stdout      io.Writer
 	Stderr      io.Writer
-	// Bwrap is the bubblewrap binary.
-	Bwrap string
-	// Exe is doriath's own binary, which runs as init inside the jail.
-	Exe string
-	// VCS are the version control tools the jail configures.
-	VCS []vcstools.Tool
-	// Unshare and Nsenter are util-linux tools for the podman service and
-	// for joining its network namespace. Podman is the podman binary.
-	Unshare string
-	Nsenter string
-	Podman  string
-	Git     string
+	Bwrap       string
+	Exe         string
+	VCS         []vcstools.Tool
+	Unshare     string
+	Nsenter     string
+	Podman      string
+	Git         string
 	// HostWait is how long a refused request waits for your decision
 	// before the agent gets an error. The request stays pending after.
-	HostWait time.Duration
-	// ToolWait is how long an agent's permission prompt waits in doriath's
-	// queue before the agent shows its own.
-	ToolWait time.Duration
-	// JJ records and restores bookmarks of jj repositories that are not
-	// colocated with git. Empty skips them.
-	JJ string
-	// SystemdRun puts each jail in a systemd user scope with the profile's
-	// limits. Empty runs without limits.
-	SystemdRun string
-	// UpstreamRoots verifies upstream servers in tests. Nil means the system
-	// roots.
+	HostWait      time.Duration
+	ToolWait      time.Duration
+	JJ            string
+	SystemdRun    string
 	UpstreamRoots *x509.CertPool
-	// Promote makes a path writable in the running jail.
-	Promote func(context.Context, promote.Request) error
-	// Interrupted runs the end step of the sessions that ended without one
-	// and used one of the git stores. It returns a note for each other such
-	// session.
-	Interrupted func(ctx context.Context, stores []string) []string
-	// Read shows a host directory read-only in the running jail.
-	Read func(context.Context, promote.Request) error
-	Open func(url string) error
-	// Clipboard is your clipboard, for profiles that let the agent ask for
-	// its images. Nil when doriath runs outside a desktop session.
-	Clipboard clipboard.Source
-	// Timings, when set, gets how long each step of the session start and
-	// end took.
-	Timings io.Writer
+	Promote       func(context.Context, promote.Request) error
+	Interrupted   func(ctx context.Context, stores []string) []string
+	Read          func(context.Context, promote.Request) error
+	Open          func(url string) error
+	Clipboard     clipboard.Source
+	Timings       io.Writer
 }
 
 type Request struct {
 	Profile *profile.Profile
-	// Cwd is where the command starts in the jail.
-	Cwd string
-	// Current is {current}: the directory the session is for. Empty means
-	// Cwd.
+	Cwd     string
 	Current string
 	Command []string
-	// Learn lets egress reach any public host and reports the hosts the
-	// profile does not allow when the session ends.
-	Learn bool
+	Learn   bool
 }
 
-// Info describes a running session for doriath approvals and doriath status.
 type Info struct {
-	ID      string    `json:"id"`
-	Profile string    `json:"profile"`
-	Cwd     string    `json:"cwd"`
-	Command []string  `json:"command"`
-	PID     int       `json:"pid"`
-	Started time.Time `json:"started"`
-	// Description is the agent's own account of its task.
-	Description string `json:"description,omitempty"`
+	ID          string    `json:"id"`
+	Profile     string    `json:"profile"`
+	Cwd         string    `json:"cwd"`
+	Command     []string  `json:"command"`
+	PID         int       `json:"pid"`
+	Started     time.Time `json:"started"`
+	Description string    `json:"description,omitempty"`
 }
 
 type Session struct {
@@ -203,11 +169,10 @@ type Session struct {
 	hostForwards     map[int]*hostForward
 	hostConnects     map[int]*hostConnect
 	vcsEnv           map[string]string
-	// clipboardEnv points clipboard tools at the jail's Wayland display.
-	clipboardEnv map[string]string
-	roots        *vcs.RootGuard
-	rootLog      *repairLog
-	titled       bool
+	clipboardEnv     map[string]string
+	roots            *vcs.RootGuard
+	rootLog          *repairLog
+	titled           bool
 }
 
 func New(deps Deps, req Request) (*Session, error) {
@@ -249,7 +214,6 @@ func New(deps Deps, req Request) (*Session, error) {
 
 func (s *Session) ID() string { return s.id }
 
-// Run prepares the jail, runs the command in it and returns its exit code.
 func (s *Session) Run(ctx context.Context) (int, error) {
 	defer s.cleanup()
 	s.titled = s.deps.User.Terminal.Title && term.IsTerminal(s.deps.Stderr)
@@ -533,8 +497,6 @@ func (s *Session) startForward(ctx context.Context, f profile.Forward) error {
 	return nil
 }
 
-// relayToHost passes each connection on l to a port of the loopback address
-// of your machine.
 func (s *Session) relayToHost(ctx context.Context, l net.Listener, port int) {
 	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	for {
@@ -682,9 +644,6 @@ func (s *Session) startSigning(context.Context) error {
 	return nil
 }
 
-// JJGit is the name the doriath binary answers to as the git that jj runs,
-// and FrontsDir the directory of the session's own commands, which the jail
-// puts first on PATH: the doriath binary answers to the name of each.
 const (
 	JJGit     = "jj-git"
 	FrontsDir = "bin"
@@ -723,8 +682,6 @@ func (s *Session) writeVCSFiles() error {
 	return nil
 }
 
-// CheckSigning refuses a profile without a signing key when your git or jj
-// signs every commit, since commits in the jail would then fail.
 func CheckSigning(p *profile.Profile, tools []vcstools.Tool) error {
 	if p.SigningKey != "" || p.Unsigned {
 		return nil
@@ -1297,8 +1254,6 @@ func within(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// EntryFile, in the session directory, tells doriath exec how to join the
-// running jail.
 const EntryFile = "entry.json"
 
 // Entry is what a process needs to join a running jail as one of its own:

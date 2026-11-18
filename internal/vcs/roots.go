@@ -69,7 +69,6 @@ func (g *RootGuard) Add(roots ...string) {
 	}
 }
 
-// Close stops the guard after a last sweep of every store.
 func (g *RootGuard) Close() {
 	g.once.Do(func() {
 		g.stop()

@@ -106,8 +106,6 @@ const helloTimeout = 3 * time.Second
 
 var errHelloRead = errors.New("client hello read")
 
-// recordingConn keeps what it reads and drops what it writes, so a TLS
-// server can parse a ClientHello without answering the client.
 type recordingConn struct {
 	net.Conn
 	read bytes.Buffer

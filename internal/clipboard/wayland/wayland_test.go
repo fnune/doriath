@@ -59,8 +59,6 @@ func (a *asks) seen() []string {
 	return append([]string(nil), a.types...)
 }
 
-// serve starts a display for src and returns the environment that points
-// wl-paste and wl-copy at it.
 func serve(t *testing.T, src clipboard.Source) []string {
 	t.Helper()
 	for _, tool := range []string{"wl-paste", "wl-copy"} {

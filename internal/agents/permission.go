@@ -9,8 +9,6 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// PermissionRequest is the part of a PermissionRequest hook's input that
-// doriath uses. Claude Code and Codex send the same shape.
 type PermissionRequest struct {
 	SessionID string          `json:"session_id"`
 	Cwd       string          `json:"cwd"`
@@ -31,8 +29,6 @@ func ParsePermissionRequest(data []byte) (PermissionRequest, error) {
 
 const maxDetails = 2000
 
-// Describe turns a tool call into a one-line summary, the agent's own
-// description of it, and readable details.
 func (r PermissionRequest) Describe() (summary, note, details string) {
 	var input map[string]any
 	_ = json.Unmarshal(r.ToolInput, &input)
@@ -113,9 +109,6 @@ func PermissionDecision(allow bool, message string) ([]byte, error) {
 	}})
 }
 
-// readOnlyTools only read files. The jail already decides what the agent
-// can read, and a shell reads the same files without asking, so a prompt
-// for these adds nothing.
 var readOnlyTools = []string{"Read", "Glob", "Grep", "LS", "NotebookRead"}
 
 // AnswerPermission puts a PermissionRequest hook's tool call in doriath's
@@ -146,7 +139,6 @@ func AnswerPermission(call HookCall, agent string, leftToAgent func(tool string)
 	return nil, nil
 }
 
-// SessionStart is the hook output that adds context for the agent.
 func SessionStart(context string) ([]byte, error) {
 	return json.Marshal(map[string]any{
 		"hookSpecificOutput": map[string]string{

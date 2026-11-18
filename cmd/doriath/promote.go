@@ -17,9 +17,6 @@ import (
 	"github.com/fnune/doriath/internal/session"
 )
 
-// cmdRequest runs in the jail. doriath request write PATH asks you to make
-// a path writable; doriath request wait ID waits for your answer to a
-// request that is still pending.
 func cmdRequest(args []string, w io.Writer) error {
 	broker := os.Getenv("DORIATH_BROKER")
 	if broker == "" {
@@ -160,8 +157,6 @@ func requestEdit(ctx context.Context, broker string, args []string, in io.Reader
 	return reportDecision(w, res.Decision, "Changed "+path+":\n"+strings.TrimSuffix(res.Changes, "\n"))
 }
 
-// waitParams reads what a request names: a path when it has a slash or
-// starts with a dot, a host when it has a dot, an id otherwise.
 func waitParams(arg string) (session.WaitParams, error) {
 	switch {
 	case strings.Contains(arg, "/") || strings.HasPrefix(arg, "."):

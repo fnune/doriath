@@ -1,8 +1,3 @@
-// Package clipboard reads your clipboard on the host for a jail that has no
-// access to your display. A Source reads a clipboard; Images narrows one to
-// images and asks you before each read. What serves a Source to the jail
-// lives apart, so that the jail side follows how agents read a clipboard
-// and the host side follows the system you run.
 package clipboard
 
 import (
@@ -16,15 +11,10 @@ import (
 	"strings"
 )
 
-// MaxSize bounds what one read passes to the jail. A screenshot of a large
-// screen is a few megabytes.
 const MaxSize = 64 << 20
 
 type Source interface {
-	// Types lists the MIME types the clipboard offers now. An empty
-	// clipboard offers none.
 	Types(ctx context.Context) ([]string, error)
-	// Copy writes the clipboard's content as mimeType to w.
 	Copy(ctx context.Context, mimeType string, w io.Writer) error
 }
 
@@ -90,14 +80,11 @@ func (l *limited) Write(p []byte) (int, error) {
 	return l.w.Write(p)
 }
 
-// WlPaste reads your Wayland clipboard with wl-paste, outside the jail.
 type WlPaste struct {
 	Bin string
-	// Env names your Wayland session: WAYLAND_DISPLAY and XDG_RUNTIME_DIR.
 	Env []string
 }
 
-// emptyClipboard is how wl-paste says that nothing is copied.
 var emptyClipboard = regexp.MustCompile(`(?i)nothing is copied|no selection`)
 
 func (c WlPaste) Types(ctx context.Context) ([]string, error) {

@@ -1,5 +1,3 @@
-// Package approval holds requests that need a person's decision, and the
-// grants that a decision leaves behind.
 package approval
 
 import (
@@ -14,36 +12,17 @@ import (
 type Kind string
 
 const (
-	KindHTTP Kind = "http"
-	KindTool Kind = "tool"
-	// KindHost asks to reach a host the profile does not name. An allow
-	// lasts for the session, and keeping it is an edit to the profile.
-	KindHost Kind = "host"
-	// KindPath asks to make a path writable in the running jail. An allow
-	// lasts for the session: a write has no natural "once", and keeping it
-	// is an edit to the profile.
-	KindPath Kind = "path"
-	// KindRead asks to show a path the jail does not show, read-only. An
-	// allow lasts for the session.
-	KindRead Kind = "read"
-	// KindSecret tells that a secret of the session is unavailable. An
-	// allow tries its source again, and a deny stops the cards for it.
-	KindSecret Kind = "secret"
-	// KindEdit asks to change a file that is read-only in the jail. doriath
-	// writes the change once.
-	KindEdit Kind = "edit"
-	// KindClipboard asks to read the image in your clipboard. An allow once
-	// covers one paste.
+	KindHTTP      Kind = "http"
+	KindTool      Kind = "tool"
+	KindHost      Kind = "host"
+	KindPath      Kind = "path"
+	KindRead      Kind = "read"
+	KindSecret    Kind = "secret"
+	KindEdit      Kind = "edit"
 	KindClipboard Kind = "clipboard"
-	// KindOpen asks to open a link in your browser. An allow once opens this
-	// link, and an allow for the session opens every link to its host.
-	KindOpen Kind = "open"
-	// KindForward asks to forward a port of your machine into the jail. An
-	// allow lasts for the session: the port stays open until it ends.
-	KindForward Kind = "forward"
-	// KindConnect asks to reach a port of your machine from the jail. An
-	// allow lasts for the session, like a forward.
-	KindConnect Kind = "connect"
+	KindOpen      Kind = "open"
+	KindForward   Kind = "forward"
+	KindConnect   Kind = "connect"
 )
 
 type Answer string
@@ -143,23 +122,16 @@ type Request struct {
 	Details string `json:"details,omitempty"`
 	// Warning is doriath's own text on a request that touches a path your
 	// machine runs or reads on its own.
-	Warning string `json:"warning,omitempty"`
-	// Note is the agent's own account of the request, such as a command's
-	// description or its reason for a write, shown as the agent's words.
-	Note string `json:"note,omitempty"`
-	// SessionDescription is the agent's own account of the session's task.
-	SessionDescription string `json:"session_description,omitempty"`
-	// Keep holds the profile lines that would keep an allow after the
-	// session ends.
-	Keep     string `json:"keep,omitempty"`
-	KeepDeny string `json:"keep_deny,omitempty"`
-	// Command is what the person can run on the host instead of an answer,
-	// such as the command that gives the session a secret.
-	Command string    `json:"command,omitempty"`
-	URL     string    `json:"url,omitempty"`
-	Scope   string    `json:"scope"`
-	Created time.Time `json:"created"`
-	Expires time.Time `json:"expires"`
+	Warning            string    `json:"warning,omitempty"`
+	Note               string    `json:"note,omitempty"`
+	SessionDescription string    `json:"session_description,omitempty"`
+	Keep               string    `json:"keep,omitempty"`
+	KeepDeny           string    `json:"keep_deny,omitempty"`
+	Command            string    `json:"command,omitempty"`
+	URL                string    `json:"url,omitempty"`
+	Scope              string    `json:"scope"`
+	Created            time.Time `json:"created"`
+	Expires            time.Time `json:"expires"`
 	// AgentWaits is when the agent stops waiting for the answer. The request
 	// stays answerable after that, until Expires.
 	AgentWaits time.Time `json:"agent_waits,omitzero"`
@@ -262,7 +234,6 @@ type Manager struct {
 	history         []Outcome
 }
 
-// Outcome is a decided or expired request, for the end-of-session summary.
 type Outcome struct {
 	Request  Request
 	Decision Decision
@@ -303,8 +274,6 @@ func NewManager(clock Clock, notifier Notifier, recorder Recorder, ids IDs) *Man
 	}
 }
 
-// Submit blocks until the request is decided, expires, or ctx ends. An
-// existing grant for the same scope answers at once.
 func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (Decision, error) {
 	return m.submit(ctx, req, ttl, nil, nil)
 }
@@ -447,8 +416,6 @@ func (m *Manager) History() []Outcome {
 	return append([]Outcome(nil), m.history...)
 }
 
-// Propose shows a request without anyone waiting for it, and calls decided
-// when the person answers. Requests nobody answers expire quietly.
 func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)) {
 	go func() { _, _ = m.submit(context.Background(), req, ttl, nil, decided) }()
 }
@@ -504,13 +471,10 @@ func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decisi
 	}
 }
 
-// Wait blocks until the request with id is decided or expires, or ctx ends.
 func (m *Manager) Wait(ctx context.Context, id string) (Decision, error) {
 	return m.waitFor(ctx, id, func(r Request) bool { return r.ID == id })
 }
 
-// WaitScope waits for the request with scope, the newest one when there
-// were several, as Wait does.
 func (m *Manager) WaitScope(ctx context.Context, scope string) (Decision, error) {
 	return m.waitFor(ctx, scope, func(r Request) bool { return r.Scope == scope })
 }

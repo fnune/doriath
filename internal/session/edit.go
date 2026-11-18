@@ -21,12 +21,9 @@ const MethodRequestEdit = "path.request_edit"
 type RequestEditParams struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
-	// Reason is the agent's own text, shown to you as such.
-	Reason string `json:"reason,omitempty"`
+	Reason  string `json:"reason,omitempty"`
 }
 
-// RequestEditResult is the decision and the changes it covers, or the id of
-// the request that is still pending once the wait is over.
 type RequestEditResult struct {
 	Decision approval.Decision `json:"decision"`
 	Pending  string            `json:"pending,omitempty"`

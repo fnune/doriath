@@ -24,8 +24,6 @@ const (
 	maxSegments      = 4096
 )
 
-// segmentKey names a mapping of a library by where it starts in the file and
-// how long it is, as /proc/PID/maps shows them.
 type segmentKey struct{ offset, length uint64 }
 
 // codeArchives holds the executable pages of every native library inside the
@@ -42,9 +40,7 @@ type codeArchives struct {
 	pageSize uint64
 	segments map[segmentKey]map[[sha256.Size]byte]struct{}
 	count    int
-	// hostPID turns the pid that the jail reports into the pid that
-	// /proc shows to doriath.
-	hostPID func(jailPID int) (int, error)
+	hostPID  func(jailPID int) (int, error)
 }
 
 func newCodeArchives(procRoot string) *codeArchives {
@@ -170,14 +166,10 @@ func (c *codeArchives) addLibrary(data []byte) (added int, err error) {
 
 func alignUp(n, to uint64) uint64 { return (n + to - 1) &^ (to - 1) }
 
-// trusts reports whether the code that the process maps is the code of a
-// library that an archive ships.
 func (c *codeArchives) trusts(pid int, code jailinit.MappedFile) bool {
 	return c.check(pid, code) == nil
 }
 
-// check says why a mapping is not archived code, for the log of a withheld
-// credential.
 func (c *codeArchives) check(pid int, code jailinit.MappedFile) error {
 	if c == nil || c.count == 0 {
 		return errors.New("the profile pins no archive")

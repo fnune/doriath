@@ -1,5 +1,3 @@
-// Package notify shows approval requests as desktop notifications with
-// action buttons, through the freedesktop notification service.
 package notify
 
 import (
@@ -34,15 +32,11 @@ const (
 	actionDefault      = "default"
 )
 
-// Page is the approvals page, when it runs. A click on the notification
-// itself, rather than on a button, then opens it at the request.
 type Page interface {
 	Running() bool
 	Open(request, activation string) error
 }
 
-// Actions are the buttons, as key and label pairs in the order the
-// specification wants.
 func Actions(req approval.Request) []string {
 	var out []string
 	for _, b := range req.Buttons() {
@@ -63,7 +57,6 @@ func safeURL(raw string) bool {
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
 }
 
-// DecisionFor maps a pressed button to a decision.
 func DecisionFor(action string) (approval.Decision, bool) {
 	for answer, key := range actionFor {
 		if key == action {
@@ -122,10 +115,8 @@ type Desktop struct {
 
 	owner string
 
-	mu       sync.Mutex
-	handlers map[uint32]func(action, activation string)
-	// The server sends a click's activation token just before the action,
-	// and the compositor raises a window only for a launch that carries it.
+	mu          sync.Mutex
+	handlers    map[uint32]func(action, activation string)
 	activations map[uint32]string
 }
 
@@ -161,8 +152,6 @@ func (d *Desktop) fromServer(sender string) bool {
 	return sender == owner
 }
 
-// Capabilities lists what the notification server supports, such as
-// "actions" for buttons.
 func (d *Desktop) Capabilities() ([]string, error) {
 	var caps []string
 	if err := d.conn.Object(busName, objPath).Call(iface+".GetCapabilities", 0).Store(&caps); err != nil {
@@ -236,9 +225,6 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	}, nil
 }
 
-// Urgency keeps held requests on screen, because an agent is waiting, and
-// lets drafted rules wait in the notification history like any other
-// notification.
 func Urgency(req approval.Request) byte {
 	if req.Kind == approval.KindHost {
 		return urgencyNormal
@@ -246,8 +232,6 @@ func Urgency(req approval.Request) byte {
 	return urgencyHi
 }
 
-// Inform shows a message without buttons, for events that need attention
-// but no decision.
 func (d *Desktop) Inform(session, title, body string) error {
 	title = oneLineTitle("Agent in " + session + ": " + title)
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("doriath")}
@@ -277,8 +261,6 @@ func oneLineTitle(s string) string {
 	return b.String()
 }
 
-// None is used when desktop notifications are off. Requests still wait in
-// the queue for doriath approvals.
 type None struct{}
 
 func (None) Notify(context.Context, approval.Request, func(approval.Decision)) (func(), error) {

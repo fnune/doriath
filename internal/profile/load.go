@@ -21,13 +21,6 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-// Loader reads profiles and the modules they name. A module name is in one
-// of Modules only, so that no module replaces another without notice.
-// Repository holds the profiles named with RepoPrefix, and is nil outside a
-// repository. Private holds the paths that a repository profile cannot
-// mount, such as doriath's own state, besides the refuse lists of the
-// modules. Builtins name the modules that every profile loads before its
-// own layers. User is your login name, which fills {user} in paths.
 type Loader struct {
 	Profiles       fs.FS
 	Modules        []fs.FS
@@ -39,9 +32,6 @@ type Loader struct {
 	Builtins       []string
 }
 
-// RepoPrefix names a profile of the repository that holds {current}, read
-// from RepoProfiles at its root. The prefix keeps a repository from
-// replacing one of your profiles.
 const (
 	RepoPrefix   = "repo:"
 	RepoProfiles = ".doriath"
@@ -51,9 +41,6 @@ var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 const maxProfileDepth = 8
 
-// Names lists the profiles in the profiles folder and the folders inside
-// it, such as a linked clone of a private repository. A profile is named
-// after its file, so two files with one name are an error.
 func (l *Loader) Names() ([]string, error) {
 	files, err := l.files()
 	if err != nil {
@@ -62,8 +49,6 @@ func (l *Loader) Names() ([]string, error) {
 	return slices.Sorted(maps.Keys(files)), nil
 }
 
-// File returns where the profile is, relative to the profiles folder, and
-// false when no file defines it.
 func (l *Loader) File(name string) (string, bool, error) {
 	files, err := l.files()
 	if err != nil {
@@ -297,8 +282,6 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 	return nil
 }
 
-// CheckModule reads a module and the modules it builds on, and reports the
-// first one that does not decode.
 func (l *Loader) CheckModule(name string) error {
 	var layers []layer
 	return l.collect([]string{name}, &layers, nil, map[string]bool{})
@@ -1579,8 +1562,6 @@ func validGlob(g string) bool {
 	return g != "" && err == nil
 }
 
-// GitDir stands for every git directory doriath guards, submodules' stores
-// included, in a mount that only gives one of their files an edit rule.
 const GitDir = "{git}"
 
 var gitEditable = []string{"config"}

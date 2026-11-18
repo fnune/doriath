@@ -1,6 +1,3 @@
-// Package bundle carries the static helpers doriath needs, so that it does not
-// depend on what the system has installed. A release build embeds them. A
-// development build without the "bundled" tag falls back to the system.
 package bundle
 
 import (
@@ -13,8 +10,6 @@ import (
 	"path/filepath"
 )
 
-// Bwrap returns the path of a bubblewrap binary. The embedded copy is written
-// once to dir, named by its hash, and reused after that.
 func Bwrap(dir string, getenv func(string) string) (string, error) {
 	if len(bwrap) > 0 {
 		return extract(dir, "bwrap", bwrap)

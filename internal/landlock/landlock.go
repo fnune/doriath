@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ErrUnsupported means the kernel has no Landlock, or it is disabled.
 var ErrUnsupported = errors.New("landlock not supported by this kernel")
 
 const (

@@ -18,28 +18,21 @@ import (
 )
 
 type RequestConnectParams struct {
-	HostPort int `json:"host_port"`
-	JailPort int `json:"jail_port"`
-	// Reason is the agent's own text, shown to you as such.
-	Reason string `json:"reason,omitempty"`
+	HostPort int    `json:"host_port"`
+	JailPort int    `json:"jail_port"`
+	Reason   string `json:"reason,omitempty"`
 }
 
-// ConnectReady is the line that `doriath __connect` prints once it listens.
 const ConnectReady = "ready"
 
 const connectStartTimeout = 5 * time.Second
 
-// hostConnect makes a port of the jail reach a port of your machine. The
-// jail has no network, so a helper in its network namespace listens on the
-// jail port and relays each connection to a socket of the session, and the
-// session connects that socket to your machine.
 type hostConnect struct {
 	hostPort int
 	ln       net.Listener
 	helper   *exec.Cmd
-	// stdin closes when the session ends or dies, which stops the helper.
-	stdin  io.Closer
-	cancel context.CancelFunc
+	stdin    io.Closer
+	cancel   context.CancelFunc
 }
 
 func (s *Session) requestConnect(hostPort, jailPort int, reason string) (RequestResult, error) {
@@ -74,8 +67,6 @@ func connectDetails(hostPort, jailPort int) string {
 		"Only this TCP port is open. The agent reaches no other port of your machine.", jailPort, hostPort)
 }
 
-// connecting reports whether jailPort already reaches hostPort, through a
-// connect of the session or a tcp_ports entry of the profile.
 func (s *Session) connecting(hostPort, jailPort int) bool {
 	if hostPort == jailPort && slices.Contains(s.req.Profile.Egress.TCPPorts, hostPort) {
 		return true
@@ -86,8 +77,6 @@ func (s *Session) connecting(hostPort, jailPort int) bool {
 	return ok && c.hostPort == hostPort
 }
 
-// connectPort opens jailPort in the jail to hostPort of your machine until
-// the session ends.
 func (s *Session) connectPort(hostPort, jailPort int) error {
 	reaper := int(s.peers.init.Load())
 	if reaper == 0 || s.deps.Nsenter == "" {
@@ -177,8 +166,6 @@ func (c *hostConnect) stop() {
 	}
 }
 
-// connections are the connects of the session, as host and jail port pairs
-// sorted by jail port.
 func (s *Session) connections() []StatusForward {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -6,16 +6,11 @@ import (
 	"strings"
 )
 
-// Push holds the refs that a git push updates, as its ref commands name them.
-// Unread is true when some commands could not be read, such as a compressed
-// push or one whose commands do not fit the part that the proxy reads.
 type Push struct {
 	Refs   []string
 	Unread bool
 }
 
-// RefPattern matches git ref names segment by segment, as PathPattern matches
-// paths: "*" is one segment and "**" any number of segments.
 type RefPattern string
 
 func ParseRefPattern(s string) (RefPattern, error) {

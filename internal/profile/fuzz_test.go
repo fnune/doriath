@@ -91,8 +91,6 @@ func FuzzPathPattern(f *testing.F) {
 	})
 }
 
-// pathOracle states PathPattern's documented semantics as a regular
-// expression, as a second implementation to compare against.
 func pathOracle(pattern, path string) bool {
 	if i := strings.IndexAny(path, "?#"); i >= 0 {
 		path = path[:i]
@@ -232,8 +230,6 @@ func FuzzGraphQLDecide(f *testing.F) {
 	})
 }
 
-// oracleQueries returns every value of a "query" key, in any case, at the
-// top level of a GraphQL request or a batch of them, duplicates included.
 func oracleQueries(body []byte) []string {
 	var raw json.RawMessage
 	if json.Unmarshal(body, &raw) != nil {
@@ -333,9 +329,6 @@ func FuzzBodyContainsSeesThroughEscapes(f *testing.F) {
 	})
 }
 
-// jsonEscaped writes s as a JSON string, spelling the runes whose bit is set
-// in escapes as \u escapes, as a client hiding a word from a byte search
-// would.
 func jsonEscaped(s string, escapes uint64) string {
 	var b strings.Builder
 	b.WriteByte('"')

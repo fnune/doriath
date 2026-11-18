@@ -21,7 +21,6 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-// fakeServer is an MCP server and the OAuth server it trusts, on one host.
 type fakeServer struct {
 	*httptest.Server
 	mu        sync.Mutex
@@ -112,7 +111,6 @@ func newFakeServer(t *testing.T) *fakeServer {
 	return f
 }
 
-// browser follows the sign-in like a person who clicks allow.
 type browser struct{ t *testing.T }
 
 func (b browser) Open(u string) error {
@@ -184,8 +182,6 @@ func TestTokenWithoutLoginNamesTheCommand(t *testing.T) {
 	}
 }
 
-// callbackBrowser skips the server's sign-in page and calls doriath's
-// callback itself, so that a test chooses what the callback receives.
 type callbackBrowser struct {
 	t       *testing.T
 	answer  func(signIn url.Values) url.Values

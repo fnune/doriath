@@ -7,8 +7,6 @@ import (
 	"unicode/utf8"
 )
 
-// Summary is the session in one line, for the bar. The
-// secrets take at most secretsWidth characters.
 func (st Status) Summary(secretsWidth int) string {
 	session := "session " + st.Session
 	if st.Description != "" {
@@ -27,9 +25,6 @@ func (st Status) Summary(secretsWidth int) string {
 	return strings.Join(parts, " · ")
 }
 
-// SecretsSummary names the session's secrets in at most width characters.
-// It names each secret when they fit, then only the missing ones, then
-// only counts. A width of 0 or less takes the shortest form.
 func (st Status) SecretsSummary(width int) string {
 	if len(st.Secrets) == 0 {
 		return ""

@@ -23,8 +23,6 @@ var (
 	ioUring = []string{"io_uring_setup", "io_uring_enter", "io_uring_register"}
 )
 
-// expected restates the filter's documented policy, independently of the
-// code that builds it.
 func expected(arch Arch, p Policy, name string, nr uint32, arg0, arg1 uint64) uint32 {
 	switch {
 	case arch == AMD64 && nr&x32SyscallBit != 0:

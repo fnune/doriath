@@ -12,8 +12,6 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-// Pinentry is the dialog of GnuPG, which most desktops install. doriath
-// speaks its Assuan protocol on standard input and output.
 type Pinentry struct {
 	Path string
 }

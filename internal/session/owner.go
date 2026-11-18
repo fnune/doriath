@@ -32,7 +32,6 @@ func processOwner(procRoot string, pid int) (vcs.Owner, error) {
 	return vcs.Owner{PID: pid, Start: start}, nil
 }
 
-// Running reports whether the doriath process that owns rec still runs.
 func Running(procRoot string, rec *vcs.Record) bool {
 	if rec.Owner.PID == 0 {
 		return false

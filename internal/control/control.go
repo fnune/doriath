@@ -1,5 +1,3 @@
-// Package control is the request protocol on doriath's unix sockets: one JSON
-// request per connection, one JSON response back.
 package control
 
 import (
@@ -26,8 +24,6 @@ type response struct {
 	Error  string          `json:"error,omitempty"`
 }
 
-// Handler answers one method. It may block, for example while a request
-// waits for a decision.
 type Handler func(ctx context.Context, params json.RawMessage) (any, error)
 
 type Server struct {
@@ -98,7 +94,6 @@ func write(conn net.Conn, r response) {
 	_, _ = conn.Write(append(data, '\n'))
 }
 
-// Call sends one request to the socket and decodes the result into out.
 func Call(ctx context.Context, socket, method string, params, out any) error {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", socket)
@@ -140,7 +135,6 @@ func Call(ctx context.Context, socket, method string, params, out any) error {
 	return json.Unmarshal(resp.Result, out)
 }
 
-// Decode reads params strictly into a typed value.
 func Decode[T any](params json.RawMessage) (T, error) {
 	var v T
 	if len(params) == 0 {

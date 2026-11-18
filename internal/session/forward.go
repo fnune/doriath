@@ -14,15 +14,11 @@ import (
 )
 
 type RequestForwardParams struct {
-	HostPort int `json:"host_port"`
-	JailPort int `json:"jail_port"`
-	// Reason is the agent's own text, shown to you as such.
-	Reason string `json:"reason,omitempty"`
+	HostPort int    `json:"host_port"`
+	JailPort int    `json:"jail_port"`
+	Reason   string `json:"reason,omitempty"`
 }
 
-// hostForward listens on a port of your machine and relays each connection
-// to a port in the jail. A sign-in forward closes when expiry fires; one you
-// allow has no expiry and stays until the session ends.
 type hostForward struct {
 	jailPort int
 	ln       net.Listener
@@ -67,8 +63,6 @@ func forwardDetails(hostPort, jailPort int) string {
 		"Your browser and any other program on your machine can then reach what the agent serves there.", hostPort, jailPort)
 }
 
-// forwarding reports whether hostPort already forwards to jailPort for the
-// rest of the session.
 func (s *Session) forwarding(hostPort, jailPort int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -76,9 +70,6 @@ func (s *Session) forwarding(hostPort, jailPort int) bool {
 	return ok && f.jailPort == jailPort && f.expiry == nil
 }
 
-// forwardPort forwards hostPort to jailPort for lasts, or until the session
-// ends when lasts is zero. A lasting forward takes over a sign-in forward of
-// the same ports, so the port does not close under it.
 func (s *Session) forwardPort(hostPort, jailPort int, lasts time.Duration) error {
 	reaper := int(s.peers.init.Load())
 	if reaper == 0 || s.deps.Nsenter == "" {
@@ -132,8 +123,6 @@ func (s *Session) expireForward(hostPort int, f *hostForward) {
 	_ = f.ln.Close()
 }
 
-// lastingForwards are the forwards that stay until the session ends, as
-// host and jail port pairs sorted by host port.
 func (s *Session) lastingForwards() []StatusForward {
 	s.mu.Lock()
 	defer s.mu.Unlock()

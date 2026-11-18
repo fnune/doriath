@@ -29,15 +29,11 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-// State is what a login leaves on the host: the client doriath signed in as,
-// the server's endpoints and the token, with its refresh token.
 type State struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret,omitempty"`
-	AuthURL      string `json:"auth_url"`
-	TokenURL     string `json:"token_url"`
-	// RegistrationURL is where clients register themselves, so that a
-	// session can refuse the agent's own sign-in there.
+	ClientID        string        `json:"client_id"`
+	ClientSecret    string        `json:"client_secret,omitempty"`
+	AuthURL         string        `json:"auth_url"`
+	TokenURL        string        `json:"token_url"`
 	RegistrationURL string        `json:"registration_url,omitempty"`
 	Scopes          []string      `json:"scopes,omitempty"`
 	Token           *oauth2.Token `json:"token"`
@@ -52,7 +48,6 @@ func (s State) config() *oauth2.Config {
 	}
 }
 
-// StatePath is where the login for one secret of one profile lives.
 func StatePath(stateDir, profile, name string) string {
 	return filepath.Join(stateDir, "oauth", profile, name+".json")
 }
@@ -87,8 +82,6 @@ func (s State) save(path string) error {
 	return os.Rename(tmp, path)
 }
 
-// Tokens serves the access tokens of one profile's logins, refreshing them
-// and saving each refresh, since servers may rotate refresh tokens.
 type Tokens struct {
 	stateDir string
 	owner    func(secret string) string
@@ -101,8 +94,6 @@ func NewTokens(stateDir, profile string) *Tokens {
 	return NewTokensOwnedBy(stateDir, func(string) string { return profile })
 }
 
-// NewTokensOwnedBy keeps each secret's login under the profile that owner
-// names for it, as a composed profile needs.
 func NewTokensOwnedBy(stateDir string, owner func(secret string) string) *Tokens {
 	return &Tokens{stateDir: stateDir, owner: owner, sources: map[string]oauth2.TokenSource{}}
 }
@@ -148,7 +139,6 @@ func (s *saving) Token() (*oauth2.Token, error) {
 	return tok, s.state.save(s.path)
 }
 
-// Browser shows you the address to sign in at.
 type Browser interface {
 	Open(url string) error
 }
@@ -235,8 +225,6 @@ func loginMCP(ctx context.Context, server, redirect string, fetch auth.Authoriza
 	return s, nil
 }
 
-// Endpoints are the token and registration URLs of a login, when there is
-// one.
 func Endpoints(stateDir, profile, name string) (token, registration string, ok bool) {
 	s, err := load(StatePath(stateDir, profile, name))
 	if err != nil {

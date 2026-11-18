@@ -1,5 +1,3 @@
-// Package dbustest starts a private D-Bus daemon for tests that talk to
-// desktop services.
 package dbustest
 
 import (
@@ -25,7 +23,6 @@ const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Con
 </busconfig>
 `
 
-// PrivateBus starts a session bus for one test and returns its address.
 func PrivateBus(t *testing.T) string {
 	t.Helper()
 	daemon, err := exec.LookPath("dbus-daemon")

@@ -1,5 +1,3 @@
-// Package keyring keeps secrets in the keyring of your desktop: the Secret
-// Service on Linux, such as KWallet or GNOME Keyring.
 package keyring
 
 import (

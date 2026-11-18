@@ -1,6 +1,3 @@
-// Command doriath runs coding agents in a jail that shows them only what
-// their profile names. main.go is the composition root: it is the only place
-// that picks concrete implementations.
 package main
 
 import (
@@ -379,8 +376,6 @@ func lookPath(name string) string {
 	return p
 }
 
-// hostClipboard reads your Wayland clipboard, or returns nil outside a
-// Wayland session.
 func hostClipboard(getenv func(string) string, wlPaste string) clipboard.Source {
 	display := getenv("WAYLAND_DISPLAY")
 	if display == "" || wlPaste == "" {

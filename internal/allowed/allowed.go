@@ -1,6 +1,3 @@
-// Package allowed keeps the grants of each profile you allowed, in a JSON
-// file outside the jail, so that doriath asks again when a profile grants
-// more.
 package allowed
 
 import (
@@ -15,9 +12,6 @@ import (
 	"slices"
 )
 
-// Key names one allowed profile: a profile spec in one repository, or
-// outside any repository when Repository is empty. A repository module
-// differs between repositories, so the same spec asks in each one.
 type Key struct {
 	Profile    string `json:"profile"`
 	Repository string `json:"repository,omitempty"`

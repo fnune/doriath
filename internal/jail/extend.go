@@ -8,16 +8,11 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-// Promotion is a path that a running jail makes writable, with the paths
-// inside it that stay read-only.
 type Promotion struct {
 	Path   string
 	Guards []string
 }
 
-// Extension is what a running jail adds for the mounts of p: the paths it
-// shows read-only, the paths it makes writable, outermost first, the paths
-// it hides, and the guarded symlinks that doriath keeps in place instead.
 type Extension struct {
 	Read  []string
 	Write []Promotion
@@ -25,8 +20,6 @@ type Extension struct {
 	Links []string
 }
 
-// Extend plans the mounts of p for a jail that already runs. It returns
-// the errors that would stop a session with p from starting.
 func Extend(p *profile.Profile, host Host) (Extension, error) {
 	binds, _, errs := mountBinds(p, Layout{}, host)
 	kept, links, errs := splitGuardedLinks(binds, host, errs)

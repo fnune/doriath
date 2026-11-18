@@ -67,8 +67,6 @@ func TestDropCapabilitiesLeavesAProcessWithoutCapabilitiesAlone(t *testing.T) {
 	})
 }
 
-// refuseGetppid fails getppid with EOPNOTSUPP and allows the rest. Its jump
-// offsets differ, so swapped fields would fail the test.
 func refuseGetppid() []byte {
 	type insn struct {
 		code   uint16
@@ -90,8 +88,6 @@ func refuseGetppid() []byte {
 	return out
 }
 
-// capabilities reads the calling thread's capability sets, which is where
-// both functions act.
 func capabilities(t *testing.T) map[string]uint64 {
 	t.Helper()
 	data, err := os.ReadFile("/proc/thread-self/status")

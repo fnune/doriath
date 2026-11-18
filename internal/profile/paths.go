@@ -15,24 +15,16 @@ type PathRules struct {
 	// Refuse lists paths that no request reaches: a write of the path or
 	// inside it, and also a read of a parent.
 	Refuse []string
-	// Warn lists paths where a request still asks you, with a warning, and
-	// an allow lasts for that request only.
-	Warn []PathWarning
-	// Hold lists files that stay read-only inside each writable mount, and
-	// warn as Warn does.
-	Hold []PathHold
+	Warn   []PathWarning
+	Hold   []PathHold
 }
 
 type PathWarning struct {
 	Path   string
 	Reason string
-	// Read also warns on a request to read the path.
-	Read bool
+	Read   bool
 }
 
-// MissingMove leaves a missing held path out, and the session moves out of
-// the repository what the jail creates there, so that your machine sees no
-// placeholder in place of a file that a tool would read.
 const MissingMove Missing = "move"
 
 var holdStrictness = map[Missing]int{MissingSkip: 0, MissingMove: 1, MissingHold: 2}
@@ -41,13 +33,9 @@ type PathHold struct {
 	Path    string
 	Reason  string
 	Missing Missing
-	// Folder holds a missing path with an empty folder, so that your own
-	// tools can still write into it while the jail sees it read-only.
-	Folder bool
+	Folder  bool
 }
 
-// Warning returns the entry that a request for path touches: the path
-// itself, a parent of it or a path inside it.
 func (r PathRules) Warning(path string, read bool) (PathWarning, bool) {
 	touches := func(entry string) bool { return within(path, entry) || within(entry, path) }
 	for _, w := range r.Warn {
@@ -66,7 +54,6 @@ func (r PathRules) Warning(path string, read bool) (PathWarning, bool) {
 	return PathWarning{}, false
 }
 
-// HoldsFolder says whether a missing path is held with a folder.
 func (r PathRules) HoldsFolder(path string) bool {
 	return slices.ContainsFunc(r.Hold, func(h PathHold) bool { return h.Path == path && h.Folder })
 }

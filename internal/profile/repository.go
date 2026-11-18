@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// RepositoryGrant is what a module grants in {repository} and {current}:
-// the paths it makes writable there, and whether it opens the store. It
-// includes the modules that the module builds on.
 type RepositoryGrant struct {
 	Writes []string
 	Store  bool
@@ -35,11 +32,6 @@ func (b *builder) recordRepositoryGrant(l layer) {
 	b.repositoryGrants[l.source] = g
 }
 
-// ForRepository returns the entries that a session which starts in root
-// gets from the profile, with the grants of module only: its writable
-// paths and its store. Every entry that keeps a path read-only, hidden or
-// held comes along, whichever module or profile sets it. Entries without a
-// placeholder stay out, because the session already has them.
 func (p *Profile) ForRepository(module, root, home string, exists func(string) bool) (*Profile, error) {
 	g, ok := p.RepositoryGrants[module]
 	if !ok {
@@ -87,8 +79,6 @@ func (r PathRules) placeholdersOnly() PathRules {
 	return out
 }
 
-// RepositoryModules lists the modules of the profile that grant something
-// in a repository, for a session to apply in another one.
 func (p *Profile) RepositoryModules() []string {
 	var out []string
 	for _, name := range p.Modules {

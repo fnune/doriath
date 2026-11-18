@@ -1,5 +1,3 @@
-// Package doctor checks that this machine can run doriath's sessions, for
-// the doctor command and the approvals page.
 package doctor
 
 import (
@@ -42,26 +40,20 @@ type Result struct {
 }
 
 type Options struct {
-	Paths  config.Paths
-	Loader *profile.Loader
-	// FetchSecrets gets each secret once, which can ask to unlock a password
-	// manager. Runner runs the secret commands, for a profile that Allow
-	// accepts, as a session would.
+	Paths        config.Paths
+	Loader       *profile.Loader
 	FetchSecrets bool
 	Runner       secret.Runner
 	Keyring      secret.Keyring
 	Asker        secret.Asker
 	Allow        func(*profile.Profile) error
-	// Dir, when it is in a repository, adds checks of that repository with
-	// Profile, or the profile its .envrc names, or DefaultProfile.
-	Dir     string
-	Profile string
-	VCS     []vcstools.Tool
+	Dir          string
+	Profile      string
+	VCS          []vcstools.Tool
 }
 
 const fetchTimeout = 2 * time.Minute
 
-// Failed reports whether any result is a problem.
 func Failed(results []Result) bool {
 	return slices.ContainsFunc(results, func(r Result) bool { return r.Level == Problem })
 }

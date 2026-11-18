@@ -39,8 +39,6 @@ type layer struct {
 	builtin     bool
 }
 
-// secretRefs names each secret that the layer hands to something: a
-// credential, the signing key or an MCP server.
 func (l layer) secretRefs() []string {
 	var refs []string
 	add := func(c *credentialLayer) {

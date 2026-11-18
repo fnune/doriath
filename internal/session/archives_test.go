@@ -72,8 +72,6 @@ const (
 	fakePID  = 4242
 )
 
-// fakeProc places the pages of a library at its address in
-// PROC/PID/mem, as the kernel shows them: padded to a page.
 func fakeMappedLibrary(t *testing.T, root, body string) jailinit.MappedFile {
 	t.Helper()
 	dir := filepath.Join(root, strconv.Itoa(fakePID))

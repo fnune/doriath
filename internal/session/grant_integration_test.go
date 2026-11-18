@@ -16,9 +16,6 @@ import (
 	"github.com/fnune/doriath/internal/session"
 )
 
-// TestRequestAndGrantWrite makes paths writable in a running jail: one the
-// agent asks for and you allow, and one you grant from the host that the
-// jail could not see before.
 func TestRequestWriteOfASeenAndAnUnseenPath(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second
@@ -82,10 +79,6 @@ echo done
 	}
 }
 
-// TestAWriteRequestKeepsRepositoryGuards makes directories that hold
-// repositories writable, one the jail sees and one it does not: their files
-// become writable, and git's control files stay read-only, as in a write
-// mount.
 func TestAWriteRequestKeepsRepositoryGuards(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second
@@ -209,10 +202,6 @@ echo done
 	}
 }
 
-// TestAModuleAppliesInAnotherRepository lets the agent commit in a
-// repository that the session did not start in. The checkout becomes
-// writable, and the files that the host runs stay read-only, as in a
-// session that starts there.
 func TestAModuleAppliesInAnotherRepository(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second

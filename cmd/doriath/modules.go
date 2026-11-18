@@ -67,8 +67,6 @@ func printProfile(w io.Writer, p *profile.Profile) error {
 	return tw.Flush()
 }
 
-// summaryTones marks the entries that give the jail the most: writes,
-// secrets and devices, and the hosts whose traffic the proxy reads.
 var summaryTones = map[string]term.Level{
 	"mount write ": term.Warn,
 	"device ":      term.Problem,
@@ -160,8 +158,6 @@ func passRisk(sourceKey string) string {
 	return profile.PassRisk(name)
 }
 
-// wrapList splits items into lines of at most width columns, joined by ", ".
-// A width of 0 or less keeps them on one line.
 func wrapList(items []string, width int) [][]string {
 	var lines [][]string
 	var line []string

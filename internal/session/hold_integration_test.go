@@ -10,8 +10,6 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// TestUnknownHostIsHeldUntilYouDecide holds the connection while you answer,
-// so the agent's first try works.
 func TestUnknownHostIsHeldUntilYouDecide(t *testing.T) {
 	e := newEnv(t)
 	e.hostWait = 30 * time.Second
@@ -31,8 +29,6 @@ curl -sS -o /dev/null -H "Accept: text/markdown" -w "held %{http_code}\n" https:
 	}
 }
 
-// TestPendingRequestCanBeAwaited refuses at once without a wait, names the
-// pending approval, and lets the agent wait for it in the background.
 func TestPendingRequestCanBeAwaited(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `
@@ -47,8 +43,6 @@ curl -sS -o /dev/null -w "after %{http_code}\n" https://drafted.example/after
 	}
 }
 
-// TestHeldRequestTellsTheProgramWhatItWaitsFor reads what curl wrote to its
-// own standard error, as an agent reads the output of a command.
 func TestHeldRequestTellsTheProgramWhatItWaitsFor(t *testing.T) {
 	e := newEnv(t)
 	code, out := e.run(e.profile(""), `

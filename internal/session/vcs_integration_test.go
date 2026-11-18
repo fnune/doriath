@@ -29,10 +29,6 @@ func git(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// TestStoreOfAReadOnlyRepository runs an agent against a read-only
-// repository whose store [vcs] store makes writable: it can add a
-// worktree, commit, and move or delete branches, but not touch the checkout
-// or anything git runs, and doriath keeps the moved branches recoverable.
 func TestStoreOfAReadOnlyRepository(t *testing.T) {
 	e := newEnv(t)
 	repo := filepath.Join(e.home, "repo")
@@ -106,9 +102,6 @@ echo done
 	}
 }
 
-// TestStoreOfAReadOnlyJJRepository does the same for a colocated jj
-// repository: the agent works in a workspace of its own, which it adds
-// without a change to .git/config.
 func TestStoreOfAReadOnlyJJRepository(t *testing.T) {
 	jj, err := exec.LookPath("jj")
 	if err != nil {
@@ -181,9 +174,6 @@ echo done
 	}
 }
 
-// TestProjectFromTheStartDirectory starts in a package of a repository: the
-// agent sees the whole repository read-only, and adds a worktree under a
-// path the profile grants.
 func TestProjectFromTheStartDirectory(t *testing.T) {
 	e := newEnv(t)
 	repo := filepath.Join(e.home, "app")
@@ -216,8 +206,6 @@ echo done
 	}
 }
 
-// TestStartInALinkedWorktree starts where a linked git worktree is, whose
-// .git points at the main repository's store elsewhere.
 func TestStartInALinkedWorktree(t *testing.T) {
 	e := newEnv(t)
 	repo := filepath.Join(e.home, "repo")
@@ -247,8 +235,6 @@ echo done
 	}
 }
 
-// TestStartInAJJWorkspace starts in a secondary workspace of a colocated jj
-// repository.
 func TestStartInAJJWorkspace(t *testing.T) {
 	jj, err := exec.LookPath("jj")
 	if err != nil {

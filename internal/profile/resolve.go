@@ -9,14 +9,9 @@ import (
 )
 
 const (
-	// Current is the directory doriath run starts in.
-	Current = "{current}"
-	// Repository is the root of the git or jj repository that holds
-	// {current}. Entries that use it are skipped outside a repository.
+	Current    = "{current}"
 	Repository = "{repository}"
-	// User is your login name. Programs that name a shared directory
-	// after it, such as /tmp/claude-mcp-browser-bridge-{user}, need it.
-	User = "{user}"
+	User       = "{user}"
 )
 
 func placeholderPath(p string) (string, bool) {
@@ -71,8 +66,6 @@ func mergeKeepingLessAccess(mounts []Mount, m Mount) []Mount {
 	return mounts
 }
 
-// FindRepository returns the root of the git or jj repository that holds
-// dir, or "" outside one.
 func FindRepository(dir string, exists func(string) bool) string {
 	for d := filepath.Clean(dir); ; d = filepath.Dir(d) {
 		if exists(filepath.Join(d, ".git")) || exists(filepath.Join(d, ".jj")) {
@@ -84,8 +77,6 @@ func FindRepository(dir string, exists func(string) bool) string {
 	}
 }
 
-// Start is where a session starts: the directory doriath run starts in, and
-// the repository that holds it, if any.
 type Start struct {
 	Current    string
 	Repository string
@@ -103,9 +94,6 @@ func (p *Profile) Defaults() []Mount {
 	return out
 }
 
-// Resolve returns the profile with its placeholders filled in for a session
-// that starts at start, doriath's default entries added, and every mount
-// checked again now that its path is known.
 func (p *Profile) Resolve(start Start, home string) (*Profile, error) {
 	out := *p
 	out.Mounts = nil

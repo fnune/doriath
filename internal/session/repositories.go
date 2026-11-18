@@ -234,8 +234,6 @@ func (s *Session) finishRepositories(fixed, needs io.Writer) {
 	}
 }
 
-// FinishRecord runs the end step of a session's repositories and saves the
-// result. doriath run calls it for sessions that ended without one.
 func FinishRecord(ctx context.Context, paths config.Paths, t vcs.Tools, rec *vcs.Record, fixed, needs, status io.Writer) error {
 	bar := term.New(status).Bar()
 	err := vcs.Finish(ctx, t, filepath.Join(paths.Backups(), rec.Session), rec, fixed, needs, packProgress(bar, time.Now))

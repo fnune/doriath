@@ -14,18 +14,12 @@ import (
 	"github.com/fnune/doriath/internal/jailinit"
 )
 
-// Identity is the program that opened a proxy connection, as far as doriath
-// can tell. Exe is empty when it is unknown.
 type Identity struct {
-	PID  int
-	Exe  string
-	File jailinit.FileID
-	Code []jailinit.MappedFile
-	// Commands are the command lines of the caller and the processes that
-	// started it, as doriath's init in the jail read them.
-	Commands []string
-	// Untrusted says why doriath cannot vouch that the program is the file
-	// that Exe names, or that only trusted code runs in it.
+	PID       int
+	Exe       string
+	File      jailinit.FileID
+	Code      []jailinit.MappedFile
+	Commands  []string
 	Untrusted string
 }
 
@@ -49,14 +43,12 @@ func IdentityFrom(ctx context.Context) Identity {
 	return id
 }
 
-// PeerResolver answers questions about processes on the host.
 type PeerResolver interface {
 	// TrustsHeader reports whether pid is doriath's own init inside the jail,
 	// which forwards connections for other programs and names them in a
 	// header.
 	TrustsHeader(pid int) bool
 	Identify(pid int) Identity
-	// Vouch sets Untrusted on an identity that rules must not trust.
 	Vouch(id Identity) Identity
 }
 

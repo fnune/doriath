@@ -1,5 +1,3 @@
-// Package ca issues the certificates the proxy shows to the jail when it
-// terminates TLS for an intercepted host.
 package ca
 
 import (
@@ -38,8 +36,6 @@ type Authority struct {
 	leaves map[string]*tls.Certificate
 }
 
-// New creates an authority for the given host patterns: exact names or
-// "*.domain".
 func New(hosts []string, now func() time.Time) (*Authority, error) {
 	if len(hosts) == 0 {
 		return nil, errors.New("a session authority needs at least one host")
@@ -95,7 +91,6 @@ func (a *Authority) Pool() *x509.CertPool {
 	return pool
 }
 
-// Certificate returns a leaf for host, creating it on first use.
 func (a *Authority) Certificate(host string) (*tls.Certificate, error) {
 	host = strings.ToLower(host)
 	if net.ParseIP(host) != nil {

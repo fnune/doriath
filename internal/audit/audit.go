@@ -1,5 +1,3 @@
-// Package audit writes one JSON line per grant, denial and approval, so the
-// person can see afterwards what an agent reached and what it was refused.
 package audit
 
 import (
@@ -28,7 +26,6 @@ func New(w io.Writer, now func() time.Time, session, profile string) *Log {
 	return &Log{w: w, now: now, session: session, profile: profile}
 }
 
-// OpenFile opens the audit log for appending, creating it with mode 0600.
 func OpenFile(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create audit log directory: %w", err)

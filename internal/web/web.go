@@ -29,10 +29,9 @@ import (
 )
 
 type Session struct {
-	ID      string
-	Profile string
-	Cwd     string
-	// Description is the agent's own account of its task.
+	ID          string
+	Profile     string
+	Cwd         string
 	Description string
 	Requests    []approval.Request
 }
@@ -110,7 +109,6 @@ type Server struct {
 	codes map[string]time.Time
 }
 
-// New serves the page for addr, the host:port it listens on.
 func New(sessions Sessions, history History, checks Checks, clock Clock, token, addr string) (*Server, error) {
 	if err := Loopback(addr); err != nil {
 		return nil, err

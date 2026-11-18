@@ -26,8 +26,6 @@ func git(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// movedRepo makes a repository whose main branch the agent moved from start
-// to now.
 func movedRepo(t *testing.T) (dir, start, now string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

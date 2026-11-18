@@ -1,6 +1,3 @@
-// Package git is doriath's view of git: whether your global config signs
-// commits, and the jail's global config, built from yours with everything
-// that points outside the jail left out.
 package git
 
 import (
@@ -27,12 +24,8 @@ type Tool struct {
 	files   map[string][]byte
 }
 
-// New takes your global config as git config --global --includes --list -z
-// prints it, and the files it names, as HostFiles reads them.
 func New(desktop []byte, files map[string][]byte) Tool { return Tool{desktop: desktop, files: files} }
 
-// HostFiles reads the files that your global config names, or that git
-// reads by default, keyed by setting.
 func HostFiles(desktop []byte, home string, getenv func(string) string, read func(string) ([]byte, error)) map[string][]byte {
 	set := map[string]string{}
 	for _, e := range parseGitList(desktop) {

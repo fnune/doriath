@@ -141,7 +141,6 @@ func (b *Bar) Start(cmd *exec.Cmd) error {
 	return nil
 }
 
-// Set shows text on the bar.
 func (b *Bar) Set(text string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -152,8 +151,6 @@ func (b *Bar) Set(text string) {
 	b.flush()
 }
 
-// Close gives the terminal back as it was, except for the program's
-// output.
 func (b *Bar) Close() error {
 	b.closed.Do(func() { b.err = b.close() })
 	return b.err

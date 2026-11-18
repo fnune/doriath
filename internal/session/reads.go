@@ -13,8 +13,7 @@ import (
 )
 
 type RequestReadParams struct {
-	Path string `json:"path"`
-	// Reason is the agent's own text, shown to you as such.
+	Path   string `json:"path"`
 	Reason string `json:"reason,omitempty"`
 }
 

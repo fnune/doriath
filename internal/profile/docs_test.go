@@ -66,8 +66,6 @@ func tomlSnippets(t *testing.T, path string) []snippet {
 	return out
 }
 
-// TestDocExamplesLoad keeps the examples in the docs loadable: a reader who
-// copies one gets a file doriath accepts.
 func TestDocExamplesLoad(t *testing.T) {
 	root := filepath.Join("..", "..")
 	docs := []string{filepath.Join(root, "README.md"), filepath.Join(root, "internal", "guide", "profile.md")}

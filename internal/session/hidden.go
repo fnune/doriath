@@ -171,10 +171,6 @@ func untouched(path, content string) bool {
 	return err == nil && string(data) == content
 }
 
-// excludeFromGit lists a placeholder in the info/exclude of the git
-// repository that holds it, so that git add and jj's snapshots leave it out
-// of commits, and returns what takes it out again. Outside a git repository
-// it does nothing.
 func excludeFromGit(path string) func() {
 	root, exclude := gitExcludeFile(filepath.Dir(path))
 	if exclude == "" {
@@ -213,8 +209,6 @@ func excludeFromGit(path string) func() {
 	}
 }
 
-// gitExcludeFile finds the worktree root above dir and the info/exclude of
-// its repository, which linked worktrees share with the main one.
 func gitExcludeFile(dir string) (root, exclude string) {
 	for d := dir; ; d = filepath.Dir(d) {
 		dotGit := filepath.Join(d, ".git")
@@ -258,7 +252,6 @@ func commonGitDir(root, gitFile string) (string, bool) {
 	return filepath.Clean(c), true
 }
 
-// gitPattern escapes the characters that gitignore patterns give a meaning.
 func gitPattern(path string) string {
 	var b strings.Builder
 	for _, r := range path {

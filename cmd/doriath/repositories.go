@@ -20,7 +20,6 @@ import (
 
 func vcsTools() vcs.Tools { return vcs.Tools{Git: lookPath("git"), JJ: lookPath("jj")} }
 
-// records lists the repository records of sessions that are not running.
 func records(p config.Paths) ([]*vcs.Record, error) {
 	files, err := filepath.Glob(filepath.Join(p.Backups(), "*.json"))
 	if err != nil {
@@ -44,8 +43,6 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 	return out, nil
 }
 
-// finishInterrupted runs the end step of sessions that ended without one,
-// for example because doriath was killed.
 func finishInterrupted(p config.Paths, w io.Writer) {
 	finishInterruptedOf(p, w, func(*vcs.Record) bool { return true })
 }
@@ -139,9 +136,6 @@ func cmdRestore(args []string, w io.Writer) error {
 	return rec.Save(path)
 }
 
-// cmdClean removes what sessions leave behind once it is safe: agent
-// worktrees whose work is merged, and the refs that keep the start values of
-// moved branches. With --caches PROFILE it removes a profile's caches.
 func cmdClean(args []string, in io.Reader, w io.Writer) error {
 	if len(args) != 0 {
 		return errors.New("clean: usage: doriath clean (for the caches of a profile: `doriath profiles clean NAME`)")

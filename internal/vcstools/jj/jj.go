@@ -1,5 +1,3 @@
-// Package jj is doriath's view of jj: whether your config signs commits,
-// and the jail's config, which reads yours and then overrides its signing.
 package jj
 
 import (
@@ -21,8 +19,6 @@ type Tool struct {
 	kind func(string) string
 }
 
-// New reads your jj config under home; kind returns "file", "dir" or "" for
-// a path.
 func New(home string, kind func(string) string) Tool { return Tool{home: home, kind: kind} }
 
 func (Tool) Name() string { return "jj" }

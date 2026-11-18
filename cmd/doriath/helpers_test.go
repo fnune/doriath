@@ -20,9 +20,6 @@ import (
 	"github.com/fnune/doriath/internal/session"
 )
 
-// testPaths points every directory doriath reads at a fresh temporary one.
-// The runtime directory is short because unix socket paths are limited to
-// 108 bytes.
 func testPaths(t *testing.T) config.Paths {
 	t.Helper()
 	home := t.TempDir()
@@ -56,7 +53,6 @@ func writeProfile(t *testing.T, p config.Paths, name, body string) {
 	}
 }
 
-// requestedIDs tells a test when a request is pending.
 type requestedIDs chan string
 
 func (r requestedIDs) Requested(req approval.Request)            { r <- req.ID }
@@ -75,8 +71,6 @@ func (p *prefixIDs) New() string {
 	return fmt.Sprintf("%s-r%d", p.prefix, p.n)
 }
 
-// fakeSession serves a session's control socket in-process and writes the
-// info file the way a session does, so the CLI finds it.
 type fakeSession struct {
 	id        string
 	profile   string
@@ -146,8 +140,6 @@ func startSession(t *testing.T, p config.Paths, id, profile string, started time
 	return s
 }
 
-// submit asks for a decision in the background and waits until the request
-// is pending.
 func (s *fakeSession) submit(t *testing.T, summary, details string) (string, <-chan approval.Decision) {
 	t.Helper()
 	out := make(chan approval.Decision, 1)
@@ -177,7 +169,6 @@ func receive(t *testing.T, ch <-chan approval.Decision) approval.Decision {
 	}
 }
 
-// fakeBroker stands in for the broker socket a session offers the jail.
 type fakeBroker struct {
 	mu       sync.Mutex
 	submits  []session.SubmitParams
@@ -400,7 +391,6 @@ func (b *fakeBroker) sentWaits() []session.WaitParams {
 	return slices.Clone(b.waits)
 }
 
-// stepClock lets a test see each wait and decide when it ends.
 type stepClock struct {
 	now   time.Time
 	waits chan chan time.Time
@@ -418,7 +408,6 @@ func (c *stepClock) After(time.Duration) <-chan time.Time {
 	return tick
 }
 
-// waiting blocks until the code under test waits on the clock.
 func (c *stepClock) waiting(t *testing.T) chan<- time.Time {
 	t.Helper()
 	select {

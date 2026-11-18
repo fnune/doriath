@@ -73,8 +73,6 @@ func TestAHostBodyShowsTheLinesToDenyIt(t *testing.T) {
 	}
 }
 
-// TestDesktop shows a real notification and withdraws it. It only runs when
-// asked, because it appears on the desktop.
 func TestDesktop(t *testing.T) {
 	if os.Getenv("DORIATH_TEST_DESKTOP") == "" {
 		t.Skip("set DORIATH_TEST_DESKTOP=1 to show a real notification")

@@ -33,9 +33,6 @@ func FuzzProcAddr(f *testing.F) {
 	})
 }
 
-// decodeProcAddr reads an address as the kernel prints it in /proc/net/tcp:
-// each 32-bit word of the address in host (little-endian) order, then the
-// port in hex.
 func decodeProcAddr(t *testing.T, s string) *net.TCPAddr {
 	t.Helper()
 	host, port, ok := strings.Cut(s, ":")

@@ -20,8 +20,6 @@ var caBundleCandidates = []string{
 	"/etc/ssl/cert.pem",
 }
 
-// CABundle is the system's trusted roots plus the session CA, for tools that
-// read one bundle file.
 func CABundle(getenv func(string) string, read func(string) ([]byte, error), sessionCA []byte) ([]byte, error) {
 	candidates := []string{getenv("SSL_CERT_FILE"), getenv("NIX_SSL_CERT_FILE")}
 	candidates = append(candidates, caBundleCandidates...)

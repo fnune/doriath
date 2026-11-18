@@ -1,6 +1,3 @@
-// Package config locates doriath's directories and reads the user config,
-// which holds what is personal to one person: where their secrets live and
-// how they want to be asked for approvals.
 package config
 
 import (
@@ -35,9 +32,6 @@ func (p Paths) WebToken() string   { return filepath.Join(p.State, "web-token") 
 func (p Paths) WebAddr() string    { return filepath.Join(p.Runtime, "web-addr") }
 func (p Paths) Sessions() string   { return filepath.Join(p.Runtime, "sessions") }
 
-// Private lists doriath's own configuration, state and cache. They move
-// with the XDG variables, so they are here and not in the private-paths
-// module, which refuses your keys and logins.
 func (p Paths) Private() []string {
 	return []string{p.Config, p.State, p.Cache}
 }
@@ -54,23 +48,14 @@ func (p Paths) AgentCache(profile string) string {
 	return filepath.Join(p.Cache, "agents", profile)
 }
 
-// AllowedProfiles holds the grants of each profile you allowed. It is
-// state: deleting it asks again for every profile.
 func (p Paths) AllowedProfiles() string { return filepath.Join(p.State, "profiles") }
 
-// Moved holds what the jail created at a held path in a session, which
-// doriath moved out of the repository. It is state: you decide what to keep.
 func (p Paths) Moved(session string) string { return filepath.Join(p.State, "moved", session) }
 
 func (p Paths) Bundle() string { return filepath.Join(p.Cache, "bundle") }
 
-// Backups holds, per session, the record of the branches it started with and
-// the objects that keep them alive. It is state: doriath restore reads it
-// after the session ends.
 func (p Paths) Backups() string { return filepath.Join(p.State, "backups") }
 
-// DefaultPaths follows the XDG base directory specification. DORIATH_CONFIG_DIR
-// overrides the config directory, for example to point at a generated one.
 func DefaultPaths(getenv func(string) string) (Paths, error) {
 	home := getenv("HOME")
 	if home == "" || !filepath.IsAbs(home) {
@@ -102,8 +87,6 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 	return p, nil
 }
 
-// User is doriath's own configuration, which holds for every profile.
-// Secrets belong to the profiles that use them.
 type User struct {
 	Approvals Approvals
 	Desktop   Desktop
@@ -111,20 +94,13 @@ type User struct {
 }
 
 type Desktop struct {
-	// Notifications shows approval requests with buttons.
 	Notifications bool
-	// Tray shows an icon while doriath web runs, which marks waiting
-	// requests and opens the page.
-	Tray bool
+	Tray          bool
 }
 
 type Terminal struct {
-	// Title names the session's profile in the terminal's window title
-	// while a session runs.
 	Title bool
-	// Bar shows the session on the terminal's last row, below the agent.
-	// Without it, the agent gets your terminal as it is.
-	Bar bool
+	Bar   bool
 	// Env is set on bubblewrap, the process your terminal sees in place of
 	// the agent. The jail does not get it.
 	Env map[string]string
@@ -134,13 +110,9 @@ type Approvals struct {
 	// HostWait is how long a request doriath refused waits for your
 	// decision before the agent gets an error. Nil means the default.
 	HostWait *time.Duration
-	// ToolWait is how long an agent's permission prompt waits in doriath's
-	// queue before the agent shows its own.
 	ToolWait time.Duration
 }
 
-// DefaultHostWait holds requests while desktop notifications can show them,
-// and not at all without them, where nobody sees the request in time.
 func (u User) DefaultHostWait() time.Duration {
 	switch {
 	case u.Approvals.HostWait != nil:
@@ -169,7 +141,6 @@ type userFile struct {
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// LoadUser reads config.toml. A missing file is an empty configuration.
 func LoadUser(path string) (User, error) {
 	u := User{
 		Approvals: Approvals{ToolWait: time.Minute},

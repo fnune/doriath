@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Screenshots the approvals page with two pending requests from a scripted
-# stand-in for an agent, in light and dark. Needs the dev shell for the
-# binary, and shot-scraper with its browser (`shot-scraper install`).
-# Usage: approvals-page.sh PATH-TO-DORIATH-BINARY OUTPUT-DIR
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

@@ -12,8 +12,6 @@ import (
 
 const helperEnv = "DORIATH_SECCOMP_HELPER"
 
-// TestHelperProcess is the program the jail runs when a test needs a Go
-// process with many OS threads. It does nothing in a normal test run.
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "threads" {
 		return

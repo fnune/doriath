@@ -13,8 +13,6 @@ import (
 	"github.com/fnune/doriath/internal/vcstools"
 )
 
-// DefaultProfile is the profile doctor checks a repository against when
-// neither --profile nor the repository's .envrc names one.
 const DefaultProfile = "default"
 
 func repository(opts Options) []Result {

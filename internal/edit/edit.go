@@ -1,7 +1,3 @@
-// Package edit changes a file that the jail sees read-only, for doriath
-// request edit: it finds what an edit changes, which changes a rule allows
-// without asking, and writes the file in place, so that the jail's mount of
-// it shows the new content.
 package edit
 
 import (
@@ -19,11 +15,8 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-// MaxSize bounds an edited file, which doriath reads and compares whole.
 const MaxSize = 512 << 10
 
-// Change is one setting an edit changes, with its values before and after.
-// A text edit has one change with no key.
 type Change struct {
 	Key           string
 	Old           []string
@@ -31,7 +24,6 @@ type Change struct {
 	namesNoRemote bool
 }
 
-// Changes lists what new changes in old, read in format.
 func Changes(ctx context.Context, git string, format profile.EditFormat, old, new []byte) ([]Change, error) {
 	if len(new) > MaxSize {
 		return nil, fmt.Errorf("the new content is larger than %d bytes", MaxSize)
@@ -133,9 +125,6 @@ func gitSettings(ctx context.Context, git string, content []byte) ([]setting, er
 	return s, nil
 }
 
-// Safe reports whether a rule allows c without asking: its key matches,
-// and so does each of its new values. Removing a setting a rule names is
-// safe too.
 func Safe(c Change, rules []profile.SafeChange) bool {
 	if c.Key == "" || c.namesNoRemote {
 		return false
@@ -161,8 +150,6 @@ func valuePattern(glob string) *regexp.Regexp {
 	return regexp.MustCompile("^" + q + "$")
 }
 
-// Describe lists the changes for you to read, marking the ones that a rule
-// does not allow.
 func Describe(changes []Change, rules []profile.SafeChange) string {
 	var b strings.Builder
 	for _, c := range changes {

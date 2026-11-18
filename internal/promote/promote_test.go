@@ -168,8 +168,6 @@ func TestSendTreeAndAttachMountAHostDirectory(t *testing.T) {
 		}
 		src := readOnlyBind(t, dir)
 		ours, theirs := socketpair(t)
-		// sendTree writes to fd 3 and attach reads fd 4, as the helpers
-		// receive them; the parent reserved both for this test.
 		if err := unix.Dup3(theirs, 3, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -201,9 +199,6 @@ func TestSendTreeAndAttachMountAHostDirectory(t *testing.T) {
 
 const childEnv = "DORIATH_PROMOTE_TEST_CHILD"
 
-// inMountNamespace runs body in a copy of the test binary that owns a user
-// and mount namespace of its own, where it may change mounts as the helpers
-// do in the jail. Machines without unprivileged user namespaces skip it.
 func inMountNamespace(t *testing.T, body func(t *testing.T)) {
 	t.Helper()
 	if os.Getenv(childEnv) == t.Name() {
@@ -242,8 +237,6 @@ func inMountNamespace(t *testing.T, body func(t *testing.T)) {
 	}
 }
 
-// readOnlyMount is a read-only bind mount of a fresh directory with a
-// subdirectory, as the jail mounts a read-only path.
 func readOnlyMount(t *testing.T) string {
 	t.Helper()
 	dir := realTempDir(t)
@@ -268,7 +261,6 @@ func readOnlyBind(t *testing.T, dir string) string {
 	return dir
 }
 
-// hideWithEmptyFile mounts an empty file over path, as the jail hides one.
 func hideWithEmptyFile(t *testing.T, path string) {
 	t.Helper()
 	empty := filepath.Join(realTempDir(t), "empty")

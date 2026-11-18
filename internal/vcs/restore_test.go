@@ -107,8 +107,6 @@ func jj(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// jjRepo is a jj repository with one commit, main, on top of the root.
-// jj keeps its git store inside .jj unless colocated.
 func jjRepo(t *testing.T, colocate bool) string {
 	t.Helper()
 	if _, err := exec.LookPath("jj"); err != nil {
@@ -198,8 +196,6 @@ func TestFinishBringsBackTheJJStoreTheSessionDeleted(t *testing.T) {
 	}
 }
 
-// conflictMain points main at two new commits in concurrent operations, as
-// two jj processes racing would, and returns one of them.
 func conflictMain(t *testing.T, r string) string {
 	t.Helper()
 	commit := func(message string) string {

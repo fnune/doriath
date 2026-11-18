@@ -20,11 +20,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Forward is one localhost port inside the jail and the socket behind it.
 type Forward struct {
-	Port   int
-	Socket string
-	// Identify sends a PeerHeader before the forwarded bytes.
+	Port     int
+	Socket   string
 	Identify bool
 }
 
@@ -87,7 +85,6 @@ func Bridge(ctx context.Context, l net.Listener, f Forward) {
 	}
 }
 
-// Splice copies both ways until both sides finish.
 func Splice(a, b net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)

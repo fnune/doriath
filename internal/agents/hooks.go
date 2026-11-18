@@ -8,8 +8,6 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// Hooks is an adapter whose agent runs doriath from its hooks, as
-// doriath __hook NAME EVENT, with the event's input on stdin.
 type Hooks interface {
 	Hook(call HookCall) ([]byte, error)
 }
@@ -22,7 +20,6 @@ type HookCall struct {
 	Stderr  io.Writer
 }
 
-// Broker is the session, as a hook inside the jail reaches it.
 type Broker interface {
 	Started() error
 	Describe() (string, error)

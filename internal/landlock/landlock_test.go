@@ -44,9 +44,6 @@ func TestHandledRightsFollowABI(t *testing.T) {
 	}
 }
 
-// TestHelperProcess runs the restricted side of a test in a fresh process,
-// because the restriction cannot be undone. It does nothing in a normal
-// test run.
 func TestHelperProcess(t *testing.T) {
 	mode := os.Getenv(helperEnv)
 	if mode == "" {

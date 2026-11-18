@@ -11,8 +11,6 @@ import (
 	"testing"
 )
 
-// knownGaps are operations of the survey that fail in the jail, with why.
-// The survey fails on any other failure, and on a gap that starts to work.
 var knownGaps = map[string]string{
 	"git-remote-add":      "a remote's URL decides where pushes go, so doriath asks you first, and nobody answers here",
 	"jj-git-remote-add":   "jj writes git's config in its own process, past doriath's git; git remote add works",
@@ -20,9 +18,6 @@ var knownGaps = map[string]string{
 	"git-sparse-checkout": "it needs extensions.worktreeConfig in .git/config and a config.worktree for the worktree",
 }
 
-// surveyOps runs each operation in the jail and prints OK or FAIL with the
-// end of its output. Later operations build on earlier ones, so a failure
-// can make the next one fail too; the first failure is the one to read.
 const surveyOps = `
 set -u
 export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
@@ -81,8 +76,6 @@ func TestSurveyOfGitAndJJInTheJail(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name string
-		// mode is how the profile mounts the repositories; the agent's
-		// worktrees and workspaces go under the session's writable mount.
 		mode string
 	}{
 		{"writable", "write"},
@@ -152,8 +145,6 @@ func TestSurveyOfGitAndJJInTheJail(t *testing.T) {
 			vars := fmt.Sprintf("export JJ=%q REPO=%q JJREPO=%q REMOTE=%q TREES=%q\n", jj, repo, jjRepo, remote, trees)
 			ops := gitOps + jjOps
 			if c.mode == "read" {
-				// The checkout stays read-only, so the agent works in a
-				// worktree or workspace of its own.
 				ops = strings.ReplaceAll(gitOps, `cd "$REPO"`, `op git-own-worktree git -C "$REPO" worktree add -q "$TREES/main-wt" -b agent; cd "$TREES/main-wt"`) +
 					strings.ReplaceAll(jjOps, `cd "$JJREPO"`, `op jj-own-workspace $J --repository "$JJREPO" workspace add "$TREES/main-ws"; cd "$TREES/main-ws"`)
 			}

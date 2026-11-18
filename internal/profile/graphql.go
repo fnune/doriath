@@ -19,8 +19,6 @@ const (
 	GraphQLSubscription GraphQLOperation = "subscription"
 )
 
-// GraphQLRule narrows a rule to GraphQL requests whose every operation has
-// this type and, when Fields is set, selects only these top-level fields.
 type GraphQLRule struct {
 	Operation GraphQLOperation
 	Fields    []string
@@ -99,8 +97,6 @@ func duplicateFragments(doc *ast.QueryDocument) bool {
 	return false
 }
 
-// DescribeGraphQL names the operation types and top-level fields of a
-// GraphQL body, or returns "" when the body is not one.
 func DescribeGraphQL(body []byte) string {
 	ops, ok := parseGraphQL(body)
 	if !ok {

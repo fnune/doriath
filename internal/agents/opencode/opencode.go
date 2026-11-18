@@ -1,9 +1,3 @@
-// Package opencode adapts opencode to doriath. The opencode module gives it
-// its own data, state and cache folders and your config read-only; this
-// adapter adds config through OPENCODE_CONFIG_CONTENT, which overrides
-// yours and the project's, with the profile's MCP servers and the session
-// text. opencode's plugins cannot answer a permission prompt, so its
-// prompts stay in its terminal.
 package opencode
 
 import (
@@ -51,8 +45,6 @@ type mcpServer struct {
 	URL         string            `json:"url,omitempty"`
 }
 
-// Config adds to yours: opencode joins instructions lists and merges MCP
-// servers by name.
 func Config(servers []profile.MCPServer, instructions []string) ([]byte, error) {
 	config := map[string]any{"autoupdate": false, "share": "disabled"}
 	if len(instructions) > 0 {

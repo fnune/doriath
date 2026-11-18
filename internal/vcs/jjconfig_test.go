@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// securedJJRepo makes a colocated jj repository, with jj's secure configs in a
-// directory of the test's own.
 func securedJJRepo(t *testing.T) (jjRepoDir string, tools Tools) {
 	t.Helper()
 	jj, err := exec.LookPath("jj")
@@ -27,8 +25,6 @@ func securedJJRepo(t *testing.T) (jjRepoDir string, tools Tools) {
 	return filepath.Join(repo, ".jj", "repo"), Tools{JJ: jj}
 }
 
-// secureDir checks that dir is the secure config that the repository's
-// config-id names.
 func secureDir(t *testing.T, jjRepo, dir string) {
 	t.Helper()
 	id, err := os.ReadFile(filepath.Join(jjRepo, "config-id"))

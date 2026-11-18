@@ -20,7 +20,6 @@ import (
 type RequestModuleParams struct {
 	Module string `json:"module"`
 	Path   string `json:"path"`
-	// Reason is the agent's own text, shown to you as such.
 	Reason string `json:"reason,omitempty"`
 }
 

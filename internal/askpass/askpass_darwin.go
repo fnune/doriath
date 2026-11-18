@@ -2,7 +2,6 @@ package askpass
 
 import "github.com/fnune/doriath/internal/secret"
 
-// New returns the dialog of macOS, which osascript opens.
 func New(func(string) string, func(string) (string, error)) secret.Asker {
 	return Program{Argv: []string{
 		"/usr/bin/osascript",

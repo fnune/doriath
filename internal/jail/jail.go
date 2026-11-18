@@ -1,6 +1,3 @@
-// Package jail turns a profile into a bubblewrap invocation. The jail starts
-// from a read-only view of the system with the home directory, /run and
-// /tmp replaced, then adds back only what the profile names.
 package jail
 
 import (
@@ -30,22 +27,14 @@ const (
 
 func InJail(name string) string { return filepath.Join(Dir, name) }
 
-// Layout is where the session keeps its files on the host.
 type Layout struct {
-	// JailDir holds the sockets and generated files, bound read-only at Dir.
-	JailDir string
-	// CacheRoot backs the profile's cache mounts.
+	JailDir   string
 	CacheRoot string
-	// Tmp backs /tmp, so scratch files survive a resumed session.
-	Tmp string
-	// Home backs the home directory, so that what the agent writes outside
-	// the mounts and caches stays on disk instead of in memory.
-	Home string
-	Exe  string
+	Tmp       string
+	Home      string
+	Exe       string
 }
 
-// EmptyDir is the empty directory, inside the jail directory, that hidden
-// directories show.
 func (l Layout) EmptyDir() string { return filepath.Join(l.JailDir, "empty") }
 
 func CacheSource(root, path, home string) string {
@@ -61,19 +50,12 @@ func CacheSource(root, path, home string) string {
 type Host interface {
 	// Kind returns "dir", "file", "other" or "" when the path does not exist.
 	Kind(path string) string
-	// Entries lists the names in a directory, or nothing if it cannot.
 	Entries(dir string) []string
-	// Link reports whether the path itself is a symlink.
 	Link(path string) bool
-	// Resolve returns the path with every symlink followed, or "" when it
-	// leads nowhere.
 	Resolve(path string) string
-	// List lists a directory's entries with their type, from the listing
-	// itself, or nothing if it cannot.
 	List(dir string) []Entry
 }
 
-// Entry is a directory entry. Dir is false for a symlink to a directory.
 type Entry struct {
 	Name string
 	Dir  bool
@@ -84,22 +66,14 @@ type Bind struct {
 	Dest     string
 	ReadOnly bool
 	Device   bool
-	// Try skips the bind when Source is gone by the time the jail starts,
-	// for a file that a program on the host may delete at any time.
-	Try bool
+	Try      bool
 }
 
 type Spec struct {
-	// SkipUserNS is for a process that already runs as root in its own user
-	// namespace, such as the podman service.
 	SkipUserNS bool
-	// SkipNetNS keeps the caller's network namespace, for an agent that joins
-	// the session's shared namespace.
-	SkipNetNS bool
-	// InfoFD is a file descriptor for bubblewrap's JSON status, or 0.
-	InfoFD int
-	// SeccompFD is a file descriptor with a seccomp program, or 0.
-	SeccompFD int
+	SkipNetNS  bool
+	InfoFD     int
+	SeccompFD  int
 	// SetIDs maps the jail's user and group to UID and GID explicitly, for a
 	// bubblewrap that starts as root inside another user namespace.
 	SetIDs   bool
@@ -112,8 +86,7 @@ type Spec struct {
 	// A bind cannot add a file there, because the root bind is read-only.
 	EtcOverlay string
 	Dirs       []string
-	// Symlinks maps a path in the jail to the target it points at.
-	Symlinks map[string]string
+	Symlinks   map[string]string
 	// Links are guarded paths that are symlinks inside a writable mount.
 	// bubblewrap cannot mount onto a symlink, so the session keeps each one
 	// pointing where it pointed when the session started.
@@ -122,36 +95,25 @@ type Spec struct {
 	Env     map[string]string
 	Cwd     string
 	Command []string
-	// Notes are advice for the person who starts the session. They never
-	// change the jail.
-	Notes []string
+	Notes   []string
 }
 
 type Options struct {
-	UID     int
-	Home    string
-	Cwd     string
-	Command []string
-	// HostEnv is the environment doriath runs in. Only variables the profile
-	// passes reach the jail.
-	HostEnv map[string]string
-	// ExtraEnv is set by doriath itself: proxy, sockets, CA bundle and so on.
-	ExtraEnv map[string]string
-	// PathPrepend puts doriath's own fronts, such as its git, before PATH.
-	// A jail without PATH gets none, so that it still finds the system's.
-	PathPrepend []string
-	// ExtraBinds come from adapters, for example the agent's own state.
-	ExtraBinds []Bind
-	SkipUserNS bool
-	SkipNetNS  bool
-	InfoFD     int
-	SeccompFD  int
-	SetIDs     bool
-	GID        int
-	// EtcOverlay is a host directory whose files appear in the jail's /etc.
-	EtcOverlay string
-	// JailDirWritable lets a helper such as the podman service create its
-	// socket in the doriath directory.
+	UID             int
+	Home            string
+	Cwd             string
+	Command         []string
+	HostEnv         map[string]string
+	ExtraEnv        map[string]string
+	PathPrepend     []string
+	ExtraBinds      []Bind
+	SkipUserNS      bool
+	SkipNetNS       bool
+	InfoFD          int
+	SeccompFD       int
+	SetIDs          bool
+	GID             int
+	EtcOverlay      string
 	JailDirWritable bool
 }
 
@@ -284,15 +246,11 @@ type Placeholder struct {
 	Content string
 }
 
-// Placeholders lists the control paths that doriath creates before the
-// session.
 func Placeholders(p *profile.Profile, host Host) []Placeholder {
 	_, missing, _ := mountBinds(p, Layout{}, host)
 	return missing
 }
 
-// Guards lists the paths inside the profile's writable mounts that the jail
-// binds read-only, such as each repository's .git/config.
 func Guards(p *profile.Profile, host Host) []string {
 	binds, _, _ := mountBinds(p, Layout{}, host)
 	var out []string
@@ -304,16 +262,11 @@ func Guards(p *profile.Profile, host Host) []string {
 	return out
 }
 
-// GitRoots lists the git stores whose root the jail can write: those of
-// repositories in writable mounts, and those that [vcs] store opens.
 func GitRoots(p *profile.Profile, host Host) []string {
 	g, _ := mountGuards(p, Layout{}, host)
 	return g.roots
 }
 
-// JJRepos lists the .jj/repo directories of the jj repositories whose
-// store the jail can write: those in writable mounts, and those that
-// [vcs] store opens.
 func JJRepos(p *profile.Profile, host Host) []string {
 	g, _ := mountGuards(p, Layout{}, host)
 	return slices.Compact(slices.Sorted(slices.Values(g.jjRepos)))
@@ -411,8 +364,6 @@ func (g *guards) git(src, dest string) {
 	}
 }
 
-// RepositoryMemo is a Host that keeps what Repositories found under each
-// root, so that the many walks of one session start run once and agree.
 type RepositoryMemo interface {
 	Repositories(root string, find func() []string) []string
 }
@@ -563,8 +514,6 @@ func (g *guards) worktrees(gitDir string) {
 	}
 }
 
-// GitControlFiles are the entries of a .git directory that decide what git
-// runs, which config it reads, or how it resolves your next merge.
 var GitControlFiles = []string{"config", "config.worktree", "commondir", "hooks", "info", "objects/info/alternates", "rr-cache", "remotes", "branches"}
 
 var gitHolds = map[string]*Placeholder{
@@ -683,8 +632,6 @@ func checkLinkTarget(link string, writable []string, host Host) error {
 	return nil
 }
 
-// GuardsAndLinks splits the read-only paths inside p's mounts into those
-// doriath mounts read-only and the symlinks it keeps in place instead.
 func GuardsAndLinks(p *profile.Profile, host Host) (guards, links []string, err error) {
 	binds, _, _ := mountBinds(p, Layout{}, host)
 	kept, links, errs := splitGuardedLinks(binds, host, nil)
@@ -723,8 +670,6 @@ func parentPins(binds []Bind, host Host) []Bind {
 	return pins
 }
 
-// Between lists the directories strictly between root and path, the
-// shallowest first, or nothing when path is not below root.
 func Between(root, path string) []string {
 	var out []string
 	for dir := filepath.Dir(path); dir != root && within(dir, root) && dir != "/"; dir = filepath.Dir(dir) {

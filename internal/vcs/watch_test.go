@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// watch runs Watch until stop, which returns what it reported. The test
-// stops it on cleanup too.
 func watch(t *testing.T, rec *Record) (stop func() string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,7 +119,6 @@ func TestWatchRepairsWorktreesAddedBeforeItStarted(t *testing.T) {
 	}
 }
 
-// eventually polls, since inotify gives the test no event to wait on.
 func eventually(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {

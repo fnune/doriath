@@ -14,7 +14,6 @@ import (
 	"github.com/fnune/doriath/internal/proxy"
 )
 
-// waitHintAfter keeps the line off requests that you answer within seconds.
 const waitHintAfter = 5 * time.Second
 
 // Waiting writes to the standard error of the program whose request the

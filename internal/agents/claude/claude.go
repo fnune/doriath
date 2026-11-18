@@ -1,8 +1,3 @@
-// Package claude adapts Claude Code to doriath. The claude module gives it a
-// private ~/.claude with your configuration read-only; this adapter does
-// what the module cannot: Claude's permission prompts go to doriath's
-// approvals, with the project's rules frozen as they were at the start, and
-// transcripts come back to your ~/.claude/projects when the session ends.
 package claude
 
 import (
@@ -48,9 +43,6 @@ func (Adapter) Seeds(s agents.Session) []agents.Seed {
 	return []agents.Seed{{Source: filepath.Join(s.Home, ".claude.json"), Dest: filepath.Join(private, ".claude.json"), Keys: seeded}}
 }
 
-// Start writes the session's settings, points Claude at the profile's own
-// configuration directory, and copies this project's history in, so a
-// session can resume what you started outside the jail.
 func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]string, error) {
 	configDir := filepath.Join(s.Home, ".claude")
 	if private := s.HostPath(configDir); private != "" {
@@ -84,8 +76,6 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 	return args, env, nil
 }
 
-// End copies this project's transcripts back, so you can resume a jailed
-// session outside the jail. Memory files the agent wrote stay behind.
 func (Adapter) End(s agents.Session) error {
 	configDir := filepath.Join(s.Home, ".claude")
 	private := s.HostPath(configDir)
@@ -258,8 +248,6 @@ func readProject(files Files, path string) (projectSettings, error) {
 	return ps, nil
 }
 
-// ProjectDir is how Claude Code names a working directory under
-// ~/.claude/projects.
 func ProjectDir(cwd string) string {
 	return nonAlnum.ReplaceAllString(cwd, "-")
 }

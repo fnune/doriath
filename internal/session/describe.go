@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// Describe tells the agent what the jail allows and how to ask for more.
 func (st Status) Describe() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This session runs in doriath profile %q (session %s).\n", st.Profile, st.Session)

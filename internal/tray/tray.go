@@ -1,6 +1,3 @@
-// Package tray shows doriath's icon in the desktop's status area while the
-// approvals page runs. The icon marks requests that wait for an answer, and
-// a click opens the page. Each desktop platform implements Icon.
 package tray
 
 import (
@@ -27,7 +24,6 @@ type Icon interface {
 	Show(State) error
 }
 
-// Counter counts the requests that wait in all live sessions.
 type Counter interface {
 	Waiting(ctx context.Context) (int, error)
 }

@@ -14,9 +14,6 @@ import (
 
 const WaylandSocket = "wayland.sock"
 
-// startClipboard serves your clipboard's images to the jail as a Wayland
-// display, which clipboard tools find through WAYLAND_DISPLAY, whether an
-// agent runs wl-paste or speaks the protocol itself.
 func (s *Session) startClipboard(ctx context.Context) error {
 	if !s.req.Profile.ClipboardImages {
 		return nil

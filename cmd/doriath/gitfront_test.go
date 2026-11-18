@@ -11,8 +11,6 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// frontRepo is a clone whose .git the jail would keep from git: here a
-// directory git cannot create its config.lock in.
 func frontRepo(t *testing.T) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

@@ -128,7 +128,6 @@ let
     };
   };
 
-  # packages is not a profile key: it becomes env.path_prepend.
   profileToml =
     profile:
     let

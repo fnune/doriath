@@ -58,8 +58,6 @@ func (l *egressLog) Block(what, reason string) {
 	l.mu.Unlock()
 }
 
-// Denials returns every denied host and reason with its count, most frequent
-// first.
 func (l *egressLog) Denials() []Denial {
 	l.mu.Lock()
 	defer l.mu.Unlock()

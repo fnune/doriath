@@ -9,8 +9,6 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// TestRemoteMCPServerGetsItsTokenAtTheProxy lists a remote MCP server whose
-// token doriath adds on the way out: the jail sees the server, never the token.
 func TestRemoteMCPServerGetsItsTokenAtTheProxy(t *testing.T) {
 	e := newEnv(t)
 	p := e.profile("\n[[mcp]]\nname = \"remote\"\nurl = \"https://example.com/mcp\"\nsecret = \"github\"\n\n[[mcp]]\nname = \"local\"\ncommand = [\"true\"]\n")
@@ -28,8 +26,6 @@ curl -sS -o /dev/null -w "mcp %{http_code}\n" -X POST -d '{"jsonrpc":"2.0","id":
 	}
 }
 
-// TestMCPToolIsHeldForApproval holds one tool of a remote MCP server for
-// your approval and lets the others through.
 func TestMCPToolIsHeldForApproval(t *testing.T) {
 	e := newEnv(t)
 	p := e.profile("\n[[mcp]]\nname = \"remote\"\nurl = \"https://example.com/mcp\"\napprove = [\"create-*\"]\n")

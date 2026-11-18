@@ -37,16 +37,12 @@ const (
 	MethodWait           = "approval.wait"
 )
 
-// WaitParams names a request by its id, or by what it asks for: a host or
-// an absolute path.
 type WaitParams struct {
 	ID   string `json:"id,omitempty"`
 	Host string `json:"host,omitempty"`
 	Path string `json:"path,omitempty"`
 }
 
-// RequestResult is the decision, or the id of the request that is
-// still pending once the wait is over.
 type RequestResult struct {
 	Decision approval.Decision `json:"decision"`
 	Pending  string            `json:"pending,omitempty"`
@@ -65,13 +61,10 @@ type ProvideParams struct {
 }
 
 type RequestWriteParams struct {
-	Path string `json:"path"`
-	// Reason is the agent's own text, shown to you as such.
+	Path   string `json:"path"`
 	Reason string `json:"reason,omitempty"`
 }
 
-// SubmitParams is a tool call from an agent's hook. The session derives
-// what you see and what an allow covers from the tool and its input.
 type SubmitParams struct {
 	Agent string          `json:"agent"`
 	Tool  string          `json:"tool"`
@@ -303,14 +296,10 @@ func (s *Session) pathScope(path string) string {
 	return "path write " + path
 }
 
-// Status is what the agent and the person can learn about a running session.
 type Status struct {
-	Session string `json:"session"`
-	// Description is the agent's own account of its task.
-	Description string `json:"description,omitempty"`
-	Profile     string `json:"profile"`
-	// Modules are the modules that the agent can ask to use in another
-	// repository.
+	Session     string          `json:"session"`
+	Description string          `json:"description,omitempty"`
+	Profile     string          `json:"profile"`
 	Modules     []string        `json:"modules,omitempty"`
 	Writable    []string        `json:"writable"`
 	ReadOnly    []string        `json:"read_only"`
@@ -327,15 +316,12 @@ type Status struct {
 	Unavailable []Missing       `json:"unavailable,omitempty"`
 }
 
-// Missing is a secret that doriath could not read, and what fails without
-// it.
 type Missing struct {
 	Secret string   `json:"secret"`
 	Error  string   `json:"error"`
 	Users  []string `json:"users"`
 }
 
-// StatusForward is a port of your machine that reaches a port in the jail.
 type StatusForward struct {
 	Host int `json:"host"`
 	Jail int `json:"jail"`

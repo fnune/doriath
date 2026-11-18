@@ -11,12 +11,8 @@ import (
 	"strings"
 )
 
-// Sizes are the square sizes in pixels that a status area picks from.
 var Sizes = []int{16, 22, 24, 32, 48, 64}
 
-// Render draws an SVG at size by size pixels. It knows only what the
-// page's icons use, circles with a fill, a stroke and dashes, so that the
-// tray draws the same files without an SVG library.
 func Render(svg []byte, size int) (*image.NRGBA, error) {
 	var doc struct {
 		ViewBox string `xml:"viewBox,attr"`

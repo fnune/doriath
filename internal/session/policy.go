@@ -55,15 +55,12 @@ func (l *livePolicy) AllowsHostFor(host, exe string) bool {
 	return l.learn
 }
 
-// Learned lists the hosts that learning mode let through, sorted.
 func (l *livePolicy) Learned() []string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return slices.Sorted(maps.Keys(l.learned))
 }
 
-// LearnedBy groups the learned hosts by the program that reached them. A
-// host reached by several programs is listed under each.
 func (l *livePolicy) LearnedBy() map[string][]string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -190,8 +187,7 @@ func uploadWarning(host string) string {
 }
 
 type RequestHostParams struct {
-	Host string `json:"host"`
-	// Reason is the agent's own text, shown to you as such.
+	Host   string `json:"host"`
 	Reason string `json:"reason,omitempty"`
 }
 

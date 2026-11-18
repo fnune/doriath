@@ -11,10 +11,6 @@ import (
 
 var notGrants = []string{"Name", "Description", "Modules", "Sources", "SecretOwners", "PathRules"}
 
-// Grants lists what the profile gives the jail, one line per setting, so
-// that two versions of a profile compare line by line. An entry of a list
-// is named by its host, name or path where it has one. Other entries, such
-// as rules, are one line each. One more line holds the order of each list.
 func (p *Profile) Grants() ([]string, error) {
 	return p.grantsWithout(nil)
 }
@@ -125,9 +121,6 @@ func (w *grantWriter) flattenList(prefix string, list []any) {
 
 var unordered = []string{"Mounts"}
 
-// OrderSuffix marks the grant that changes when the entries of a list
-// change order, such as the arguments of a command, or rules where the
-// first that matches wins.
 const OrderSuffix = " in order "
 
 func nameKey(obj map[string]any) (string, bool) {
@@ -177,8 +170,6 @@ func join(prefix, key string) string {
 	return prefix + "." + key
 }
 
-// Added returns the grants in now that approved does not have: what a
-// profile gives the jail beyond what you last allowed.
 func Added(approved, now []string) []string {
 	var out []string
 	for _, g := range now {
@@ -207,8 +198,6 @@ var restrictiveSuffixes = []string{".Mode: hide", `"Action":"deny"`, `"Action":"
 
 var restrictiveKeys = []string{".Credential.Binaries: ", ".Only: ", "Claude.Deny: ", "Claude.Ask: ", "Claude.DeniedMCPServers: ", "Claude.AllowedMCPServers: ", "Limits."}
 
-// Restrictive says whether a grant line limits what the jail can do, so
-// that dropping it widens the profile.
 func Restrictive(line string) bool {
 	if strings.Contains(line, OrderSuffix) {
 		return false

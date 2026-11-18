@@ -1,6 +1,3 @@
-// Package vcs keeps your branches recoverable while an agent writes to a
-// repository's store: it records them when a session starts, keeps their
-// objects alive, and puts back what the agent moved when you ask.
 package vcs
 
 import (
@@ -33,8 +30,6 @@ type Tools struct {
 	JJ  string
 }
 
-// Record is what a session keeps about the repositories it touched, in
-// <dir>/<session>.json, until doriath clean removes it.
 type Record struct {
 	Session  string    `json:"session"`
 	Profile  string    `json:"profile"`
@@ -57,28 +52,20 @@ type Owner struct {
 }
 
 type Repo struct {
-	Path string `json:"path"`
-	// GitDir is the git store: the repository's .git, or jj's own store.
-	GitDir    string            `json:"git_dir"`
-	Branches  map[string]string `json:"branches"`
-	Bookmarks map[string]string `json:"bookmarks,omitempty"`
-	Worktrees []string          `json:"worktrees"`
-	// Moved lists the branches and bookmarks that the session changed or
-	// deleted, filled in when it ends.
-	Moved          []string `json:"moved,omitempty"`
-	MovedBookmarks []string `json:"moved_bookmarks,omitempty"`
-	// AgentWorktrees are the worktrees the session added.
-	AgentWorktrees []string `json:"agent_worktrees,omitempty"`
+	Path           string            `json:"path"`
+	GitDir         string            `json:"git_dir"`
+	Branches       map[string]string `json:"branches"`
+	Bookmarks      map[string]string `json:"bookmarks,omitempty"`
+	Worktrees      []string          `json:"worktrees"`
+	Moved          []string          `json:"moved,omitempty"`
+	MovedBookmarks []string          `json:"moved_bookmarks,omitempty"`
+	AgentWorktrees []string          `json:"agent_worktrees,omitempty"`
 }
 
-// BackupRef is where a branch's start value is kept when the agent moved it.
 func BackupRef(session, branch string) string {
 	return "refs/doriath/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
 }
 
-// Store finds the git store of a repository: its .git directory, the main
-// repository's for a linked worktree, or the git directory inside jj's
-// store when jj is not colocated with git.
 func Store(repo string) string {
 	if info, err := os.Stat(filepath.Join(repo, ".git")); err == nil && info.IsDir() {
 		return filepath.Join(repo, ".git")
@@ -92,9 +79,6 @@ func Store(repo string) string {
 	return ""
 }
 
-// Linked returns the main repository's git directory and jj repository
-// when repo is a linked git worktree or a secondary jj workspace, whose
-// .git and .jj/repo are files that point there.
 func Linked(repo string) (git, jj string) {
 	if data, err := os.ReadFile(filepath.Join(repo, ".git")); err == nil {
 		if admin, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: "); ok {
@@ -112,9 +96,6 @@ func Linked(repo string) (git, jj string) {
 	return git, jj
 }
 
-// Root returns the root of the main repository that repo belongs to: repo
-// itself, or the main checkout of a linked worktree or secondary workspace,
-// or the repository whose store repo is.
 func Root(repo string) string {
 	switch {
 	case filepath.Base(repo) == ".git":
@@ -238,8 +219,6 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 	return nil
 }
 
-// MaxSubmoduleDepth is how deep the jail and the backup follow submodule
-// stores.
 const MaxSubmoduleDepth = 4
 
 func submoduleStores(gitDir string, depth int) []string {
@@ -254,15 +233,12 @@ func submoduleStores(gitDir string, depth int) []string {
 	return out
 }
 
-// Dirs is what ModuleStores reads of the filesystem.
 type Dirs interface {
 	// Kind returns "dir", "file", "other" or "" when the path does not exist.
 	Kind(path string) string
 	Entries(dir string) []string
 }
 
-// ModuleStores lists the stores in a modules directory. A submodule's name
-// can contain slashes, which puts its store several directories down.
 func ModuleStores(modules string, dirs Dirs) []string {
 	var out []string
 	for _, name := range dirs.Entries(modules) {
@@ -278,7 +254,6 @@ func ModuleStores(modules string, dirs Dirs) []string {
 	return out
 }
 
-// IsStore reports a directory git would take for a repository.
 func IsStore(dir string, dirs Dirs) bool {
 	return dirs.Kind(filepath.Join(dir, "HEAD")) == "file" && dirs.Kind(filepath.Join(dir, "objects")) == "dir"
 }
@@ -478,8 +453,6 @@ func Restore(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 	return errors.Join(errs...)
 }
 
-// Only keeps the moved branches and bookmarks that names lists, by short
-// name, and returns the names that matched none of them.
 func (rec *Record) Only(names []string) (unknown []string) {
 	matched := map[string]bool{}
 	keep := func(moved []string, short func(string) string) []string {
@@ -506,8 +479,6 @@ func (rec *Record) Only(names []string) (unknown []string) {
 	return unknown
 }
 
-// KeepBackups puts back the refs that keep the start values of moved
-// branches, which a later session can delete or move.
 func KeepBackups(ctx context.Context, t Tools, recs ...*Record) error {
 	var errs []error
 	stores := map[string]map[string]string{}
@@ -553,7 +524,6 @@ func backupRefs(ctx context.Context, t Tools, gitDir string) (map[string]string,
 	return refs, nil
 }
 
-// DropBackups deletes the refs that keep the start values of moved branches.
 func DropBackups(ctx context.Context, t Tools, rec *Record) error {
 	var errs []error
 	for _, r := range rec.Repos {
@@ -598,8 +568,6 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 	return dir, err == nil
 }
 
-// RemoveWorktree removes an agent worktree and its branch, which Merged
-// found already in the default branch.
 func RemoveWorktree(ctx context.Context, t Tools, r Repo, dir string) error {
 	branch, _ := run(ctx, t.Git, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if _, err := runStore(ctx, t, r.GitDir, "worktree", "remove", dir); err != nil {
@@ -1058,7 +1026,6 @@ func short(id string) string {
 	return id
 }
 
-// Load and Save keep records as JSON files.
 func Load(path string) (*Record, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

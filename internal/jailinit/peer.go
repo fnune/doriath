@@ -16,8 +16,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Peer is the process on the other end of a connection accepted inside the
-// jail.
 type Peer struct {
 	PID int    `json:"pid"`
 	Exe string `json:"exe"`
@@ -27,10 +25,8 @@ type Peer struct {
 	File FileID `json:"file,omitzero"`
 	// Code lists the files that the process maps as executable, such as its
 	// libraries and anything LD_PRELOAD added.
-	Code []MappedFile `json:"code,omitempty"`
-	// Commands are the command line of the process, then of each process
-	// that started it, inside the jail.
-	Commands []string `json:"commands,omitempty"`
+	Code     []MappedFile `json:"code,omitempty"`
+	Commands []string     `json:"commands,omitempty"`
 }
 
 // MappedFile is a file in /proc/PID/maps. The device number in maps can
@@ -47,7 +43,6 @@ type MappedFile struct {
 	File   FileID `json:"file,omitzero"`
 }
 
-// FileID changes when the file at a path is replaced or written.
 type FileID struct {
 	Dev   uint64 `json:"dev"`
 	Ino   uint64 `json:"ino"`
@@ -70,9 +65,6 @@ func PeerHeader(p Peer) []byte {
 	return append(append([]byte("DORIATH-PEER "), data...), '\n')
 }
 
-// FindPeer finds the process that owns the client end of a loopback TCP
-// connection: its socket inode in /proc/net/tcp, then the process holding a
-// file descriptor for that inode.
 func FindPeer(procRoot string, conn net.Conn) (Peer, error) {
 	remote, ok := conn.RemoteAddr().(*net.TCPAddr)
 	if !ok {
@@ -110,7 +102,6 @@ func soleOwner(procRoot string, pids []int) (Peer, error) {
 	return Describe(procRoot, pids[0])
 }
 
-// Describe names the program that pid runs, and the code it maps.
 func Describe(procRoot string, pid int) (Peer, error) {
 	dir := filepath.Join(procRoot, strconv.Itoa(pid))
 	exe, err := os.Readlink(filepath.Join(dir, "exe"))

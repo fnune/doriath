@@ -19,8 +19,6 @@ import (
 	"github.com/fnune/doriath/internal/vcs"
 )
 
-// repositories lays out, without git, a main repository and a linked
-// worktree of it elsewhere, as git writes them.
 type repositories struct {
 	main, store, linked string
 }

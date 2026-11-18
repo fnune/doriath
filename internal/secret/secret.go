@@ -1,4 +1,3 @@
-// Package secret resolves named secrets from the user's configured backends.
 package secret
 
 import (
@@ -36,12 +35,8 @@ type Store interface {
 
 var ErrUnknown = errors.New("unknown secret")
 
-// ErrUnavailable wraps the last failure of a secret that doriath could not
-// read yet, until the next try is due.
 var ErrUnavailable = errors.New("unavailable")
 
-// Backend is the configuration for one secret: a file, a command, an entry
-// in the keyring of your desktop, or an OAuth login that doriath refreshes.
 type Backend struct {
 	File    string
 	Command []string
@@ -56,9 +51,6 @@ type Backend struct {
 	Required bool `json:"-"`
 }
 
-// OAuth is a login you complete once with doriath profiles login. The server either is
-// an MCP server, which tells doriath where to sign in and lets it register,
-// or names an issuer and the client doriath signs in as.
 type OAuth struct {
 	MCP      string
 	Issuer   string
@@ -100,8 +92,6 @@ func (b Backend) Validate() error {
 	return nil
 }
 
-// OAuthTokens returns a current access token for an OAuth secret, refreshing
-// it when it has expired.
 type OAuthTokens interface {
 	Token(ctx context.Context, name string, o OAuth) (Value, error)
 }
@@ -115,8 +105,6 @@ type Keyring interface {
 
 var ErrNotInKeyring = errors.New("not in the keyring")
 
-// Asker asks you for the value of a profile's secret in a dialog of your
-// desktop, outside the terminal that the agent uses.
 type Asker interface {
 	Ask(ctx context.Context, profile, name string) (Value, error)
 }
@@ -221,14 +209,11 @@ type cached struct {
 	due, expires time.Time
 }
 
-// WithOAuth lets the store serve OAuth secrets.
 func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 	c.oauth = t
 	return c
 }
 
-// WithKeyring lets the store serve keyring secrets. owner names the profile
-// that gives each secret, which keeps the entries of two profiles apart.
 func (c *Configured) WithKeyring(k Keyring, owner func(name string) string) *Configured {
 	c.keyring, c.owner = k, owner
 	return c
@@ -246,7 +231,6 @@ func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *C
 	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
 }
 
-// WithClock replaces the clock that decides when a secret is due.
 func (c *Configured) WithClock(now func() time.Time) *Configured {
 	c.now = now
 	return c
@@ -316,16 +300,12 @@ func (c *Configured) Provide(name string, v Value) error {
 	return nil
 }
 
-// Retry forgets that a secret failed, so that the next Get reads its source
-// at once.
 func (c *Configured) Retry(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.failed, name)
 }
 
-// Unavailable returns the last error of each secret that doriath has not
-// read since it failed.
 func (c *Configured) Unavailable() map[string]error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

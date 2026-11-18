@@ -16,8 +16,6 @@ import (
 	"time"
 )
 
-// upstream is a unix socket server that hands each connection's first two
-// lines to the test.
 func upstream(t *testing.T) (sock string, lines <-chan [2]string) {
 	t.Helper()
 	sock = filepath.Join(t.TempDir(), "up.sock")
@@ -125,8 +123,6 @@ func TestFindPeerRefusesWhatItCannotName(t *testing.T) {
 	}
 }
 
-// takenPort is a loopback port something else listens on until the test
-// ends.
 func takenPort(t *testing.T) int {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")

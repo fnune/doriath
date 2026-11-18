@@ -28,11 +28,6 @@ func osKind(p string) string {
 	return "file"
 }
 
-// TestAnAgentWorksInARepositorySetUpLikeYours runs the usual agent work on a
-// repository set up the way real ones are: cloned, with packed refs, jj
-// colocated, your own config signing every commit, a working-copy commit
-// that you signed, and jj on the host, which deletes jj's lock file, running
-// while the session runs.
 func TestAnAgentWorksInARepositorySetUpLikeYours(t *testing.T) {
 	jj, err := exec.LookPath("jj")
 	if err != nil {

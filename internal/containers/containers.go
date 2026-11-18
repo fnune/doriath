@@ -1,7 +1,3 @@
-// Package containers brokers the podman API for the jail. It forwards a list
-// of endpoints to the session's podman service and checks the requests that
-// could reach outside a container: creates, pulls, builds and volumes. It
-// pins the digest each tag resolved to on its first pull.
 package containers
 
 import (
@@ -23,13 +19,8 @@ import (
 	"github.com/fnune/doriath/internal/approval"
 )
 
-// Policy is what the profile lets containers use.
 type Policy struct {
-	// Images are path.Match patterns over fully qualified references, such
-	// as "docker.io/library/*", or AnyImage. Empty allows no image.
 	Images []string
-	// Mounts are the host paths containers may bind: the profile's mounts
-	// and caches.
 	Mounts []Mount
 }
 
@@ -45,8 +36,6 @@ type Approver interface {
 	Submit(ctx context.Context, req approval.Request, ttl time.Duration) (approval.Decision, error)
 }
 
-// Pins remembers the digest each tag, such as docker.io/library/postgres:16,
-// resolved to the first time a profile pulled it.
 type Pins interface {
 	Pinned(ref string) (digest string, ok bool, err error)
 	Pin(ref, digest string) error
@@ -66,21 +55,14 @@ type Recorder interface {
 }
 
 type Config struct {
-	Session string
-	Profile string
-	// ApprovalTTL bounds how long a push waits for a decision.
+	Session     string
+	Profile     string
 	ApprovalTTL time.Duration
-	// Resolver resolves symbolic links in bind sources. Nil compares paths
-	// as written.
-	Resolver Resolver
-	// Pins holds the profile's image digests. Nil pins nothing.
-	Pins Pins
-	// Ready blocks until the upstream service listens, or returns why it
-	// never will. Nil dials at once.
-	Ready func(context.Context) error
+	Resolver    Resolver
+	Pins        Pins
+	Ready       func(context.Context) error
 }
 
-// KindContainers marks approval requests from the broker.
 const KindContainers approval.Kind = "containers"
 
 const maxInspectedBody = 2 << 20
@@ -152,7 +134,6 @@ func (b *Broker) dial(ctx context.Context, _, _ string) (net.Conn, error) {
 	return d.DialContext(ctx, "unix", b.upstream)
 }
 
-// Serve accepts clients until the listener closes.
 func (b *Broker) Serve(l net.Listener) error {
 	srv := &http.Server{Handler: b, ReadHeaderTimeout: 30 * time.Second}
 	err := srv.Serve(l)

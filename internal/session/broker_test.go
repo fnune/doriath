@@ -68,9 +68,6 @@ func (i *informer) Inform(_, title, _ string) error {
 	return nil
 }
 
-// brokerSession serves the broker and control sockets of a session that
-// runs no jail, in a directory short enough for a socket path. Deps are
-// settled before the servers start, as in a real session.
 func brokerSession(t *testing.T, notifier approval.Notifier, deps ...func(*Deps)) (*testSession, string, string) {
 	t.Helper()
 	s := newTestSession(t, notifier)

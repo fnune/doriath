@@ -1,8 +1,3 @@
-// Package agents adapts coding agents to doriath where profile data cannot:
-// an agent's permission prompts reach doriath's approvals, and its
-// transcripts come back to your own configuration. Everything else about
-// an agent, such as its state, config, hosts and credentials, is an
-// ordinary module.
 package agents
 
 import (
@@ -30,21 +25,13 @@ type Session struct {
 	WriteFile func(name string, data []byte) (string, error)
 	// Place puts a file at a path in the jail, read-only, for config the
 	// agent must not change during the session.
-	Place func(jailPath string, data []byte) error
-	Touch func(jailPath string) error
-	Later func(after time.Duration, work func() error)
-	// MCPConfig is the jail's path to the profile's MCP servers in the
-	// common mcpServers format, or "" when the profile names none.
-	MCPConfig string
-	// Instructions tells the agent what the jail allows and how to ask for
-	// more.
+	Place        func(jailPath string, data []byte) error
+	Touch        func(jailPath string) error
+	Later        func(after time.Duration, work func() error)
+	MCPConfig    string
 	Instructions string
-	// Titled says that doriath sets the terminal's title for the session,
-	// so the agent should leave it alone.
-	Titled bool
-	// ToolWait is how long a permission prompt waits in doriath's queue
-	// before the agent shows its own.
-	ToolWait time.Duration
+	Titled       bool
+	ToolWait     time.Duration
 }
 
 type Adapter interface {
@@ -52,20 +39,13 @@ type Adapter interface {
 	// the agent its config, state and hosts. A profile gets the adapter
 	// only when it lists that module.
 	Name() string
-	// Command is the agent's command, which a project's direnv shim wraps.
 	Command() string
 	Matches(argv []string) bool
-	// Seeds lists state to start a new profile with, so that the agent does
-	// not greet each profile as a fresh install.
 	Seeds(s Session) []Seed
-	// Start runs before the jail starts and returns the command to run
-	// and the environment it adds.
 	Start(s Session, argv []string) ([]string, map[string]string, error)
-	// End runs after the session ends.
 	End(s Session) error
 }
 
-// Starter is an adapter with work on the host once its agent runs.
 type Starter interface {
 	Started(s Session) error
 }
@@ -78,9 +58,6 @@ type mcpServer struct {
 	URL     string            `json:"url,omitempty"`
 }
 
-// MCPConfig writes the profile's MCP servers in the mcpServers format that
-// Claude Code, Cursor and others read. A remote server carries no token: the
-// proxy adds it.
 func MCPConfig(servers []profile.MCPServer) ([]byte, error) {
 	out := map[string]map[string]mcpServer{"mcpServers": {}}
 	for _, s := range servers {

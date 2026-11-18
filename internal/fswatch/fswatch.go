@@ -1,5 +1,3 @@
-// Package fswatch reports the names that change in watched folders, through
-// inotify.
 package fswatch
 
 import (
@@ -10,7 +8,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Event is a name that changed in a watched folder.
 type Event struct {
 	Dir  string
 	Name string
@@ -31,8 +28,6 @@ func New() (*Watcher, error) {
 	return &Watcher{fd: fd, dirs: map[int32]string{}}, nil
 }
 
-// Add watches dir for the events of mask, such as unix.IN_CREATE. Another
-// Add of the same folder replaces its mask.
 func (w *Watcher) Add(dir string, mask uint32) error {
 	wd, err := unix.InotifyAddWatch(w.fd, dir, mask)
 	if err != nil {
@@ -44,8 +39,6 @@ func (w *Watcher) Add(dir string, mask uint32) error {
 	return nil
 }
 
-// Run calls handle for each event until ctx ends. It checks ctx a few
-// times a second.
 func (w *Watcher) Run(ctx context.Context, handle func(Event)) {
 	buf := make([]byte, 64*(unix.SizeofInotifyEvent+unix.NAME_MAX+1))
 	fds := []unix.PollFd{{Fd: int32(w.fd), Events: unix.POLLIN}}
@@ -88,5 +81,4 @@ func trimNul(b []byte) string {
 	return string(b)
 }
 
-// Close stops the watches. Call it after Run returns.
 func (w *Watcher) Close() error { return unix.Close(w.fd) }

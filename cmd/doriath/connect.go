@@ -38,9 +38,6 @@ func requestConnect(ctx context.Context, broker string, args []string, w io.Writ
 	return reportDecision(w, res.Decision, fmt.Sprintf("Connecting to 127.0.0.1:%d in the jail reaches 127.0.0.1:%d on the user's machine.", jailPort, hostPort))
 }
 
-// cmdConnect runs in the network namespace of a jail, started by the
-// session. It listens on a port of the jail and relays each connection to a
-// socket of the session, until its input closes.
 func cmdConnect(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 2 {
 		return errors.New("usage: doriath __connect JAIL_PORT SOCKET")

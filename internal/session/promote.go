@@ -16,8 +16,6 @@ import (
 	"github.com/fnune/doriath/internal/promote"
 )
 
-// requestWrite asks you whether the agent may write path, and makes it
-// writable when you allow it.
 func (s *Session) requestWrite(path, reason string) (RequestResult, error) {
 	path, err := s.checkPromotion(path)
 	if err != nil {
@@ -68,8 +66,6 @@ func (s *Session) holdAndGrant(req approval.Request, grant func() error) (Reques
 	return res, nil
 }
 
-// grantWrite makes path writable in the running jail until the session
-// ends.
 func (s *Session) grantWrite(ctx context.Context, path string) error {
 	path, err := s.checkPromotion(path)
 	if err != nil {
@@ -254,7 +250,6 @@ func (s *Session) checkReach(path string, write bool) (string, error) {
 	return path, nil
 }
 
-// deepestExisting returns path or its closest ancestor that exists.
 func deepestExisting(path string) string {
 	for p := path; ; p = filepath.Dir(p) {
 		if _, err := os.Lstat(p); err == nil {
@@ -301,8 +296,6 @@ func (s *Session) visibleLocked(path string) bool {
 	return false
 }
 
-// profilePath writes path relative to the repository when it is inside it,
-// so the profile entry serves every repository the profile is used in.
 func (s *Session) profilePath(path string) string {
 	if s.repository != "" && within(path, s.repository) {
 		rel, _ := filepath.Rel(s.repository, path)

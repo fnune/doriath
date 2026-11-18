@@ -1,8 +1,3 @@
-// Package gemini adapts Google's Gemini CLI to doriath. The gemini module
-// gives it a private ~/.gemini; this adapter adds system settings, the
-// layer that overrides yours and the project's, with the profile's MCP
-// servers and usage statistics and updates off. Gemini's hooks cannot
-// approve a tool call, so its permission prompts stay in its terminal.
 package gemini
 
 import (

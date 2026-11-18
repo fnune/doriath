@@ -10,9 +10,6 @@ import (
 	"testing"
 )
 
-// TestMissingHiddenPathIsHeldForTheSession hides a path that does not
-// exist inside a writable mount: the agent cannot create it, and nothing of
-// doriath's stays behind.
 func TestMissingHiddenPathIsHeldForTheSession(t *testing.T) {
 	e := newEnv(t)
 	hidden := filepath.Join(e.work, "config", ".envrc")
@@ -28,9 +25,6 @@ func TestMissingHiddenPathIsHeldForTheSession(t *testing.T) {
 	}
 }
 
-// TestMissingReadOnlyPathIsHeldForTheSession keeps a path that does not
-// exist read-only inside a writable mount, as the vcs-readwrite module does
-// for an .envrc: the agent cannot create it.
 func TestMissingReadOnlyPathIsHeldForTheSession(t *testing.T) {
 	e := newEnv(t)
 	guarded := filepath.Join(e.work, ".envrc")

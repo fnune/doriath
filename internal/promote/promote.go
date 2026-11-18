@@ -24,7 +24,6 @@ import (
 )
 
 type Request struct {
-	// Reaper is the pid, on the host, of the jail's first process.
 	Reaper int
 	// JailExe is doriath's binary as the jail sees it. The helper runs it in
 	// the jail's mount namespace, so it must be a path the agent cannot
@@ -36,18 +35,11 @@ type Request struct {
 	Nsenter string
 	Unshare string
 	Path    string
-	// Guards are paths inside Path that stay read-only, such as a
-	// repository's .git/config. They exist before the call.
-	Guards []string
-	// Visible says the path is inside one of the jail's mounts. Otherwise
-	// the helper mounts the host directory there.
+	Guards  []string
 	Visible bool
-	// Dest is where Readable shows Path in the jail, when it is not at the
-	// same path.
-	Dest string
+	Dest    string
 }
 
-// Writable makes r.Path writable in the jail.
 func Writable(ctx context.Context, r Request) error {
 	if r.Visible {
 		return enter(ctx, r, nil, append([]string{"writable", r.Path}, r.Guards...)...)
@@ -60,8 +52,6 @@ func Writable(ctx context.Context, r Request) error {
 	return enter(ctx, r, []*os.File{tree}, "attach", r.Path)
 }
 
-// Readable shows r.Path, a host directory the jail cannot see, read-only in
-// the jail.
 func Readable(ctx context.Context, r Request) error {
 	tree, err := openHostTree(ctx, r)
 	if err != nil {
@@ -119,8 +109,6 @@ func openHostTree(ctx context.Context, r Request) (*os.File, error) {
 	return os.NewFile(uintptr(fd), "tree"), nil
 }
 
-// Inner runs doriath __promote, inside the namespaces enter or openHostTree
-// set up.
 func Inner(args []string) error {
 	if len(args) < 2 {
 		return errors.New("__promote: want an operation, a path and its guards")

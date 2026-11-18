@@ -1,5 +1,3 @@
-// Package askpass asks you for the value of a secret in a dialog of your
-// desktop.
 package askpass
 
 import (
@@ -23,8 +21,6 @@ func prompt(profile, name string) string {
 	return fmt.Sprintf("Enter the value of secret %s for profile %s. doriath keeps it in the keyring of your desktop.", name, profile)
 }
 
-// Program is a dialog that takes the prompt as its last argument and prints
-// your answer, such as the program in SSH_ASKPASS.
 type Program struct {
 	Argv []string
 }

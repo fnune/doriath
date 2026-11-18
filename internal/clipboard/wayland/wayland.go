@@ -19,8 +19,6 @@ import (
 	"github.com/fnune/doriath/internal/clipboard"
 )
 
-// Serve answers each client of l from src until ctx ends. onError, if set,
-// learns why a client was dropped or a read failed.
 func Serve(ctx context.Context, l net.Listener, src clipboard.Source, onError func(error)) error {
 	if onError == nil {
 		onError = func(error) {}
@@ -75,8 +73,6 @@ const (
 	ifaceOffer
 )
 
-// family tells the two data-control protocols apart. They have the same
-// requests and events; only their names and versions differ.
 type family int
 
 const (
@@ -100,10 +96,8 @@ type global struct {
 const (
 	displayID     = 1
 	firstServerID = 0xff000000
-	// A Wayland message is at most 4096 bytes, and a client sends at most
-	// 28 descriptors with one.
-	maxMessage = 4096
-	maxFDs     = 28
+	maxMessage    = 4096
+	maxFDs        = 28
 
 	maxClients    = 64
 	maxCopies     = 8
@@ -117,7 +111,6 @@ var globals = []global{
 	{3, "zwlr_data_control_manager_v1", 2, object{iface: ifaceManager, family: familyWlr}},
 }
 
-// Opcodes, in the order the protocol files declare them.
 const (
 	displaySync        = 0
 	displayGetRegistry = 1
@@ -153,7 +146,6 @@ const (
 	offerOffer   = 0
 )
 
-// Error codes of wl_display, and wl_seat's for a missing capability.
 const (
 	errInvalidObject     = 0
 	errInvalidMethod     = 1
@@ -184,7 +176,6 @@ func newClient(conn *net.UnixConn, src clipboard.Source, copies chan struct{}, o
 	}
 }
 
-// protocolError ends the connection after telling the client why.
 type protocolError struct {
 	object uint32
 	code   uint32
@@ -414,9 +405,6 @@ func (c *client) manager(ctx context.Context, m message, mgr object) error {
 	return badOpcode(m)
 }
 
-// offerSelection tells a new device what the clipboard holds. A device sees
-// the clipboard of the moment it is made, which is how wl-paste and arboard
-// read: one device for each paste.
 func (c *client) offerSelection(ctx context.Context, device uint32, d object) error {
 	types := c.currentTypes(ctx)
 	selection := uint32(0)
@@ -531,8 +519,6 @@ func (c *client) create(id uint32, obj object) error {
 	return nil
 }
 
-// destroy forgets an object the client made, and tells the client that its
-// id is free again.
 func (c *client) destroy(id uint32) error {
 	delete(c.objects, id)
 	return c.send(displayID, displayDeleteID, u32(id))

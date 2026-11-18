@@ -8,8 +8,6 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-// mode reports how binds expose dest: "read", "write", or "none" when no
-// bind has it as its destination.
 func mode(binds []Bind, dest string) string {
 	i := slices.IndexFunc(binds, func(b Bind) bool { return b.Dest == dest })
 	switch {
@@ -58,8 +56,6 @@ func expectModes(t *testing.T, binds []Bind, want map[string]string) {
 	}
 }
 
-// storeHost is a colocated repository at /home/u/repo with a linked
-// worktree, a pack, an alternates guard and jj's own store.
 func storeHost() fakeHost {
 	const repo = "/home/u/repo"
 	h := fakeHost{}

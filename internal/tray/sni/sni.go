@@ -1,6 +1,3 @@
-// Package sni shows the tray icon on Linux desktops through the
-// StatusNotifierItem protocol on the session bus. KDE Plasma, waybar,
-// Xfce, LXQt and GNOME with the AppIndicator extension show it.
 package sni
 
 import (

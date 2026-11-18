@@ -22,8 +22,6 @@ import (
 	"time"
 )
 
-// PackCheck tells how far doriath is in the verification of the packs that
-// a session wrote in a repository.
 type PackCheck struct {
 	Repo  string
 	Pack  int

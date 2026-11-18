@@ -43,8 +43,6 @@ func New(privateKey []byte, comment string, namespaces []string) (*Agent, error)
 
 func (a *Agent) PublicKey() ssh.PublicKey { return a.signer.PublicKey() }
 
-// AuthorizedKey is the public key in the one-line format that git's
-// user.signingkey and GitHub accept.
 func (a *Agent) AuthorizedKey() []byte {
 	line := bytes.TrimSpace(ssh.MarshalAuthorizedKey(a.signer.PublicKey()))
 	if a.comment != "" {

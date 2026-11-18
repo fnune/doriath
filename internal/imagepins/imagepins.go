@@ -1,5 +1,3 @@
-// Package imagepins keeps the digest each container image tag resolved to the
-// first time a profile pulled it, in a JSON file outside the jail.
 package imagepins
 
 import (
@@ -16,8 +14,6 @@ import (
 
 var digestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
-// File is one profile's pins. Every lookup reads the file, so that a pin
-// recorded by another session of the profile counts at once.
 type File struct {
 	path string
 }

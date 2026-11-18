@@ -167,8 +167,6 @@ func TestRSAKeySignsWithTheRequestedAlgorithm(t *testing.T) {
 	}
 }
 
-// TestWithSSHKeygen checks the real client: ssh-keygen signs in the git
-// namespace through the agent socket, and fails in another namespace.
 func TestWithSSHKeygen(t *testing.T) {
 	keygen, err := exec.LookPath("ssh-keygen")
 	if err != nil {

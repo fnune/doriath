@@ -12,8 +12,6 @@ import (
 
 var errRepeatedKey = errors.New("the JSON-RPC body names a key twice")
 
-// MCPToolCalls returns the tools that a JSON-RPC body, single or batched,
-// calls with tools/call, and whether the body is JSON-RPC at all.
 func MCPToolCalls(body []byte) ([]string, bool) {
 	tools, err := jsonRPCToolCalls(body)
 	return tools, err == nil
@@ -127,7 +125,6 @@ func (r Rule) matchMCP(calls func() mcpCalls) bool {
 	return slices.ContainsFunc(tools, matches)
 }
 
-// DescribeMCP names the tools a body calls, for approvals and grants.
 func DescribeMCP(body []byte) string {
 	tools, _ := MCPToolCalls(body)
 	return strings.Join(tools, ", ")

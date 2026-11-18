@@ -40,8 +40,6 @@ func (a Arch) audit() (uint32, error) {
 }
 
 type Policy struct {
-	// AllowNamespaces lets the jailed process create namespaces and mounts,
-	// so a nested sandbox such as bubblewrap works.
 	AllowNamespaces bool
 	AllowPtrace     bool
 }

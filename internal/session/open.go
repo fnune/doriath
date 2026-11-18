@@ -14,8 +14,7 @@ import (
 )
 
 type RequestOpenParams struct {
-	URL string `json:"url"`
-	// Reason is the agent's own text, shown to you as such.
+	URL    string `json:"url"`
 	Reason string `json:"reason,omitempty"`
 }
 
@@ -129,8 +128,6 @@ func loopbackRedirect(u *url.URL) int {
 	return port
 }
 
-// loopbackPort is the port of a link to this machine, which from the jail
-// means a server in the jail.
 func loopbackPort(u *url.URL) int {
 	if !isLoopback(u.Hostname()) {
 		return 0

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Builds a throwaway home with a fake profile, a fake token and a fake
-# repository, and writes env.sh, which points doriath at it and nothing else.
-# Usage: setup.sh PATH-TO-DORIATH-BINARY
 set -euo pipefail
 
 binary=$(realpath "${1:?usage: setup.sh PATH-TO-DORIATH-BINARY}")

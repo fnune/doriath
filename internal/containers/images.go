@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// AnyImage is the [podman] images pattern that allows every image, also
-// images referred to by ID.
 const AnyImage = "*"
 
 var (

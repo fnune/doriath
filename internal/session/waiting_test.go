@@ -11,8 +11,6 @@ import (
 	"github.com/fnune/doriath/internal/proxy"
 )
 
-// fakeProc lays out the files of /proc that the hint reads: a reaper and
-// one jail process whose pid in the jail differs from its pid on the host.
 func fakeProc(t *testing.T) (proc, stderr string) {
 	t.Helper()
 	jailNS := "pid:[100]"

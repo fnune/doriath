@@ -23,13 +23,11 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
-// IDRange is one entry of /etc/subuid or /etc/subgid.
 type IDRange struct {
 	Start int
 	Count int
 }
 
-// SubIDs finds the first range for the user, by name or by numeric id.
 func SubIDs(data []byte, name string, uid int) (IDRange, error) {
 	sc := bufio.NewScanner(strings.NewReader(string(data)))
 	for sc.Scan() {
@@ -306,8 +304,6 @@ func readInfo(r io.Reader, timeout time.Duration) (bwrapInfo, error) {
 	}
 }
 
-// RemoveAsMapped deletes a directory that holds files owned by subordinate
-// ids, such as container storage, by running rm inside the same mapping.
 func RemoveAsMapped(ctx context.Context, unshare, dir string) error {
 	u, err := user.Current()
 	if err != nil {

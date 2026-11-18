@@ -80,7 +80,6 @@ func absoluteWorktrees(args []string) []string {
 	return out
 }
 
-// realGit finds git on PATH, past the front itself.
 func realGit() (string, error) {
 	self, err := os.Executable()
 	if err != nil {
@@ -114,8 +113,6 @@ func exitCode(err error) int {
 	return 1
 }
 
-// invocation is a git command line: the directory it runs in, after -C,
-// and the subcommand with its arguments.
 type invocation struct {
 	dir     string
 	command string
@@ -150,7 +147,6 @@ func parseGit(args []string) invocation {
 
 var configFailure = regexp.MustCompile(`(?m)^error: could not (?:write|lock) config file (.+?): `)
 
-// failedConfig is the config file that git could not write, if any.
 func failedConfig(stderr, dir string) string {
 	m := configFailure.FindStringSubmatch(stderr)
 	if m == nil {
@@ -181,8 +177,6 @@ func (g hostGit) currentBranch() string {
 	return g.output("symbolic-ref", "--quiet", "--short", "HEAD")
 }
 
-// intended is what git meant to write: the upstreams it reports or that its
-// arguments name, or the remote that git remote add adds.
 func (g hostGit) intended(inv invocation, output string) ([]setting, string) {
 	if inv.command == "remote" {
 		if s := remoteAdd(inv.args); s != nil {
@@ -211,8 +205,6 @@ func (g hostGit) intended(inv invocation, output string) ([]setting, string) {
 
 var trackMessage = regexp.MustCompile(`(?m)^branch '([^']+)' set up to track '([^']+)'`)
 
-// splitUpstream splits origin/main into its remote and branch. An upstream
-// that names no remote is a local branch, which git records as remote ".".
 func splitUpstream(upstream string, remotes []string) (string, string) {
 	best := ""
 	for _, r := range remotes {
@@ -226,8 +218,6 @@ func splitUpstream(upstream string, remotes []string) (string, string) {
 	return best, strings.TrimPrefix(upstream, best+"/")
 }
 
-// pushUpstreams reads git push [-u] [remote [refspec...]] as git does: an
-// upstream for each pushed branch, with -u or with push.autoSetupRemote.
 func (g hostGit) pushUpstreams(args []string) map[string]string {
 	setUpstream := false
 	var positional []string
@@ -288,7 +278,6 @@ func (g hostGit) pushUpstreams(args []string) map[string]string {
 	return out
 }
 
-// setUpstreamTo reads git branch --set-upstream-to=UP [BRANCH] and -u UP.
 func (g hostGit) setUpstreamTo(args []string) map[string]string {
 	upstream := ""
 	var positional []string
@@ -318,8 +307,6 @@ func (g hostGit) setUpstreamTo(args []string) map[string]string {
 	return map[string]string{branch: upstream}
 }
 
-// remoteAdd reads git remote add NAME URL. Options that change what the
-// remote fetches stay with git: the front adds only a plain remote.
 func remoteAdd(args []string) []setting {
 	if len(args) != 3 || args[0] != "add" || strings.HasPrefix(args[1], "-") || strings.HasPrefix(args[2], "-") {
 		return nil
@@ -331,8 +318,6 @@ func remoteAdd(args []string) []setting {
 	}
 }
 
-// recordConfig writes settings into a copy of config with git, and asks
-// doriath to make the file so.
 func recordConfig(ctx context.Context, broker, git, config string, settings []setting, reason string) error {
 	current, err := os.ReadFile(config)
 	if err != nil {
