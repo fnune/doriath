@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -1058,6 +1059,27 @@ func Load(path string) (*Record, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &r, nil
+}
+
+// LoadAll loads the records at paths, in the same order. A record that
+// does not load is nil, and its error is in errs.
+func LoadAll(paths []string) (recs []*Record, errs []error) {
+	recs, errs = make([]*Record, len(paths)), make([]error, len(paths))
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for range fileWorkers {
+		wg.Go(func() {
+			for i := range next {
+				recs[i], errs[i] = Load(paths[i])
+			}
+		})
+	}
+	for i := range paths {
+		next <- i
+	}
+	close(next)
+	wg.Wait()
+	return recs, errs
 }
 
 func (r *Record) Save(path string) error {

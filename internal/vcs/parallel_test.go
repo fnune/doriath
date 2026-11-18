@@ -69,3 +69,29 @@ func TestTheBackupHoldsEveryLooseObjectInEveryFanoutDirectory(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadAllKeepsTheOrderAndNamesTheRecordThatDoesNotLoad(t *testing.T) {
+	dir := t.TempDir()
+	var paths []string
+	for i := range 20 {
+		p := filepath.Join(dir, fmt.Sprintf("s%d.json", i))
+		if err := (&Record{Session: fmt.Sprintf("s%d", i)}).Save(p); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, p)
+	}
+	broken := filepath.Join(dir, "broken.json")
+	if err := os.WriteFile(broken, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths = append(paths, broken)
+	recs, errs := LoadAll(paths)
+	for i := range 20 {
+		if errs[i] != nil || recs[i].Session != fmt.Sprintf("s%d", i) {
+			t.Fatalf("record %d = %+v, %v", i, recs[i], errs[i])
+		}
+	}
+	if recs[20] != nil || errs[20] == nil {
+		t.Fatalf("the broken record loaded: %+v", recs[20])
+	}
+}

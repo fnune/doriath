@@ -30,12 +30,12 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 	if err != nil {
 		return nil, err
 	}
+	loaded, errs := vcs.LoadAll(files)
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
 	var out []*vcs.Record
-	for _, f := range files {
-		rec, err := vcs.Load(f)
-		if err != nil {
-			return nil, err
-		}
+	for _, rec := range loaded {
 		if !slices.ContainsFunc(live, func(s liveSession) bool { return s.info.ID == rec.Session }) {
 			out = append(out, rec)
 		}
