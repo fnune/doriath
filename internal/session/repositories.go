@@ -227,9 +227,11 @@ func timeLeft(elapsed time.Duration, done float64) (string, bool) {
 
 func keepBackups(ctx context.Context, paths config.Paths, t vcs.Tools) {
 	files, _ := filepath.Glob(filepath.Join(paths.Backups(), "*.json"))
+	var finished []*vcs.Record
 	for _, f := range files {
 		if rec, err := vcs.Load(f); err == nil && rec.Finished {
-			_ = vcs.KeepBackups(ctx, t, rec)
+			finished = append(finished, rec)
 		}
 	}
+	_ = vcs.KeepBackups(ctx, t, finished...)
 }

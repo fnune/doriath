@@ -578,3 +578,27 @@ func TestAFinishedSessionWhoseRepositoryIsGoneIsFinished(t *testing.T) {
 		t.Errorf("finished = %v, out = %q", rec.Finished, out.String())
 	}
 }
+
+func TestEverySessionGetsBackTheStartValuesThatALaterSessionDeleted(t *testing.T) {
+	r := repo(t)
+	var recs []*Record
+	var starts []string
+	for _, id := range []string{"s1", "s2"} {
+		starts = append(starts, git(t, r, "rev-parse", "HEAD"))
+		rec := &Record{Session: id, Started: time.Now()}
+		f := start(t, rec, r)
+		git(t, r, "commit", "-q", "--allow-empty", "-m", "agent in "+id)
+		f.finish()
+		recs = append(recs, rec)
+	}
+	git(t, r, "update-ref", "-d", BackupRef("s1", "refs/heads/main"))
+	git(t, r, "update-ref", BackupRef("s2", "refs/heads/main"), "HEAD")
+	if err := KeepBackups(context.Background(), Tools{Git: "git"}, recs...); err != nil {
+		t.Fatal(err)
+	}
+	for i, id := range []string{"s1", "s2"} {
+		if got := git(t, r, "rev-parse", BackupRef(id, "refs/heads/main")); got != starts[i] {
+			t.Errorf("backup ref of %s = %q, want %q", id, got, starts[i])
+		}
+	}
+}

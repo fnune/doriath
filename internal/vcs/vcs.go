@@ -497,34 +497,49 @@ func (rec *Record) Only(names []string) (unknown []string) {
 
 // KeepBackups puts back the refs that keep the start values of moved
 // branches, which a later session can delete or move.
-func KeepBackups(ctx context.Context, t Tools, rec *Record) error {
+func KeepBackups(ctx context.Context, t Tools, recs ...*Record) error {
 	var errs []error
-	for _, r := range rec.Repos {
-		if len(r.Moved) == 0 || !isDir(r.GitDir) {
-			continue
-		}
-		out, err := runStore(ctx, t, r.GitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/doriath/"+rec.Session+"/")
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		now := map[string]string{}
-		for line := range strings.Lines(out) {
-			if id, name, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
-				now[name] = id
-			}
-		}
-		for _, name := range r.Moved {
-			ref := BackupRef(rec.Session, name)
-			if now[ref] == r.Branches[name] {
+	stores := map[string]map[string]string{}
+	for _, rec := range recs {
+		for _, r := range rec.Repos {
+			if len(r.Moved) == 0 || !isDir(r.GitDir) {
 				continue
 			}
-			if _, err := runStore(ctx, t, r.GitDir, "update-ref", ref, r.Branches[name]); err != nil {
-				errs = append(errs, err)
+			now, ok := stores[r.GitDir]
+			if !ok {
+				var err error
+				if now, err = backupRefs(ctx, t, r.GitDir); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				stores[r.GitDir] = now
+			}
+			for _, name := range r.Moved {
+				ref := BackupRef(rec.Session, name)
+				if now[ref] == r.Branches[name] {
+					continue
+				}
+				if _, err := runStore(ctx, t, r.GitDir, "update-ref", ref, r.Branches[name]); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func backupRefs(ctx context.Context, t Tools, gitDir string) (map[string]string, error) {
+	out, err := runStore(ctx, t, gitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/doriath/")
+	if err != nil {
+		return nil, err
+	}
+	refs := map[string]string{}
+	for line := range strings.Lines(out) {
+		if id, name, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+			refs[name] = id
+		}
+	}
+	return refs, nil
 }
 
 // DropBackups deletes the refs that keep the start values of moved branches.
