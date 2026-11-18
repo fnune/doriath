@@ -381,7 +381,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, not
 		return err
 	}
 	rec.Finished = true
-	return os.RemoveAll(backup)
+	return removeTree(backup)
 }
 
 var agentState = []string{"rebase-merge", "rebase-apply", "sequencer", "rr-cache"}
@@ -907,54 +907,58 @@ func runIn(ctx context.Context, dir, name string, args ...string) (string, error
 }
 
 func mirror(src, dst string) error {
-	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+	return walkParallel(src, func(p string, d fs.DirEntry, err error) (func() error, error) {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+			return nil, nil
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rel, _ := filepath.Rel(src, p)
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o700)
+			return nil, os.MkdirAll(target, 0o700)
 		}
 		if !d.Type().IsRegular() || strings.HasSuffix(p, ".lock") {
-			return nil
+			return nil, nil
 		}
 		put := copyFile
 		if filepath.Dir(rel) == "pack" {
 			put = linkOrCopy
 		}
-		if err := put(p, target); !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		return nil
+		return func() error {
+			if err := put(p, target); !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+			return nil
+		}, nil
 	})
 }
 
 func unmirror(src, dst string) error {
-	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+	return walkParallel(src, func(p string, d fs.DirEntry, err error) (func() error, error) {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+			return nil, nil
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rel, _ := filepath.Rel(src, p)
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return realDir(target, rel == ".")
+			return nil, realDir(target, rel == ".")
 		}
-		if _, err := os.Lstat(target); err == nil {
-			if filepath.Dir(rel) == "pack" || sameContent(p, target) {
-				return nil
+		return func() error {
+			if _, err := os.Lstat(target); err == nil {
+				if filepath.Dir(rel) == "pack" || sameContent(p, target) {
+					return nil
+				}
+				if err := os.Remove(target); err != nil {
+					return err
+				}
 			}
-			if err := os.Remove(target); err != nil {
-				return err
-			}
-		}
-		return linkOrCopy(p, target)
+			return linkOrCopy(p, target)
+		}, nil
 	})
 }
 
