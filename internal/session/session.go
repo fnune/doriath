@@ -315,7 +315,7 @@ func (s *Session) prepare(ctx context.Context) error {
 
 	for _, m := range p.Mounts {
 		if m.Create {
-			if err := jail.CheckLinks(p, osHost{}, m.Path); err != nil {
+			if err := jail.CheckLinks(p, s.listings, m.Path); err != nil {
 				return err
 			}
 			if err := os.MkdirAll(m.Path, 0o755); err != nil {
@@ -1011,10 +1011,24 @@ type listingCache struct {
 	osHost
 	mu    sync.Mutex
 	lists map[string][]jail.Entry
+	repos map[string][]string
 }
 
 func newListingCache() *listingCache {
-	return &listingCache{lists: map[string][]jail.Entry{}}
+	return &listingCache{lists: map[string][]jail.Entry{}, repos: map[string][]string{}}
+}
+
+func (c *listingCache) Repositories(root string, find func() []string) []string {
+	c.mu.Lock()
+	repos, ok := c.repos[root]
+	c.mu.Unlock()
+	if !ok {
+		repos = find()
+		c.mu.Lock()
+		c.repos[root] = repos
+		c.mu.Unlock()
+	}
+	return slices.Clone(repos)
 }
 
 func (c *listingCache) List(dir string) []jail.Entry {

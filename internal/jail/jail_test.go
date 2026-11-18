@@ -693,3 +693,49 @@ func TestEtcOverlayAddsFilesToTheReadOnlyEtc(t *testing.T) {
 		t.Error("no overlay without files to add")
 	}
 }
+
+type memoHost struct {
+	fakeHost
+	walks int
+	memo  map[string][]string
+}
+
+func (h *memoHost) Repositories(root string, find func() []string) []string {
+	if r, ok := h.memo[root]; ok {
+		return r
+	}
+	h.walks++
+	h.memo[root] = find()
+	return h.memo[root]
+}
+
+func TestEveryPlanStepSharesOneWalkOfAMount(t *testing.T) {
+	repo := host()
+	repo["/home/u/Development/app/.git"] = "dir"
+	h := &memoHost{fakeHost: held(testProfile(), repo), memo: map[string][]string{}}
+	if _, err := Plan(testProfile(), layout(), opts(), h); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckLinks(testProfile(), h, "/home/u/Development/app"); err != nil {
+		t.Fatal(err)
+	}
+	if want := len(h.memo); want == 0 || h.walks != want {
+		t.Fatalf("walks = %d, want one for each of the %d mounts", h.walks, want)
+	}
+}
+
+func TestEnclosingIsTheDeepestBindAbovePath(t *testing.T) {
+	dests := byDest([]Bind{
+		{Source: "/", Dest: "/"},
+		{Source: "/a", Dest: "/a", ReadOnly: true},
+		{Source: "/a/b", Dest: "/a/b"},
+		{Source: "/dev/x", Dest: "/a/b/c", Device: true},
+		{Source: "/other", Dest: "/a/b"},
+	})
+	for path, want := range map[string]string{"/a/b/c/d": "/a/b", "/a/b": "/a", "/a/x": "/a", "/z": "/", "/": ""} {
+		got, ok := dests.enclosing(path)
+		if !ok && want != "" || ok && (got.Dest != want || got.Source != want) {
+			t.Errorf("enclosing(%s) = %v %v, want %s", path, got, ok, want)
+		}
+	}
+}

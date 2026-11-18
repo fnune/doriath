@@ -409,11 +409,24 @@ func (g *guards) git(src, dest string) {
 	}
 }
 
+// RepositoryMemo is a Host that keeps what Repositories found under each
+// root, so that the many walks of one session start run once and agree.
+type RepositoryMemo interface {
+	Repositories(root string, find func() []string) []string
+}
+
 // Repositories lists the git and jj repositories at or below root, a few levels
 // deep. It reads each directory once and stats nothing it lists: a mount of
 // many checkouts holds hundreds of thousands of entries, and with a cold
 // cache each stat is a disk read.
 func Repositories(root string, host Host) []string {
+	if memo, ok := host.(RepositoryMemo); ok {
+		return memo.Repositories(root, func() []string { return findRepositories(root, host) })
+	}
+	return findRepositories(root, host)
+}
+
+func findRepositories(root string, host Host) []string {
 	var out []string
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
@@ -614,12 +627,13 @@ func splitGuardedLinks(binds []Bind, host Host, errs []error) ([]Bind, []string,
 	writable := writableSources(binds)
 	var kept []Bind
 	var links []string
+	dests := byDest(binds)
 	for _, b := range binds {
 		if !b.ReadOnly || b.Device || b.Source != b.Dest || !host.Link(b.Dest) {
 			kept = append(kept, b)
 			continue
 		}
-		parent, ok := enclosing(binds, b.Dest)
+		parent, ok := dests.enclosing(b.Dest)
 		if !ok || parent.Source != parent.Dest {
 			kept = append(kept, b)
 			continue
@@ -662,11 +676,12 @@ func GuardsAndLinks(p *profile.Profile, host Host) (guards, links []string, err 
 func parentPins(binds []Bind, host Host) []Bind {
 	seen := map[string]bool{}
 	var pins []Bind
+	dests := byDest(binds)
 	for _, b := range binds {
 		if !b.ReadOnly || b.Device {
 			continue
 		}
-		parent, ok := enclosing(binds, b.Dest)
+		parent, ok := dests.enclosing(b.Dest)
 		if !ok || parent.ReadOnly || parent.Device {
 			continue
 		}
@@ -696,15 +711,27 @@ func Between(root, path string) []string {
 	return out
 }
 
-func enclosing(binds []Bind, path string) (Bind, bool) {
-	var best Bind
-	found := false
+type bindsByDest map[string]Bind
+
+func byDest(binds []Bind) bindsByDest {
+	m := bindsByDest{}
 	for _, b := range binds {
-		if b.Dest != path && !b.Device && within(path, b.Dest) && (!found || len(b.Dest) > len(best.Dest)) {
-			best, found = b, true
+		dest := filepath.Clean(b.Dest)
+		if _, ok := m[dest]; !ok && !b.Device {
+			m[dest] = b
 		}
 	}
-	return best, found
+	return m
+}
+
+func (m bindsByDest) enclosing(path string) (Bind, bool) {
+	for dir := filepath.Clean(path); dir != "/" && dir != "."; {
+		dir = filepath.Dir(dir)
+		if b, ok := m[dir]; ok {
+			return b, true
+		}
+	}
+	return Bind{}, false
 }
 
 func writableSources(binds []Bind) []string {

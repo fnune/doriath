@@ -218,3 +218,14 @@ func TestTimeLeftWaitsForAMeasureAndRounds(t *testing.T) {
 		}
 	}
 }
+
+func TestOneSessionStartWalksEachMountForRepositoriesOnce(t *testing.T) {
+	c := newListingCache()
+	walks := 0
+	find := func() []string { walks++; return []string{"/m/a"} }
+	first := c.Repositories("/m", find)
+	first[0] = "changed by a caller"
+	if got := c.Repositories("/m", find); walks != 1 || !slices.Equal(got, []string{"/m/a"}) {
+		t.Fatalf("walks = %d, repositories = %v", walks, got)
+	}
+}

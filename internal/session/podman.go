@@ -168,7 +168,7 @@ func (s *Session) startPodman() error {
 		ExtraBinds: podmanBinds(root, rawDir, s.jailPath("policy.json"), filepath.Join(userConf, "policy.json")),
 		SkipUserNS: true,
 		InfoFD:     3,
-	}, osHost{})
+	}, s.listings)
 	if err != nil {
 		return fmt.Errorf("plan podman service: %w", err)
 	}
