@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -88,6 +89,58 @@ type repositoryRecord struct {
 	repairs  *repairLog
 	stop     func()
 	finished bool
+	checked  map[string]bool
+}
+
+func (s *Session) finishInterruptedSessions(ctx context.Context) {
+	r := &s.repos
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, stores := s.unrecorded(s.req.Profile, s.listings)
+	for _, n := range s.interrupted(ctx, stores) {
+		s.notes = append(s.notes, note{term.Info, n})
+	}
+}
+
+func (s *Session) unrecorded(p *profile.Profile, host jail.Host) (repos, stores []string) {
+	r := &s.repos
+	for _, repo := range storeRepositories(p, host) {
+		if r.rec == nil || !slices.ContainsFunc(r.rec.Repos, func(known vcs.Repo) bool { return known.GitDir == vcs.Store(repo) }) {
+			repos = append(repos, repo)
+			stores = append(stores, vcs.Store(repo))
+		}
+	}
+	return repos, stores
+}
+
+func (s *Session) interrupted(ctx context.Context, stores []string) []string {
+	r := &s.repos
+	if r.checked == nil {
+		r.checked = map[string]bool{}
+	}
+	var unchecked []string
+	for _, store := range stores {
+		if !r.checked[store] {
+			r.checked[store] = true
+			unchecked = append(unchecked, store)
+		}
+	}
+	if s.deps.Interrupted == nil || len(unchecked) == 0 {
+		return nil
+	}
+	return s.deps.Interrupted(ctx, unchecked)
+}
+
+func (s *Session) dropUnusedRepositories() {
+	r := &s.repos
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stop != nil {
+		r.stop()
+	}
+	r.finished = true
+	_ = os.RemoveAll(filepath.Join(s.deps.Paths.Backups(), s.id))
+	_ = os.Remove(recordPath(s.deps.Paths, s.id))
 }
 
 func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host jail.Host) ([]string, error) {
@@ -97,17 +150,8 @@ func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host 
 	if r.finished {
 		return nil, errors.New("the session has ended")
 	}
-	var repos, stores []string
-	for _, repo := range storeRepositories(p, host) {
-		if r.rec == nil || !slices.ContainsFunc(r.rec.Repos, func(known vcs.Repo) bool { return known.GitDir == vcs.Store(repo) }) {
-			repos = append(repos, repo)
-			stores = append(stores, vcs.Store(repo))
-		}
-	}
-	var notes []string
-	if s.deps.Interrupted != nil {
-		notes = s.deps.Interrupted(ctx, stores)
-	}
+	repos, stores := s.unrecorded(p, host)
+	notes := s.interrupted(ctx, stores)
 	if len(repos) == 0 {
 		return notes, nil
 	}

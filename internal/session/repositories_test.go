@@ -229,3 +229,43 @@ func TestOneSessionStartWalksEachMountForRepositoriesOnce(t *testing.T) {
 		t.Fatalf("walks = %d, repositories = %v", walks, got)
 	}
 }
+
+func TestASessionStartLooksForInterruptedSessionsOfAStoreOnce(t *testing.T) {
+	s := newTestSession(t, nil)
+	r := newRepositories(t, s.home)
+	s.req.Profile.Mounts = []profile.Mount{{Path: r.main, Mode: profile.ModeRead}}
+	s.req.Profile.VCSStore = true
+	s.deps.Git = "git"
+	var asked []string
+	s.deps.Interrupted = func(_ context.Context, stores []string) []string {
+		asked = append(asked, stores...)
+		return nil
+	}
+	s.finishInterruptedSessions(context.Background())
+	if err := s.startRepositories(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(asked, []string{r.store}) {
+		t.Fatalf("asked about %v, want %s once", asked, r.store)
+	}
+}
+
+func TestASessionThatStopsBeforeTheJailLeavesNoBackup(t *testing.T) {
+	s := newTestSession(t, nil)
+	r := newRepositories(t, s.home)
+	s.req.Profile.Mounts = []profile.Mount{{Path: r.main, Mode: profile.ModeRead}}
+	s.req.Profile.VCSStore = true
+	s.deps.Git = "git"
+	if err := s.startRepositories(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(recordPath(s.deps.Paths, s.id)); err != nil {
+		t.Fatalf("no record to drop: %v", err)
+	}
+	s.dropUnusedRepositories()
+	for _, p := range []string{recordPath(s.deps.Paths, s.id), filepath.Join(s.deps.Paths.Backups(), s.id)} {
+		if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s is still there: %v", p, err)
+		}
+	}
+}

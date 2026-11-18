@@ -333,10 +333,10 @@ func (s *Session) prepare(ctx context.Context) error {
 		}
 	}
 	s.timings.step("create session directories")
-	if err := s.fetchSecrets(ctx); err != nil {
-		return err
-	}
-	s.timings.step("fetch secrets")
+	s.finishInterruptedSessions(ctx)
+	s.timings.step("finish interrupted sessions")
+	secrets := s.fetchSecretsInBackground(ctx)
+	defer secrets.stop()
 	if err := s.holdMissingPaths(p); err != nil {
 		return err
 	}
@@ -370,6 +370,15 @@ func (s *Session) prepare(ctx context.Context) error {
 		s.notes = append(s.notes, note{term.Warn, n})
 	}
 	s.timings.step("pin binaries and archives")
+	secretNotes, err := secrets.wait()
+	for _, n := range secretNotes {
+		s.notes = append(s.notes, note{term.Warn, n})
+	}
+	if err != nil {
+		s.dropUnusedRepositories()
+		return err
+	}
+	s.timings.step("wait for secrets")
 	if err := s.startProxy(); err != nil {
 		return err
 	}
@@ -568,7 +577,44 @@ func (s *Session) httpForward(target string, port int) http.Handler {
 }
 
 func (s *Session) fetchSecrets(ctx context.Context) error {
+	notes, err := s.secretNotes(ctx)
+	for _, n := range notes {
+		s.notes = append(s.notes, note{term.Warn, n})
+	}
+	return err
+}
+
+type secretFetch struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	notes  []string
+	err    error
+}
+
+func (s *Session) fetchSecretsInBackground(ctx context.Context) *secretFetch {
+	ctx, cancel := context.WithCancel(ctx)
+	f := &secretFetch{cancel: cancel, done: make(chan struct{})}
+	go func() {
+		defer close(f.done)
+		f.notes, f.err = s.secretNotes(ctx)
+	}()
+	return f
+}
+
+func (f *secretFetch) wait() ([]string, error) {
+	<-f.done
+	f.cancel()
+	return f.notes, f.err
+}
+
+func (f *secretFetch) stop() {
+	f.cancel()
+	<-f.done
+}
+
+func (s *Session) secretNotes(ctx context.Context) ([]string, error) {
 	p := s.req.Profile
+	var notes []string
 	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
 		if p.Secrets[name].OAuth != nil && s.signedIn(name) {
 			continue
@@ -577,12 +623,12 @@ func (s *Session) fetchSecrets(ctx context.Context) error {
 		switch {
 		case err == nil:
 		case p.Secrets[name].Required:
-			return secret.Explained(err)
+			return notes, secret.Explained(err)
 		default:
-			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("%v. The session starts without it: %s", secret.Explained(err), strings.Join(secretUsers(p, name), ", "))})
+			notes = append(notes, fmt.Sprintf("%v. The session starts without it: %s", secret.Explained(err), strings.Join(secretUsers(p, name), ", ")))
 		}
 	}
-	return nil
+	return notes, nil
 }
 
 func (s *Session) signedIn(secret string) bool {
