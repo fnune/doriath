@@ -75,6 +75,9 @@ type Config struct {
 	Resolver Resolver
 	// Pins holds the profile's image digests. Nil pins nothing.
 	Pins Pins
+	// Ready blocks until the upstream service listens, or returns why it
+	// never will. Nil dials at once.
+	Ready func(context.Context) error
 }
 
 // KindContainers marks approval requests from the broker.
@@ -140,6 +143,11 @@ func New(policy Policy, upstream string, approver Approver, recorder Recorder, c
 }
 
 func (b *Broker) dial(ctx context.Context, _, _ string) (net.Conn, error) {
+	if b.cfg.Ready != nil {
+		if err := b.cfg.Ready(ctx); err != nil {
+			return nil, err
+		}
+	}
 	var d net.Dialer
 	return d.DialContext(ctx, "unix", b.upstream)
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -465,5 +466,43 @@ func TestLogsFollowStreams(t *testing.T) {
 	}
 	if len(resp.TransferEncoding) == 0 || resp.TransferEncoding[0] != "chunked" {
 		t.Fatalf("transfer encoding %v", resp.TransferEncoding)
+	}
+}
+
+func TestARequestWaitsUntilThePodmanServiceListens(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "podman.sock")
+	srv := &http.Server{Handler: &fakePodman{more: make(chan struct{})}, ReadHeaderTimeout: 5 * time.Second}
+	t.Cleanup(func() { _ = srv.Close() })
+	listening := make(chan struct{})
+	ready := func(ctx context.Context) error {
+		select {
+		case <-listening:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	b := New(Policy{}, socket, &fakeApprover{}, &events{}, Config{Session: "s1", Profile: "dev", Ready: ready})
+	client := unixClient(serveBroker(t, b))
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		up, err := net.Listen("unix", socket)
+		if err != nil {
+			panic(err)
+		}
+		go func() { _ = srv.Serve(up) }()
+		close(listening)
+	}()
+	if status, body := do(t, client, http.MethodGet, "/v4.0.0/libpod/_ping", ""); status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+}
+
+func TestARequestGetsWhyThePodmanServiceDidNotStart(t *testing.T) {
+	failed := errors.New("podman service exited: exit status 125 (see podman.log)")
+	b := New(Policy{}, filepath.Join(t.TempDir(), "podman.sock"), &fakeApprover{}, &events{}, Config{Session: "s1", Profile: "dev", Ready: func(context.Context) error { return failed }})
+	status, body := do(t, unixClient(serveBroker(t, b)), http.MethodGet, "/v4.0.0/libpod/_ping", "")
+	if status != http.StatusBadGateway || !strings.Contains(body, failed.Error()) {
+		t.Fatalf("status = %d, body = %s", status, body)
 	}
 }

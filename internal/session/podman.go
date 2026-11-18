@@ -231,23 +231,49 @@ func (s *Session) startPodman() error {
 	}
 	s.netnsPID = info.ChildPID
 
+	ready := &podmanReady{done: make(chan struct{})}
+	go func() {
+		ready.err = waitForSocket(raw, exited, func() error { return exitErr }, logPath)
+		if ready.err != nil {
+			s.log.Write("podman-error", map[string]any{"error": ready.err.Error()})
+		} else {
+			s.log.Write("podman-start", map[string]any{"pid": s.netnsPID})
+		}
+		close(ready.done)
+	}()
+	return s.startContainerBroker(raw, ready.wait)
+}
+
+type podmanReady struct {
+	done chan struct{}
+	err  error
+}
+
+func (r *podmanReady) wait(ctx context.Context) error {
+	select {
+	case <-r.done:
+		return r.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func waitForSocket(raw string, exited <-chan struct{}, exitErr func() error, logPath string) error {
 	deadline := time.Now().Add(15 * time.Second)
 	for {
 		if _, err := os.Stat(raw); err == nil {
-			break
+			return nil
 		}
 		select {
 		case <-exited:
-			return fmt.Errorf("podman service exited: %w (see %s)", exitErr, logPath)
+			return fmt.Errorf("podman service exited: %w (see %s)", exitErr(), logPath)
 		default:
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("podman socket did not appear (see %s)", logPath)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
-	s.log.Write("podman-start", map[string]any{"pid": s.netnsPID})
-	return s.startContainerBroker(raw)
 }
 
 func readSubIDs(path, name string, uid int) (IDRange, error) {
@@ -326,7 +352,7 @@ func containerMounts(p *profile.Profile, host jail.Host) []containers.Mount {
 	return append(mounts, guarded...)
 }
 
-func (s *Session) startContainerBroker(raw string) error {
+func (s *Session) startContainerBroker(raw string, ready func(context.Context) error) error {
 	p := s.req.Profile
 	broker := containers.New(containers.Policy{Images: p.ContainerImages, Mounts: containerMounts(p, s.listings)}, raw, s.manager, s.log, containers.Config{
 		Session:     s.id,
@@ -334,6 +360,7 @@ func (s *Session) startContainerBroker(raw string) error {
 		ApprovalTTL: approvalTTL,
 		Resolver:    s.jailPaths(),
 		Pins:        imagepins.NewFile(s.deps.Paths.ImagePins(p.StateName())),
+		Ready:       ready,
 	})
 	l, err := s.listen(PodmanSocket)
 	if err != nil {
