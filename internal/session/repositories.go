@@ -169,13 +169,17 @@ func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host 
 		r.stop()
 	}
 	if r.rec == nil {
-		r.rec = &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now()}
+		owner, _ := processOwner("/proc", os.Getpid())
+		r.rec = &vcs.Record{Session: s.id, Profile: s.req.Profile.Name, Started: time.Now(), Owner: owner}
 		r.repairs = &repairLog{log: s.log}
 	}
 	for _, m := range p.Mounts {
 		if m.Mode == profile.ModeWrite && !slices.Contains(r.rec.Writable, m.Path) {
 			r.rec.Writable = append(r.rec.Writable, m.Path)
 		}
+	}
+	if err := r.rec.Save(recordPath(s.deps.Paths, s.id)); err != nil {
+		return notes, err
 	}
 	err := vcs.Start(ctx, s.vcsTools(), filepath.Join(s.deps.Paths.Backups(), s.id), r.rec, repos)
 	if saveErr := r.rec.Save(recordPath(s.deps.Paths, s.id)); err == nil {

@@ -36,7 +36,7 @@ func records(p config.Paths) ([]*vcs.Record, error) {
 	}
 	var out []*vcs.Record
 	for _, rec := range loaded {
-		if !slices.ContainsFunc(live, func(s liveSession) bool { return s.info.ID == rec.Session }) {
+		if !slices.ContainsFunc(live, func(s liveSession) bool { return s.info.ID == rec.Session }) && !session.Running("/proc", rec) {
 			out = append(out, rec)
 		}
 	}
@@ -60,6 +60,10 @@ func finishInterruptedOf(p config.Paths, w io.Writer, uses func(*vcs.Record) boo
 	var notes []string
 	for _, rec := range recs {
 		if rec.Finished {
+			continue
+		}
+		if len(rec.Repos) == 0 {
+			_ = session.FinishRecord(context.Background(), p, vcsTools(), rec, io.Discard, io.Discard, io.Discard)
 			continue
 		}
 		repos := strings.Join(repoPaths(rec), ", ")

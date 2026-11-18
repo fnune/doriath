@@ -210,3 +210,23 @@ func TestARunChecksOnlyTheInterruptedSessionsThatUseItsRepositories(t *testing.T
 		t.Errorf("notes = %q, want %q", notes, want)
 	}
 }
+
+func TestASessionKilledDuringItsBackupLeavesNothingBehind(t *testing.T) {
+	p := testPaths(t)
+	path := saveRecord(t, p, &vcs.Record{Session: "s1"})
+	backup := filepath.Join(p.Backups(), "s1", "0", "objects", "ab")
+	if err := os.MkdirAll(backup, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	notes := finishInterruptedOf(p, &out, usesStores([]string{"/elsewhere/.git"}))
+	if len(notes) != 0 || out.Len() != 0 {
+		t.Errorf("notes = %q, output = %q", notes, out.String())
+	}
+	if rec, err := vcs.Load(path); err != nil || !rec.Finished {
+		t.Errorf("the record stays unfinished: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p.Backups(), "s1")); !os.IsNotExist(err) {
+		t.Errorf("the partial backup is still there: %v", err)
+	}
+}

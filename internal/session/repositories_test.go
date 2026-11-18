@@ -269,3 +269,21 @@ func TestASessionThatStopsBeforeTheJailLeavesNoBackup(t *testing.T) {
 		}
 	}
 }
+
+func TestABackupThatStopsHalfwayLeavesARecordForTheNextStart(t *testing.T) {
+	s := newTestSession(t, nil)
+	r := newRepositories(t, s.home)
+	s.req.Profile.Mounts = []profile.Mount{{Path: r.main, Mode: profile.ModeRead}}
+	s.req.Profile.VCSStore = true
+	s.deps.Git = "/nonexistent/git"
+	if err := s.startRepositories(context.Background()); err == nil {
+		t.Fatal("the backup did not fail")
+	}
+	rec, err := vcs.Load(recordPath(s.deps.Paths, s.id))
+	if err != nil {
+		t.Fatalf("no record for the next start to finish: %v", err)
+	}
+	if rec.Finished || rec.Owner.PID != os.Getpid() {
+		t.Fatalf("record = %+v", rec)
+	}
+}

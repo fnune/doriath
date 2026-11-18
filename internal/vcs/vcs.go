@@ -44,6 +44,16 @@ type Record struct {
 	// Writable are the host paths the session could write, where the agent
 	// could have put a worktree's checkout.
 	Writable []string `json:"writable"`
+	// Owner is the doriath process that runs the session. Another start
+	// must not finish the record while that process runs.
+	Owner Owner `json:"owner,omitzero"`
+}
+
+// Owner names a process by its id and its start time, which together stay
+// unique when the system reuses the id.
+type Owner struct {
+	PID   int    `json:"pid"`
+	Start uint64 `json:"start"`
 }
 
 type Repo struct {
