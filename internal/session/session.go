@@ -130,6 +130,9 @@ type Deps struct {
 	// Clipboard is your clipboard, for profiles that let the agent ask for
 	// its images. Nil when doriath runs outside a desktop session.
 	Clipboard clipboard.Source
+	// Timings, when set, gets how long each step of the session start and
+	// end took.
+	Timings io.Writer
 }
 
 type Request struct {
@@ -171,6 +174,7 @@ type Session struct {
 	logFile   io.Closer
 	repos     repositoryRecord
 	notes     []note
+	timings   *timings
 	manager   *approval.Manager
 	informs   *rateLimit
 	describes *rateLimit
@@ -210,6 +214,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if req.Current == "" {
 		req.Current = req.Cwd
 	}
+	steps := newTimings(deps.Timings, deps.Clock)
 	exists := func(p string) bool { return osHost{}.Kind(p) != "" }
 	unresolved := req.Profile
 	repository := profile.FindRepository(req.Current, exists)
@@ -217,16 +222,19 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("profile %s: %w", req.Profile.Name, err)
 	}
+	steps.step("resolve the profile")
 	listings := newListingCache()
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
 	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Paths.State)
 	stopNote()
+	steps.step("find repositories")
 	if err := CheckSigning(req.Profile, deps.VCS); err != nil {
 		return nil, err
 	}
 	if err := checkHelpers(deps, req.Profile); err != nil {
 		return nil, err
 	}
+	steps.step("check signing and helpers")
 	id, err := newID(deps.Paths)
 	if err != nil {
 		return nil, err
@@ -236,7 +244,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	if err != nil {
 		exe = deps.Exe
 	}
-	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, unresolved: unresolved, modulesByRepository: map[string][]string{}, listings: listings, dismissedSecrets: map[string]bool{}, informs: newRateLimit(informBurst), describes: newRateLimit(describeBurst)}, nil
+	return &Session{deps: deps, req: req, id: id, dir: dir, jailDir: filepath.Join(dir, "jail"), peers: newHostPeers(exe), repository: repository, unresolved: unresolved, modulesByRepository: map[string][]string{}, listings: listings, timings: steps, dismissedSecrets: map[string]bool{}, informs: newRateLimit(informBurst), describes: newRateLimit(describeBurst)}, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -252,6 +260,7 @@ func (s *Session) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 1, err
 	}
+	s.timings.step("plan the jail")
 	if err := s.links.Keep(spec.Links...); err != nil {
 		return 1, err
 	}
@@ -323,9 +332,11 @@ func (s *Session) prepare(ctx context.Context) error {
 			}
 		}
 	}
+	s.timings.step("create session directories")
 	if err := s.fetchSecrets(ctx); err != nil {
 		return err
 	}
+	s.timings.step("fetch secrets")
 	if err := s.holdMissingPaths(p); err != nil {
 		return err
 	}
@@ -342,9 +353,11 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.holdControlPaths(); err != nil {
 		return err
 	}
+	s.timings.step("hold missing and control paths")
 	if err := s.startRepositories(ctx); err != nil {
 		return err
 	}
+	s.timings.step("back up repositories")
 	var pinNotes []string
 	s.peers.pins, pinNotes = pinBinaries(p, s.deps.Paths.Home, s.cacheRoot(), agentWritable(s.deps, p))
 	pinNotes = append(pinNotes, s.peers.pins.pinLibraries(p, s.deps.Paths.Home, s.cacheRoot(), agentWritable(s.deps, p))...)
@@ -356,6 +369,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	for _, n := range append(pinNotes, archiveNotes...) {
 		s.notes = append(s.notes, note{term.Warn, n})
 	}
+	s.timings.step("pin binaries and archives")
 	if err := s.startProxy(); err != nil {
 		return err
 	}
@@ -376,10 +390,12 @@ func (s *Session) prepare(ctx context.Context) error {
 	if err := s.startClipboard(ctx); err != nil {
 		return err
 	}
+	s.timings.step("start the proxy and the sockets")
 	if p.Podman {
 		if err := s.startPodman(); err != nil {
 			return err
 		}
+		s.timings.step("start podman")
 	}
 	if err := s.writeVCSFiles(); err != nil {
 		return err
@@ -405,6 +421,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	if warning != "" {
 		s.notes = append(s.notes, note{term.Warn, warning})
 	}
+	s.timings.step("write files and seed the agent")
 	return s.writeInfo()
 }
 
@@ -872,6 +889,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		return 1, fmt.Errorf("start bubblewrap: %w", err)
 	}
 	_ = infoW.Close()
+	s.timings.step("start bubblewrap")
 	go func() {
 		defer infoR.Close()
 		if info, err := readInfo(infoR, time.Minute); err == nil {
@@ -893,6 +911,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 		go s.updateBar(bar, done)
 	}
 	err = cmd.Wait()
+	s.timings.step("run the command")
 	close(done)
 	if bar != nil {
 		_ = bar.Close()
@@ -917,6 +936,7 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	s.links.Check()
 	s.finishRepositories(&fixed, &needs)
+	s.timings.step("check repositories")
 	var end ending
 	end.fixed = notesOf(term.Action, fixed.String())
 	end.needs = notesOf(term.Warn, needs.String())

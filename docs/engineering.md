@@ -91,6 +91,14 @@ Reference: [Mark Seemann](https://blog.ploeh.dk/), [_Dependency Injection Princi
 - Security baseline. Least privilege on every credential. Secrets never in code, never in committed files, never in logs.
 - Privacy. Doriath has no telemetry and makes no network calls of its own. Transcripts, tokens and audit logs stay on the machine.
 
+### Timing a session start
+
+Set `DORIATH_TIMINGS=1` to see where a slow start spends its time. `doriath run` then prints the time of each step of the session start and end on stderr. Use a command that ends at once, so that the end steps follow:
+
+```sh
+DORIATH_TIMINGS=1 doriath run --profile NAME -- true
+```
+
 ### Local checks before pushing
 
 - Run cheap checks locally: `just fmt`, `just lint`, and the tests that cover the change.

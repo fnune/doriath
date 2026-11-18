@@ -356,6 +356,9 @@ func cmdRun(args []string) (int, error) {
 		Open:        openOnHost,
 		Clipboard:   hostClipboard(os.Getenv, lookPath("wl-paste")),
 	}
+	if os.Getenv("DORIATH_TIMINGS") != "" {
+		deps.Timings = os.Stderr
+	}
 	deps.Interrupted = func(_ context.Context, stores []string) []string {
 		return finishInterruptedOf(p, deps.Stderr, usesStores(stores))
 	}
