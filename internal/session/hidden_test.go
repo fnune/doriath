@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/fnune/doriath/internal/jail"
@@ -161,11 +162,11 @@ func TestHiddenPathsThatNeedNoPlaceholder(t *testing.T) {
 
 type countingHost struct {
 	osHost
-	lists int
+	lists atomic.Int64
 }
 
 func (c *countingHost) List(dir string) []jail.Entry {
-	c.lists++
+	c.lists.Add(1)
 	return c.osHost.List(dir)
 }
 
@@ -190,8 +191,8 @@ func TestHoldingControlPathsWalksAFolderOfManyWorktreesAFewTimesOnly(t *testing.
 	if err := s.holdControlPathsOf(p, host); err != nil {
 		t.Fatal(err)
 	}
-	if host.lists > 4*oneWalk.lists {
-		t.Errorf("%d listings for %d in one walk: each placeholder must not walk the mount again", host.lists, oneWalk.lists)
+	if host.lists.Load() > 4*oneWalk.lists.Load() {
+		t.Errorf("%d listings for %d in one walk: each placeholder must not walk the mount again", host.lists.Load(), oneWalk.lists.Load())
 	}
 }
 

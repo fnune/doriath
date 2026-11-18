@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/vcs"
@@ -55,7 +56,8 @@ func CacheSource(root, path, home string) string {
 	return filepath.Join(root, "home", rel)
 }
 
-// Host answers questions about the host filesystem.
+// Host answers questions about the host filesystem. It must be safe for
+// concurrent use: Repositories reads several directories at once.
 type Host interface {
 	// Kind returns "dir", "file", "other" or "" when the path does not exist.
 	Kind(path string) string
@@ -426,10 +428,12 @@ func Repositories(root string, host Host) []string {
 	return findRepositories(root, host)
 }
 
+const walkWorkers = 8
+
 func findRepositories(root string, host Host) []string {
-	var out []string
-	var walk func(dir string, depth int)
-	walk = func(dir string, depth int) {
+	busy := make(chan struct{}, walkWorkers)
+	var walk func(dir string, depth int) []string
+	walk = func(dir string, depth int) []string {
 		repo := filepath.Base(dir) == ".git" || isJJRepo(dir)
 		var entries []Entry
 		if depth < repositoryDepth {
@@ -438,17 +442,36 @@ func findRepositories(root string, host Host) []string {
 		} else {
 			repo = repo || host.Kind(filepath.Join(dir, ".git")) != "" || host.Kind(filepath.Join(dir, ".jj")) != ""
 		}
+		var out []string
 		if repo {
 			out = append(out, dir)
 		}
+		var subdirs []string
 		for _, e := range entries {
 			if e.Dir && !skipWalk[e.Name] {
-				walk(filepath.Join(dir, e.Name), depth+1)
+				subdirs = append(subdirs, filepath.Join(dir, e.Name))
 			}
 		}
+		found := make([][]string, len(subdirs))
+		var wg sync.WaitGroup
+		for i, sub := range subdirs {
+			select {
+			case busy <- struct{}{}:
+				wg.Go(func() {
+					defer func() { <-busy }()
+					found[i] = walk(sub, depth+1)
+				})
+			default:
+				found[i] = walk(sub, depth+1)
+			}
+		}
+		wg.Wait()
+		for _, f := range found {
+			out = append(out, f...)
+		}
+		return out
 	}
-	walk(root, 0)
-	return out
+	return walk(root, 0)
 }
 
 const repositoryDepth = 3

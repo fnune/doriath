@@ -1033,11 +1033,17 @@ func (c *listingCache) Repositories(root string, find func() []string) []string 
 
 func (c *listingCache) List(dir string) []jail.Entry {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if l, ok := c.lists[dir]; ok {
+	l, ok := c.lists[dir]
+	c.mu.Unlock()
+	if ok {
 		return l
 	}
-	l := c.osHost.List(dir)
+	l = c.osHost.List(dir)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if first, ok := c.lists[dir]; ok {
+		return first
+	}
 	c.lists[dir] = l
 	return l
 }
