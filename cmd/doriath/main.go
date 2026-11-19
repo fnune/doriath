@@ -93,6 +93,9 @@ func main() {
 	case session.OpenFront:
 		os.Exit(cmdOpenFront(os.Args[1:]))
 	}
+	if !isInternalCommand(os.Args[1:]) {
+		closeInheritedOnExec()
+	}
 	os.Exit(run(os.Args[1:]))
 }
 
