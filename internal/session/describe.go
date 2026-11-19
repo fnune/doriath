@@ -54,7 +54,11 @@ func (st Status) Describe() string {
 		fmt.Fprintf(&b, "Connecting to 127.0.0.1:%d in the jail reaches port %d on the user's machine.\n", c.Jail, c.Host)
 	}
 	for _, f := range st.Forwards {
-		fmt.Fprintf(&b, "Port %d in the jail is forwarded to localhost:%d on the user's machine.\n", f.Jail, f.Host)
+		name := ""
+		if f.Name != "" {
+			name = " (" + f.Name + ")"
+		}
+		fmt.Fprintf(&b, "Port %d in the jail%s is forwarded to localhost:%d on the user's machine.\n", f.Jail, name, f.Host)
 	}
 	if st.Signing {
 		b.WriteString("Commits are signed by an agent key through SSH_AUTH_SOCK. It signs git commits only.\n")

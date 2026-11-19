@@ -216,6 +216,13 @@ path = "/oauth/authorize"
 action = "allow"
 forward_redirect = true
 
+# Ports of the jail that you reach from your machine during each session.
+# port is 8080, or "HOST:JAIL" such as "8080:3000", in the order of
+# podman -p. See "Forwards".
+[[forward]]
+name = "Docs preview"
+port = "8080:3000"
+
 # MCP servers that the agent can use. See "MCP servers".
 [[mcp]]
 name = "bazel"
@@ -571,6 +578,25 @@ A link to `localhost`, `127.0.0.1` or `::1` goes to a server in the jail. Before
 A sign-in in the jail often opens a link whose `redirect_uri` sends your browser back to a port on `localhost`, where the tool waits. Your browser runs on your machine, so doriath forwards that port into the jail for five minutes. It does this for a link that you allow, and for a rule with `forward_redirect = true`. The agent modules allow their own sign-in pages this way, so `/login` in Claude Code works without a question. The forge modules allow links to their sites, where the agent can already send data through the API of the forge. Sign-in, account, settings and app pages of a forge ask you first, because one click there can authorize an app, install an app or make a token. A rule matches the path that your browser sends, so `/x/../settings` meets the rules for `/settings`.
 
 A path or a `file://` link opens the file with the app that your machine uses for that kind of file, such as a markdown file in your editor. doriath asks you each time, and opens a file only if the jail shows it, it is a regular file that is not executable, and its kind is one that apps show rather than run: `.md`, `.markdown`, `.txt`, `.log`, `.csv`, `.tsv`, `.json`, `.yaml`, `.yml`, `.toml`, `.html`, `.htm`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` or `.svg`. A `.desktop` launcher or a `.jar`, for example, can run code on your machine. Other schemes, such as `mailto:` or `vscode://`, are refused, because the app behind each scheme decides what a link can do.
+
+## Forwards
+
+`[[forward]]` makes doriath listen on a port of your machine for the whole session, and relay each connection to a port in the jail. It is the forward that [`doriath request forward`](/reference/commands/#doriath-request-forward) asks for, but you give it in advance, so no request appears. Use it for a tool in the jail that serves a page you open often, such as a notebook or a local inbox:
+
+```toml
+[env]
+set = { NOTEBOOK_PORT = "8888" }
+
+[[forward]]
+name = "Notebook"
+port = 8888
+```
+
+Most tools pick a free port each time they start. Set the port in `[env]`, as above, so that the forward and the tool agree. `name` shows in `doriath status`.
+
+`port` takes one number for the same port on both sides, or `"HOST:JAIL"` in the order of `podman -p`. An address in front of the port, a range or `/udp` are refused, because doriath listens only on `127.0.0.1` and relays TCP.
+
+If the port on your machine is taken when the session starts, the session runs without that forward and shows a warning. If nothing listens on the port in the jail, a browser gets a page that says so, and doriath writes the error to the [audit log](/reference/commands/#doriath-log). A repository profile cannot add a forward, because programs on your machine would reach the jail through it.
 
 ## MCP servers
 

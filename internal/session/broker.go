@@ -323,8 +323,9 @@ type Missing struct {
 }
 
 type StatusForward struct {
-	Host int `json:"host"`
-	Jail int `json:"jail"`
+	Host int    `json:"host"`
+	Jail int    `json:"jail"`
+	Name string `json:"name,omitempty"`
 }
 
 type StatusHost struct {

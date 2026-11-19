@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -26,6 +27,7 @@ type layer struct {
 	Clipboard   *clipboardLayer        `toml:"clipboard"`
 	MCP         []mcpLayer             `toml:"mcp"`
 	Open        []openLayer            `toml:"open"`
+	Forward     []forwardLayer         `toml:"forward"`
 	Hardening   *hardeningLayer        `toml:"hardening"`
 	Code        *codeLayer             `toml:"code"`
 	Limits      *limitsLayer           `toml:"limits"`
@@ -104,6 +106,25 @@ type openLayer struct {
 	Path            string `toml:"path"`
 	Action          string `toml:"action"`
 	ForwardRedirect bool   `toml:"forward_redirect"`
+}
+
+type forwardLayer struct {
+	Name string    `toml:"name"`
+	Port portLayer `toml:"port"`
+}
+
+type portLayer string
+
+func (p *portLayer) UnmarshalTOML(v any) error {
+	switch v := v.(type) {
+	case int64:
+		*p = portLayer(strconv.FormatInt(v, 10))
+	case string:
+		*p = portLayer(v)
+	default:
+		return fmt.Errorf("port: want a number such as 8080, or \"HOST:JAIL\" such as \"8080:3000\"")
+	}
+	return nil
 }
 
 type httpLayer struct {

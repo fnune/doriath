@@ -365,6 +365,7 @@ type Profile struct {
 	ClipboardImages  bool
 	MCP              []MCPServer
 	Open             []OpenRule
+	Forwards         []PortForward
 	Agent            Agent
 	Claude           Claude
 	PathRules        PathRules
@@ -751,6 +752,36 @@ func (p HostPattern) matchName(host string) bool {
 		return ok && !slices.Contains(strings.Split(sub, "."), "")
 	}
 	return host == string(p)
+}
+
+// PortForward is a port on the user's machine that relays to a port in the
+// jail for the whole session.
+type PortForward struct {
+	Name string
+	Host int
+	Jail int
+}
+
+func ParseForward(s string) (host, jail int, err error) {
+	hostPart, jailPart, found := strings.Cut(s, ":")
+	if !found {
+		jailPart = hostPart
+	}
+	if host, err = parsePort(hostPart); err != nil {
+		return 0, 0, err
+	}
+	if jail, err = parsePort(jailPart); err != nil {
+		return 0, 0, err
+	}
+	return host, jail, nil
+}
+
+func parsePort(s string) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > 65535 {
+		return 0, fmt.Errorf("port %q: want a number from 1 to 65535", s)
+	}
+	return n, nil
 }
 
 type OpenRule struct {

@@ -194,6 +194,38 @@ func freePort(t *testing.T) int {
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
+func TestAProfileForwardListensBeforeTheJailStartsAndAsksNothing(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1)}
+	s := newTestSession(t, notifier)
+	s.deps.Nsenter = "nsenter"
+	port := freePort(t)
+	s.req.Profile.Forwards = []profile.PortForward{{Name: "Inbox", Host: port, Jail: 47123}}
+	s.startProfileForwards()
+	defer s.stopForwards()
+	if got := s.lastingForwards(); len(got) != 1 || got[0] != (StatusForward{Host: port, Jail: 47123, Name: "Inbox"}) {
+		t.Errorf("lasting forwards = %+v", got)
+	}
+	if len(s.notes) != 0 || len(notifier.seen) != 0 {
+		t.Errorf("notes %v, %d questions", s.notes, len(notifier.seen))
+	}
+}
+
+func TestAProfileForwardOnATakenPortLeavesTheSessionRunning(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	s.deps.Nsenter = "nsenter"
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer taken.Close()
+	port := taken.Addr().(*net.TCPAddr).Port
+	s.req.Profile.Forwards = []profile.PortForward{{Host: port, Jail: port}}
+	s.startProfileForwards()
+	if len(s.notes) != 1 || !strings.Contains(s.notes[0].text, "off this session") {
+		t.Errorf("notes = %+v", s.notes)
+	}
+}
+
 type eventChan chan proxy.Event
 
 func (c eventChan) Egress(e proxy.Event) { c <- e }

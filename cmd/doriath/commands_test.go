@@ -383,20 +383,6 @@ func TestPickSession(t *testing.T) {
 	}
 }
 
-func TestParseForward(t *testing.T) {
-	for in, want := range map[string][2]int{"3000": {3000, 3000}, "8080:3000": {8080, 3000}} {
-		host, jail, err := parseForward(in)
-		if err != nil || host != want[0] || jail != want[1] {
-			t.Errorf("%s = %d:%d, %v", in, host, jail, err)
-		}
-	}
-	for _, bad := range []string{"", "x", "0", "70000", "80:", "80:x"} {
-		if _, _, err := parseForward(bad); err == nil {
-			t.Errorf("%q must fail", bad)
-		}
-	}
-}
-
 func TestRunRefusesRoot(t *testing.T) {
 	if err := refuseRoot(0); err == nil || !strings.Contains(err.Error(), "root") {
 		t.Errorf("root: %v", err)

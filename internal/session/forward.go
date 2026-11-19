@@ -13,6 +13,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/proxy"
+	"github.com/fnune/doriath/internal/term"
 )
 
 type RequestForwardParams struct {
@@ -23,6 +24,7 @@ type RequestForwardParams struct {
 
 type hostForward struct {
 	jailPort int
+	name     string
 	ln       net.Listener
 	expiry   *time.Timer
 }
@@ -83,10 +85,25 @@ func (s *Session) forwarding(hostPort, jailPort int) bool {
 }
 
 func (s *Session) forwardPort(hostPort, jailPort int, lasts time.Duration) error {
-	reaper := int(s.peers.init.Load())
-	if reaper == 0 || s.deps.Nsenter == "" {
+	if s.peers.init.Load() == 0 || s.deps.Nsenter == "" {
 		return errors.New("the jail is not running, or nsenter is missing")
 	}
+	return s.listenForward(hostPort, jailPort, "", lasts)
+}
+
+func (s *Session) startProfileForwards() {
+	for _, f := range s.req.Profile.Forwards {
+		err := errors.New("nsenter is missing")
+		if s.deps.Nsenter != "" {
+			err = s.listenForward(f.Host, f.Jail, f.Name, 0)
+		}
+		if err != nil {
+			s.notes = append(s.notes, note{term.Warn, fmt.Sprintf("the profile forwards port %d to the jail, but it is off this session: %v", f.Host, err)})
+		}
+	}
+}
+
+func (s *Session) listenForward(hostPort, jailPort int, name string, lasts time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if f, ok := s.hostForwards[hostPort]; ok {
@@ -103,7 +120,7 @@ func (s *Session) forwardPort(hostPort, jailPort int, lasts time.Duration) error
 	if err != nil {
 		return fmt.Errorf("listen on port %d of your machine: %w", hostPort, err)
 	}
-	f := &hostForward{jailPort: jailPort, ln: ln}
+	f := &hostForward{jailPort: jailPort, name: name, ln: ln}
 	if lasts > 0 {
 		f.expiry = time.AfterFunc(lasts, func() { s.expireForward(hostPort, f) })
 	}
@@ -117,7 +134,7 @@ func (s *Session) forwardPort(hostPort, jailPort int, lasts time.Duration) error
 			if err != nil {
 				return
 			}
-			go s.relayInto(conn.(*net.TCPConn), reaper, jailPort)
+			go s.relayInto(conn.(*net.TCPConn), jailPort)
 		}
 	}()
 	return nil
@@ -141,7 +158,7 @@ func (s *Session) lastingForwards() []StatusForward {
 	var out []StatusForward
 	for port, f := range s.hostForwards {
 		if f.expiry == nil {
-			out = append(out, StatusForward{Host: port, Jail: f.jailPort})
+			out = append(out, StatusForward{Host: port, Jail: f.jailPort, Name: f.name})
 		}
 	}
 	slices.SortFunc(out, func(a, b StatusForward) int { return a.Host - b.Host })
@@ -161,8 +178,12 @@ func (s *Session) stopForwards() {
 	}
 }
 
-func (s *Session) relayInto(conn *net.TCPConn, reaper, port int) {
+func (s *Session) relayInto(conn *net.TCPConn, port int) {
 	defer func() { _ = conn.Close() }()
+	reaper := s.peers.reaper()
+	if reaper == 0 {
+		return
+	}
 	f, err := conn.File()
 	if err != nil {
 		return

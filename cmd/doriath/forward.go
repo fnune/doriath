@@ -12,12 +12,12 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/session"
 )
 
@@ -30,7 +30,7 @@ func cmdForward(args []string) error {
 	if flags.NArg() != 1 {
 		return errors.New("usage: doriath forward [--session ID] PORT[:JAIL_PORT]")
 	}
-	hostPort, jailPort, err := parseForward(flags.Arg(0))
+	hostPort, jailPort, err := profile.ParseForward(flags.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func requestForward(ctx context.Context, broker string, args []string, w io.Writ
 	if len(operands) != 1 {
 		return errors.New("request forward: usage: doriath request forward PORT[:JAIL_PORT] [--reason TEXT]")
 	}
-	hostPort, jailPort, err := parseForward(operands[0])
+	hostPort, jailPort, err := profile.ParseForward(operands[0])
 	if err != nil {
 		return fmt.Errorf("request forward: %w", err)
 	}
@@ -146,22 +146,6 @@ func cmdRelay(args []string) error {
 	<-done
 	<-done
 	return nil
-}
-
-func parseForward(s string) (int, int, error) {
-	hostPart, jailPart, found := strings.Cut(s, ":")
-	if !found {
-		jailPart = hostPart
-	}
-	host, err := strconv.Atoi(hostPart)
-	if err != nil || host < 1 || host > 65535 {
-		return 0, 0, fmt.Errorf("port %q: want a number from 1 to 65535", hostPart)
-	}
-	jail, err := strconv.Atoi(jailPart)
-	if err != nil || jail < 1 || jail > 65535 {
-		return 0, 0, fmt.Errorf("port %q: want a number from 1 to 65535", jailPart)
-	}
-	return host, jail, nil
 }
 
 func answerNothingListens(client net.Conn, port string) {

@@ -268,6 +268,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.egress = newEgressLog(s.log)
 	s.links = newLinkKeeper(s.linkRestored)
 	s.closers = append(s.closers, s.links.Close, s.stopForwards, s.stopConnects)
+	s.startProfileForwards()
 	s.policy = newLivePolicy(p, s.req.Learn)
 	if s.req.Learn {
 		s.notes = append(s.notes, note{term.Warn, "learning mode: any public host is reachable this session, and doriath lists the ones the profile does not allow when it ends"})

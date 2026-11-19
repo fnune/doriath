@@ -375,6 +375,7 @@ type builder struct {
 	clipboard   bool
 	mcp         []mcpLayer
 	open        []openLayer
+	forwards    []forwardLayer
 	harden      Hardening
 	archives    []string
 	libraries   []string
@@ -444,6 +445,7 @@ func (b *builder) apply(l layer) {
 	}
 	b.programs = append(b.programs, l.Egress.Programs...)
 	b.open = append(slices.Clone(l.Open), b.open...)
+	b.forwards = append(b.forwards, l.Forward...)
 	for _, p := range l.Egress.Ports {
 		if !slices.Contains(b.ports, p) {
 			b.ports = append(b.ports, p)
@@ -569,6 +571,9 @@ func (b *builder) repositoryOverrides(l layer) []error {
 		if _, taken := b.secrets[k]; taken {
 			errs = append(errs, fmt.Errorf("secret %q: %s already define it, and a repository profile cannot replace it", k, yours))
 		}
+	}
+	for _, f := range l.Forward {
+		errs = append(errs, fmt.Errorf("forward %s: a repository profile cannot forward a port, because programs on your machine would reach the jail through it. Put the forward in a profile of your own", f.Port))
 	}
 	for _, ref := range l.secretRefs() {
 		if _, own := l.Secrets[ref]; !own {
@@ -743,6 +748,9 @@ func (b *builder) recordDecisions(l layer) {
 	}
 	for _, o := range l.Open {
 		b.from(l.source, "open "+o.Host+" "+o.Path+": "+o.Action)
+	}
+	for _, f := range l.Forward {
+		b.from(l.source, "forward "+string(f.Port))
 	}
 	for _, m := range l.Mounts {
 		if m.Edit != nil && len(m.Edit.Safe) > 0 {
@@ -1001,6 +1009,9 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		p.Open = append(p.Open, rule)
 	}
+	forwards, forwardErrs := buildForwards(b.forwards)
+	p.Forwards = forwards
+	errs = append(errs, forwardErrs...)
 	for _, m := range b.mcp {
 		server, err := b.buildMCP(m)
 		if err != nil {
@@ -1407,6 +1418,28 @@ func buildOpen(o openLayer) (OpenRule, error) {
 		}
 	}
 	return OpenRule{Host: host, Path: pattern, Action: action, ForwardRedirect: o.ForwardRedirect}, nil
+}
+
+func buildForwards(layers []forwardLayer) ([]PortForward, []error) {
+	var out []PortForward
+	var errs []error
+	for _, f := range layers {
+		host, jail, err := ParseForward(string(f.Port))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("forward %s: %w", f.Port, err))
+			continue
+		}
+		i := slices.IndexFunc(out, func(x PortForward) bool { return x.Host == host })
+		switch {
+		case i < 0:
+			out = append(out, PortForward{Name: f.Name, Host: host, Jail: jail})
+		case out[i].Jail != jail:
+			errs = append(errs, fmt.Errorf("forward %s: port %d on your machine already forwards to port %d in the jail", f.Port, host, out[i].Jail))
+		case f.Name != "":
+			out[i].Name = f.Name
+		}
+	}
+	return out, errs
 }
 
 func parseAction(s string) (Action, error) {

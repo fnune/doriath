@@ -10,6 +10,7 @@ import (
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/jailinit"
+	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/session"
 )
 
@@ -23,7 +24,7 @@ func requestConnect(ctx context.Context, broker string, args []string, w io.Writ
 	if len(operands) != 1 {
 		return errors.New("request connect: usage: doriath request connect HOST_PORT[:JAIL_PORT] [--reason TEXT]")
 	}
-	hostPort, jailPort, err := parseForward(operands[0])
+	hostPort, jailPort, err := profile.ParseForward(operands[0])
 	if err != nil {
 		return fmt.Errorf("request connect: %w", err)
 	}
