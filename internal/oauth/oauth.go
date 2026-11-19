@@ -157,7 +157,7 @@ func (t *Tokens) Token(ctx context.Context, name string, _ secret.OAuth) (secret
 	}
 	tok, err := s.refresh(ctx)
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, withoutServerText(err), cli.Code(cli.Line("profiles", "login", t.target(name), name)))
 	}
 	s.Token = tok
 	if err := s.save(t.logins, profile, name); err != nil {
@@ -192,6 +192,24 @@ func (s State) refresh(ctx context.Context) (*oauth2.Token, error) {
 	expired := *s.Token
 	expired.Expiry = time.Now().Add(-time.Hour)
 	return s.config().TokenSource(ctx, &expired).Token()
+}
+
+func withoutServerText(err error) error {
+	var retrieve *oauth2.RetrieveError
+	if errors.As(err, &retrieve) {
+		if retrieve.ErrorCode != "" {
+			return fmt.Errorf("the server answered %s", retrieve.ErrorCode)
+		}
+		return fmt.Errorf("the server answered %s", retrieve.Response.Status)
+	}
+	var refused *refusal
+	if errors.As(err, &refused) {
+		if refused.code != "" {
+			return fmt.Errorf("the server answered %s", refused.code)
+		}
+		return fmt.Errorf("the server answered %s", refused.status)
+	}
+	return err
 }
 
 // Migrate moves the login files of earlier versions into the keyring and

@@ -99,9 +99,9 @@ func (c tokenClient) post(ctx context.Context, fields map[string]string) (*oauth
 	decodeErr := json.Unmarshal(data, &answer)
 	switch {
 	case resp.StatusCode != http.StatusOK && answer.Error != "":
-		return nil, fmt.Errorf("token endpoint %s answered %s: %s %s", c.url, resp.Status, answer.Error, answer.Description)
+		return nil, &refusal{url: c.url, status: resp.Status, code: answer.Error, description: answer.Description}
 	case resp.StatusCode != http.StatusOK:
-		return nil, fmt.Errorf("token endpoint %s answered %s", c.url, resp.Status)
+		return nil, &refusal{url: c.url, status: resp.Status}
 	case decodeErr != nil:
 		return nil, fmt.Errorf("token endpoint %s answered with a body that is not JSON: %w", c.url, decodeErr)
 	case answer.AccessToken == "":
@@ -141,4 +141,15 @@ func loginExplicit(ctx context.Context, o secret.OAuth, redirect string, fetch a
 	}
 	s.Token = tok
 	return s, nil
+}
+
+type refusal struct {
+	url, status, code, description string
+}
+
+func (r *refusal) Error() string {
+	if r.code == "" {
+		return fmt.Sprintf("token endpoint %s answered %s", r.url, r.status)
+	}
+	return fmt.Sprintf("token endpoint %s answered %s: %s %s", r.url, r.status, r.code, r.description)
 }

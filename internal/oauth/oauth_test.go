@@ -289,6 +289,32 @@ func TestRevokedLoginAsksYouToSignInAgain(t *testing.T) {
 	}
 }
 
+func TestTheTextOfARefusedRefreshStaysOutOfTheError(t *testing.T) {
+	for name, body := range map[string]string{
+		"an error with a description": `{"error":"invalid_grant","error_description":"bad refresh token revoked-secret"}`,
+		"a body without a code":       `revoked-secret`,
+	} {
+		for _, explicit := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, explicit %v", name, explicit), func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(body))
+				}))
+				defer server.Close()
+				logins := keyringtest.New()
+				expired := &oauth2.Token{AccessToken: "old", RefreshToken: "revoked-secret", Expiry: time.Now().Add(-time.Minute)}
+				if err := (State{ClientID: "c", TokenURL: server.URL, Token: expired, Explicit: explicit}).save(logins, "work", "notion"); err != nil {
+					t.Fatal(err)
+				}
+				_, err := NewTokens(logins, "work").Token(context.Background(), "notion", secret.OAuth{})
+				if err == nil || strings.Contains(err.Error(), "revoked-secret") {
+					t.Fatalf("err = %v", err)
+				}
+			})
+		}
+	}
+}
+
 func TestDamagedLoginStateNamesTheEntry(t *testing.T) {
 	for name, content := range map[string]string{"not JSON": "{", "no token": `{"client_id":"c"}`} {
 		t.Run(name, func(t *testing.T) {
