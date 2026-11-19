@@ -194,7 +194,16 @@ credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "b
 [[http.rules]]
 method = "POST"
 path = "/api/v1/repos/*/*/pulls/*/reviews"
+body_json = { event = ["COMMENT", "REQUEST_CHANGES"] }
 action = "allow"
+credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
+
+[[http.rules]]
+method = "POST"
+path = "/api/v1/repos/*/*/pulls/*/reviews"
+action = "approve"
+summary = "Submit a review that is not a comment"
+subject = "{5}#{7}"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]

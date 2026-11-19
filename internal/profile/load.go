@@ -1509,6 +1509,11 @@ func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("body_contains entries must not be empty")
 		}
 	}
+	for name, values := range r.BodyJSON {
+		if name == "" || len(values) == 0 {
+			return Rule{}, fmt.Errorf("body_json needs a field name and at least one value")
+		}
+	}
 	if slices.Contains(r.BodyLinePrefix, "") {
 		return Rule{}, fmt.Errorf("body_line_prefix entries must not be empty")
 	}
@@ -1544,7 +1549,7 @@ func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 		}
 		refs = append(refs, p)
 	}
-	rule := Rule{Method: method, Path: path, Refs: refs, BodyContains: r.BodyContains, BodyLinePrefix: r.BodyLinePrefix, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary, MCPServer: r.MCPServer}
+	rule := Rule{Method: method, Path: path, Refs: refs, BodyContains: r.BodyContains, BodyLinePrefix: r.BodyLinePrefix, BodyJSON: r.BodyJSON, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary, MCPServer: r.MCPServer}
 	if rule.Subject, err = ParseTemplate(r.Subject); err != nil {
 		return Rule{}, fmt.Errorf("subject %w", err)
 	}

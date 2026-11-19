@@ -215,7 +215,16 @@ link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/pulls/*/reviews/**"
+body_json = { event = ["COMMENT", "REQUEST_CHANGES"] }
 action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/*/reviews/**"
+action = "approve"
+summary = "Submit a review that is not a comment"
+subject = "{3}#{5}"
+link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 
 [[http.rules]]
 method = "POST"
@@ -380,6 +389,21 @@ graphql = { operation = "mutation" }
 body_contains = ["APPROVE"]
 action = "approve"
 summary = "Approve pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation" }
+body_contains = ["DISMISS"]
+action = "approve"
+summary = "Dismiss a pull request review"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["dismissPullRequestReview"] }
+action = "approve"
+summary = "Dismiss a pull request review"
 
 [[http.rules]]
 method = "POST"

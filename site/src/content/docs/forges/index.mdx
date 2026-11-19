@@ -89,10 +89,11 @@ For verified commits, create an SSH key for the profile and add it to GitHub as 
 
 The module adds these rules:
 
-- Go through: reviews that comment or request changes, and reruns of CI.
+- Go through: reviews with the event `COMMENT` or `REQUEST_CHANGES`, and reruns of CI.
+- Wait for your answer: every other review, including a review without an event or with an event in lower case.
 - Refused: Actions, Dependabot and Codespaces secrets. The webhooks and Actions secrets of organizations, and the SSH, GPG and signing keys of the user, are refused too.
 
-doriath does not read the arguments of a GraphQL mutation. Thus a mutation or review with the text `APPROVE` anywhere in it waits for your answer too, also when it only comments.
+doriath does not read the arguments of a GraphQL mutation. Thus a mutation or review with the text `APPROVE` or `DISMISS` anywhere in it waits for your answer too, also when it only comments.
 
 ## GitLab
 
@@ -109,7 +110,7 @@ GitLab verifies commits that an SSH key of the usage type Signing signs. Add the
 The module adds these rules:
 
 - Go through: the removal of an approval, and retries or cancels of pipelines and jobs. Job artifacts download from `cdn.artifacts.gitlab-static.net`.
-- Wait for your answer: tags, commits and file changes through the API, changes to project settings, and GraphQL requests.
+- Wait for your answer: tags, commits and file changes through the API, changes to project settings, and GraphQL requests. A note, discussion or description with a line that starts with `/` waits too, because GitLab runs it as a quick action such as `/merge` or `/approve`.
 - Refused: integrations, CI variables, triggers and runners, members, invitations and shares, deploy tokens, access tokens, protected branches and tags, push rules, remote mirrors, transfers and the deletion of the project. The personal access tokens, SSH keys and GPG keys of the user are refused too. So are changes to the keys and tokens of other users and service accounts, and to approval rules. Downloads of secure files are refused.
 
 The GitLab API names a project by its ID or by its path, such as `group%2Fsub%2Fproject`. The proxy reads these paths, so an allow for the session covers one project.
@@ -124,8 +125,8 @@ Create an access token in the settings of your account. Limit it to the reposito
 
 The module adds these rules:
 
-- Go through: reviews that comment or request changes.
-- Wait for your answer: reviews that approve a pull request, tags, and changes to files through the API.
+- Go through: reviews with the event `COMMENT` or `REQUEST_CHANGES`.
+- Wait for your answer: every other review, tags, and changes to files through the API.
 - Refused: Actions variables and runners, teams, branch protections, push mirrors and transfers. The webhooks and Actions settings of organizations and of the user, and the keys and tokens of the user, are refused too. Changes through the admin API are refused.
 
 ## Bitbucket

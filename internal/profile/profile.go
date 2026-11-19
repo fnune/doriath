@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net"
 	"net/http"
@@ -213,11 +214,15 @@ type Rule struct {
 	// BodyLinePrefix matches a request in which a line of a JSON string or
 	// form field starts with one of the prefixes, after spaces and tabs.
 	BodyLinePrefix []string
-	GraphQL        *GraphQLRule
-	Header         string
-	HeaderPrefix   string
-	HeaderGlob     string
-	Form           map[string]string
+	// BodyJSON matches a request whose JSON body names each key once, with a
+	// string value that equals one of the listed strings, and that carries
+	// no field of that name in the query or a form.
+	BodyJSON     map[string][]string
+	GraphQL      *GraphQLRule
+	Header       string
+	HeaderPrefix string
+	HeaderGlob   string
+	Form         map[string]string
 	// MCPTools narrows the rule to MCP tools/call requests for tools whose
 	// names match these globs. An allow rule needs every call in the body to
 	// match; other actions need one.
@@ -239,7 +244,7 @@ type RuleLink struct {
 
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || len(r.BodyLinePrefix) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || len(r.BodyLinePrefix) > 0 || len(r.BodyJSON) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
@@ -251,7 +256,7 @@ func (h HTTPHost) NeedsFormBody(method, path string, header http.Header) bool {
 		return false
 	}
 	return h.Operation.Form != "" || slices.ContainsFunc(h.Rules, func(r Rule) bool {
-		return (len(r.Form) > 0 || len(r.BodyLinePrefix) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
+		return (len(r.Form) > 0 || len(r.BodyLinePrefix) > 0 || len(r.BodyJSON) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
 	})
 }
 
@@ -559,7 +564,7 @@ func (h HTTPHost) DecidePush(method, path string, query url.Values, header http.
 		return mcpCalls{t, ok}
 	})
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchBodyLines(form, body) && r.matchGraphQL(graphql) && r.matchMCP(tools) && r.matchRefs(push) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchBodyLines(form, body) && r.matchBodyJSON(form, body) && r.matchGraphQL(graphql) && r.matchMCP(tools) && r.matchRefs(push) {
 			return r, true
 		}
 	}
@@ -621,6 +626,69 @@ func (r Rule) matchBodyLines(form func() url.Values, body []byte) bool {
 		}
 	}
 	return false
+}
+
+func (r Rule) matchBodyJSON(form func() url.Values, body []byte) bool {
+	if len(r.BodyJSON) == 0 {
+		return true
+	}
+	fields, ok := jsonObjectFields(body)
+	if !ok {
+		return false
+	}
+	for name, allowed := range r.BodyJSON {
+		for field := range form() {
+			if strings.EqualFold(field, name) {
+				return false
+			}
+		}
+		var found []json.RawMessage
+		for _, f := range fields {
+			if strings.EqualFold(f.key, name) {
+				if f.key != name {
+					return false
+				}
+				found = append(found, f.value)
+			}
+		}
+		var value string
+		if len(found) != 1 || json.Unmarshal(found[0], &value) != nil || !slices.Contains(allowed, value) {
+			return false
+		}
+	}
+	return true
+}
+
+type objectField struct {
+	key   string
+	value json.RawMessage
+}
+
+func jsonObjectFields(body []byte) ([]objectField, bool) {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return nil, false
+	}
+	var fields []objectField
+	for dec.More() {
+		key, err := dec.Token()
+		name, isString := key.(string)
+		if err != nil || !isString {
+			return nil, false
+		}
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return nil, false
+		}
+		fields = append(fields, objectField{name, value})
+	}
+	if _, err := dec.Token(); err != nil {
+		return nil, false
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, false
+	}
+	return fields, true
 }
 
 func (r Rule) matchGraphQL(parse func() ([]graphQLOperation, bool)) bool {

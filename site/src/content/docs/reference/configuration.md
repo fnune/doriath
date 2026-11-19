@@ -174,7 +174,9 @@ repositories = ["/repos/*/*"]
 # a header, mcp_tools (MCP tools by glob), body_contains (strings, also
 # inside JSON, where spaces and the case of keys do not count),
 # body_line_prefix (a line of a JSON string or form field that starts with
-# one of the strings, such as "/" for the quick actions of GitLab), or refs (the
+# one of the strings, such as "/" for the quick actions of GitLab),
+# body_json (JSON fields of the body that must hold one of the listed
+# strings exactly, such as event = ["COMMENT"]), or refs (the
 # refs that a git push updates, such as "refs/heads/agent/**"). Rules that
 # read the body refuse bodies over 1 MB and compressed bodies. See
 # "Branches for the agent" on the Forges page for refs.
