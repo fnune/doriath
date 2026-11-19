@@ -1329,6 +1329,20 @@ func TestTheListOfSeenHostsStaysBounded(t *testing.T) {
 	}
 }
 
+func TestAHostNameWithAnUnderscoreIsAccepted(t *testing.T) {
+	if !validTarget("my_service.internal", "443") || !validTarget("_dmarc.example.com", "") {
+		t.Error("a name with an underscore is refused")
+	}
+}
+
+func TestAnAllDigitLastLabelIsRefusedBecauseResolversReadItAsIPv4(t *testing.T) {
+	for _, host := range []string{"2130706433", "127.1", "a.0177"} {
+		if validTarget(host, "") {
+			t.Errorf("%q is accepted", host)
+		}
+	}
+}
+
 func TestAnEventIsStillLoggedForANewHostAfterTheSeenListFills(t *testing.T) {
 	s := &Server{seen: map[string]bool{}}
 	for i := range maxSeen + 20 {
@@ -1336,5 +1350,30 @@ func TestAnEventIsStillLoggedForANewHostAfterTheSeenListFills(t *testing.T) {
 	}
 	if !s.firstTime("intercept new.example.com") {
 		t.Error("a new host after a full list is not logged")
+	}
+}
+
+func TestAHostWithOddCharactersIsRefusedBeforeAnyRecord(t *testing.T) {
+	h := newHarness(t)
+	for _, target := range []string{"exa%0Ample.com:443", "exa mple.com:443", "evil.com/x:443", "-a.com:443", "a..com:443", "example.com:0443", "example.com:99999", ":443", "ex\x1b[31mample.com:443", "2130706433:443", "127.1:443"} {
+		conn, err := net.Dial("tcp", h.proxyURL.Host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: example.com:443\r\n\r\n", target)
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		_ = conn.Close()
+		if err != nil {
+			t.Errorf("CONNECT %q got no response: %v", target, err)
+		} else if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("CONNECT %q got %d, want 400", target, resp.StatusCode)
+		}
+	}
+	h.events.mu.Lock()
+	defer h.events.mu.Unlock()
+	for _, ev := range h.events.list {
+		if strings.ContainsAny(ev.Host, " %\x1b/") {
+			t.Errorf("an event names the host %q", ev.Host)
+		}
 	}
 }

@@ -15,8 +15,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -170,6 +172,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) absoluteHTTPS(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
+	if !validTarget(host, r.URL.Port()) {
+		deny(w, http.StatusBadRequest, "doriath: the URL needs a host name or an IP address")
+		return
+	}
 	target := profile.Target(host, r.URL.Port(), "443")
 	if !s.admit(w, r, target, r.URL.Port()) {
 		return
@@ -192,6 +198,10 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host = strings.ToLower(host)
+	if !validTarget(host, port) {
+		deny(w, http.StatusBadRequest, "doriath: CONNECT needs a host name or an IP address and a port number")
+		return
+	}
 	target := profile.Target(host, port, "443")
 	if !s.admit(w, r, target, port) {
 		return
@@ -435,6 +445,10 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 
 func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.URL.Hostname())
+	if !validTarget(host, r.URL.Port()) {
+		deny(w, http.StatusBadRequest, "doriath: the URL needs a host name or an IP address")
+		return
+	}
 	target := profile.Target(host, r.URL.Port(), "80")
 	if _, ok := s.policy.Intercepted(target); ok {
 		s.record(Event{Kind: "denied", Host: target, Method: r.Method, Path: r.URL.Path, Reason: "plain HTTP to an intercepted host"})
@@ -752,6 +766,31 @@ func matchPath(u *url.URL, encodedSlashes bool) (string, bool) {
 	}
 	clean := path.Clean(p)
 	return p, p == clean || (clean != "/" && p == clean+"/")
+}
+
+var hostLabel = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)
+
+func validTarget(host, port string) bool {
+	if port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 || strconv.Itoa(n) != port {
+			return false
+		}
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return !strings.Contains(host, "%")
+	}
+	name := strings.TrimSuffix(host, ".")
+	if name == "" || len(name) > 253 {
+		return false
+	}
+	labels := strings.Split(name, ".")
+	for _, label := range labels {
+		if !hostLabel.MatchString(label) {
+			return false
+		}
+	}
+	return strings.Trim(labels[len(labels)-1], "0123456789") != ""
 }
 
 func dropConnectionHeaders(h http.Header) {
