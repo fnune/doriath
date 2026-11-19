@@ -120,7 +120,7 @@
   <dt>Session</dt>
   <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span></dd>
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
-  {{with .Scope}}<dt>An answer for the session covers</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>For this session</dt><dd><code>{{.}}</code></dd>{{end}}
 </dl>
 {{with .Keep}}
 <div class="keep">
@@ -178,7 +178,7 @@
 
 {{define "task"}}{{if .Description}}{{template "described" .}}{{else}}{{template "profile" .}}{{end}}{{end}}
 
-{{define "subject"}}{{with .Subject}}<p class="subject">{{if $.Link.URL}}<a href="{{$.Link.URL}}" target="_blank" rel="noopener noreferrer">{{.}}</a>{{else}}{{.}}{{end}}</p>{{end}}{{with .Link.URL}}<a class="btn" href="{{.}}" target="_blank" rel="noopener noreferrer">{{$.Link.Label}}</a>{{end}}{{end}}
+{{define "subject"}}{{if or .Subject .Link.URL}}<div class="subject-line">{{with .Subject}}<p class="subject">{{if $.Link.URL}}<a href="{{$.Link.URL}}" target="_blank" rel="noopener noreferrer">{{.}}</a>{{else}}{{.}}{{end}}</p>{{end}}{{with .Link.URL}}<a class="btn" href="{{.}}" target="_blank" rel="noopener noreferrer">{{$.Link.Label}}</a>{{end}}</div>{{end}}{{end}}
 
 {{define "commands"}}{{with .Lead}}
 <div class="agent-text">
@@ -247,10 +247,11 @@
   {{range .Facts}}<dt>{{.Label}}</dt><dd>{{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Value}}</a>{{else}}{{.Value}}{{end}}</dd>
   {{end}}
   <dt>Session</dt>
-  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span>{{template "described" .Session}}<span class="sid">{{.Session.Cwd}}</span></dd>
+  <dd>{{template "profile" .Session}}<span class="sid">{{.Session.ID}}</span>{{template "described" .Session}}</dd>
+  {{with .Session.Cwd}}<dt>Folder</dt><dd><code>{{.}}</code></dd>{{end}}
   {{with .History}}<dt>Before</dt><dd>{{.}}</dd>{{end}}
   {{with .URL}}<dt>Link</dt><dd><code>{{.}}</code></dd>{{end}}
-  {{with .Scope}}<dt>An answer for the session covers</dt><dd><code>{{.}}</code></dd>{{end}}
+  {{with .Scope}}<dt>For this session</dt><dd><code>{{.}}</code></dd>{{end}}
 </dl>
 {{with .Command}}
 <div class="keep">

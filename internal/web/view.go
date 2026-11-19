@@ -272,7 +272,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		created:   r.Created,
 	}
 	if len(v.Facts) > 0 {
-		v.Subject = v.Facts[0].Value
+		v.Subject, v.Facts = v.Facts[0].Value, v.Facts[1:]
 	}
 	lead, chain := r.LeadCommand()
 	v.Lead, v.Chain = session.Printable(lead), printable(chain)

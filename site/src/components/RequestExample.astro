@@ -88,8 +88,10 @@ const pace = timer === "parked" ? "parked" : "";
     }
     <dl class="facts">
       <dt>Session</dt>
-      <dd><span class={`profile ${hue}`}>{profile}</span><span class="sid">{session}</span><span class="sid">{cwd}</span></dd>
-      <dt>An answer for the session covers</dt>
+      <dd><span class={`profile ${hue}`}>{profile}</span><span class="sid">{session}</span></dd>
+      <dt>Folder</dt>
+      <dd><code>{cwd}</code></dd>
+      <dt>For this session</dt>
       <dd><code>{scope}</code></dd>
     </dl>
     {

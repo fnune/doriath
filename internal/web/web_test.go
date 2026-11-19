@@ -617,3 +617,19 @@ func TestAWarnedRequestShowsTheWarningAndNoAllowForTheSession(t *testing.T) {
 		t.Errorf("an allow for the session went through: %d, %+v", w.Code, sessions.decided)
 	}
 }
+
+func TestTheSubjectOfARequestShowsOnceAboveItsFacts(t *testing.T) {
+	req := request("a1", approval.KindHTTP, "PUT api.github.com")
+	req.Action = "Merge pull request"
+	req.Facts = []approval.Fact{{Label: "About", Value: "app#42", URL: "https://github.com/acme/app/pull/42"}, {Label: "merge_method", Value: "squash"}}
+	req.Link = approval.Link{Label: "Open PR", URL: "https://github.com/acme/app/pull/42"}
+	_, h := setup(t, req)
+	body := get(h, "/?request=s1/a1", true).Body.String()
+	_, detail, found := strings.Cut(body, `<div class="detail-head">`)
+	if !found {
+		t.Fatal("no request detail on the page")
+	}
+	if strings.Count(detail, ">app#42<") != 1 || strings.Contains(detail, "<dt>About</dt>") || !strings.Contains(detail, "<dt>merge_method</dt>") {
+		t.Errorf("detail repeats the subject or drops a fact:\n%s", detail)
+	}
+}

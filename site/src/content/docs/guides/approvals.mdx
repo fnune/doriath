@@ -53,7 +53,7 @@ While an `http` request or a connection to a host the profile does not name wait
 ## Answers
 
 - Allow once lets this request through. The next identical request asks again.
-- Allow for this session lets identical requests through until the session ends. The line "An answer for the session covers" on the request shows what is identical.
+- Allow for this session lets identical requests through until the session ends. The line "For this session" on the request shows what is identical.
 - Deny for this session refuses identical requests until the session ends, and doriath does not ask you again. Requests for hosts, paths, reads, forwards and connects offer it.
 - Deny refuses the request, and the agent gets an error. The next identical request asks again.
 

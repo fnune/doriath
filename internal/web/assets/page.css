@@ -49,8 +49,9 @@ a.brand { color: inherit; text-decoration: none; }
 .doriath-ui .btn.copy { padding: 5px 12px; font-size: 13px; }
 .doriath-ui .item .subject { grid-column: 1 / -1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doriath-ui .item > .ago { justify-self: end; font-size: 12.5px; color: var(--muted); }
-.doriath-ui .detail-head .subject { margin: 2px 0 0; font-size: 14.5px; overflow-wrap: anywhere; }
-.doriath-ui .detail-head .btn { margin-top: 8px; color: var(--ink); text-decoration: none; }
+.doriath-ui .detail-head .subject-line { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 10px; }
+.doriath-ui .detail-head .subject { margin: 0; font-size: 14.5px; overflow-wrap: anywhere; }
+.doriath-ui .detail-head .btn { padding: 4px 12px; font-size: 13px; color: var(--ink); text-decoration: none; }
 .doriath-ui .detail-head .btn:hover { border-color: var(--ring); }
 .doriath-ui .detail-head .subject a, .doriath-ui .facts a { color: var(--ring); text-decoration-color: color-mix(in srgb, var(--ring) 40%, transparent); text-underline-offset: 2px; }
 .doriath-ui .item > .who { overflow: hidden; flex-wrap: nowrap; white-space: nowrap; }
