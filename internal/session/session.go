@@ -195,7 +195,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	steps.step("resolve the profile")
 	listings := newListingCache()
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
-	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Logins)
+	req.Profile = refuseOwnLogins(withHookFolders(withLinkedStores(resolved, listings), listings, gitHooksPath(deps.Git)), deps.Logins)
 	stopNote()
 	steps.step("find repositories")
 	if err := CheckSigning(req.Profile, deps.VCS); err != nil {

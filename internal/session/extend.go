@@ -159,7 +159,7 @@ func (s *Session) grantModule(ctx context.Context, module, root string) error {
 		return errors.New("the jail is not running yet")
 	}
 	listings := newListingCache()
-	ext = withLinkedStores(ext, listings)
+	ext = withHookFolders(withLinkedStores(ext, listings), listings, gitHooksPath(s.deps.Git))
 	for _, m := range ext.Mounts {
 		if m.Create {
 			if err := jail.CheckLinks(ext, osHost{}, m.Path); err != nil {

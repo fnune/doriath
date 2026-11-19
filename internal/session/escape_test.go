@@ -25,7 +25,7 @@ import (
 //
 //	# threat: one line on what the agent would gain
 //	# expect: held | works | gap
-//	# setup: live-repo | jj-repo | store-repo | host-listener | rebinding | hidden | work-repo | repo-profiles
+//	# setup: live-repo | hooks-repo | jj-repo | store-repo | host-listener | rebinding | hidden | work-repo | repo-profiles
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
@@ -135,6 +135,23 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 			}
 			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
 			replacements = append(replacements, "{{LIVE_REPO}}", repo)
+		case "hooks-repo":
+			repo := filepath.Join(e.home, "hooked")
+			if err := os.MkdirAll(filepath.Join(repo, ".githooks"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(repo, ".githooks", "pre-commit"), []byte("#!/bin/sh\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"config", "core.hooksPath", ".githooks"}} {
+				cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+				cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v\n%s", args, err, out)
+				}
+			}
+			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
+			replacements = append(replacements, "{{HOOKS_REPO}}", repo)
 		case "jj-repo":
 			jj, err := exec.LookPath("jj")
 			if err != nil {

@@ -143,3 +143,16 @@ func hasLinkBelow(root, path string, known map[string]string) bool {
 	}
 	return false
 }
+
+func WorktreeCheckouts(store string) []string {
+	var dirs []string
+	for _, name := range listWorktrees(store) {
+		admin := filepath.Join(store, "worktrees", name)
+		data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+		if err != nil {
+			continue
+		}
+		dirs = append(dirs, filepath.Dir(resolve(admin, strings.TrimSpace(string(data)))))
+	}
+	return dirs
+}
