@@ -813,6 +813,8 @@ func TestCanonicalPath(t *testing.T) {
 		"/repos/a/x/../b/pulls/1/merge": false,
 		"/repos/a%2Fb/pulls/1/merge":    false,
 		"//":                            false,
+		"/repos/a/b/pulls/1%23/merge":   false,
+		"/repos/a/b/pulls/1%3F/merge":   false,
 	} {
 		u, err := url.Parse("https://api.github.com" + raw)
 		if err != nil {
@@ -848,6 +850,38 @@ func TestEscapedMutationIsCaught(t *testing.T) {
 	}
 	if body(t, resp); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("a different case got past the rule: %d", resp.StatusCode)
+	}
+}
+
+func TestAFragmentMarkInThePathCannotHideTheRestFromTheRules(t *testing.T) {
+	h := newHarness(t)
+	req, _ := http.NewRequest(http.MethodPut, "https://api.github.com", nil)
+	req.URL.Path = "/repos/a/b/pulls/1#/merge"
+	resp, err := h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body(t, resp); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("a path with a # got through: %d", resp.StatusCode)
+	}
+}
+
+func TestHeadersThatConnectionNamesDoNotChangeTheCredentialOrTheRules(t *testing.T) {
+	h := newHarness(t)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
+	req.Header.Set("Connection", "Authorization, X-Foo")
+	req.Header.Set("X-Foo", "bar")
+	resp, err := h.client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body(t, resp)
+	got, _ := h.upstream.last(t)
+	if got.Header.Get("Authorization") != "Bearer real-token" {
+		t.Errorf("Authorization = %q", got.Header.Get("Authorization"))
+	}
+	if got.Header.Get("X-Foo") != "" {
+		t.Errorf("X-Foo = %q, which the rules never saw", got.Header.Get("X-Foo"))
 	}
 }
 

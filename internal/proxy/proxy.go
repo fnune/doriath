@@ -296,6 +296,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		deny(w, http.StatusBadRequest, "doriath: the request path must be in canonical form (no //, ./, ../ or encoded slashes)")
 		return
 	}
+	dropConnectionHeaders(r.Header)
 	var body []byte
 	needsBody := rules.NeedsBody(r.Method, reqPath) || rules.NeedsFormBody(r.Method, reqPath, r.Header)
 	if needsBody && !identityEncoding(r.Header.Get("Content-Encoding")) {
@@ -717,7 +718,7 @@ func pipe(a, b net.Conn) {
 
 func matchPath(u *url.URL, encodedSlashes bool) (string, bool) {
 	raw := strings.ToLower(u.EscapedPath())
-	if strings.Contains(raw, "%5c") || strings.Contains(raw, "%00") || strings.Contains(u.Path, "\\") || strings.Contains(u.Path, ";") {
+	if strings.Contains(raw, "%5c") || strings.Contains(raw, "%00") || strings.ContainsAny(u.Path, "\\;?#") {
 		return "", false
 	}
 	p := u.Path
@@ -746,6 +747,26 @@ func matchPath(u *url.URL, encodedSlashes bool) (string, bool) {
 	}
 	clean := path.Clean(p)
 	return p, p == clean || (clean != "/" && p == clean+"/")
+}
+
+func dropConnectionHeaders(h http.Header) {
+	keepUpgrade := false
+	for _, value := range h.Values("Connection") {
+		for token := range strings.SplitSeq(value, ",") {
+			name := http.CanonicalHeaderKey(strings.TrimSpace(token))
+			if name == "Upgrade" {
+				keepUpgrade = true
+				continue
+			}
+			if name != "" {
+				h.Del(name)
+			}
+		}
+	}
+	h.Del("Connection")
+	if keepUpgrade && h.Get("Upgrade") != "" {
+		h.Set("Connection", "Upgrade")
+	}
 }
 
 func identityEncoding(enc string) bool {
