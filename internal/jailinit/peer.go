@@ -118,7 +118,7 @@ func Describe(procRoot string, pid int) (Peer, error) {
 	}
 	peer.Code = executableMappings(maps)
 	identifyMappings(dir, peer.Code)
-	peer.Commands = commandChain(os.ReadFile, procRoot, pid)
+	peer.Commands = commandChain(os.ReadFile, procRoot, pid, os.Getpid())
 	return peer, nil
 }
 

@@ -9,16 +9,16 @@ import (
 
 const maxCommandDepth = 6
 
-func commandChain(read func(string) ([]byte, error), procRoot string, pid int) []string {
+func commandChain(read func(string) ([]byte, error), procRoot string, pid, self int) []string {
 	var lines []string
-	for depth := 0; pid > 1 && depth < maxCommandDepth; depth++ {
+	for depth := 0; pid > 1 && pid != self && depth < maxCommandDepth; depth++ {
 		dir := filepath.Join(procRoot, strconv.Itoa(pid))
 		cmdline, err := read(filepath.Join(dir, "cmdline"))
 		if err != nil {
 			break
 		}
-		if args := strings.Fields(string(bytes.ReplaceAll(cmdline, []byte{0}, []byte{' '}))); len(args) > 0 {
-			lines = append(lines, strings.Join(args, " "))
+		if line := commandLine(cmdline); line != "" {
+			lines = append(lines, line)
 		}
 		stat, err := read(filepath.Join(dir, "stat"))
 		if err != nil {
@@ -27,6 +27,25 @@ func commandChain(read func(string) ([]byte, error), procRoot string, pid int) [
 		pid = parentInStat(stat)
 	}
 	return lines
+}
+
+func commandLine(cmdline []byte) string {
+	trimmed := strings.TrimSuffix(string(cmdline), "\x00")
+	if trimmed == "" {
+		return ""
+	}
+	var args []string
+	for arg := range strings.SplitSeq(trimmed, "\x00") {
+		args = append(args, shellQuote(arg))
+	}
+	return strings.Join(args, " ")
+}
+
+func shellQuote(arg string) string {
+	if arg != "" && !strings.ContainsAny(arg, " \t\n'\"\\$`;&|<>(){}*?[]#~") {
+		return arg
+	}
+	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
 func parentInStat(stat []byte) int {
