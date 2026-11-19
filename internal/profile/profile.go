@@ -585,6 +585,9 @@ func (h HTTPHost) unclearOperation(method, path string, query url.Values, header
 	if h.Operation.Header != "" && len(header.Values(h.Operation.Header)) > 1 {
 		return "the request names its operation in more than one " + h.Operation.Header + " header"
 	}
+	if h.Operation.Header != "" && h.Operation.Form != "" && len(header.Values(h.Operation.Header)) > 0 && len(fields[h.Operation.Form]) > 0 {
+		return "the request names its operation in both the " + h.Operation.Header + " header and the " + h.Operation.Form + " field"
+	}
 	if h.Operation.Form != "" && len(fields[h.Operation.Form]) > 1 {
 		return "the request names its operation in more than one " + h.Operation.Form + " field"
 	}

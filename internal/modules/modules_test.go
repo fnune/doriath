@@ -429,6 +429,40 @@ func TestTheAWSModuleRefusesWhatWouldBringCredentialsIntoTheJail(t *testing.T) {
 	}
 }
 
+func TestTheAWSModuleHoldsQueryActionsHoweverTheRequestIsShaped(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte("modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	mixed := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}, "X-Amz-Target": {"Svc.DescribeThings"}}
+	for _, c := range []struct {
+		name, host, method, query string
+		header                    http.Header
+		body, want                string
+	}{
+		{"a GET that terminates instances", "ec2.us-east-1.amazonaws.com", "GET", "Action=TerminateInstances&InstanceId.1=i-1", http.Header{}, "", "approve"},
+		{"a GET that deletes a queue", "sqs.us-east-1.amazonaws.com", "GET", "Action=DeleteQueue&QueueUrl=x", http.Header{}, "", "approve"},
+		{"a GET that describes instances", "ec2.us-east-1.amazonaws.com", "GET", "Action=DescribeInstances", http.Header{}, "", "allow"},
+		{"a GET that lists queues", "sqs.us-east-1.amazonaws.com", "GET", "Action=ListQueues", http.Header{}, "", "allow"},
+		{"a GET without an action", "my-bucket.s3.us-east-1.amazonaws.com", "GET", "", http.Header{}, "", "allow"},
+		{"a GET that asks for a session token", "sts.amazonaws.com", "GET", "Action=GetSessionToken", http.Header{}, "", "deny"},
+		{"a GET that asks for a web identity token", "sts.amazonaws.com", "GET", "Action=GetWebIdentityToken", http.Header{}, "", "deny"},
+		{"a form that names the operation in a header too", "ec2.us-east-1.amazonaws.com", "POST", "", mixed, "Action=TerminateInstances", "deny"},
+		{"a form without a header", "ec2.us-east-1.amazonaws.com", "POST", "", form, "Action=TerminateInstances", "approve"},
+	} {
+		h, ok := p.Intercepted(c.host)
+		if !ok {
+			t.Fatalf("%s is not intercepted", c.host)
+		}
+		q, _ := url.ParseQuery(c.query)
+		if r, _ := h.DecideWithQuery(c.method, "/", q, c.header, []byte(c.body)); string(r.Action) != c.want {
+			t.Errorf("%s: %s, want %s", c.name, r.Action, c.want)
+		}
+	}
+}
+
 func TestAKMSDataKeyWaitsWithItsOwnSummaryBecauseItCarriesAPlaintextKey(t *testing.T) {
 	l := &profile.Loader{Profiles: fstest.MapFS{"a.toml": {Data: []byte("modules = [\"aws\"]\n[secrets.aws]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
 	p, err := l.Load("a")

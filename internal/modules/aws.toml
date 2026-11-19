@@ -196,6 +196,13 @@ action = "deny"
 summary = "Get Amazon Connect federation tokens: they would enter the jail"
 
 [[http.rules]]
+method = "*"
+path = "/**"
+form = { Action = "GetWebIdentityToken" }
+action = "deny"
+summary = "Get a web identity token: it would enter the jail"
+
+[[http.rules]]
 method = "POST"
 path = "/"
 header = "X-Amz-Target"
@@ -252,6 +259,12 @@ method = "*"
 path = "/**"
 form = { Action = "List*" }
 action = "allow"
+
+[[http.rules]]
+method = "GET"
+path = "/**"
+form = { Action = "*" }
+action = "approve"
 
 [[http.rules]]
 method = "POST"
