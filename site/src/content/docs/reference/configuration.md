@@ -547,7 +547,7 @@ With `[vcs] store = true`, each git or jj repository gets a writable store. The 
 | Repository | Writable                                                                                                                                                    | Read-only                                                                                                                                                                             |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | git        | `.git` and its submodule stores, such as `objects`, `refs`, `HEAD`, `index`, `packed-refs` and their lock files                                             | `config`, `config.worktree`, `hooks`, `info`, `remotes`, `branches`, `commondir`, `objects/info/alternates`, `rr-cache`, existing packs, and each worktree's `commondir` and `gitdir` |
-| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store`, `store/extra` and `git_import_export.lock` | the rest of `.jj/repo`, such as `config.toml`, `config-id`, `store/git_target` and `store/type`, and jj's git store as above                                                          |
+| jj         | `.jj/working_copy`, and in `.jj/repo` the `index`, `op_heads`, `op_store`, `submodule_store`, `workspace_store`, `store/extra` and `git_import_export.lock` | the rest of `.jj/repo`, such as `config.toml`, `config-id`, `store/git_target` and `store/type`, `.jj/workspace-config.toml`, `.jj/workspace-config-id`, and jj's git store as above  |
 
 In the jail, git reads a global config that doriath builds from yours. It leaves out credentials, URL rewrites, remotes, includes, hooks and settings that run a program. doriath copies in the files that your config makes git read, such as the global ignore rules, attributes and commit template, by default from `~/.config/git`. Thus git and jj in the jail ignore the same files as on your machine.
 
@@ -555,10 +555,15 @@ In a linked git worktree or a secondary jj workspace, doriath mounts the store o
 
 At the start, doriath records your branches and bookmarks, and copies the loose objects. Existing packs, which hold almost all history, stay read-only. Thus a `git gc` in the jail cannot remove the objects that your branches point to. It cannot remove old packs either, so each gc writes the whole history to one more pack. For this reason, the git config of the jail sets `gc.auto = 0` and `maintenance.auto = false`.
 
+doriath also reads `core.hooksPath` from the store config and from your global config. If the folder that it names lies in a write mount, doriath holds it read-only.
+
 At the end, doriath does these steps:
 
 - It checks that the content of each object that the agent wrote has the name of that object, and removes the objects that fail. In a new pack, it checks only the objects that the start did not have. If few objects are new, doriath keeps them as loose objects and removes the pack. A pack of the whole history, from a `git gc`, thus takes less than a second. A large pack of mostly new objects, such as one from a fetch, can take a minute. doriath shows a progress bar while it checks.
-- It keeps the start value of each branch that the agent moved, as `refs/doriath/<session>/<branch>`.
+- It keeps the start value of each branch, tag and stash that the agent moved or deleted, under `refs/doriath/`. `doriath restore` puts them back. A tag has its full name there, such as `refs/tags/v1`. The stash returns to its latest entry.
+- It removes each `refs/replace` ref that the session created, because it makes git on your machine show other content for an object.
+- It removes a link that the agent put in place of a folder of the store, such as `worktrees`, `lfs` or `modules`.
+- It moves aside the `.git` of each nested repository that the agent added to the index, and each new submodule store. A submodule that the agent adds with `git submodule add` is set aside too. Add it yourself if you want it.
 - It removes new LFS objects whose content does not match their name, because your checkout takes file content from the object with that name.
 - It repairs each worktree that the agent added. The `.git` file and `commondir` point to your repository again, and doriath removes a `config.worktree` that the agent added.
 - It moves aside, to `NAME.doriath-<session>`, what the agent left in a store for git on your machine to act on: a rebase, cherry-pick or revert to continue, a new `rr-cache`, and a new submodule store.
