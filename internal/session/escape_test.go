@@ -25,7 +25,7 @@ import (
 //
 //	# threat: one line on what the agent would gain
 //	# expect: held | works | gap
-//	# setup: live-repo | store-repo | host-listener | rebinding | hidden | work-repo | repo-profiles
+//	# setup: live-repo | jj-repo | store-repo | host-listener | rebinding | hidden | work-repo | repo-profiles
 //
 // "works" scripts check that something legitimate still works, so the corpus
 // cannot pass by refusing everything. "gap" scripts document a known limit
@@ -135,6 +135,26 @@ func (e *env) prepareEscape(t *testing.T, script, setup string) (string, string)
 			}
 			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
 			replacements = append(replacements, "{{LIVE_REPO}}", repo)
+		case "jj-repo":
+			jj, err := exec.LookPath("jj")
+			if err != nil {
+				t.Skip("jj not installed")
+			}
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(e.home, ".config"))
+			repo := filepath.Join(e.home, "jjlive")
+			if err := os.MkdirAll(repo, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(jj, "git", "init", "--colocate", repo)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("jj git init: %v\n%s", err, out)
+			}
+			extra += fmt.Sprintf("\n[[mounts]]\npath = %q\nmode = \"write\"\n", repo)
+			bin, err := filepath.EvalSymlinks(jj)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replacements = append(replacements, "{{JJ_REPO}}", repo, "{{JJ_BIN}}", bin)
 		case "host-listener":
 			l, err := net.Listen("tcp", "127.0.0.1:0")
 			if err != nil {

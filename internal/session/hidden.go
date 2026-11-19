@@ -30,19 +30,36 @@ func (s *Session) holdControlPaths() error {
 func (s *Session) jjSecureConfigs(p *profile.Profile, host jail.Host) (binds []jail.Bind, warnings []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	leftForJJToMigrate := map[string]bool{}
 	for _, jjRepo := range jail.JJRepos(p, host) {
+		workspace := filepath.Dir(filepath.Dir(jjRepo))
 		dir, err := vcs.JJSecureConfig(ctx, s.vcsTools(), jjRepo)
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("jj in the jail may fail in %s: %v", filepath.Dir(filepath.Dir(jjRepo)), err))
+			warnings = append(warnings, fmt.Sprintf("jj in the jail may fail in %s: %v", workspace, err))
 			continue
 		}
 		if dir == "" {
+			leftForJJToMigrate[workspace] = true
 			continue
 		}
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			continue
 		}
 		binds = append(binds, jail.Bind{Source: dir, Dest: filepath.Join(s.deps.Paths.Home, ".config", "jj", "repos", filepath.Base(dir)), ReadOnly: true})
+	}
+	for _, workspace := range jail.JJWorkspaces(p, host) {
+		if leftForJJToMigrate[workspace] {
+			continue
+		}
+		dir, err := vcs.JJWorkspaceConfig(ctx, s.vcsTools(), workspace)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("jj in the jail may fail in %s: %v", workspace, err))
+			continue
+		}
+		if info, err := os.Stat(dir); dir == "" || err != nil || !info.IsDir() {
+			continue
+		}
+		binds = append(binds, jail.Bind{Source: dir, Dest: filepath.Join(s.deps.Paths.Home, ".config", "jj", "workspaces", filepath.Base(dir)), ReadOnly: true})
 	}
 	return binds, warnings
 }

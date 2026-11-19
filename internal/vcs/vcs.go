@@ -668,6 +668,34 @@ func JJSecureConfig(ctx context.Context, t Tools, jjRepo string) (string, error)
 	return filepath.Dir(strings.TrimSpace(out)), nil
 }
 
+func JJWorkspaceConfig(ctx context.Context, t Tools, workspace string) (string, error) {
+	if t.JJ == "" {
+		return "", nil
+	}
+	legacy := filepath.Join(workspace, ".jj", "workspace-config.toml")
+	if _, err := os.Lstat(filepath.Join(workspace, ".jj", "workspace-config-id")); errors.Is(err, fs.ErrNotExist) {
+		info, err := os.Lstat(legacy)
+		switch {
+		case err == nil && info.Mode().IsRegular() && info.Size() == 0:
+			if err := os.Remove(legacy); err != nil {
+				return "", err
+			}
+		case err == nil:
+			return "", fmt.Errorf("%s holds a workspace config in the place jj used before. Read it, since an agent could have written it, then run `jj config path --workspace` there to move it", legacy)
+		case !errors.Is(err, fs.ErrNotExist):
+			return "", err
+		}
+	}
+	out, err := runIn(ctx, workspace, t.JJ, "--repository", workspace, "--ignore-working-copy", "config", "path", "--workspace")
+	if err != nil {
+		if strings.Contains(err.Error(), "unexpected argument") {
+			return "", nil
+		}
+		return "", err
+	}
+	return filepath.Dir(strings.TrimSpace(out)), nil
+}
+
 func bookmarks(ctx context.Context, t Tools, repo string) (map[string]string, error) {
 	out, err := run(ctx, t.JJ, "--repository", repo, "--ignore-working-copy", "--color", "never", "bookmark", "list", "-T", `if(!remote && normal_target, name ++ " " ++ normal_target.commit_id() ++ "\n")`)
 	if err != nil {

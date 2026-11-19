@@ -262,6 +262,11 @@ func Guards(p *profile.Profile, host Host) []string {
 	return out
 }
 
+func JJWorkspaces(p *profile.Profile, host Host) []string {
+	g, _ := mountGuards(p, Layout{}, host)
+	return slices.Compact(slices.Sorted(slices.Values(g.jjWorkspaces)))
+}
+
 func GitRoots(p *profile.Profile, host Host) []string {
 	g, _ := mountGuards(p, Layout{}, host)
 	return g.roots
@@ -328,12 +333,13 @@ func uniqueBinds(binds []Bind) []Bind {
 }
 
 type guards struct {
-	host    Host
-	binds   []Bind
-	missing []Placeholder
-	roots   []string
-	jjRepos []string
-	guarded map[[2]string]bool
+	host         Host
+	binds        []Bind
+	missing      []Placeholder
+	roots        []string
+	jjRepos      []string
+	jjWorkspaces []string
+	guarded      map[[2]string]bool
 }
 
 func (g *guards) guard(src, dest string, hold *Placeholder) {
@@ -431,8 +437,17 @@ var skipWalk = map[string]bool{".git": true, ".jj": true, "node_modules": true, 
 
 var jjControlFiles = map[string]*Placeholder{"config.toml": {}, "config-id": nil, "store/git_target": nil, "store/type": nil}
 
+var jjWorkspaceFiles = map[string]*Placeholder{"workspace-config-id": nil, "workspace-config.toml": {}}
+
 func (g *guards) jj(repo string) {
 	jjRepo := filepath.Join(repo, ".jj", "repo")
+	if g.host.Kind(filepath.Join(repo, ".jj")) == "dir" {
+		g.jjWorkspaces = append(g.jjWorkspaces, repo)
+		for _, name := range slices.Sorted(maps.Keys(jjWorkspaceFiles)) {
+			p := filepath.Join(repo, ".jj", name)
+			g.guard(p, p, jjWorkspaceFiles[name])
+		}
+	}
 	switch g.host.Kind(jjRepo) {
 	case "file":
 		workspacePointer := jjRepo

@@ -253,6 +253,7 @@ func TestMissingControlPathsAreHeld(t *testing.T) {
 		".git/objects/info/alternates":      {},
 		".git/worktrees/wt/config.worktree": {},
 		".jj/repo/config.toml":              {},
+		".jj/workspace-config.toml":         {},
 	}
 	for rel, w := range want {
 		if g, ok := got[rel]; !ok || g.Dir != w.Dir || g.Content != w.Content {
@@ -286,7 +287,7 @@ func TestSecondaryWorkspacePointerIsReadOnly(t *testing.T) {
 	h := host()
 	h[repo+"/.jj"] = "dir"
 	h[repo+"/.jj/repo"] = "file"
-	s, err := Plan(testProfile(), layout(), opts(), h)
+	s, err := Plan(testProfile(), layout(), opts(), held(testProfile(), h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -737,5 +738,24 @@ func TestEnclosingIsTheDeepestBindAbovePath(t *testing.T) {
 		if !ok && want != "" || ok && (got.Dest != want || got.Source != want) {
 			t.Errorf("enclosing(%s) = %v %v, want %s", path, got, ok, want)
 		}
+	}
+}
+
+func TestTheJJWorkspaceConfigOfAWritableRepositoryStaysReadOnly(t *testing.T) {
+	repo := "/home/u/Development/app"
+	h := host()
+	h[repo+"/.jj"] = "dir"
+	h[repo+"/.jj/repo"] = "dir"
+	h[repo+"/.jj/workspace-config-id"] = "file"
+	h = held(testProfile(), h)
+	s, err := Plan(testProfile(), layout(), opts(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode(s.Binds, repo+"/.jj/workspace-config-id") != "read" {
+		t.Error("workspace-config-id, which picks the jj config host jj trusts, is writable")
+	}
+	if got := JJWorkspaces(testProfile(), h); !slices.Equal(got, []string{repo}) {
+		t.Errorf("JJWorkspaces = %q", got)
 	}
 }

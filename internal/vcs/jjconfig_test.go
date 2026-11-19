@@ -93,3 +93,46 @@ func TestJJSecureConfigWithoutJJDoesNothing(t *testing.T) {
 		t.Errorf("JJSecureConfig = %q, %v", dir, err)
 	}
 }
+
+func TestJJWorkspaceConfigGivesAWorkspaceItsID(t *testing.T) {
+	jjRepo, tools := securedJJRepo(t)
+	workspace := filepath.Dir(filepath.Dir(jjRepo))
+	dir, err := JJWorkspaceConfig(context.Background(), tools, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := os.ReadFile(filepath.Join(workspace, ".jj", "workspace-config-id"))
+	if err != nil || filepath.Base(dir) != string(id) {
+		t.Errorf("secure config %s, workspace-config-id %q, %v", dir, id, err)
+	}
+}
+
+func TestJJWorkspaceConfigRemovesAnEmptyLegacyFileFirst(t *testing.T) {
+	jjRepo, tools := securedJJRepo(t)
+	workspace := filepath.Dir(filepath.Dir(jjRepo))
+	legacy := filepath.Join(workspace, ".jj", "workspace-config.toml")
+	if err := os.WriteFile(legacy, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := JJWorkspaceConfig(context.Background(), tools, workspace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(legacy); !os.IsNotExist(err) {
+		t.Errorf("the empty legacy file stays: %v", err)
+	}
+}
+
+func TestJJWorkspaceConfigDoesNotAdoptWhatTheAgentWrote(t *testing.T) {
+	jjRepo, tools := securedJJRepo(t)
+	workspace := filepath.Dir(filepath.Dir(jjRepo))
+	legacy := filepath.Join(workspace, ".jj", "workspace-config.toml")
+	if err := os.WriteFile(legacy, []byte("[ui]\npager = \"touch owned\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := JJWorkspaceConfig(context.Background(), tools, workspace); err == nil {
+		t.Fatal("doriath moved a legacy workspace config with content into your config")
+	}
+	if _, err := os.Lstat(filepath.Join(workspace, ".jj", "workspace-config-id")); err == nil {
+		t.Error("doriath gave the workspace an id, which makes jj adopt the file")
+	}
+}
