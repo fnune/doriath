@@ -100,9 +100,10 @@ func Splice(a, b net.Conn) {
 	wg.Wait()
 }
 
-// Run starts the bridges, runs argv and returns its exit code. Terminal
-// signals reach the agent directly, because it shares the foreground process
-// group. The others are forwarded.
+// Run starts the bridges, runs argv and returns its exit code. The agent runs
+// in its own process group, which takes the foreground of the terminal, so
+// that kill 0 reaches only the agent. Terminal signals reach that group
+// directly. The others are forwarded.
 func Run(forwards []Forward, argv []string) (int, error) {
 	if len(argv) == 0 {
 		return 2, errors.New("init: no command")
@@ -133,6 +134,7 @@ func Run(forwards []Forward, argv []string) (int, error) {
 	}
 	cmd := exec.Command(path, argv[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.SysProcAttr = agentProcAttr()
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	sigs := make(chan os.Signal, 4)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH)
@@ -170,6 +172,17 @@ func takeTerminal(fd int) error {
 		return err
 	}
 	return unix.IoctlSetInt(fd, unix.TIOCSCTTY, 0)
+}
+
+func agentProcAttr() *syscall.SysProcAttr {
+	attr := &syscall.SysProcAttr{Setpgid: true}
+	for fd := 0; fd <= 2; fd++ {
+		if _, err := unix.IoctlGetInt(fd, unix.TIOCGSID); err == nil {
+			attr.Foreground, attr.Ctty = true, fd
+			break
+		}
+	}
+	return attr
 }
 
 func reapUntil(pid int) (syscall.WaitStatus, error) {

@@ -921,6 +921,9 @@ func (s *Session) exec(ctx context.Context, spec jail.Spec) (int, error) {
 	}
 	err = cmd.Wait()
 	s.timings.step("run the command")
+	if tty := firstTerminal(s.deps.Stdin, s.deps.Stdout, s.deps.Stderr); tty != nil && bar == nil {
+		takeBackForeground(tty)
+	}
 	close(done)
 	if bar != nil {
 		_ = bar.Close()
