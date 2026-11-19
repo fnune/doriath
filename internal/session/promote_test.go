@@ -409,3 +409,27 @@ func TestAWriteGrantLeavesGuardsInsideAReadOnlyMountToThatMount(t *testing.T) {
 		t.Errorf("a guard inside the read-only vendor mount would pin it writable: %v", guards)
 	}
 }
+
+func TestAStoreTheAgentMadeGetsNoGitConfigEdit(t *testing.T) {
+	s := newTestSession(t, nil)
+	repo := filepath.Join(s.home, "repo")
+	real := filepath.Join(repo, ".git")
+	fake := filepath.Join(repo, "evil")
+	for _, store := range []string{real, fake} {
+		mkdirAll(t, filepath.Join(store, "objects"))
+		for _, name := range []string{"HEAD", "config"} {
+			if err := os.WriteFile(filepath.Join(store, name), []byte("[core]\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	s.repository = repo
+	s.req.Profile.GitEdits = map[string]*profile.Edit{"config": {Format: profile.FormatGitConfig}}
+	s.req.Profile.Mounts = []profile.Mount{{Path: repo, Mode: profile.ModeWrite}, {Path: real + "/config", Mode: profile.ModeRead}}
+	if _, rule, err := s.editRule(filepath.Join(real, "config")); err != nil || rule.Format != profile.FormatGitConfig {
+		t.Errorf("the session's own store: rule %+v, err %v", rule, err)
+	}
+	if _, rule, err := s.editRule(filepath.Join(fake, "config")); err == nil && rule.Format == profile.FormatGitConfig {
+		t.Error("a store that the agent made got the git config rule")
+	}
+}

@@ -5,12 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/fnune/doriath/internal/profile"
 )
@@ -227,40 +230,93 @@ func commonLines(a, b []string) []string {
 	return out
 }
 
-// Apply writes the changes into path. For git config, it changes only the
-// settings in changes, on the file as it is now, so that nothing else from
-// the agent's content lands. The write keeps the file's inode, which the
-// jail's read-only mount points at.
-func Apply(ctx context.Context, git, path string, format profile.EditFormat, new []byte, changes []Change) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", path)
-	}
-	content := new
-	if format == profile.FormatGitConfig {
-		if content, err = applyGit(ctx, git, path, changes); err != nil {
-			return err
-		}
-	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(content); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
+type Checked struct {
+	path    string
+	dev     uint64
+	ino     uint64
+	Content []byte
 }
 
-func applyGit(ctx context.Context, git, path string, changes []Change) ([]byte, error) {
-	current, err := os.ReadFile(path)
+const maxCurrent = 4 << 20
+
+func Check(path string) (Checked, error) {
+	f, err := openStrict(path, os.O_RDONLY)
 	if err != nil {
+		return Checked{}, err
+	}
+	defer f.Close()
+	st, err := regular(f)
+	if err != nil {
+		return Checked{}, fmt.Errorf("%s: %w", path, err)
+	}
+	content, err := io.ReadAll(io.LimitReader(f, maxCurrent+1))
+	if err != nil {
+		return Checked{}, err
+	}
+	if len(content) > maxCurrent {
+		return Checked{}, fmt.Errorf("%s is larger than %d bytes", path, maxCurrent)
+	}
+	return Checked{path: path, dev: st.Dev, ino: st.Ino, Content: content}, nil
+}
+
+func openStrict(path string, flags int) (*os.File, error) {
+	fd, err := unix.Openat2(unix.AT_FDCWD, path, &unix.OpenHow{
+		Flags:   uint64(flags | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK),
+		Resolve: unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open %s without a symlink in its path: %w", path, err)
+	}
+	return os.NewFile(uintptr(fd), path), nil
+}
+
+func regular(f *os.File) (*unix.Stat_t, error) {
+	var st unix.Stat_t
+	if err := unix.Fstat(int(f.Fd()), &st); err != nil {
 		return nil, err
 	}
+	if st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return nil, errors.New("not a regular file")
+	}
+	return &st, nil
+}
+
+func Apply(ctx context.Context, git string, checked Checked, format profile.EditFormat, new []byte, changes []Change) error {
+	f, err := openStrict(checked.path, os.O_RDWR)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := regular(f)
+	if err != nil {
+		return fmt.Errorf("%s: %w", checked.path, err)
+	}
+	if st.Dev != checked.dev || st.Ino != checked.ino {
+		return fmt.Errorf("%s is another file than the one that doriath showed you", checked.path)
+	}
+	current, err := io.ReadAll(io.LimitReader(f, maxCurrent+1))
+	if err != nil {
+		return err
+	}
+	content := new
+	switch format {
+	case profile.FormatGitConfig:
+		if content, err = applyGit(ctx, git, current, changes); err != nil {
+			return err
+		}
+	default:
+		if !bytes.Equal(current, checked.Content) {
+			return fmt.Errorf("%s changed after doriath showed it to you", checked.path)
+		}
+	}
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	_, err = f.WriteAt(content, 0)
+	return err
+}
+
+func applyGit(ctx context.Context, git string, current []byte, changes []Change) ([]byte, error) {
 	dir, err := os.MkdirTemp("", "doriath-edit-*")
 	if err != nil {
 		return nil, err

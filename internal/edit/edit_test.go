@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/fnune/doriath/internal/profile"
 )
@@ -101,7 +104,11 @@ func TestApplyWritesOnlyTheChangedSettingsInPlace(t *testing.T) {
 	before, _ := os.Stat(path)
 	new := "# the agent's comment\n" + current + "[branch \"topic\"]\n\tremote = origin\n"
 	c := changes(t, new)
-	if err := Apply(context.Background(), "git", path, profile.FormatGitConfig, []byte(new), c); err != nil {
+	checked, err := Check(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(context.Background(), "git", checked, profile.FormatGitConfig, []byte(new), c); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)
@@ -121,5 +128,116 @@ func TestATextEditIsAlwaysShownAndNeverSafe(t *testing.T) {
 	}
 	if len(c) != 1 || Safe(c[0], vcsRules) || Describe(c, nil) != "+ dotenv\n" {
 		t.Errorf("changes = %+v\n%s", c, Describe(c, nil))
+	}
+}
+
+func TestAnEditNeverWritesThroughASymlinkSwappedInAfterTheCheck(t *testing.T) {
+	ctx := context.Background()
+	for attempt := range 40 {
+		dir := t.TempDir()
+		victim := filepath.Join(dir, "victim")
+		path := filepath.Join(dir, "config")
+		swap := filepath.Join(dir, "swap")
+		payload := "[x]\n\ty = ;echo escaped\n"
+		for file, content := range map[string]string{victim: "original\n", path: payload} {
+			if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.Symlink(victim, swap); err != nil {
+			t.Fatal(err)
+		}
+		var stop atomic.Bool
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for !stop.Load() {
+				_ = unix.Renameat2(unix.AT_FDCWD, path, unix.AT_FDCWD, swap, unix.RENAME_EXCHANGE)
+			}
+		}()
+		checked, err := Check(path)
+		if err == nil {
+			next := checked.Content
+			next = append(append([]byte{}, next...), []byte("[branch \"b\"]\n\tmerge = refs/heads/b\n")...)
+			c, cerr := Changes(ctx, "git", profile.FormatGitConfig, checked.Content, next)
+			if cerr != nil {
+				t.Fatal(cerr)
+			}
+			_ = Apply(ctx, "git", checked, profile.FormatGitConfig, next, c)
+		}
+		stop.Store(true)
+		<-done
+		if data, _ := os.ReadFile(victim); string(data) != "original\n" {
+			t.Fatalf("attempt %d: the file behind the symlink holds:\n%s", attempt, data)
+		}
+	}
+}
+
+func TestAnEditFailsWhenAParentDirectoryBecomesASymlink(t *testing.T) {
+	root := t.TempDir()
+	store := filepath.Join(root, "store")
+	elsewhere := filepath.Join(root, "elsewhere")
+	for _, dir := range []string{store, elsewhere} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config"), []byte(current), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	checked, err := Check(filepath.Join(store, "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(store, store+".old"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(elsewhere, store); err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(context.Background(), "git", checked, profile.FormatText, []byte("changed\n"), nil); err == nil {
+		t.Error("Apply wrote through a symlinked parent")
+	}
+	if data, _ := os.ReadFile(filepath.Join(elsewhere, "config")); string(data) != current {
+		t.Errorf("the file behind the symlink holds:\n%s", data)
+	}
+}
+
+func TestAnEditFailsWhenAnotherFileTakesThePlace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte(current), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	checked, err := Check(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(context.Background(), "git", checked, profile.FormatText, []byte("changed\n"), nil); err == nil {
+		t.Error("Apply wrote to a file that doriath did not check")
+	}
+}
+
+func TestACheckRefusesASymlinkAndANonRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	link := filepath.Join(dir, "link")
+	if err := os.WriteFile(target, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Check(link); err == nil {
+		t.Error("Check followed a symlink")
+	}
+	if _, err := Check(dir); err == nil {
+		t.Error("Check accepted a directory")
 	}
 }

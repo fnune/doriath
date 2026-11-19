@@ -35,12 +35,12 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 	if err != nil {
 		return RequestEditResult{}, err
 	}
-	old, err := os.ReadFile(path)
+	checked, err := edit.Check(path)
 	if err != nil {
 		return RequestEditResult{}, err
 	}
 	ctx := context.Background()
-	changes, err := edit.Changes(ctx, s.deps.Git, rule.Format, old, []byte(content))
+	changes, err := edit.Changes(ctx, s.deps.Git, rule.Format, checked.Content, []byte(content))
 	if err != nil {
 		return RequestEditResult{}, fmt.Errorf("%s: %w", path, err)
 	}
@@ -50,7 +50,7 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 		res.Decision = approval.Decision{Verdict: approval.VerdictAllow, By: "doriath"}
 		return res, nil
 	}
-	apply := func() error { return edit.Apply(ctx, s.deps.Git, path, rule.Format, []byte(content), changes) }
+	apply := func() error { return edit.Apply(ctx, s.deps.Git, checked, rule.Format, []byte(content), changes) }
 	_, warned := s.req.Profile.PathRules.Warning(path, false)
 	if !warned && !slices.ContainsFunc(changes, func(c edit.Change) bool { return !edit.Safe(c, rule.Safe) }) {
 		s.log.Write("edit", map[string]any{"path": path, "changes": described, "by": "rule"})
@@ -112,7 +112,7 @@ func (s *Session) editRule(path string) (string, *profile.Edit, error) {
 			return "", nil, fmt.Errorf("%s: doriath does not edit %s: it holds keys, logins, config that names programs the host runs, or doriath's own state", path, private)
 		}
 	}
-	if e := s.req.Profile.GitEdits[filepath.Base(path)]; e != nil && vcs.IsStore(filepath.Dir(path), osHost{}) {
+	if e := s.req.Profile.GitEdits[filepath.Base(path)]; e != nil && s.knownStore(filepath.Dir(path)) {
 		return path, e, nil
 	}
 	s.mu.Lock()
@@ -125,6 +125,39 @@ func (s *Session) editRule(path string) (string, *profile.Edit, error) {
 		return "", nil, fmt.Errorf("%s is writable in the jail: write it directly", path)
 	}
 	return path, &profile.Edit{Format: profile.FormatText}, nil
+}
+
+func (s *Session) knownStore(dir string) bool {
+	return vcs.IsStore(dir, osHost{}) && slices.Contains(s.knownStores(), dir)
+}
+
+func (s *Session) knownStores() []string {
+	var repos []string
+	if s.repository != "" {
+		repos = append(repos, s.repository)
+	}
+	s.mu.Lock()
+	for root := range s.modulesByRepository {
+		repos = append(repos, root)
+	}
+	s.mu.Unlock()
+	if s.listings != nil {
+		s.listings.mu.Lock()
+		for _, found := range s.listings.repos {
+			repos = append(repos, found...)
+		}
+		s.listings.mu.Unlock()
+	}
+	var stores []string
+	for _, repo := range repos {
+		if filepath.Base(repo) == ".git" {
+			stores = append(stores, repo)
+			continue
+		}
+		git, jj := vcs.Linked(repo)
+		stores = append(stores, vcs.Store(repo), git, jj)
+	}
+	return stores
 }
 
 func readOnlyInJail(path string, writable []string, mounts []profile.Mount, guards []string) bool {
