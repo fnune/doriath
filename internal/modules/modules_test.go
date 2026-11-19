@@ -135,6 +135,13 @@ func TestForgeModulesHoldWritesAndRefuseSecrets(t *testing.T) {
 		{"gitlab.com", "GET", "/api/v4/projects/42/repository/files/README.md", "allow", "header", ""},
 		{"gitlab.com", "PUT", "/api/v4/projects/42/repository/files/README.md", "approve", "header", ""},
 		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/approve", "approve", "header", ""},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/notes", "approve", "header", `{"body":"/merge"}`},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/notes", "approve", "header", `{"body":"looks fine\n  /approve"}`},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/discussions", "approve", "header", `{"body":"\u002fmerge"}`},
+		{"gitlab.com", "POST", "/api/v4/projects/42/issues/3/notes", "approve", "header", `{"body":"/close"}`},
+		{"gitlab.com", "PUT", "/api/v4/projects/42/merge_requests/7", "approve", "header", `{"description":"text\r\n/merge"}`},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests", "approve", "header", `{"title":"t","description":"/merge"}`},
+		{"gitlab.com", "POST", "/api/v4/projects/42/merge_requests/7/notes", "allow", "header", `{"body":"see /usr/bin and a/b"}`},
 		{"gitlab.com", "POST", "/group/proj.git/info/lfs/objects/batch", "allow", "basic", ""},
 		{"gitlab.com", "PUT", "/group/proj.git/gitlab-lfs/objects/abc/12", "allow", "basic", ""},
 		{"codeberg.org", "GET", "/api/v1/repos/a/b/contents/README.md", "allow", "token", ""},
@@ -522,5 +529,32 @@ func TestPlaywrightRefusesTheComponentUpdaterOfItsChromium(t *testing.T) {
 	}
 	if !p.AllowsHost("cdn.playwright.dev") {
 		t.Error("cdn.playwright.dev is not allowed")
+	}
+}
+
+func TestGitLabHoldsAQuickActionSentAsAFormOrInTheQuery(t *testing.T) {
+	l := &profile.Loader{Profiles: fstest.MapFS{"g.toml": {Data: []byte("modules = [\"gitlab\"]\n[secrets.gitlab]\ncommand = [\"true\"]\n")}}, Modules: []fs.FS{FS}, Home: "/home/u"}
+	p, err := l.Load("g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, _ := p.Intercepted("gitlab.com")
+	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	for _, c := range []struct {
+		query  string
+		header http.Header
+		body   string
+		want   profile.Action
+	}{
+		{"body=%2Fmerge", nil, "", profile.ActionApprove},
+		{"", form, "body=hi%0A%2Fapprove", profile.ActionApprove},
+		{"", form, "body=hello", profile.ActionAllow},
+		{"", form, "body=%zz", profile.ActionDeny},
+	} {
+		query, _ := url.ParseQuery(c.query)
+		got, _ := h.DecideWithQuery("POST", "/api/v4/projects/42/merge_requests/7/notes", query, c.header, []byte(c.body))
+		if got.Action != c.want {
+			t.Errorf("%q %q: %s, want %s", c.query, c.body, got.Action, c.want)
+		}
 	}
 }

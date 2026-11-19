@@ -162,23 +162,24 @@ type credentialLayer struct {
 }
 
 type ruleLayer struct {
-	Method       string            `toml:"method"`
-	Path         string            `toml:"path"`
-	BodyContains []string          `toml:"body_contains"`
-	GraphQL      *graphQLLayer     `toml:"graphql"`
-	Header       string            `toml:"header"`
-	HeaderPrefix string            `toml:"header_prefix"`
-	HeaderGlob   string            `toml:"header_glob"`
-	Form         map[string]string `toml:"form"`
-	MCPTools     []string          `toml:"mcp_tools"`
-	MCPNone      bool              `toml:"-"`
-	Refs         []string          `toml:"refs"`
-	Action       string            `toml:"action"`
-	Summary      string            `toml:"summary"`
-	Subject      string            `toml:"subject"`
-	Link         *linkLayer        `toml:"link"`
-	MCPServer    string            `toml:"-"`
-	Credential   *credentialLayer  `toml:"credential"`
+	Method         string            `toml:"method"`
+	Path           string            `toml:"path"`
+	BodyContains   []string          `toml:"body_contains"`
+	BodyLinePrefix []string          `toml:"body_line_prefix"`
+	GraphQL        *graphQLLayer     `toml:"graphql"`
+	Header         string            `toml:"header"`
+	HeaderPrefix   string            `toml:"header_prefix"`
+	HeaderGlob     string            `toml:"header_glob"`
+	Form           map[string]string `toml:"form"`
+	MCPTools       []string          `toml:"mcp_tools"`
+	MCPNone        bool              `toml:"-"`
+	Refs           []string          `toml:"refs"`
+	Action         string            `toml:"action"`
+	Summary        string            `toml:"summary"`
+	Subject        string            `toml:"subject"`
+	Link           *linkLayer        `toml:"link"`
+	MCPServer      string            `toml:"-"`
+	Credential     *credentialLayer  `toml:"credential"`
 }
 
 type linkLayer struct {

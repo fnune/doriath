@@ -172,7 +172,9 @@ repositories = ["/repos/*/*"]
 # such as "/**/git-receive-pack".
 # A rule can also require graphql (the operation, and top-level fields),
 # a header, mcp_tools (MCP tools by glob), body_contains (strings, also
-# inside JSON, where spaces and the case of keys do not count), or refs (the
+# inside JSON, where spaces and the case of keys do not count),
+# body_line_prefix (a line of a JSON string or form field that starts with
+# one of the strings, such as "/" for the quick actions of GitLab), or refs (the
 # refs that a git push updates, such as "refs/heads/agent/**"). Rules that
 # read the body refuse bodies over 1 MB and compressed bodies. See
 # "Branches for the agent" on the Forges page for refs.

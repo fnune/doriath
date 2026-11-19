@@ -207,6 +207,22 @@ summary = "Commit through the API"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
 
 [[http.rules]]
+method = "POST"
+path = "/api/v4/**"
+body_line_prefix = ["/"]
+action = "approve"
+summary = "Run a quick action in a note or description"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
+method = "PUT"
+path = "/api/v4/**"
+body_line_prefix = ["/"]
+action = "approve"
+summary = "Run a quick action in a note or description"
+credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
+
+[[http.rules]]
 method = "GET"
 path = "/api/v4/projects/*/secure_files/*/download"
 action = "deny"

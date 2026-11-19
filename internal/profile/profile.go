@@ -210,11 +210,14 @@ type Rule struct {
 	Method       string
 	Path         PathPattern
 	BodyContains []string
-	GraphQL      *GraphQLRule
-	Header       string
-	HeaderPrefix string
-	HeaderGlob   string
-	Form         map[string]string
+	// BodyLinePrefix matches a request in which a line of a JSON string or
+	// form field starts with one of the prefixes, after spaces and tabs.
+	BodyLinePrefix []string
+	GraphQL        *GraphQLRule
+	Header         string
+	HeaderPrefix   string
+	HeaderGlob     string
+	Form           map[string]string
 	// MCPTools narrows the rule to MCP tools/call requests for tools whose
 	// names match these globs. An allow rule needs every call in the body to
 	// match; other actions need one.
@@ -236,7 +239,7 @@ type RuleLink struct {
 
 func (h HTTPHost) NeedsBody(method, path string) bool {
 	for _, r := range h.Rules {
-		if (len(r.BodyContains) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
+		if (len(r.BodyContains) > 0 || len(r.BodyLinePrefix) > 0 || r.GraphQL != nil || len(r.MCPTools) > 0 || r.MCPNone) && (r.Method == "*" || r.Method == method) && r.Path.Match(path) {
 			return true
 		}
 	}
@@ -248,7 +251,7 @@ func (h HTTPHost) NeedsFormBody(method, path string, header http.Header) bool {
 		return false
 	}
 	return h.Operation.Form != "" || slices.ContainsFunc(h.Rules, func(r Rule) bool {
-		return len(r.Form) > 0 && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
+		return (len(r.Form) > 0 || len(r.BodyLinePrefix) > 0) && (r.Method == "*" || r.Method == method) && r.Path.Match(path)
 	})
 }
 
@@ -556,7 +559,7 @@ func (h HTTPHost) DecidePush(method, path string, query url.Values, header http.
 		return mcpCalls{t, ok}
 	})
 	for _, r := range h.Rules {
-		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchGraphQL(graphql) && r.matchMCP(tools) && r.matchRefs(push) {
+		if (r.Method == "*" || r.Method == method) && r.Path.Match(path) && r.matchHeader(header) && r.matchForm(form) && r.matchBody(body) && r.matchBodyLines(form, body) && r.matchGraphQL(graphql) && r.matchMCP(tools) && r.matchRefs(push) {
 			return r, true
 		}
 	}
@@ -591,6 +594,28 @@ func (r Rule) matchBody(body []byte) bool {
 	for _, s := range r.BodyContains {
 		for _, t := range texts {
 			if bytes.Contains(t, []byte(s)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r Rule) matchBodyLines(form func() url.Values, body []byte) bool {
+	if len(r.BodyLinePrefix) == 0 {
+		return true
+	}
+	texts := append([][]byte{body}, jsonStrings(body)...)
+	for _, values := range form() {
+		for _, v := range values {
+			texts = append(texts, []byte(v))
+		}
+	}
+	for _, text := range texts {
+		lines := strings.FieldsFunc(string(text), func(c rune) bool { return c == '\n' || c == '\r' })
+		for _, line := range lines {
+			line = strings.TrimLeftFunc(line, unicode.IsSpace)
+			if slices.ContainsFunc(r.BodyLinePrefix, func(prefix string) bool { return strings.HasPrefix(line, prefix) }) {
 				return true
 			}
 		}

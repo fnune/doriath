@@ -1509,6 +1509,9 @@ func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 			return Rule{}, fmt.Errorf("body_contains entries must not be empty")
 		}
 	}
+	if slices.Contains(r.BodyLinePrefix, "") {
+		return Rule{}, fmt.Errorf("body_line_prefix entries must not be empty")
+	}
 	if r.Header != "" && !headerName.MatchString(r.Header) {
 		return Rule{}, fmt.Errorf("header %q: want a header name such as x-api-key", r.Header)
 	}
@@ -1541,7 +1544,7 @@ func (b *builder) buildRule(r ruleLayer) (Rule, error) {
 		}
 		refs = append(refs, p)
 	}
-	rule := Rule{Method: method, Path: path, Refs: refs, BodyContains: r.BodyContains, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary, MCPServer: r.MCPServer}
+	rule := Rule{Method: method, Path: path, Refs: refs, BodyContains: r.BodyContains, BodyLinePrefix: r.BodyLinePrefix, Header: http.CanonicalHeaderKey(r.Header), HeaderPrefix: r.HeaderPrefix, HeaderGlob: r.HeaderGlob, Form: r.Form, MCPTools: r.MCPTools, MCPNone: r.MCPNone, Action: action, Summary: r.Summary, MCPServer: r.MCPServer}
 	if rule.Subject, err = ParseTemplate(r.Subject); err != nil {
 		return Rule{}, fmt.Errorf("subject %w", err)
 	}
