@@ -133,12 +133,40 @@ func (c checker) bindArgument(s string) string {
 	return c.bindSource(b.source, a)
 }
 
+var bareMountOptions = map[string]bool{
+	"ro": true, "rw": true, "bind": true, "rbind": true, "O": true, "U": true,
+	"z": true, "Z": true, "copy": true, "nocopy": true, "idmap": true,
+	"shared": true, "rshared": true, "slave": true, "rslave": true,
+	"private": true, "rprivate": true, "unbindable": true, "runbindable": true,
+	"nosuid": true, "suid": true, "nodev": true, "dev": true,
+	"noexec": true, "exec": true, "sync": true, "async": true,
+	"dirsync": true, "noatime": true, "atime": true, "relatime": true,
+	"norelatime": true, "strictatime": true, "nostrictatime": true,
+	"nodiratime": true, "diratime": true, "delegated": true, "cached": true,
+	"consistent": true, "rro": true, "no-dereference": true,
+}
+
+func checkMountOption(o string) string {
+	key, value, keyed := strings.Cut(o, "=")
+	switch {
+	case !keyed && bareMountOptions[o]:
+		return ""
+	case keyed && key == "relabel" && (value == "shared" || value == "private"):
+		return ""
+	case key == "upperdir" || key == "workdir":
+		return fmt.Sprintf("overlay option %q is not allowed: it names a host directory", key)
+	}
+	return fmt.Sprintf("mount option %q is not allowed: use only the options doriath knows, such as ro, rw, rbind, z and Z", o)
+}
+
 func bindAccess(options []string) (access, string) {
 	readOnly, overlay, chown, nonRecursive := false, false, false, false
 	for _, o := range options {
-		key, _, _ := strings.Cut(o, "=")
-		switch key {
-		case "ro", "readonly":
+		if reason := checkMountOption(o); reason != "" {
+			return access{}, reason
+		}
+		switch o {
+		case "ro":
 			readOnly = true
 		case "O":
 			overlay = true
@@ -148,8 +176,6 @@ func bindAccess(options []string) (access, string) {
 			nonRecursive = true
 		case "rbind":
 			nonRecursive = false
-		case "upperdir", "workdir":
-			return access{}, fmt.Sprintf("overlay option %q is not allowed: it names a host directory", key)
 		}
 	}
 	return access{write: chown || (!readOnly && !overlay), nonRecursive: nonRecursive}, ""
