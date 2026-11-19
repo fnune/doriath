@@ -19,7 +19,7 @@ Doriath sits between a person and their agents. It must feel calm: simple, clear
 
 ### Secure by default
 
-- Deny by default. A host, socket, credential, environment variable or path under the home is in the jail only if a profile names it. The system directories (`/etc`, `/usr`, `/var`, `/opt`, `/nix/store`) stay readable so that tools work, and nothing outside the writable paths can be changed.
+- Deny by default. A host, socket, credential, environment variable or path under the home is in the jail only if a profile names it. The system directories (`/etc`, `/usr`, `/nix/store`) stay readable so that tools work. The jail shows `/var`, `/opt` and the other hidden roots as empty folders. Nothing outside the writable paths can be changed.
 - Hide rather than deny. What the agent must not reach is not mounted, not forwarded, and not in its environment.
 - Widen only by the person's decision. An agent can ask for a host or a writable path, and the person allows it for the session. Only the person edits a profile; doriath prints the lines and never writes them.
 - Secrets never enter logs, errors, test fixtures, or the agent's environment unless a profile grants them. Redact at the boundary that writes output.
