@@ -353,3 +353,15 @@ func TestTheSourcesOfAProfileListItsPortsCodeAndRules(t *testing.T) {
 		}
 	}
 }
+
+func TestARepositoryProfileCannotMountTheRuntimeDirectory(t *testing.T) {
+	l := repoLoader()
+	l.Home, l.Private = "/home/u", []string{"/run/user/1000/doriath"}
+	repo := l.Repository.(fstest.MapFS)
+	for _, path := range []string{"/run/user/1000/doriath/sessions", "/run/user/1000"} {
+		repo["mount.toml"] = file("[[mounts]]\npath = \"" + path + "\"\nmode = \"read\"\n")
+		if _, err := l.Load("repo:mount"); err == nil || !strings.Contains(err.Error(), "a repository profile cannot show") {
+			t.Errorf("%s: err = %v", path, err)
+		}
+	}
+}

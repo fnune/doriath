@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -158,5 +159,12 @@ func TestToolWait(t *testing.T) {
 		if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "approvals.tool_wait") {
 			t.Errorf("%q: err = %v", bad, err)
 		}
+	}
+}
+
+func TestPrivatePathsIncludeTheRuntimeDirectory(t *testing.T) {
+	p := Paths{Config: "/c", State: "/s", Cache: "/k", Runtime: "/r"}
+	if !slices.Contains(p.Private(), "/r") {
+		t.Errorf("Private() = %v, want the runtime directory, which holds control.sock", p.Private())
 	}
 }

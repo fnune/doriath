@@ -245,6 +245,9 @@ func (s *Session) startControl(ctx context.Context) error {
 		return err
 	}
 	s.closers = append(s.closers, func() { _ = l.Close() })
+	guarded := outsideJailListener{Listener: l, procRoot: "/proc", refused: func(pid int, err error) {
+		s.log.Write("control-refused", map[string]any{"pid": pid, "reason": err.Error()})
+	}}
 	srv := control.NewServer(map[string]control.Handler{
 		MethodList: func(context.Context, json.RawMessage) (any, error) {
 			return s.manager.Pending(), nil
@@ -279,7 +282,7 @@ func (s *Session) startControl(ctx context.Context) error {
 			return info, json.Unmarshal(data, &info)
 		},
 	})
-	go func() { _ = srv.Serve(ctx, l) }()
+	go func() { _ = srv.Serve(ctx, guarded) }()
 	return nil
 }
 

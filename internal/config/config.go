@@ -36,7 +36,7 @@ func (p Paths) WebAddr() string        { return filepath.Join(p.Runtime, "web-ad
 func (p Paths) Sessions() string       { return filepath.Join(p.Runtime, "sessions") }
 
 func (p Paths) Private() []string {
-	return []string{p.Config, p.State, p.Cache}
+	return []string{p.Config, p.State, p.Cache, p.Runtime}
 }
 
 // ImagePins holds the digests a profile's container image tags resolved to.
