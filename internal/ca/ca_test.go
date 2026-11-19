@@ -3,6 +3,7 @@ package ca
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -91,5 +92,20 @@ func TestNameConstraintsHoldEvenForForgedLeaves(t *testing.T) {
 func TestNeedsHosts(t *testing.T) {
 	if _, err := New(nil, time.Now); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestTheLeafCacheStaysBounded(t *testing.T) {
+	a, err := New([]string{"*.example.com"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range maxLeaves + 20 {
+		if _, err := a.Certificate(fmt.Sprintf("h%d.example.com", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(a.leaves) > maxLeaves {
+		t.Errorf("%d cached leaves, want at most %d", len(a.leaves), maxLeaves)
 	}
 }

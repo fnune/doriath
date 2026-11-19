@@ -654,12 +654,7 @@ func (s *Server) withheld(host string, id Identity) {
 	if id.Untrusted != "" {
 		reason = id.Untrusted
 	}
-	s.mu.Lock()
-	key := "withheld " + host + " " + reason
-	first := !s.seen[key]
-	s.seen[key] = true
-	s.mu.Unlock()
-	if first {
+	if s.firstTime("withheld " + host + " " + reason) {
 		s.record(Event{Kind: "credential-withheld", Host: host, Exe: id.Exe, Reason: reason})
 	}
 }
@@ -672,14 +667,24 @@ func caller(ctx context.Context) string {
 }
 
 func (s *Server) firstSeen(host, kind string) {
-	s.mu.Lock()
-	key := kind + " " + host
-	first := !s.seen[key]
-	s.seen[key] = true
-	s.mu.Unlock()
-	if first {
+	if s.firstTime(kind + " " + host) {
 		s.record(Event{Kind: kind, Host: host})
 	}
+}
+
+const maxSeen = 4096
+
+func (s *Server) firstTime(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.seen[key] {
+		return false
+	}
+	if len(s.seen) >= maxSeen {
+		clear(s.seen)
+	}
+	s.seen[key] = true
+	return true
 }
 
 func (s *Server) record(e Event) {

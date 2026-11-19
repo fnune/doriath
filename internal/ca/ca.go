@@ -20,6 +20,7 @@ import (
 const (
 	rootLifetime = 30 * 24 * time.Hour
 	leafLifetime = 7 * 24 * time.Hour
+	maxLeaves    = 1024
 )
 
 // Authority lives for one session and only in memory. Its name constraints
@@ -127,6 +128,12 @@ func (a *Authority) Certificate(host string) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("parse certificate for %s: %w", host, err)
 	}
 	leaf := &tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leafCert}
+	if len(a.leaves) >= maxLeaves {
+		for old := range a.leaves {
+			delete(a.leaves, old)
+			break
+		}
+	}
 	a.leaves[host] = leaf
 	return leaf, nil
 }

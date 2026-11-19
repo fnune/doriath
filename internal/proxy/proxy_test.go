@@ -1318,3 +1318,23 @@ func TestARefusedTokenIsReportedToTheStoreSoTheNextRequestUsesANewOne(t *testing
 		t.Errorf("status %d, rejected %v", resp.StatusCode, store.rejected)
 	}
 }
+
+func TestTheListOfSeenHostsStaysBounded(t *testing.T) {
+	s := &Server{seen: map[string]bool{}}
+	for i := range maxSeen + 20 {
+		s.firstSeen(fmt.Sprintf("h%d.example.com", i), "intercept")
+	}
+	if len(s.seen) > maxSeen {
+		t.Errorf("%d seen hosts, want at most %d", len(s.seen), maxSeen)
+	}
+}
+
+func TestAnEventIsStillLoggedForANewHostAfterTheSeenListFills(t *testing.T) {
+	s := &Server{seen: map[string]bool{}}
+	for i := range maxSeen + 20 {
+		s.firstSeen(fmt.Sprintf("h%d.example.com", i), "intercept")
+	}
+	if !s.firstTime("intercept new.example.com") {
+		t.Error("a new host after a full list is not logged")
+	}
+}
