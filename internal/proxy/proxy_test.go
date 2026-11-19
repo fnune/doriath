@@ -366,7 +366,7 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 	push := profile.Rule{Method: "POST", Path: "/**/git-receive-pack", Action: profile.ActionApprove}
 	var forge profile.HTTPHost
 	at := func(path string) string {
-		return scope(push, true, "POST", path, "github.com", nil, nil, forge.Repository(path), "")
+		return scope(push, true, "POST", path, nil, "github.com", nil, nil, forge.Repository(path), "")
 	}
 	a := at("/acme/app.git/git-receive-pack")
 	if a != "http POST github.com /**/git-receive-pack in /acme/app" {
@@ -388,8 +388,8 @@ func TestGitHostScopeNamesTheRepository(t *testing.T) {
 
 func TestAnEncodedPathCannotSpellAnotherRulesScope(t *testing.T) {
 	release := profile.Rule{Method: "POST", Path: "/repos/*/*/releases", Action: profile.ActionApprove}
-	real := scope(release, true, "POST", "/repos/o/r/releases", "api.github.com", nil, nil, "/repos/o/r", "")
-	forged := scope(profile.Rule{}, false, "POST", "/repos/*/*/releases in /repos/o/r", "api.github.com", nil, nil, "", "")
+	real := scope(release, true, "POST", "/repos/o/r/releases", nil, "api.github.com", nil, nil, "/repos/o/r", "")
+	forged := scope(profile.Rule{}, false, "POST", "/repos/*/*/releases in /repos/o/r", nil, "api.github.com", nil, nil, "", "")
 	if real == forged {
 		t.Errorf("a request off the rules shares the release scope: %q", forged)
 	}
@@ -397,8 +397,34 @@ func TestAnEncodedPathCannotSpellAnotherRulesScope(t *testing.T) {
 	call := func(tool string) []byte {
 		return []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `"}}`)
 	}
-	if scope(tools, true, "POST", "/mcp", "h", call("t in /o/r"), nil, "", "") == scope(tools, true, "POST", "/o/r/mcp", "h", call("t"), nil, "/o/r", "") {
+	if scope(tools, true, "POST", "/mcp", nil, "h", call("t in /o/r"), nil, "", "") == scope(tools, true, "POST", "/o/r/mcp", nil, "h", call("t"), nil, "/o/r", "") {
 		t.Error("a tool name spells a repository in the scope")
+	}
+}
+
+func TestASessionAllowOfALinePrefixRuleCoversOnlyTheSameBody(t *testing.T) {
+	notes := profile.Rule{Method: "POST", Path: "/api/v4/**", BodyLinePrefix: []string{"/"}}
+	label := scope(notes, true, "POST", "/api/v4/projects/1/issues/2/notes", nil, "gitlab.com", []byte(`{"body":"/label ~bug"}`), nil, "", "")
+	merge := scope(notes, true, "POST", "/api/v4/projects/1/merge_requests/2/notes", nil, "gitlab.com", []byte(`{"body":"/merge"}`), nil, "", "")
+	if label == merge {
+		t.Errorf("an allow of one command covers another: %q", label)
+	}
+}
+
+func TestASessionAllowOfALinePrefixRuleDoesNotCoverAnotherRequestPathOrQuery(t *testing.T) {
+	notes := profile.Rule{Method: "POST", Path: "/api/v4/**", BodyLinePrefix: []string{"/"}}
+	mr := func(path string, query url.Values) string {
+		return scope(notes, true, "POST", path, query, "gitlab.com", nil, nil, "", "")
+	}
+	first := mr("/api/v4/projects/1/merge_requests/2/notes", url.Values{"body": {"/merge"}})
+	if first == mr("/api/v4/projects/1/merge_requests/3/notes", url.Values{"body": {"/merge"}}) {
+		t.Error("an allow covers another merge request")
+	}
+	if first == mr("/api/v4/projects/1/merge_requests/2/notes", url.Values{"body": {"/close"}}) {
+		t.Error("an allow covers another quick action in the query")
+	}
+	if first != mr("/api/v4/projects/1/merge_requests/2/notes", url.Values{"body": {"/merge"}}) {
+		t.Error("the same request has a different scope")
 	}
 }
 
@@ -410,10 +436,10 @@ func TestAPIScopeComesFromTheHostsRepositories(t *testing.T) {
 	}
 	gitlab := profile.HTTPHost{Repositories: []profile.PathPattern{pattern}}
 	path := "/api/v4/projects/42/merge_requests/7/merge"
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, nil, gitlab.Repository(path), ""); !strings.HasSuffix(s, " in /api/v4/projects/42") {
+	if s := scope(merge, true, "PUT", path, nil, "gitlab.com", nil, nil, gitlab.Repository(path), ""); !strings.HasSuffix(s, " in /api/v4/projects/42") {
 		t.Errorf("scope = %q", s)
 	}
-	if s := scope(merge, true, "PUT", path, "gitlab.com", nil, nil, profile.HTTPHost{}.Repository(path), ""); strings.Contains(s, " in ") {
+	if s := scope(merge, true, "PUT", path, nil, "gitlab.com", nil, nil, profile.HTTPHost{}.Repository(path), ""); strings.Contains(s, " in ") {
 		t.Errorf("without repositories the API path names no repository: %q", s)
 	}
 }

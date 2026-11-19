@@ -3,9 +3,11 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -383,7 +385,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			Commands: desc.commands,
 			Link:     desc.link,
 			Details:  details + bodyExcerpt(shown),
-			Scope:    scope(rule, matched, r.Method, reqPath, host, body, push, rules.Repository(reqPath), operation),
+			Scope:    scope(rule, matched, r.Method, reqPath, r.URL.Query(), host, body, push, rules.Repository(reqPath), operation),
 		}, s.cfg.ApprovalTTL)
 		stopHint()
 		if err != nil || d.Verdict != approval.VerdictAllow {
@@ -552,7 +554,7 @@ func unavailable(err error) error {
 	return fmt.Errorf("%w. doriath tries again within 30 seconds", err)
 }
 
-func scope(r profile.Rule, matched bool, method, path, host string, body []byte, push *profile.Push, repo, operation string) string {
+func scope(r profile.Rule, matched bool, method, path string, query url.Values, host string, body []byte, push *profile.Push, repo, operation string) string {
 	if !matched {
 		s := fmt.Sprintf("http %s %s %s", method, host, scopePath(path))
 		if gql := profile.DescribeGraphQL(body); gql != "" {
@@ -566,6 +568,14 @@ func scope(r profile.Rule, matched bool, method, path, host string, body []byte,
 	s := fmt.Sprintf("http %s %s %s", r.Method, host, string(r.Path))
 	if len(r.BodyContains) > 0 {
 		s += " " + strings.Join(r.BodyContains, ",")
+	}
+	if len(r.BodyLinePrefix) > 0 {
+		sum := sha256.Sum256(body)
+		s += " at " + scopePath(path) + "?" + query.Encode()
+		s += " lines " + strings.Join(r.BodyLinePrefix, ",") + " body " + hex.EncodeToString(sum[:8])
+	}
+	for _, name := range slices.Sorted(maps.Keys(r.BodyJSON)) {
+		s += " " + name + ":" + strings.Join(r.BodyJSON[name], ",")
 	}
 	if r.GraphQL != nil {
 		s += " " + r.GraphQL.String()
