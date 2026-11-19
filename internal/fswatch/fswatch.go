@@ -14,10 +14,13 @@ type Event struct {
 	Mask uint32
 }
 
+func (e Event) Overflowed() bool { return e.Mask&unix.IN_Q_OVERFLOW != 0 }
+
 type Watcher struct {
 	fd   int
 	mu   sync.Mutex
 	dirs map[int32]string
+	Idle func()
 }
 
 func New() (*Watcher, error) {
@@ -43,15 +46,15 @@ func (w *Watcher) Run(ctx context.Context, handle func(Event)) {
 	buf := make([]byte, 64*(unix.SizeofInotifyEvent+unix.NAME_MAX+1))
 	fds := []unix.PollFd{{Fd: int32(w.fd), Events: unix.POLLIN}}
 	for ctx.Err() == nil {
-		if n, _ := unix.Poll(fds, 200); n <= 0 {
-			continue
+		if n, _ := unix.Poll(fds, 200); n > 0 {
+			if n, err := unix.Read(w.fd, buf); err == nil {
+				for _, ev := range w.parse(buf[:n]) {
+					handle(ev)
+				}
+			}
 		}
-		n, err := unix.Read(w.fd, buf)
-		if err != nil {
-			continue
-		}
-		for _, ev := range w.parse(buf[:n]) {
-			handle(ev)
+		if w.Idle != nil {
+			w.Idle()
 		}
 	}
 }
@@ -65,7 +68,9 @@ func (w *Watcher) parse(buf []byte) []Event {
 		end := min(unix.SizeofInotifyEvent+int(ev.Len), len(buf))
 		name := trimNul(buf[unix.SizeofInotifyEvent:end])
 		buf = buf[end:]
-		if dir, ok := w.dirs[ev.Wd]; ok {
+		if ev.Mask&unix.IN_Q_OVERFLOW != 0 {
+			out = append(out, Event{Mask: ev.Mask})
+		} else if dir, ok := w.dirs[ev.Wd]; ok {
 			out = append(out, Event{Dir: dir, Name: name, Mask: ev.Mask})
 		}
 	}

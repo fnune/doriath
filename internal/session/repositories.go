@@ -193,7 +193,7 @@ func (s *Session) watchWorktrees() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if err := vcs.Watch(ctx, r.rec, r.repairs); err != nil {
+		if err := vcs.Watch(ctx, s.vcsTools(), r.rec, r.repairs); err != nil {
 			term.New(s.deps.Stderr).Problem(fmt.Sprintf("agent worktrees are repaired only when the session ends: %v", err))
 		}
 	}()

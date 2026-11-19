@@ -16,7 +16,7 @@ func watch(t *testing.T, rec *Record) (stop func() string) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if err := Watch(ctx, rec, &out); err != nil {
+		if err := Watch(ctx, Tools{Git: "git"}, rec, &out); err != nil {
 			t.Error(err)
 		}
 	}()

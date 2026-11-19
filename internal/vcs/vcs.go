@@ -60,6 +60,7 @@ type Repo struct {
 	Moved          []string          `json:"moved,omitempty"`
 	MovedBookmarks []string          `json:"moved_bookmarks,omitempty"`
 	AgentWorktrees []string          `json:"agent_worktrees,omitempty"`
+	Gitlinks       map[string]string `json:"gitlinks,omitempty"`
 	Links          map[string]string `json:"links,omitempty"`
 }
 
@@ -205,6 +206,9 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 				return fmt.Errorf("keep the jj store of %s: %w", path, err)
 			}
 		}
+		if path != git {
+			r.Gitlinks = nestedGits(ctx, t, git, path)
+		}
 		rec.Repos = append(rec.Repos, r)
 		for _, sub := range submoduleStores(git, 1) {
 			branches, err := refs(ctx, t, sub)
@@ -214,7 +218,8 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 			if err := mirror(filepath.Join(sub, "objects"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "objects")); err != nil {
 				return fmt.Errorf("keep the objects of submodule %s: %w", sub, err)
 			}
-			rec.Repos = append(rec.Repos, Repo{Path: submoduleCheckout(sub), GitDir: sub, Branches: branches, Worktrees: listWorktrees(sub), Links: storeLinks(sub)})
+			checkout := submoduleCheckout(sub)
+			rec.Repos = append(rec.Repos, Repo{Path: checkout, GitDir: sub, Branches: branches, Worktrees: listWorktrees(sub), Gitlinks: nestedGits(ctx, t, sub, checkout), Links: storeLinks(sub)})
 		}
 	}
 	return nil
@@ -385,6 +390,9 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, not
 		if err := setAsideAgentState(r.GitDir, rec, fixed); err != nil {
 			errs = append(errs, err)
 		}
+		if err := setAsideNestedGits(ctx, t, r, rec, fixed); err != nil {
+			errs = append(errs, err)
+		}
 		report(notices, rec.Session, r)
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -398,26 +406,32 @@ var agentState = []string{"rebase-merge", "rebase-apply", "sequencer", "rr-cache
 
 func setAsideAgentState(gitDir string, rec *Record, w io.Writer) error {
 	var errs []error
-	aside := func(p, what string) {
-		to := p + ".doriath-" + rec.Session
-		if err := os.Rename(p, to); err != nil {
-			errs = append(errs, err)
-			return
-		}
-		fmt.Fprintf(w, "moved %s the agent left in %s aside, to %s\n", what, gitDir, to)
-	}
 	for _, name := range agentState {
 		if p := filepath.Join(gitDir, name); isDir(p) && changedWithin(p, rec.Started) {
-			aside(p, name)
+			errs = append(errs, setAside(gitDir, p, name, rec.Session, w))
 		}
 	}
+	return errors.Join(append(errs, setAsideNewStores(gitDir, rec, w))...)
+}
+
+func setAsideNewStores(gitDir string, rec *Record, w io.Writer) error {
+	var errs []error
 	for _, sub := range submoduleStores(gitDir, 1) {
 		known := slices.ContainsFunc(rec.Repos, func(r Repo) bool { return r.GitDir == sub })
 		if !known && changedSince(sub, rec.Started) {
-			aside(sub, "a submodule store")
+			errs = append(errs, setAside(gitDir, sub, "a submodule store, which a submodule that the agent added also leaves", rec.Session, w))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func setAside(gitDir, p, what, session string, w io.Writer) error {
+	to := p + ".doriath-" + session
+	if err := os.Rename(p, to); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "moved %s the agent left in %s aside, to %s\n", what, gitDir, to)
+	return nil
 }
 
 func changedWithin(dir string, since time.Time) bool {
@@ -576,11 +590,15 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 	if !pointsTo(dir, admin) {
 		return dir, false
 	}
-	status, err := run(ctx, t.Git, "-C", dir, "status", "--porcelain")
+	staged, err := inWorktree(ctx, t, r.GitDir, dir, "ls-files", "--stage", "-z")
+	if err != nil || len(gitlinksIn(staged)) > 0 {
+		return dir, false
+	}
+	status, err := inWorktree(ctx, t, r.GitDir, dir, "status", "--porcelain", "--ignore-submodules=all")
 	if err != nil || strings.TrimSpace(status) != "" {
 		return dir, false
 	}
-	head, err := run(ctx, t.Git, "-C", dir, "rev-parse", "HEAD")
+	head, err := inWorktree(ctx, t, r.GitDir, dir, "rev-parse", "HEAD")
 	if err != nil {
 		return dir, false
 	}
@@ -593,8 +611,8 @@ func Merged(ctx context.Context, t Tools, r Repo, worktree string) (dir string, 
 }
 
 func RemoveWorktree(ctx context.Context, t Tools, r Repo, dir string) error {
-	branch, _ := run(ctx, t.Git, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if _, err := runStore(ctx, t, r.GitDir, "worktree", "remove", dir); err != nil {
+	branch, _ := inWorktree(ctx, t, r.GitDir, dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if _, err := inWorktree(ctx, t, r.GitDir, r.GitDir, "worktree", "remove", dir); err != nil {
 		return err
 	}
 	if b := strings.TrimSpace(branch); b != "" {
@@ -931,7 +949,7 @@ func replaceAt(dir int, name string, data []byte) error {
 	return err
 }
 
-var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false'"}
+var gitEnv = []string{"GIT_CONFIG_PARAMETERS='core.hooksPath=/dev/null' 'core.fsmonitor=false' 'protocol.ext.allow=never'"}
 
 func runStore(ctx context.Context, t Tools, gitDir string, args ...string) (string, error) {
 	return run(ctx, t.Git, append([]string{"--git-dir", gitDir, "--work-tree", gitDir}, args...)...)
@@ -944,9 +962,13 @@ func run(ctx context.Context, name string, args ...string) (string, error) {
 // runIn runs a command in dir. jj also reads the repository it starts in,
 // whatever --repository names.
 func runIn(ctx context.Context, dir, name string, args ...string) (string, error) {
+	return runWith(ctx, nil, dir, name, args...)
+}
+
+func runWith(ctx context.Context, env []string, dir, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), gitEnv...)
+	cmd.Env = append(append(os.Environ(), gitEnv...), env...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
