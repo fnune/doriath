@@ -32,7 +32,9 @@ printf '# acme/app\n' >"$repo/README.md"
 git -C "$repo" add README.md
 git -C "$repo" commit -q -m "Start the app"
 
-cp "$here"/agent.sh "$repo/agent.sh"
+cp "$here"/agent.sh "$here"/infra-agent.sh "$repo/"
+mkdir -p "$home/notes" "$home/Documents/acme"
+printf '# Release checklist\n\n- [ ] Merge the release PR\n- [ ] Tag the release\n' >"$home/Documents/acme/release-checklist.md"
 
 cat >"$root/env.sh" <<ENV
 export HOME='$home'
@@ -49,5 +51,6 @@ ENV
     . "$root/env.sh"
     cd "$repo"
     doriath profiles allow my-app --current "$repo" </dev/null >/dev/null
+    doriath profiles allow acme-infra --current "$repo" </dev/null >/dev/null
 )
 echo "$root"
