@@ -1,0 +1,191 @@
+## request reviewers through GraphQL
+POST https://api.github.com/graphql
+title: Request reviews
+body:
+api.github.com
+pullRequestId: PR_kwDOAAAA01
+userLogins: alice, bob
+union: true
+s1
+
+## react to a review comment
+POST https://api.github.com/repos/acme/app/pulls/comments/1001/reactions
+title: React to a review comment
+body:
+app
+content: +1
+s1
+
+## turn on auto-merge
+POST https://api.github.com/graphql
+title: Turn on auto-merge
+body:
+api.github.com
+pullRequestId: PR_kwDOAAAA01
+mergeMethod: SQUASH
+s1
+
+## add to the merge queue
+POST https://api.github.com/graphql
+title: Add to the merge queue
+body:
+api.github.com
+id: PR_kwDOAAAA01
+sha: 0123456789abcdef0123456789abcdef01234567
+s1
+
+## remove from the merge queue
+POST https://api.github.com/graphql
+title: Remove from the merge queue
+body:
+api.github.com
+id: PR_kwDOAAAA01
+s1
+
+## approve a pull request with comments
+POST https://api.github.com/repos/acme/app/pulls/42/reviews
+title: Approve pull request
+button: Open PR https://github.com/acme/app/pull/42
+body:
+app#42
+commit_id: 0123456789ab
+event: APPROVE
+body: Looks good. Rebase before you merge.
+comments: [{&#34;body&#34;:&#34;This returns before the deferred close runs.&#34;,&#34;line&#34;:12,&#34;path&#34;:&#34;cmd/ap…
+s1
+
+## approve a pull request through GraphQL
+POST https://api.github.com/graphql
+title: Approve pull request
+body:
+api.github.com
+pullRequestId: PR_kwDOAAAA01
+event: APPROVE
+s1
+
+## merge a pull request
+PUT https://api.github.com/repos/acme/app/pulls/42/merge
+title: Merge pull request
+button: Open PR https://github.com/acme/app/pull/42
+body:
+app#42
+merge_method: squash
+s1
+
+## push one branch
+POST https://github.com/acme/app.git/git-receive-pack
+title: Push
+button: Open branch https://github.com/acme/app/tree/agent/fix-typo
+body:
+app agent/fix-typo
+Change: update refs/heads/agent/fix-typo aaaaaaaaaaaa..bbbbbbbbbbbb
+s1
+
+## push two branches
+POST https://github.com/acme/app.git/git-receive-pack
+title: Push
+body:
+app agent/fix-typo, agent/update-readme
+Change: update refs/heads/agent/fix-typo aaaaaaaaaaaa..bbbbbbbbbbbb
+Change: update refs/heads/agent/update-readme aaaaaaaaaaaa..bbbbbbbbbbbb
+s1
+
+## delete a branch
+POST https://github.com/acme/app.git/git-receive-pack
+title: Push
+body:
+app delete agent/stale
+Change: delete refs/heads/agent/stale at aaaaaaaaaaaa
+s1
+
+## create a stack of pull requests
+POST https://api.github.com/repos/acme/app/stacks
+title: Create a stack of pull requests
+body:
+app
+pull_requests: 41, 42, 43
+s1
+
+## add to a stack of pull requests
+POST https://api.github.com/repos/acme/app/stacks/7/add
+title: Add to a stack of pull requests
+body:
+app stack 7
+pull_request: 44
+s1
+
+## run a workflow
+POST https://api.github.com/repos/acme/app/actions/workflows/1234/dispatches
+title: Run a workflow
+button: Open workflow https://github.com/acme/app/actions/workflows/1234
+body:
+app workflow 1234
+ref: agent/fix-typo
+inputs: {&#34;env&#34;:&#34;test&#34;}
+s1
+
+## a REST write that no rule names
+POST https://api.github.com/repos/acme/app/check-runs
+title: POST /check-runs
+body:
+app
+name: lint
+head_sha: 0123456789ab
+status: queued
+s1
+
+## edit a Notion page
+POST https://mcp.example.com/notion
+title: Update page
+body:
+notion
+page_id: 00000000000000000000000000000001
+command: update_content
+content_updates: [{&#34;new_str&#34;:&#34;## Meeting notes&#34;,&#34;old_str&#34;:&#34;## Notes&#34;}]
+s1
+
+## create Notion pages
+POST https://mcp.example.com/notion
+title: Create pages
+body:
+notion
+parent: {&#34;page_id&#34;:&#34;00000000000000000000000000000002&#34;}
+pages: [{&#34;properties&#34;:{&#34;title&#34;:&#34;Meeting notes&#34;}}]
+s1
+
+## update a Linear issue
+POST https://mcp.example.com/linear
+title: Save issue
+body:
+linear
+id: APP-12
+state: Done
+links: [{&#34;title&#34;:&#34;#42 Keep the scroll position after a save&#34;,&#34;url&#34;:&#34;https://github.com/…
+s1
+
+## create a Linear issue
+POST https://mcp.example.com/linear
+title: Save issue
+body:
+linear
+team: Web
+title: The settings page loses its scroll position after a save
+description: Saving a form scrolls the page back to the top.
+s1
+
+## comment on a Linear issue
+POST https://mcp.example.com/linear
+title: Save comment
+body:
+linear
+issueId: APP-12
+body: Fixed in #42.
+s1
+
+## sign in to an MCP server
+GET https://mcp.example.com/.well-known/oauth-authorization-server
+title: GET /.well-known/oauth-authorization-server
+body:
+mcp.example.com
+s1
+

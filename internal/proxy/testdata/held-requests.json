@@ -1,0 +1,127 @@
+[
+  {
+    "name": "request reviewers through GraphQL",
+    "method": "POST",
+    "url": "https://api.github.com/graphql",
+    "body": {"query": "mutation RequestReviewsByLogin($input:RequestReviewsByLoginInput!){requestReviewsByLogin(input: $input){clientMutationId}}", "variables": {"input": {"pullRequestId": "PR_kwDOAAAA01", "userLogins": ["alice", "bob"], "union": true}}}
+  },
+  {
+    "name": "react to a review comment",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/pulls/comments/1001/reactions",
+    "body": {"content": "+1"}
+  },
+  {
+    "name": "turn on auto-merge",
+    "method": "POST",
+    "url": "https://api.github.com/graphql",
+    "body": {"query": "mutation PullRequestAutoMerge($input:EnablePullRequestAutoMergeInput!){enablePullRequestAutoMerge(input: $input){clientMutationId}}", "variables": {"input": {"pullRequestId": "PR_kwDOAAAA01", "mergeMethod": "SQUASH"}}}
+  },
+  {
+    "name": "add to the merge queue",
+    "method": "POST",
+    "url": "https://api.github.com/graphql",
+    "body": {"query": "mutation($id:ID!,$sha:GitObjectID!){enqueuePullRequest(input:{pullRequestId:$id,expectedHeadOid:$sha}){mergeQueueEntry{position state}}}", "variables": {"id": "PR_kwDOAAAA01", "sha": "0123456789abcdef0123456789abcdef01234567"}}
+  },
+  {
+    "name": "remove from the merge queue",
+    "method": "POST",
+    "url": "https://api.github.com/graphql",
+    "body": {"query": "mutation($id:ID!){dequeuePullRequest(input:{id:$id}){mergeQueueEntry{state}}}", "variables": {"id": "PR_kwDOAAAA01"}}
+  },
+  {
+    "name": "approve a pull request with comments",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/pulls/42/reviews",
+    "body": {"commit_id": "0123456789ab", "event": "APPROVE", "body": "Looks good. Rebase before you merge.", "comments": [{"path": "cmd/app/main.go", "line": 12, "side": "RIGHT", "body": "This returns before the deferred close runs."}]}
+  },
+  {
+    "name": "approve a pull request through GraphQL",
+    "method": "POST",
+    "url": "https://api.github.com/graphql",
+    "body": {"query": "mutation PullRequestReviewAdd($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){clientMutationId}}", "variables": {"input": {"pullRequestId": "PR_kwDOAAAA01", "event": "APPROVE"}}}
+  },
+  {
+    "name": "merge a pull request",
+    "method": "PUT",
+    "url": "https://api.github.com/repos/acme/app/pulls/42/merge",
+    "body": {"merge_method": "squash"}
+  },
+  {
+    "name": "push one branch",
+    "method": "POST",
+    "url": "https://github.com/acme/app.git/git-receive-pack",
+    "refs": ["refs/heads/agent/fix-typo"]
+  },
+  {
+    "name": "push two branches",
+    "method": "POST",
+    "url": "https://github.com/acme/app.git/git-receive-pack",
+    "refs": ["refs/heads/agent/fix-typo", "refs/heads/agent/update-readme"]
+  },
+  {
+    "name": "delete a branch",
+    "method": "POST",
+    "url": "https://github.com/acme/app.git/git-receive-pack",
+    "refs": ["-refs/heads/agent/stale"]
+  },
+  {
+    "name": "create a stack of pull requests",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/stacks",
+    "body": {"pull_requests": [41, 42, 43]}
+  },
+  {
+    "name": "add to a stack of pull requests",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/stacks/7/add",
+    "body": {"pull_request": 44}
+  },
+  {
+    "name": "run a workflow",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/actions/workflows/1234/dispatches",
+    "body": {"ref": "agent/fix-typo", "inputs": {"env": "test"}}
+  },
+  {
+    "name": "a REST write that no rule names",
+    "method": "POST",
+    "url": "https://api.github.com/repos/acme/app/check-runs",
+    "body": {"name": "lint", "head_sha": "0123456789ab", "status": "queued"}
+  },
+  {
+    "name": "edit a Notion page",
+    "method": "POST",
+    "url": "https://mcp.example.com/notion",
+    "body": {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "notion-update-page", "arguments": {"page_id": "00000000000000000000000000000001", "command": "update_content", "content_updates": [{"old_str": "## Notes", "new_str": "## Meeting notes"}]}}}
+  },
+  {
+    "name": "create Notion pages",
+    "method": "POST",
+    "url": "https://mcp.example.com/notion",
+    "body": {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "notion-create-pages", "arguments": {"parent": {"page_id": "00000000000000000000000000000002"}, "pages": [{"properties": {"title": "Meeting notes"}}]}}}
+  },
+  {
+    "name": "update a Linear issue",
+    "method": "POST",
+    "url": "https://mcp.example.com/linear",
+    "body": {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "save_issue", "arguments": {"id": "APP-12", "state": "Done", "links": [{"url": "https://github.com/acme/app/pull/42", "title": "#42 Keep the scroll position after a save"}]}}}
+  },
+  {
+    "name": "create a Linear issue",
+    "method": "POST",
+    "url": "https://mcp.example.com/linear",
+    "body": {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "save_issue", "arguments": {"team": "Web", "title": "The settings page loses its scroll position after a save", "description": "Saving a form scrolls the page back to the top."}}}
+  },
+  {
+    "name": "comment on a Linear issue",
+    "method": "POST",
+    "url": "https://mcp.example.com/linear",
+    "body": {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "save_comment", "arguments": {"issueId": "APP-12", "body": "Fixed in #42."}}}
+  },
+  {
+    "name": "sign in to an MCP server",
+    "method": "GET",
+    "url": "https://mcp.example.com/.well-known/oauth-authorization-server"
+  }
+]

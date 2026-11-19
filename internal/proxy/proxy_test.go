@@ -216,6 +216,11 @@ func newHarness(t *testing.T) *harness {
 
 func newHarnessWith(t *testing.T, toml string) *harness {
 	t.Helper()
+	return newHarnessFor(t, loadProfile(t, toml))
+}
+
+func newHarnessFor(t *testing.T, p *profile.Profile) *harness {
+	t.Helper()
 	up := &upstream{}
 	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
@@ -231,7 +236,7 @@ func newHarnessWith(t *testing.T, toml string) *harness {
 	plainServer := httptest.NewServer(up)
 	t.Cleanup(plainServer.Close)
 
-	session, err := ca.New([]string{"api.github.com", "github.com", "sts.us-east-1.amazonaws.com"}, time.Now)
+	session, err := ca.New([]string{"api.github.com", "github.com", "mcp.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +244,7 @@ func newHarnessWith(t *testing.T, toml string) *harness {
 	ev := &events{}
 	srv := New(
 		Config{Session: "s1", Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: upCA.Pool()},
-		loadProfile(t, toml),
+		p,
 		approver,
 		mapSecrets{"github": "real-token", "aws": `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session","Expiration":"2099-01-01T00:00:00Z"}`},
 		session,

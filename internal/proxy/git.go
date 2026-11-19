@@ -21,12 +21,14 @@ type refUpdate struct {
 	old, new string
 }
 
+func (u refUpdate) deletes() bool { return strings.Trim(u.new, "0") == "" }
+
 func (u refUpdate) short() string {
 	name := strings.TrimPrefix(u.ref, "refs/heads/")
 	if tag, ok := strings.CutPrefix(u.ref, "refs/tags/"); ok {
 		name = "tag " + tag
 	}
-	if strings.Trim(u.new, "0") == "" {
+	if u.deletes() {
 		return "delete " + name
 	}
 	return name
@@ -36,7 +38,7 @@ func (u refUpdate) line() string {
 	switch {
 	case strings.Trim(u.old, "0") == "":
 		return "create " + u.ref + " at " + abbrev(u.new)
-	case strings.Trim(u.new, "0") == "":
+	case u.deletes():
 		return "delete " + u.ref + " at " + abbrev(u.old)
 	}
 	return "update " + u.ref + " " + abbrev(u.old) + ".." + abbrev(u.new)

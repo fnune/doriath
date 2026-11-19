@@ -104,7 +104,7 @@ func (q httpRequest) subject(values profile.TemplateValues) string {
 }
 
 func (q httpRequest) singleRef() string {
-	if len(q.refs) != 1 || q.unread {
+	if len(q.refs) != 1 || q.unread || q.refs[0].deletes() {
 		return ""
 	}
 	return strings.TrimPrefix(strings.TrimPrefix(q.refs[0].ref, "refs/heads/"), "refs/tags/")

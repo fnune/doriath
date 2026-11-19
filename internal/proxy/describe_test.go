@@ -97,16 +97,16 @@ func pushRule(t *testing.T) profile.Rule {
 func TestAPushNamesItsRepositoryAndBranchAndLinksToABranch(t *testing.T) {
 	q := httpRequest{
 		rule: pushRule(t), matched: true, method: "POST", path: "/o/r.git/git-receive-pack", repo: "/o/r",
-		refs:   []refUpdate{{ref: "refs/heads/fnune/fix", old: strings.Repeat("a", 40), new: strings.Repeat("b", 40)}},
+		refs:   []refUpdate{{ref: "refs/heads/agent/fix", old: strings.Repeat("a", 40), new: strings.Repeat("b", 40)}},
 		caller: Identity{Exe: "/nix/store/x-jj/bin/.jj-wrapped", Commands: []string{"jj git push", "zsh"}},
 	}
 	d := describe(q)
-	if d.action != "Push" || d.link != (approval.Link{Label: "Open branch", URL: "https://github.com/o/r/tree/fnune/fix"}) {
+	if d.action != "Push" || d.link != (approval.Link{Label: "Open branch", URL: "https://github.com/o/r/tree/agent/fix"}) {
 		t.Errorf("described = %+v", d)
 	}
 	want := []approval.Fact{
-		{Label: "About", Value: "r fnune/fix", URL: "https://github.com/o/r/tree/fnune/fix"},
-		{Label: "Change", Value: "update refs/heads/fnune/fix aaaaaaaaaaaa..bbbbbbbbbbbb"},
+		{Label: "About", Value: "r agent/fix", URL: "https://github.com/o/r/tree/agent/fix"},
+		{Label: "Change", Value: "update refs/heads/agent/fix aaaaaaaaaaaa..bbbbbbbbbbbb"},
 		{Label: "Program", Value: "jj"},
 	}
 	if !slices.Equal(d.facts, want) || !slices.Equal(d.commands, []string{"jj git push", "zsh"}) {
@@ -114,7 +114,7 @@ func TestAPushNamesItsRepositoryAndBranchAndLinksToABranch(t *testing.T) {
 	}
 
 	q.refs = append(q.refs, refUpdate{ref: "refs/heads/main", old: strings.Repeat("a", 40), new: strings.Repeat("b", 40)})
-	if d := describe(q); d.link != (approval.Link{}) || d.facts[0].Value != "r fnune/fix, main" {
+	if d := describe(q); d.link != (approval.Link{}) || d.facts[0].Value != "r agent/fix, main" {
 		t.Errorf("a push of two branches links to neither: %+v", d)
 	}
 }
