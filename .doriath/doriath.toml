@@ -1,5 +1,5 @@
 description = "doriath itself"
-modules = ["vcs-readwrite", "docs", "go", "node", "nix", "podman"]
+modules = ["vcs-readwrite", "docs", "go", "node", "nix", "podman", "chromium"]
 
 [hardening]
 namespaces = true
