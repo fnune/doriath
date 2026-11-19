@@ -63,6 +63,9 @@ func TestAFileThatAnAppCouldRunIsNotOpened(t *testing.T) {
 	for path, want := range map[string]string{
 		openable(t, filepath.Join(notes, "run.desktop"), 0o644):      "kinds of file",
 		openable(t, filepath.Join(notes, "tool.jar"), 0o644):         "kinds of file",
+		openable(t, filepath.Join(notes, "page.html"), 0o644):        "kinds of file",
+		openable(t, filepath.Join(notes, "page.htm"), 0o644):         "kinds of file",
+		openable(t, filepath.Join(notes, "drawing.svg"), 0o644):      "kinds of file",
 		openable(t, filepath.Join(notes, "script.md"), 0o755):        "executable",
 		openable(t, filepath.Join(notes, "secret", "env.md"), 0o644): "jail shows",
 		openable(t, filepath.Join(s.home, "outside.md"), 0o644):      "jail shows",

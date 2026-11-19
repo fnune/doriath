@@ -13,8 +13,8 @@ import (
 )
 
 var shownNotRunKinds = []string{
-	".csv", ".gif", ".htm", ".html", ".jpeg", ".jpg", ".json", ".log", ".markdown", ".md",
-	".pdf", ".png", ".svg", ".toml", ".tsv", ".txt", ".webp", ".yaml", ".yml",
+	".csv", ".gif", ".jpeg", ".jpg", ".json", ".log", ".markdown", ".md",
+	".pdf", ".png", ".toml", ".tsv", ".txt", ".webp", ".yaml", ".yml",
 }
 
 func (s *Session) requestOpenFile(u *url.URL, reason string) (RequestResult, error) {

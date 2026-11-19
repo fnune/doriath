@@ -94,7 +94,7 @@ func (st Status) describe() string {
 		"Otherwise run `doriath request write PATH --reason TEXT`, for the narrowest file or directory that covers all your changes. A request asks the user on the approvals page, waits, and lasts until the session ends. " +
 		"To read a folder that this jail does not show, run `doriath request read PATH --reason TEXT`. " +
 		"To open a link in the user's browser, run `doriath request open URL --reason TEXT`. xdg-open and $BROWSER do the same, so sign-in flows that open a browser work. " +
-		"To show the user a file that this jail shows, such as a markdown, HTML, PDF or image file, run `doriath request open PATH --reason TEXT`: it opens in the user's app for that kind of file. " +
+		"To show the user a file that this jail shows, such as a markdown, PDF or image file, run `doriath request open PATH --reason TEXT`: it opens in the user's app for that kind of file. " +
 		"To show the user a server that runs here, such as a preview, bind it to 127.0.0.1 and run `doriath request open http://localhost:PORT/ --reason TEXT`: it asks the user to forward PORT to their machine, then opens the link. " +
 		"To forward a port without a link, run `doriath request forward PORT[:JAIL_PORT] --reason TEXT`. A forward lasts until the session ends. " +
 		"To reach a service on the user's machine, such as a database tunnel or a dev server, when a connection to 127.0.0.1 here is refused, run `doriath request connect HOST_PORT[:JAIL_PORT] --reason TEXT`. It connects 127.0.0.1:JAIL_PORT here to 127.0.0.1:HOST_PORT on the user's machine, for that TCP port only, until the session ends. " +
