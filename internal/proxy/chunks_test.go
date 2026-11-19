@@ -51,6 +51,8 @@ func TestABrokenChunkedBodyFailsTheUpload(t *testing.T) {
 		"zz;chunk-signature=" + strings.Repeat("0", 64) + "\r\n",
 		"5;no-signature\r\nhello\r\n",
 		"5;chunk-signature=" + strings.Repeat("0", 64) + "\r\nhel",
+		"7fffffffffffffff;chunk-signature=" + strings.Repeat("0", 64) + "\r\n",
+		"1000001;chunk-signature=" + strings.Repeat("0", 64) + "\r\n",
 	} {
 		if _, err := io.ReadAll(resignChunks(io.NopCloser(strings.NewReader(in)), chainFrom(awsCAuthSecret, "20130524T000000Z", "us-east-1", "s3", awsCAuthSeed), false)); err == nil {
 			t.Errorf("accepted %q", in)

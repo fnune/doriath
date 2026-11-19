@@ -126,6 +126,23 @@ func TestAnUploadWithUnsignedChunksIsSignedAgain(t *testing.T) {
 	}
 }
 
+func TestAHugeChunkSizeFailsTheUploadAndLeavesTheProxyRunning(t *testing.T) {
+	h := newHarnessWith(t, awsProfile)
+	huge := "7fffffffffffffff;chunk-signature=" + strings.Repeat("a", 64) + "\r\n"
+	req := signedAsInTheJail(t, http.MethodPut, "https://sts.us-east-1.amazonaws.com/x", huge)
+	req.Header.Set("X-Amz-Content-Sha256", signedChunks)
+	if resp, err := h.client().Do(req); err == nil {
+		if body(t, resp); resp.StatusCode < 400 {
+			t.Fatalf("status %d for an upload with an impossible chunk", resp.StatusCode)
+		}
+	}
+	resp, err := h.client().Get("https://sts.us-east-1.amazonaws.com/after")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body(t, resp)
+}
+
 func TestAPresignedURLIsSignedAgainInItsQuery(t *testing.T) {
 	h := newHarnessWith(t, awsProfile)
 	req, _ := http.NewRequest(http.MethodGet, "https://sts.us-east-1.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15&X-Amz-Expires=900", nil)

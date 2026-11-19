@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,6 +27,8 @@ type chainSigner struct {
 	scope    string
 	previous string
 }
+
+const maxSignedChunk = 16 << 20
 
 func newChainSigner(creds aws.Credentials, out *http.Request, region, service string) (*chainSigner, error) {
 	amzDate := out.Header.Get("X-Amz-Date")
@@ -74,6 +77,11 @@ func resignChunks(body io.ReadCloser, c *chainSigner, trailer bool) io.ReadClose
 	r, w := io.Pipe()
 	go func() {
 		defer body.Close()
+		defer func() {
+			if v := recover(); v != nil {
+				w.CloseWithError(fmt.Errorf("resign chunks: %v", v))
+			}
+		}()
 		w.CloseWithError(copyChunks(w, bufio.NewReader(body), c, trailer))
 	}()
 	return r
@@ -94,10 +102,17 @@ func copyChunks(w io.Writer, in *bufio.Reader, c *chainSigner, trailer bool) err
 		if err != nil || size < 0 {
 			return fmt.Errorf("chunk header %q has no size", header)
 		}
-		data := make([]byte, size)
-		if _, err := io.ReadFull(in, data); err != nil {
+		if size > maxSignedChunk {
+			return fmt.Errorf("chunk of %d bytes is over the limit of %d", size, maxSignedChunk)
+		}
+		var buf bytes.Buffer
+		if _, err := io.CopyN(&buf, in, size); err != nil {
+			if errors.Is(err, io.EOF) {
+				return io.ErrUnexpectedEOF
+			}
 			return err
 		}
+		data := buf.Bytes()
 		if size > 0 {
 			if end, err := readLine(in); err != nil || end != "" {
 				return errors.New("a chunk does not end with CRLF")
