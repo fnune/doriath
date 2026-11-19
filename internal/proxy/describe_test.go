@@ -85,6 +85,16 @@ func TestAnUnnamedRequestLeavesOutTheRepositoryItNamesAsAFact(t *testing.T) {
 	}
 }
 
+func TestAFieldThatTakesTheNameOfDoriathsOwnFactIsMarkedAsTheAgents(t *testing.T) {
+	got := heldRequest(t, http.MethodPost, "https://api.github.com/repos/acme/app/pulls/comments/9/reactions", `{"Program":"gh","content":"+1"}`)
+	if !slices.Contains(got.Facts, approval.Fact{Label: "Program", Value: "gh", Agent: true}) {
+		t.Errorf("the field named Program reads as doriath's own fact: %+v", got.Facts)
+	}
+	if !slices.Contains(got.Facts, approval.Fact{Label: "content", Value: "+1"}) {
+		t.Errorf("another field carries the mark: %+v", got.Facts)
+	}
+}
+
 func pushRule(t *testing.T) profile.Rule {
 	t.Helper()
 	u, err := profile.ParseLinkTemplate("https://github.com/{1}/{2}/tree/{ref}")

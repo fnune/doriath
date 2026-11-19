@@ -715,3 +715,16 @@ func TestAFormPostedByTheOpenerSignsInOnce(t *testing.T) {
 		t.Errorf("the code works twice: status %d", again.Code)
 	}
 }
+
+func TestAFactFromTheAgentKeepsItsQuotesAndNeverBecomesTheSubject(t *testing.T) {
+	r := request("a1", approval.KindHTTP, "Merge")
+	r.Facts = []approval.Fact{{Label: "Program", Value: "gh", Agent: true}, {Label: "Program", Value: "git"}}
+	_, h := setup(t, r)
+	body := get(h, "/?request=s1/a1", true).Body.String()
+	if !strings.Contains(body, "<dt>“Program”</dt>") || !strings.Contains(body, "<dt>Program</dt>") {
+		t.Errorf("the labels do not differ:\n%s", body)
+	}
+	if strings.Contains(body, `<p class="subject">gh`) {
+		t.Error("a value from the agent became the subject")
+	}
+}

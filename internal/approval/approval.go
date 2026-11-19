@@ -150,6 +150,20 @@ type Fact struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
 	URL   string `json:"url,omitempty"`
+	Agent bool   `json:"agent,omitempty"`
+}
+
+const maxAgentLabel = 40
+
+func (f Fact) Shown() string {
+	if !f.Agent {
+		return f.Label
+	}
+	label := strings.Join(strings.Fields(f.Label), " ")
+	if r := []rune(label); len(r) > maxAgentLabel {
+		label = string(r[:maxAgentLabel]) + "…"
+	}
+	return "“" + label + "”"
 }
 
 // Link is the page a request is about. Opening it answers nothing.

@@ -207,3 +207,11 @@ func TestAnInformBodyIsOneFilteredLine(t *testing.T) {
 		t.Errorf("oneLine = %q", got)
 	}
 }
+
+func TestAFactFromTheAgentShowsItsLabelInQuotes(t *testing.T) {
+	req := approval.Request{Kind: approval.KindHTTP, Session: "s1", Facts: []approval.Fact{{Label: "Program", Value: "gh", Agent: true}, {Label: "Program", Value: "git"}}}
+	body := Body(req)
+	if !strings.Contains(body, "“Program”: gh") || !strings.Contains(body, "Program: git") {
+		t.Errorf("body = %q", body)
+	}
+}

@@ -271,7 +271,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		ByAgent:   r.Kind == approval.KindTool,
 		created:   r.Created,
 	}
-	if len(v.Facts) > 0 {
+	if len(r.Facts) > 0 && !r.Facts[0].Agent {
 		v.Subject, v.Facts = v.Facts[0].Value, v.Facts[1:]
 	}
 	lead, chain := r.LeadCommand()
@@ -311,7 +311,7 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 func facts(in []approval.Fact) []factView {
 	out := make([]factView, 0, len(in))
 	for _, f := range in {
-		v := factView{Label: session.Printable(f.Label), Value: session.Printable(f.Value)}
+		v := factView{Label: session.Printable(f.Shown()), Value: session.Printable(f.Value)}
 		if safeLink(f.URL) {
 			v.URL = f.URL
 		}

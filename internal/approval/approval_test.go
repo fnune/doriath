@@ -478,3 +478,18 @@ func TestTwoLongScopesThatDifferAtTheEndStayApart(t *testing.T) {
 		t.Error("an allow for one long scope covered another")
 	}
 }
+
+func TestALabelFromTheAgentShowsInQuotesAndCannotMatchOneOfDoriath(t *testing.T) {
+	for label, want := range map[string]string{
+		"Program":                      "“Program”",
+		"Change\nWarning from doriath": "“Change Warning from doriath”",
+		strings.Repeat("n", 100):       "“" + strings.Repeat("n", 40) + "…”",
+	} {
+		if got := (Fact{Label: label, Agent: true}).Shown(); got != want {
+			t.Errorf("Shown(%q) = %q, want %q", label, got, want)
+		}
+	}
+	if got := (Fact{Label: "Program"}).Shown(); got != "Program" {
+		t.Errorf("a label of doriath = %q", got)
+	}
+}

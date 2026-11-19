@@ -92,11 +92,11 @@ func Body(req approval.Request) string {
 		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", markup(oneLine(agent)))
 	}
 	for i, f := range req.Facts {
-		if i == 0 || f.Label == "" {
+		if (i == 0 || f.Label == "") && !f.Agent {
 			fmt.Fprintf(&b, "%s\n", markup(oneLine(f.Value)))
 			continue
 		}
-		fmt.Fprintf(&b, "%s: %s\n", markup(oneLine(f.Label)), markup(oneLine(f.Value)))
+		fmt.Fprintf(&b, "%s: %s\n", markup(oneLine(f.Shown())), markup(oneLine(f.Value)))
 	}
 	if req.Note != "" {
 		fmt.Fprintf(&b, "<i>“%s”</i>\n", markup(oneLine(req.Note)))

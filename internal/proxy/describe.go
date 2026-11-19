@@ -3,6 +3,7 @@ package proxy
 import (
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/fnune/doriath/internal/approval"
@@ -44,8 +45,13 @@ func describe(q httpRequest) described {
 	for _, u := range q.refs {
 		d.facts = append(d.facts, approval.Fact{Label: "Change", Value: u.line()})
 	}
+	own := []string{"Program"}
+	for _, f := range d.facts {
+		own = append(own, f.Label)
+	}
 	for _, a := range q.arguments() {
-		d.facts = append(d.facts, approval.Fact{Label: a.Name, Value: a.Value})
+		readsAsDoriaths := slices.ContainsFunc(own, func(label string) bool { return strings.EqualFold(label, strings.TrimSpace(a.Name)) })
+		d.facts = append(d.facts, approval.Fact{Label: a.Name, Value: a.Value, Agent: readsAsDoriaths})
 	}
 	if q.caller.Exe != "" {
 		d.facts = append(d.facts, approval.Fact{Label: "Program", Value: ProgramName(q.caller.Exe)})
