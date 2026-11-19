@@ -47,6 +47,7 @@ func New(hosts []string, now func() time.Time) (*Authority, error) {
 	}
 	var permitted []string
 	for _, h := range hosts {
+		h = withoutPort(h)
 		if d, ok := strings.CutPrefix(h, "*."); ok {
 			permitted = append(permitted, "."+d)
 		} else {
@@ -82,6 +83,16 @@ func New(hosts []string, now func() time.Time) (*Authority, error) {
 		now:       now,
 		leaves:    map[string]*tls.Certificate{},
 	}, nil
+}
+
+func withoutPort(h string) string {
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return host
+	}
+	if strings.HasPrefix(h, "[") && strings.HasSuffix(h, "]") {
+		return h[1 : len(h)-1]
+	}
+	return h
 }
 
 func (a *Authority) CertPEM() []byte { return append([]byte(nil), a.certPEM...) }

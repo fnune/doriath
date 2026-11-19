@@ -109,3 +109,32 @@ func TestTheLeafCacheStaysBounded(t *testing.T) {
 		t.Errorf("%d cached leaves, want at most %d", len(a.leaves), maxLeaves)
 	}
 }
+
+func TestAHostWithAPortGetsACertificateForItsName(t *testing.T) {
+	a, err := New([]string{"git.example.com:8443", "*.cdn.example.com:8444"}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{"git.example.com", "a.cdn.example.com"} {
+		leaf, err := a.Certificate(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := leaf.Leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: a.Pool()}); err != nil {
+			t.Errorf("%s: %v", host, err)
+		}
+	}
+}
+
+func TestABracketedIPv6HostKeepsItsAddressWhenThePortIsRemoved(t *testing.T) {
+	for in, want := range map[string]string{
+		"[::1]:8443":           "::1",
+		"[::1]":                "::1",
+		"git.example.com":      "git.example.com",
+		"git.example.com:8443": "git.example.com",
+	} {
+		if got := withoutPort(in); got != want {
+			t.Errorf("withoutPort(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
