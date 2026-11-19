@@ -145,6 +145,11 @@ summary = "Change files through the API"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
+method = "*"
+path = "/api/v1/admin/**"
+action = "deny"
+
+[[http.rules]]
 method = "GET"
 path = "/api/**"
 action = "allow"
@@ -155,11 +160,6 @@ method = "HEAD"
 path = "/api/**"
 action = "allow"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
-
-[[http.rules]]
-method = "*"
-path = "/api/v1/admin/**"
-action = "deny"
 
 [[http.rules]]
 method = "POST"

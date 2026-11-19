@@ -85,6 +85,21 @@ action = "deny"
 
 [[http.rules]]
 method = "*"
+path = "/repos/*/*/secret-scanning/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/repositories/*/secret-scanning/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/orgs/*/secret-scanning/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
 path = "/repositories/*/hooks/**"
 action = "deny"
 

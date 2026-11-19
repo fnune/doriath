@@ -117,6 +117,41 @@ action = "deny"
 
 [[http.rules]]
 method = "*"
+path = "/api/v4/projects/*/pipelines/*/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/projects/*/pipeline_schedules/*/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/admin/ci/variables/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/application/settings/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/runners/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/user/runners/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
+path = "/api/v4/groups/*/runners/**"
+action = "deny"
+
+[[http.rules]]
+method = "*"
 path = "/api/v4/projects/*/job_token_scope/**"
 action = "deny"
 
