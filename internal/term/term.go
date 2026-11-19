@@ -88,12 +88,34 @@ func Unprintable(r rune) bool {
 	switch {
 	case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
 		return true
-	case r >= 0x200b && r <= 0x200f, r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069:
+	case r == 0x00ad, r == 0x034f, r == 0x061c, r == 0x115f, r == 0x1160, r == 0x3164, r == 0xffa0:
 		return true
-	case r == 0x2060, r == 0xfeff, r == 0x2028, r == 0x2029:
+	case r >= 0x17b4 && r <= 0x17b5, r >= 0x180b && r <= 0x180f:
+		return true
+	case r >= 0x200b && r <= 0x200f, r >= 0x2028 && r <= 0x202e, r >= 0x2060 && r <= 0x206f:
+		return true
+	case r >= 0xfe00 && r <= 0xfe0f, r == 0xfeff, r >= 0xfff9 && r <= 0xfffc:
+		return true
+	case r >= 0x1d173 && r <= 0x1d17a, r >= 0xe0000 && r <= 0xe0fff:
 		return true
 	}
 	return false
+}
+
+func Printable(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r != '\n' && r != '\t' && Unprintable(r) {
+			fmt.Fprintf(&b, "\\u%04x", r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func PrintableLine(s string) string {
+	return Printable(strings.NewReplacer("\n", `\n`, "\t", `\t`).Replace(s))
 }
 
 func Title(w io.Writer, title string) (restore func()) {

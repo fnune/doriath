@@ -1,6 +1,9 @@
 package session
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPrintableEscapesTerminalControls(t *testing.T) {
 	for in, want := range map[string]string{
@@ -21,5 +24,18 @@ func TestPrintableEscapesTerminalControls(t *testing.T) {
 func TestPrintableLineKeepsAnEntryOnOneLine(t *testing.T) {
 	if got := PrintableLine("a\n\tb\x1b"); got != `a\n\tb\u001b` {
 		t.Errorf("PrintableLine = %q", got)
+	}
+}
+
+func TestTheStatusTextShowsAHostThatCarriesControlsAsEscapes(t *testing.T) {
+	st := Status{Session: "s1", Profile: "p", Denied: []Denial{{Target: "a\u009b31m.example\u3164.com:443", Reason: "host not in the profile\u202e", Count: 1}}}
+	got := st.Describe()
+	for _, raw := range []string{"\u009b", "\u3164", "\u202e"} {
+		if strings.Contains(got, raw) {
+			t.Errorf("the status text holds %q", raw)
+		}
+	}
+	if !strings.Contains(got, `a\u009b31m.example\u3164.com:443`) {
+		t.Errorf("status text:\n%s", got)
 	}
 }

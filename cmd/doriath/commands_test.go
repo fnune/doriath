@@ -536,6 +536,18 @@ func TestApprovalsListsTheWarningOfARequest(t *testing.T) {
 	}
 }
 
+func TestAnAgentCannotAddARowOrALineOfDoriathsOwnToTheList(t *testing.T) {
+	var out bytes.Buffer
+	now := time.Unix(100, 0)
+	req := approval.Request{ID: "r1", Kind: approval.KindPath, Summary: "Open\nabcde\tp\ts\t1m\tAllow it", Note: "fine\nWarning from doriath: safe", Expires: now.Add(time.Minute)}
+	printPending(&out, []pendingRequest{{Request: req}}, now)
+	for _, line := range strings.Split(out.String(), "\n") {
+		if strings.HasPrefix(line, "abcde") || strings.HasPrefix(strings.TrimSpace(line), "Warning from doriath") {
+			t.Errorf("the agent wrote a line: %q", line)
+		}
+	}
+}
+
 func TestAnAnswerTakesItsFlagsBeforeOrAfterTheID(t *testing.T) {
 	for _, args := range [][]string{{"ab12c", "--for", "session", "--reason", "use CI"}, {"--for", "session", "--reason", "use CI", "ab12c"}} {
 		id, lasting, reason, err := parseAnswer("deny", args)

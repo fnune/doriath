@@ -308,7 +308,7 @@ func printPending(w io.Writer, reqs []pendingRequest, now time.Time) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tPROFILE\tSESSION\tEXPIRES IN\tREQUEST")
 	for _, r := range reqs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.ID, r.Profile, r.Session, r.Expires.Sub(now).Round(time.Second), session.Printable(r.Summary))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.ID, r.Profile, r.Session, r.Expires.Sub(now).Round(time.Second), session.PrintableLine(r.Summary))
 	}
 	_ = tw.Flush()
 	t := term.New(w)
@@ -333,7 +333,7 @@ func requestText(r approval.Request) string {
 		if agent == "" {
 			agent = "the agent"
 		}
-		parts = append(parts, fmt.Sprintf("Written by %s: %s", agent, r.Note))
+		parts = append(parts, fmt.Sprintf("Written by %s: %s", agent, session.PrintableLine(r.Note)))
 	}
 	if r.Details != "" {
 		parts = append(parts, r.Details)

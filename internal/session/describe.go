@@ -6,6 +6,10 @@ import (
 )
 
 func (st Status) Describe() string {
+	return Printable(st.describe())
+}
+
+func (st Status) describe() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This session runs in doriath profile %q (session %s).\n", st.Profile, st.Session)
 	if st.Description == "" {

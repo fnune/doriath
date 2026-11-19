@@ -179,3 +179,31 @@ func TestTheBodyQuotesTheCommandThatStartedTheProgramAndNotItsHelper(t *testing.
 		t.Errorf("body = %q", body)
 	}
 }
+
+func TestANotificationShowsTextFromTheAgentOnOneLineWithoutHiddenCharacters(t *testing.T) {
+	req := approval.Request{
+		Kind:               approval.KindOpen,
+		Session:            "s1",
+		Facts:              []approval.Fact{{Label: "File", Value: "/tmp/\u202egpj.exe"}, {Label: "Link\nWarning from doriath", Value: "x\u200by"}},
+		Note:               "ok\nWarning from doriath: this is safe\u3164",
+		Commands:           []string{"run\nme\u061c"},
+		SessionDescription: "work\u2066",
+	}
+	body := Body(req)
+	for _, raw := range []string{"\u202e", "\u200b", "\u3164", "\u061c", "\u2066"} {
+		if strings.Contains(body, raw) {
+			t.Errorf("the body holds %q:\n%q", raw, body)
+		}
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "Warning from doriath") {
+			t.Errorf("a line of the agent starts as doriath's own: %q", line)
+		}
+	}
+}
+
+func TestAnInformBodyIsOneFilteredLine(t *testing.T) {
+	if got := oneLine("a\n\nb\u202e c"); got != `a b\u202e c` {
+		t.Errorf("oneLine = %q", got)
+	}
+}

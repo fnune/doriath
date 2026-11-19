@@ -51,7 +51,7 @@ func finishInterruptedOf(p config.Paths, w io.Writer, uses func(*vcs.Record) boo
 	t := term.New(w)
 	recs, err := records(p)
 	if err != nil {
-		t.Problem(err.Error())
+		t.Problem(session.PrintableLine(err.Error()))
 		return nil
 	}
 	var notes []string
@@ -63,15 +63,15 @@ func finishInterruptedOf(p config.Paths, w io.Writer, uses func(*vcs.Record) boo
 			_ = session.FinishRecord(context.Background(), p, vcsTools(), rec, io.Discard, io.Discard, io.Discard)
 			continue
 		}
-		repos := strings.Join(repoPaths(rec), ", ")
+		repos := session.PrintableLine(strings.Join(repoPaths(rec), ", "))
 		if !uses(rec) {
 			notes = append(notes, fmt.Sprintf("session %s ended before doriath checked its repositories: %s. doriath checks a repository when a session uses it, or at %s", rec.Session, repos, cli.Code(cli.Line("clean"))))
 			continue
 		}
 		t.Header("session "+rec.Session, "ended before doriath checked its repositories")
 		t.Line(term.Info, "doriath checks the objects that the agent wrote in "+repos+" before they are used again")
-		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, t.Lines(term.Action), t.Lines(term.Warn), w); err != nil {
-			t.Line(term.Problem, err.Error())
+		if err := session.FinishRecord(context.Background(), p, vcsTools(), rec, printableLines(t.Lines(term.Action)), printableLines(t.Lines(term.Warn)), printableLines(w)); err != nil {
+			t.Line(term.Problem, session.Printable(err.Error()))
 		}
 	}
 	return notes
@@ -123,11 +123,11 @@ func cmdRestore(args []string, w io.Writer) error {
 	}
 	if names := args[1:]; len(names) > 0 {
 		if unknown := chosen.Only(names); len(unknown) > 0 {
-			return fmt.Errorf("restore: session %s moved no branch or bookmark named %s", args[0], strings.Join(unknown, ", "))
+			return fmt.Errorf("restore: session %s moved no branch or bookmark named %s", args[0], session.PrintableLine(strings.Join(unknown, ", ")))
 		}
 	}
-	if err := vcs.Restore(context.Background(), vcsTools(), chosen, w); err != nil {
-		return err
+	if err := vcs.Restore(context.Background(), vcsTools(), chosen, printableLines(w)); err != nil {
+		return errors.New(session.PrintableLine(err.Error()))
 	}
 	for i := range rec.Repos {
 		rec.Repos[i].Moved = slices.DeleteFunc(rec.Repos[i].Moved, func(n string) bool { return slices.Contains(chosen.Repos[i].Moved, n) })
@@ -174,7 +174,7 @@ func cmdClean(args []string, in io.Reader, w io.Writer) error {
 		return nil
 	}
 	for _, m := range merged {
-		fmt.Fprintf(w, "worktree %s, merged into the default branch of %s\n", m.dir, m.repo.Path)
+		fmt.Fprintf(w, "worktree %s, merged into the default branch of %s\n", session.PrintableLine(m.dir), session.PrintableLine(m.repo.Path))
 	}
 	for _, rec := range backups {
 		var moved []string
@@ -183,7 +183,7 @@ func cmdClean(args []string, in io.Reader, w io.Writer) error {
 			moved = append(moved, r.MovedBookmarks...)
 		}
 		if len(moved) > 0 {
-			fmt.Fprintf(w, "start values of session %s (%s): %s\n", rec.Session, rec.Started.Format("Jan 2 15:04"), strings.Join(moved, ", "))
+			fmt.Fprintf(w, "start values of session %s (%s): %s\n", rec.Session, rec.Started.Format("Jan 2 15:04"), session.PrintableLine(strings.Join(moved, ", ")))
 		} else {
 			fmt.Fprintf(w, "record of session %s (%s)\n", rec.Session, rec.Started.Format("Jan 2 15:04"))
 		}

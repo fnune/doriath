@@ -86,33 +86,39 @@ func Body(req approval.Request) string {
 		agent = "the agent"
 	}
 	if req.Warning != "" {
-		fmt.Fprintf(&b, "<b>Warning from doriath:</b> %s\n", html.EscapeString(req.Warning))
+		fmt.Fprintf(&b, "<b>Warning from doriath:</b> %s\n", markup(term.Printable(req.Warning)))
 	}
 	if req.Kind == approval.KindTool {
-		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", html.EscapeString(agent))
+		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", markup(oneLine(agent)))
 	}
 	for i, f := range req.Facts {
 		if i == 0 || f.Label == "" {
-			fmt.Fprintf(&b, "%s\n", html.EscapeString(f.Value))
+			fmt.Fprintf(&b, "%s\n", markup(oneLine(f.Value)))
 			continue
 		}
-		fmt.Fprintf(&b, "%s: %s\n", html.EscapeString(f.Label), html.EscapeString(f.Value))
+		fmt.Fprintf(&b, "%s: %s\n", markup(oneLine(f.Label)), markup(oneLine(f.Value)))
 	}
 	if req.Note != "" {
-		fmt.Fprintf(&b, "<i>“%s”</i>\n", html.EscapeString(req.Note))
+		fmt.Fprintf(&b, "<i>“%s”</i>\n", markup(oneLine(req.Note)))
 	}
 	if lead, _ := req.LeadCommand(); lead != "" {
-		fmt.Fprintf(&b, "<tt>“%s”</tt>\n", html.EscapeString(lead))
+		fmt.Fprintf(&b, "<tt>“%s”</tt>\n", markup(term.PrintableLine(lead)))
 	}
 	if len(req.Facts) == 0 && req.Details != "" {
-		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
+		fmt.Fprintf(&b, "<tt>%s</tt>\n", markup(term.PrintableLine(req.Details)))
 	}
 	if req.SessionDescription != "" {
-		fmt.Fprintf(&b, "<i>“%s”</i>", html.EscapeString(req.SessionDescription))
+		fmt.Fprintf(&b, "<i>“%s”</i>", markup(oneLine(req.SessionDescription)))
 	} else {
-		b.WriteString(html.EscapeString(req.Session))
+		b.WriteString(markup(oneLine(req.Session)))
 	}
 	return b.String()
+}
+
+func markup(s string) string { return html.EscapeString(s) }
+
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(term.Printable(s)), " ")
 }
 
 type Desktop struct {
@@ -247,7 +253,7 @@ func (d *Desktop) Inform(session, title, body string) error {
 	title = oneLineTitle("Agent in " + session + ": " + title)
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(urgencyNormal), "desktop-entry": dbus.MakeVariant("doriath")}
 	return d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
-		appName, uint32(0), "dialog-information", title, html.EscapeString(body), []string{}, hints, int32(-1)).Err
+		appName, uint32(0), "dialog-information", title, markup(oneLine(body)), []string{}, hints, int32(-1)).Err
 }
 
 func (None) Inform(string, string, string) error { return nil }

@@ -64,3 +64,16 @@ func TestABarOutsideATerminalDrawsNothing(t *testing.T) {
 		t.Errorf("got %q", out.String())
 	}
 }
+
+func TestInvisibleAndBidiCharactersAreUnprintable(t *testing.T) {
+	for _, r := range []rune{0x00ad, 0x034f, 0x061c, 0x115f, 0x1160, 0x17b4, 0x180e, 0x200b, 0x202e, 0x2061, 0x2064, 0x2066, 0x3164, 0xfe0f, 0xfeff, 0xffa0, 0xfffc, 0xe0041, 0xe0100, 0x85, 0x9b} {
+		if !Unprintable(r) {
+			t.Errorf("U+%04X passes as printable", r)
+		}
+	}
+	for _, r := range []rune{'a', ' ', 'é', 'ж', '日', '→', '“'} {
+		if Unprintable(r) {
+			t.Errorf("%q is unprintable", r)
+		}
+	}
+}

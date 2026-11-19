@@ -109,7 +109,7 @@ func (e ending) print(t *term.Writer, details string, header ...string) {
 		}
 		in := t.Section(s.title)
 		for _, n := range s.notes {
-			in.Line(n.level, n.text)
+			in.Line(n.level, Printable(n.text))
 		}
 	}
 	t.Line(term.Next, t.Dim(details))
@@ -130,6 +130,6 @@ func printBlock(t *term.Writer, notes []note, header ...string) {
 	}
 	t.Header(header...)
 	for _, n := range notes {
-		t.Line(n.level, n.text)
+		t.Line(n.level, Printable(n.text))
 	}
 }
