@@ -666,10 +666,21 @@ func (b *builder) repositoryOverrides(l layer) []error {
 	var errs []error
 	yours := "your profiles or modules"
 	for _, h := range l.HTTP {
-		i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, h.Host) })
-		if i >= 0 && b.http[i].Credential != nil && !repeatsCredential(h, b.http[i]) {
+		i := slices.IndexFunc(b.http, func(x httpLayer) bool { return hostsOverlap(x.Host, h.Host) })
+		repeats := i >= 0 && b.http[i].Credential != nil && repeatsCredential(h, b.http[i])
+		switch {
+		case repeats:
+		case i >= 0 && b.http[i].Credential != nil:
 			errs = append(errs, fmt.Errorf("http %s: %s already give it a credential, and a repository profile cannot change what the credential reaches. Put the rules in a profile of your own", h.Host, yours))
+		case i >= 0 && h.hasSettings():
+			errs = append(errs, fmt.Errorf("http %s: %s already define %s, and a repository profile cannot add rules or settings to it. Put them in a profile of your own", h.Host, yours, b.http[i].Host))
 		}
+	}
+	for _, port := range slices.Concat(l.Egress.Ports, l.Egress.TCPPorts) {
+		errs = append(errs, fmt.Errorf("egress port %d: a repository profile cannot reach a port on your machine, because the services there may trust a local client. Put the port in a profile of your own", port))
+	}
+	if l.Code != nil && (len(l.Code.Archives) > 0 || len(l.Code.Libraries) > 0) {
+		errs = append(errs, errors.New("code: a repository profile cannot name archives or libraries that programs trust with a credential. Put them in a profile of your own"))
 	}
 	for _, m := range l.MCP {
 		if slices.ContainsFunc(b.mcp, func(x mcpLayer) bool { return x.Name == m.Name }) {
@@ -685,6 +696,14 @@ func (b *builder) repositoryOverrides(l layer) []error {
 		errs = append(errs, fmt.Errorf("forward %s: a repository profile cannot forward a port, because programs on your machine would reach the jail through it. Put the forward in a profile of your own", f.Port))
 	}
 	return errs
+}
+
+func hostsOverlap(a, b string) bool {
+	return strings.EqualFold(a, b) || HostPattern(strings.ToLower(a)).Covers(HostPattern(strings.ToLower(b))) || HostPattern(strings.ToLower(b)).Covers(HostPattern(strings.ToLower(a)))
+}
+
+func (h httpLayer) hasSettings() bool {
+	return len(h.Rules) > 0 || h.Default != "" || h.Credential != nil || h.SSH != nil || h.Operation != nil || len(h.Only) > 0 || len(h.Repositories) > 0 || h.EncodedSlashes
 }
 
 func (b *builder) repositoryMounts(l layer) []error {
@@ -785,6 +804,26 @@ func (b *builder) record(l layer) {
 	}
 	for _, h := range l.HTTP {
 		b.from(l.source, "http "+h.Host)
+		if !strings.HasPrefix(l.source, "profile") {
+			continue
+		}
+		for _, r := range h.Rules {
+			b.from(l.source, fmt.Sprintf("rule %s %s %s: %s", h.Host, r.Method, r.Path, r.Action))
+		}
+	}
+	for _, port := range l.Egress.Ports {
+		b.from(l.source, fmt.Sprintf("port %d: HTTP", port))
+	}
+	for _, port := range l.Egress.TCPPorts {
+		b.from(l.source, fmt.Sprintf("port %d: TCP", port))
+	}
+	if l.Code != nil {
+		for _, a := range l.Code.Archives {
+			b.from(l.source, "code archive "+a)
+		}
+		for _, lib := range l.Code.Libraries {
+			b.from(l.source, "code library "+lib)
+		}
 	}
 	for _, k := range l.Env.Pass {
 		b.from(l.source, "env pass "+k)

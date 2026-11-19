@@ -340,7 +340,8 @@ These limits apply to a repository profile:
     - A credential can use the secret only on a host to which your profiles or modules already attach it. Your own profile must attach it to a host first.
     - An `[[mcp]]` server can use the secret only with a URL that your profiles or modules already use with it.
     - `[signing] key` can name any secret that your profiles give, because a key has no host.
-- It cannot replace a secret of your profiles or modules. It cannot add rules to an `[[http]]` host that your profiles or modules give a credential, or replace one of their `[[mcp]]` servers.
+- It cannot replace a secret of your profiles or modules. It cannot add rules or settings to an `[[http]]` host that your profiles or modules already define, or replace one of their `[[mcp]]` servers.
+- It cannot set `egress.ports` or `egress.tcp_ports`, because the services on those ports of your machine can trust a local client. It cannot set `[code]`, because the programs that it names keep a credential.
 - It cannot mount your keys, logins, git and jj config, or the configuration, state and cache of doriath. It can hide them.
 - In an [edit](#edits) `safe` list, it cannot name a git setting that runs a program or sends data to another place, such as `core.hookspath`, `credential.*`, `url.*`, `include.*` or `remote.*`.
 - It cannot replace one of your profiles or modules, and it cannot go in a `modules` list.
@@ -360,6 +361,7 @@ Below the summary, doriath lists what decides where a secret goes and what the j
 - the command, keyring entry or login behind each secret
 - each credential, with the host and programs that it reaches
 - each host `default`, and the links that the browser opens
+- each port on your machine, each archive or library in `[code]`, and each request rule that a profile of yours or a repository sets
 - settings such as `nix.daemon`, `hardening` and the safe edits
 
 An `env.pass` name that can hold a credential, connect to a service on your machine or change the code that programs load shows in red, with the reason. doriath still passes it.

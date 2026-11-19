@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/fnune/doriath/internal/modules"
 )
 
 func withRepository(l *Loader, repo fstest.MapFS) *Loader {
@@ -308,5 +310,46 @@ func TestARepositoryProfileCannotMintTokensWithYourKey(t *testing.T) {
 	_, err := l.Load("work+repo:app")
 	if err == nil || !strings.Contains(err.Error(), `secret "github": a repository profile cannot mint tokens with a key of yours`) || !strings.Contains(err.Error(), "my-app+repo:app") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestARepositoryProfileCannotReachPortsNameCodeOrChangeAModuleHost(t *testing.T) {
+	l := repoLoader()
+	l.Modules = append(l.Modules, modules.FS)
+	repo := l.Repository.(fstest.MapFS)
+	for _, c := range []struct{ name, body, want string }{
+		{"tcp", "[egress]\ntcp_ports = [5432]\n", "egress port 5432: a repository profile cannot reach a port on your machine"},
+		{"http-port", "[egress]\nports = [8080]\n", "egress port 8080"},
+		{"libraries", "[code]\nlibraries = [\"/work/lib.so\"]\n", "code: a repository profile cannot name archives or libraries"},
+		{"archives", "[code]\narchives = [\"/work/a.jar\"]\n", "code: a repository profile cannot name archives or libraries"},
+		{"module-host-rule", "modules = [\"cdns\"]\n\n[[http]]\nhost = \"storage.googleapis.com\"\n\n[[http.rules]]\nmethod = \"*\"\npath = \"/**\"\naction = \"allow\"\n", "http storage.googleapis.com: your profiles or modules already define storage.googleapis.com"},
+		{"module-host-default", "modules = [\"cdns\"]\n\n[[http]]\nhost = \"storage.googleapis.com\"\ndefault = \"allow\"\n", "cannot add rules or settings"},
+		{"module-wildcard-host", "modules = [\"aws\"]\n\n[[http]]\nhost = \"ec2.us-east-1.amazonaws.com\"\ndefault = \"allow\"\n", "already give it a credential"},
+	} {
+		repo[c.name+".toml"] = file(c.body)
+		_, err := l.Load("repo:" + c.name)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", c.name, err, c.want)
+		}
+	}
+}
+
+func TestTheSourcesOfAProfileListItsPortsCodeAndRules(t *testing.T) {
+	l := repoLoader()
+	l.Modules = append(l.Modules, modules.FS)
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file("modules = [\"claude\"]\n\n[egress]\ntcp_ports = [5432]\nports = [8080]\n\n[code]\nlibraries = [\"/opt/lib.so\"]\n\n[[http]]\nhost = \"plain.example\"\n\n[[http.rules]]\nmethod = \"GET\"\npath = \"/**\"\naction = \"allow\"\n")
+	p, err := l.Load("mine")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"port 5432: TCP", "port 8080: HTTP", "code library /opt/lib.so", "rule plain.example GET /**: allow"} {
+		if p.Sources[key] == nil {
+			t.Errorf("%q is not in the sources", key)
+		}
+	}
+	for key := range p.Sources {
+		if strings.HasPrefix(key, "rule api.anthropic.com") {
+			t.Errorf("a module lists its rules in the sources: %q", key)
+		}
 	}
 }

@@ -297,3 +297,16 @@ func TestAnAddedDenyRuleStillAsksWhenTheOtherRulesChangeOrder(t *testing.T) {
 		t.Error("a profile whose allow rule now comes first started without a question")
 	}
 }
+
+func TestTheFirstQuestionListsPortsRulesAndCode(t *testing.T) {
+	p := appProfile("a.example")
+	p.Sources["port 5432: TCP"] = []string{"profile"}
+	p.Sources["rule api.example GET /**: allow"] = []string{"profile"}
+	p.Sources["code library /opt/lib.so"] = []string{"profile"}
+	out, _ := confirm(t, memoryGrants{}, p, "n\n", true)
+	for _, want := range []string{"Ports on your machine\n  5432: TCP\n", "Request rules\n  api.example GET /**: allow\n", "Code that keeps a credential\n  library /opt/lib.so\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in:\n%s", want, out)
+		}
+	}
+}
