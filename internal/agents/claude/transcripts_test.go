@@ -24,7 +24,7 @@ func TestOnlyTranscriptsComeBack(t *testing.T) {
 	if err := os.Symlink("/etc/passwd", filepath.Join(real, "link")); err != nil {
 		t.Fatal(err)
 	}
-	if err := copyProjectIn(real, private); err != nil {
+	if err := copyProjectIn(real, root, "private"); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(private, "memory", "MEMORY.md")); string(got) != "remember\n" {
@@ -43,7 +43,7 @@ func TestOnlyTranscriptsComeBack(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := copyTranscriptsBack(private, real); err != nil {
+	if err := copyTranscriptsBack(root, "private", real); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(real, "old.jsonl")); string(got) != "old\nmore\n" {
@@ -82,7 +82,7 @@ func TestTranscriptsComeBackOnlyAsRegularNewerFiles(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(private, "dir.jsonl"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := copyTranscriptsBack(private, real); err != nil {
+	if err := copyTranscriptsBack(root, "private", real); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(real, "kept.jsonl")); string(got) != "newer on the desktop\n" {
@@ -97,10 +97,45 @@ func TestTranscriptsComeBackOnlyAsRegularNewerFiles(t *testing.T) {
 
 func TestNoPrivateTranscriptsIsNotAnError(t *testing.T) {
 	root := t.TempDir()
-	if err := copyTranscriptsBack(filepath.Join(root, "missing"), filepath.Join(root, "real")); err != nil {
+	if err := copyTranscriptsBack(root, "missing", filepath.Join(root, "real")); err != nil {
 		t.Fatal(err)
 	}
-	if err := copyProjectIn(filepath.Join(root, "missing"), filepath.Join(root, "private")); err != nil {
+	if err := copyProjectIn(filepath.Join(root, "missing"), root, "private"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTranscriptsNeverCrossASymlinkInTheCache(t *testing.T) {
+	root := t.TempDir()
+	cache, real, outside := filepath.Join(root, "cache"), filepath.Join(root, "real"), filepath.Join(root, "outside")
+	for path, body := range map[string]string{
+		filepath.Join(real, "mine.jsonl"):     "transcript\n",
+		filepath.Join(outside, "other.jsonl"): "not a transcript of this project\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(cache, "projects"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(cache, "projects", "app")); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyProjectIn(real, cache, filepath.Join("projects", "app")); err == nil {
+		t.Error("copyProjectIn went through the symlink")
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "mine.jsonl")); err == nil {
+		t.Error("a transcript was written to the folder behind the symlink")
+	}
+	hostReal := filepath.Join(root, "host-real")
+	if err := copyTranscriptsBack(cache, filepath.Join("projects", "app"), hostReal); err == nil {
+		t.Error("copyTranscriptsBack went through the symlink")
+	}
+	if _, err := os.Lstat(filepath.Join(hostReal, "other.jsonl")); err == nil {
+		t.Error("a file behind the symlink was read")
 	}
 }

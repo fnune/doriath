@@ -58,7 +58,7 @@ func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]stri
 			return nil, nil, fmt.Errorf("copy the Claude plugins: %w", err)
 		}
 		project := ProjectDir(s.Cwd)
-		if err := copyProjectIn(filepath.Join(configDir, "projects", project), filepath.Join(private, "projects", project)); err != nil {
+		if err := copyProjectIn(filepath.Join(configDir, "projects", project), private, filepath.Join("projects", project)); err != nil {
 			return nil, nil, fmt.Errorf("copy the Claude project directory: %w", err)
 		}
 	}
@@ -91,7 +91,7 @@ func (Adapter) End(s agents.Session) error {
 		return nil
 	}
 	project := ProjectDir(s.Cwd)
-	return copyTranscriptsBack(filepath.Join(private, "projects", project), filepath.Join(configDir, "projects", project))
+	return copyTranscriptsBack(private, filepath.Join("projects", project), filepath.Join(configDir, "projects", project))
 }
 
 func placeUserSettings(s agents.Session, configDir string) error {
