@@ -229,6 +229,10 @@ func volumeCreate(c checker, r request) verdict {
 	return refuseIf(c.volumeDriver(b.Driver, opts))
 }
 
+var volumeFilesystems = map[string]bool{"": true, "none": true, "tmpfs": true}
+
+var tmpfsOptionKeys = map[string]bool{"size": true, "mode": true, "uid": true, "gid": true, "nr_inodes": true}
+
 func (c checker) volumeDriver(driver string, opts map[string]string) string {
 	switch strings.ToLower(driver) {
 	case "", "local":
@@ -238,20 +242,44 @@ func (c checker) volumeDriver(driver string, opts map[string]string) string {
 		return fmt.Sprintf("volume driver %q is not allowed: only the local driver is", driver)
 	}
 	device := lookupFold(opts, "device")
-	readOnly, isBind := false, false
-	for _, o := range strings.Split(lookupFold(opts, "o"), ",") {
-		switch strings.TrimSpace(o) {
-		case "bind", "rbind":
-			isBind = true
+	readOnly, readWrite, bind, recursive := false, false, false, false
+	var rest []string
+	for _, raw := range strings.Split(lookupFold(opts, "o"), ",") {
+		o := strings.TrimSpace(raw)
+		switch o {
+		case "":
+		case "bind":
+			bind = true
+		case "rbind":
+			bind, recursive = true, true
 		case "ro":
 			readOnly = true
+		case "rw":
+			readWrite = true
+		default:
+			rest = append(rest, o)
 		}
 	}
-	if isBind {
-		return c.bindSource(device, access{write: !readOnly})
+	if readOnly && readWrite {
+		return "a volume with both ro and rw is ambiguous"
 	}
-	if strings.HasPrefix(device, "/") {
+	if bind {
+		if reason := c.bindSource(device, access{write: !readOnly, nonRecursive: !recursive}); reason != "" {
+			return reason
+		}
+	} else if strings.HasPrefix(device, "/") {
 		return fmt.Sprintf("a volume on device %s is not allowed; no profile setting allows it", device)
+	}
+	if fs := strings.ToLower(lookupFold(opts, "type")); !volumeFilesystems[fs] {
+		return fmt.Sprintf("volume type %q is not allowed: only none and tmpfs are", fs)
+	}
+	for _, o := range rest {
+		if key, _, keyed := strings.Cut(o, "="); keyed && tmpfsOptionKeys[key] {
+			continue
+		}
+		if reason := checkMountOption(o); reason != "" {
+			return reason
+		}
 	}
 	return ""
 }

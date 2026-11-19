@@ -196,6 +196,13 @@ func TestDecide(t *testing.T) {
 		{"volume options and driver opts", "POST", "/volumes/create", "", `{"Name":"v","Options":{"o":"bind","device":"/work"},"DriverOpts":{"o":"bind","device":"/home/u"}}`, "ambiguous"},
 		{"volume image driver", "POST", "/libpod/volumes/create", "", `{"Name":"v","Driver":"image","Options":{"image":"quay.io/evil/miner"}}`, "[podman] images"},
 		{"volume bind read-only ro", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"o":"bind,ro","device":"/ro"}}`, ""},
+		{"volume bind uncovers guard", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"type":"none","device":"/work","o":"bind"}}`, "uncover /work/.git/hooks"},
+		{"volume docker bind uncovers guard", "POST", "/volumes/create", "", `{"Name":"v","DriverOpts":{"type":"none","device":"/work","o":"bind"}}`, "uncover /work/.git/hooks"},
+		{"volume rbind keeps guard", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"type":"none","device":"/work","o":"rbind"}}`, ""},
+		{"volume mount bind uncovers guard", "POST", "/containers/create", "", `{"Image":"alpine","HostConfig":{"Mounts":[{"Type":"volume","Target":"/w","VolumeOptions":{"DriverConfig":{"Options":{"o":"bind","device":"/work"}}}}]}}`, "uncover /work/.git/hooks"},
+		{"volume overlay lowerdir", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"type":"overlay","device":"overlay","o":"lowerdir=/etc"}}`, "volume type"},
+		{"volume unknown option", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"type":"none","device":"/work","o":"rbind,ro=false"}}`, "mount option"},
+		{"volume ro and rw", "POST", "/libpod/volumes/create", "", `{"Name":"v","Options":{"type":"none","device":"/ro","o":"rbind,ro,rw"}}`, "ambiguous"},
 
 		{"build plain", "POST", "/libpod/build", "t=x&dockerfile=%5B%22Containerfile%22%5D&isolation=0&networkmode=0", "", ""},
 		{"build docker", "POST", "/build", "t=x&dockerfile=Dockerfile", "", ""},
