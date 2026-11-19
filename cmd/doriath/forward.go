@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/control"
@@ -126,6 +128,8 @@ func cmdRelay(args []string) error {
 	defer client.Close()
 	upstream, err := net.Dial("tcp", args[0])
 	if err != nil {
+		_, port, _ := net.SplitHostPort(args[0])
+		answerNothingListens(client, port)
 		return err
 	}
 	defer upstream.Close()
@@ -158,4 +162,36 @@ func parseForward(s string) (int, int, error) {
 		return 0, 0, fmt.Errorf("port %q: want a number from 1 to 65535", jailPart)
 	}
 	return host, jail, nil
+}
+
+func answerNothingListens(client net.Conn, port string) {
+	_ = client.SetDeadline(time.Now().Add(2 * time.Second))
+	head := make([]byte, 16)
+	n, _ := io.ReadFull(client, head)
+	if !readsAsHTTP(head[:n]) {
+		return
+	}
+	body := fmt.Sprintf("doriath: nothing listens on port %s in the jail. Start the program that serves this port, then load the page again.\n", port)
+	_, _ = fmt.Fprintf(client, "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(body), body)
+	closeWithoutReset(client)
+}
+
+func closeWithoutReset(conn net.Conn) {
+	if c, ok := conn.(interface{ CloseWrite() error }); ok {
+		_ = c.CloseWrite()
+	}
+	_, _ = io.Copy(io.Discard, conn)
+}
+
+func readsAsHTTP(head []byte) bool {
+	method, _, found := bytes.Cut(head, []byte(" "))
+	if !found || len(method) == 0 {
+		return false
+	}
+	for _, c := range method {
+		if c < 'A' || c > 'Z' {
+			return false
+		}
+	}
+	return true
 }

@@ -1,16 +1,18 @@
 package session
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 type RequestForwardParams struct {
@@ -166,9 +168,16 @@ func (s *Session) relayInto(conn *net.TCPConn, reaper, port int) {
 		return
 	}
 	defer f.Close()
+	var stderr bytes.Buffer
 	cmd := exec.Command(s.deps.Nsenter, "--target", strconv.Itoa(reaper), "--user", "--net", "--preserve-credentials", "--",
 		s.deps.Exe, "__relay", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = f, f, os.Stderr
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = f, f, &stderr
 	cmd.Env = []string{}
-	_ = cmd.Run()
+	if err := cmd.Run(); err != nil {
+		reason := strings.TrimPrefix(strings.TrimSpace(stderr.String()), "doriath: ")
+		if reason == "" {
+			reason = err.Error()
+		}
+		s.egress.Egress(proxy.Event{Kind: "error", Host: "127.0.0.1", Port: strconv.Itoa(port), Reason: reason})
+	}
 }

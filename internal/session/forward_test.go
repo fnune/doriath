@@ -3,6 +3,8 @@ package session
 import (
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/proxy"
 )
 
 func TestTheLoopbackPortIsTakenFromTheLinkItself(t *testing.T) {
@@ -178,5 +181,49 @@ func TestAConnectRefusesAPortOutOfRangeOrOneThatTheProfileUses(t *testing.T) {
 	s.req.Profile.Egress.Ports = []int{4200}
 	if err := s.connectPort(4300, 4200); err == nil || !strings.Contains(err.Error(), "already used by the profile") {
 		t.Errorf("a jail port of the profile: %v", err)
+	}
+}
+
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+type eventChan chan proxy.Event
+
+func (c eventChan) Egress(e proxy.Event) { c <- e }
+
+func TestARelayErrorGoesToTheEventLogAndNotToTheTerminal(t *testing.T) {
+	s := newTestSession(t, &answering{})
+	events := make(eventChan, 1)
+	s.egress = newEgressLog(events)
+	s.peers.setInit(1)
+	s.deps.Nsenter = filepath.Join(t.TempDir(), "nsenter")
+	script := "#!/bin/sh\necho 'doriath: dial tcp 127.0.0.1:47123: connect: connection refused' >&2\nexit 1\n"
+	if err := os.WriteFile(s.deps.Nsenter, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	port := freePort(t)
+	if err := s.forwardPort(port, 47123, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer s.stopForwards()
+	conn, err := net.Dial("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	select {
+	case e := <-events:
+		if e.Kind != "error" || e.Port != "47123" || e.Reason != "dial tcp 127.0.0.1:47123: connect: connection refused" {
+			t.Errorf("event = %+v", e)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no event for the failed relay")
 	}
 }
