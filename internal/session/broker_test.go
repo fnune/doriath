@@ -221,3 +221,23 @@ func TestControlReportsTheSessionInfo(t *testing.T) {
 		t.Errorf("info = %+v", info)
 	}
 }
+
+func TestAHeldHostShowsTheProfilesNoteAndTheProgramAsFacts(t *testing.T) {
+	notifier := denying()
+	notifier.seen = make(chan approval.Request, 1)
+	s := newTestSession(t, notifier)
+	pattern, err := profile.ParseHostPattern("*.gvt1.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.req.Profile.Egress.Notes = map[profile.HostPattern]string{pattern: "Chromium downloads its components from these hosts."}
+	s.HoldHost(context.Background(), "redirector.gvt1.com", proxy.Identity{Exe: "/nix/store/x-chromium/libexec/chromium/chromium"})
+	want := []approval.Fact{
+		{Label: "Host", Value: "redirector.gvt1.com"},
+		{Label: "Note", Value: "Chromium downloads its components from these hosts."},
+		{Label: "Program", Value: "chromium"},
+	}
+	if req := <-notifier.seen; req.Action != "Connect to a new host" || !slices.Equal(req.Facts, want) {
+		t.Errorf("request = %+v", req)
+	}
+}

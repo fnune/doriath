@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -151,6 +154,27 @@ type Fact struct {
 type Link struct {
 	Label string `json:"label"`
 	URL   string `json:"url"`
+}
+
+// LeadCommand is the command line that started the caller's program. A
+// program such as a browser runs helpers of itself, and the first lines of
+// the chain are theirs, which say little about the task.
+func (r Request) LeadCommand() (lead string, rest []string) {
+	if len(r.Commands) == 0 {
+		return "", nil
+	}
+	i := 0
+	for i+1 < len(r.Commands) && programOf(r.Commands[i+1]) == programOf(r.Commands[0]) {
+		i++
+	}
+	rest = append(slices.Clone(r.Commands[:i]), r.Commands[i+1:]...)
+	return r.Commands[i], rest
+}
+
+func programOf(line string) string {
+	name, _, _ := strings.Cut(line, " ")
+	name = path.Base(name)
+	return strings.TrimSuffix(strings.TrimPrefix(name, "."), "-wrapped")
 }
 
 func (r Request) Title() string {

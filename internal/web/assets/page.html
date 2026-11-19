@@ -180,7 +180,7 @@
 
 {{define "subject"}}{{with .Subject}}<p class="subject">{{if $.Link.URL}}<a href="{{$.Link.URL}}" target="_blank" rel="noopener noreferrer">{{.}}</a>{{else}}{{.}}{{end}}</p>{{end}}{{with .Link.URL}}<a class="btn" href="{{.}}" target="_blank" rel="noopener noreferrer">{{$.Link.Label}}</a>{{end}}{{end}}
 
-{{define "commands"}}{{with .Commands}}
+{{define "commands"}}{{with .Lead}}
 <div class="agent-text">
   <div class="rule">
     {{template "curl-v" "start"}}
@@ -189,8 +189,8 @@
   </div>
   <div class="body">
     <span class="kind">Command line, written by the program that {{$.Agent}} ran</span>
-    <code class="quote">{{index . 0}}</code>
-    {{range slice . 1}}<span class="caption">started by <code>{{.}}</code></span>
+    <code class="quote">{{.}}</code>
+    {{range $.Chain}}<span class="caption">in the chain: <code>{{.}}</code></span>
     {{end}}
   </div>
 </div>

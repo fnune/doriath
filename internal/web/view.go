@@ -75,7 +75,8 @@ type requestView struct {
 	Title     string
 	Subject   string
 	Facts     []factView
-	Commands  []string
+	Lead      string
+	Chain     []string
 	Link      approval.Link
 	Warning   string
 	Details   string
@@ -248,13 +249,13 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		noteLabel = "Reason"
 	}
 	v := requestView{
-		Key:       sv.ID + "/" + r.ID,
-		ID:        r.ID,
-		Kind:      string(r.Kind),
-		Summary:   session.Printable(r.Summary),
-		Title:     session.Printable(r.Title()),
-		Facts:     facts(r.Facts),
-		Commands:  printable(r.Commands),
+		Key:     sv.ID + "/" + r.ID,
+		ID:      r.ID,
+		Kind:    string(r.Kind),
+		Summary: session.Printable(r.Summary),
+		Title:   session.Printable(r.Title()),
+		Facts:   facts(r.Facts),
+
 		Warning:   session.Printable(r.Warning),
 		Details:   session.Printable(r.Details),
 		Note:      session.Printable(r.Note),
@@ -273,6 +274,8 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 	if len(v.Facts) > 0 {
 		v.Subject = v.Facts[0].Value
 	}
+	lead, chain := r.LeadCommand()
+	v.Lead, v.Chain = session.Printable(lead), printable(chain)
 	if safeLink(r.Link.URL) && r.Link.Label != "" {
 		v.Link = approval.Link{Label: session.Printable(r.Link.Label), URL: r.Link.URL}
 	}

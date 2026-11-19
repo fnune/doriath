@@ -157,6 +157,9 @@ func (s *Session) hostSummary(host string) string {
 
 func (s *Session) holdHost(host, details, reason string, caller proxy.Identity) (approval.Decision, string) {
 	facts := []approval.Fact{{Label: "Host", Value: host}}
+	if note := s.req.Profile.HostNote(host); note != "" {
+		facts = append(facts, approval.Fact{Label: "Note", Value: note})
+	}
 	if caller.Exe != "" {
 		facts = append(facts, approval.Fact{Label: "Program", Value: proxy.ProgramName(caller.Exe)})
 	}

@@ -168,3 +168,14 @@ func TestTheSessionDescriptionShowsAsTheAgentsWords(t *testing.T) {
 		t.Errorf("body = %q", got)
 	}
 }
+
+func TestTheBodyQuotesTheCommandThatStartedTheProgramAndNotItsHelper(t *testing.T) {
+	req := approval.Request{Kind: approval.KindHost, Session: "s1", Facts: []approval.Fact{{Label: "Host", Value: "update.googleapis.com"}}, Commands: []string{
+		"/nix/store/x/chromium --type=utility",
+		"/nix/store/x/chromium --headless=new --screenshot=page.png",
+		"claude",
+	}}
+	if body := Body(req); !strings.Contains(body, "“/nix/store/x/chromium --headless=new --screenshot=page.png”") || strings.Contains(body, "--type=utility") {
+		t.Errorf("body = %q", body)
+	}
+}

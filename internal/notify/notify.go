@@ -101,8 +101,8 @@ func Body(req approval.Request) string {
 	if req.Note != "" {
 		fmt.Fprintf(&b, "<i>“%s”</i>\n", html.EscapeString(req.Note))
 	}
-	if len(req.Commands) > 0 {
-		fmt.Fprintf(&b, "<tt>“%s”</tt>\n", html.EscapeString(req.Commands[0]))
+	if lead, _ := req.LeadCommand(); lead != "" {
+		fmt.Fprintf(&b, "<tt>“%s”</tt>\n", html.EscapeString(lead))
 	}
 	if len(req.Facts) == 0 && req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))

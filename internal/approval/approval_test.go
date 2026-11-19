@@ -3,6 +3,7 @@ package approval
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -373,5 +374,27 @@ func TestAWarnedRequestCanBeAllowedOnceOnly(t *testing.T) {
 	}
 	if d := <-got; d.Verdict != VerdictAllow {
 		t.Errorf("decision = %+v", d)
+	}
+}
+
+func TestTheLeadCommandSkipsTheHelpersThatAProgramStartsOfItself(t *testing.T) {
+	r := Request{Commands: []string{
+		"/nix/store/x-chromium/libexec/chromium/chromium --type=utility --utility-sub-type=network.mojom.NetworkService",
+		"/nix/store/x-chromium/libexec/chromium/.chromium-wrapped --headless=new --screenshot=page.png http://127.0.0.1:7341/",
+		"timeout 40 chromium --headless=new",
+		"claude",
+	}}
+	lead, rest := r.LeadCommand()
+	if lead != r.Commands[1] {
+		t.Errorf("lead = %q", lead)
+	}
+	if want := []string{r.Commands[0], r.Commands[2], r.Commands[3]}; !slices.Equal(rest, want) {
+		t.Errorf("rest = %v", rest)
+	}
+	if lead, rest := (Request{Commands: []string{"gh pr edit 1", "bash"}}).LeadCommand(); lead != "gh pr edit 1" || !slices.Equal(rest, []string{"bash"}) {
+		t.Errorf("lead = %q, rest = %v", lead, rest)
+	}
+	if lead, rest := (Request{}).LeadCommand(); lead != "" || rest != nil {
+		t.Errorf("lead = %q, rest = %v", lead, rest)
 	}
 }
