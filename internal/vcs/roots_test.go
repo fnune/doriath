@@ -8,6 +8,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/fswatch"
 )
 
 type syncBuffer struct {
@@ -65,5 +69,19 @@ func TestTheRootGuardRemovesEveryCommondirInAStore(t *testing.T) {
 	g.Close()
 	if !strings.Contains(out.String(), "removed "+planted) {
 		t.Errorf("report: %q", out.String())
+	}
+}
+
+func TestARootGuardRemovesACommondirAfterAnOverflow(t *testing.T) {
+	root := t.TempDir()
+	var out strings.Builder
+	g := &RootGuard{w: &lockedWriter{w: &out}, all: []string{root}}
+	p := filepath.Join(root, Commondir)
+	if err := os.WriteFile(p, []byte("/tmp/elsewhere\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g.handle(fswatch.Event{Mask: unix.IN_Q_OVERFLOW})
+	if _, err := os.Lstat(p); err == nil {
+		t.Error("the commondir stays after an overflow")
 	}
 }

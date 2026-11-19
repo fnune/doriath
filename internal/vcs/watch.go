@@ -26,10 +26,21 @@ func Watch(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 		return err
 	}
 	defer func() { _ = fw.Close() }()
+	wt := newWatcher(fw, t, rec, w)
+	wt.register()
+	fw.Run(ctx, wt.handle)
+	return nil
+}
+
+func newWatcher(fw *fswatch.Watcher, t Tools, rec *Record, w io.Writer) *watcher {
 	wt := &watcher{fw: fw, t: t, rec: rec, w: &lockedWriter{w: w}, dirs: map[string]watched{}, now: time.Now}
 	fw.Idle = wt.idle
-	for i := range rec.Repos {
-		r := &rec.Repos[i]
+	return wt
+}
+
+func (wt *watcher) register() {
+	for i := range wt.rec.Repos {
+		r := &wt.rec.Repos[i]
 		wt.addMask(r.GitDir, unix.IN_CREATE|unix.IN_MOVED_TO, watched{repo: r, kind: kindStore})
 		wt.addMask(filepath.Join(r.GitDir, "modules"), unix.IN_CREATE|unix.IN_MOVED_TO, watched{repo: r, kind: kindModules})
 		wt.add(filepath.Join(r.GitDir, "worktrees"), watched{repo: r, kind: kindWorktrees})
@@ -39,8 +50,6 @@ func Watch(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 			}
 		}
 	}
-	fw.Run(ctx, wt.handle)
-	return nil
 }
 
 type kind int

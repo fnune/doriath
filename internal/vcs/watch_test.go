@@ -7,6 +7,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/fnune/doriath/internal/fswatch"
 )
 
 func watch(t *testing.T, rec *Record) (stop func() string) {
@@ -127,4 +131,28 @@ func eventually(t *testing.T, what string, ok func() bool) {
 		}
 	}
 	t.Fatalf("%s: not within 2s", what)
+}
+
+func TestWatchRepairsEverythingAfterAnOverflow(t *testing.T) {
+	r := repo(t)
+	trees := filepath.Join(filepath.Dir(r), "trees")
+	rec := &Record{Session: "s1", Writable: []string{trees}}
+	start(t, rec, r)
+	checkout := filepath.Join(trees, "agent")
+	git(t, r, "worktree", "add", "-q", checkout, "-b", "agent")
+	admin := filepath.Join(r, ".git", "worktrees", "agent")
+	fw, err := fswatch.New()
+	if err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = fw.Close() }()
+	var out strings.Builder
+	wt := newWatcher(fw, Tools{Git: "git"}, rec, &out)
+	if err := os.WriteFile(filepath.Join(admin, "commondir"), []byte("/tmp/evil.git\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wt.handle(fswatch.Event{Mask: unix.IN_Q_OVERFLOW})
+	if data, _ := os.ReadFile(filepath.Join(admin, "commondir")); string(data) != "../..\n" {
+		t.Errorf("commondir after an overflow = %q", data)
+	}
 }

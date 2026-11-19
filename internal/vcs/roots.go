@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"golang.org/x/sys/unix"
@@ -48,13 +49,27 @@ func NewRootGuard(w io.Writer) (*RootGuard, error) {
 	g.fw = fw
 	go func() {
 		defer close(g.done)
-		fw.Run(ctx, func(ev fswatch.Event) {
-			if ev.Name == Commondir {
-				g.sweep(ev.Dir)
-			}
-		})
+		fw.Run(ctx, g.handle)
 	}()
 	return g, nil
+}
+
+func (g *RootGuard) handle(ev fswatch.Event) {
+	switch {
+	case ev.Overflowed():
+		g.sweepAll()
+	case ev.Name == Commondir:
+		g.sweep(ev.Dir)
+	}
+}
+
+func (g *RootGuard) sweepAll() {
+	g.mu.Lock()
+	all := slices.Clone(g.all)
+	g.mu.Unlock()
+	for _, root := range all {
+		g.sweep(root)
+	}
 }
 
 func (g *RootGuard) Add(roots ...string) {
@@ -76,12 +91,7 @@ func (g *RootGuard) Close() {
 		if g.fw != nil {
 			_ = g.fw.Close()
 		}
-		g.mu.Lock()
-		all := g.all
-		g.mu.Unlock()
-		for _, root := range all {
-			g.sweep(root)
-		}
+		g.sweepAll()
 	})
 }
 
