@@ -60,6 +60,19 @@ func TestAStorePathAddedAfterTheStartGetsNoCredentialWithTheNixDaemon(t *testing
 	}
 }
 
+func TestASystemPathThatTheAgentCanWriteIsNotASystemPath(t *testing.T) {
+	ps := pins{programs: map[string]jailinit.FileID{}, writable: []string{"/opt/project"}}
+	if got := ps.untrusted(proxy.Identity{Exe: "/opt/project/bin/gh"}); got == "" {
+		t.Error("a program in a writable folder under /opt is trusted by its name")
+	}
+	if got := ps.untrusted(proxy.Identity{Exe: "/opt/tools/bin/gh"}); got != "" {
+		t.Errorf("a program in a read-only folder under /opt: %q", got)
+	}
+	if got := ps.untrusted(proxy.Identity{Exe: "/usr/bin/gh", Code: []jailinit.MappedFile{{Path: "/opt/project/lib/evil.so", Ino: 1}}}); got == "" {
+		t.Error("a library in a writable folder under /opt is trusted")
+	}
+}
+
 func TestPinsFindTheProfilesFilesInMountsAndCaches(t *testing.T) {
 	home := t.TempDir()
 	cacheRoot := t.TempDir()

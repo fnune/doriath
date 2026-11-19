@@ -20,6 +20,7 @@ type pins struct {
 	code     map[string]jailinit.FileID
 	archives *codeArchives
 	store    map[string]struct{}
+	writable []string
 }
 
 const nixStore = "/nix/store"
@@ -37,7 +38,7 @@ func snapshotStore(dir string) map[string]struct{} {
 }
 
 func (ps pins) systemPath(path string) bool {
-	if !profile.UnderTrustedRoot(path) {
+	if !profile.UnderTrustedRoot(path) || inAny(path, ps.writable) {
 		return false
 	}
 	if ps.store == nil {
@@ -55,7 +56,7 @@ func (ps pins) systemPath(path string) bool {
 const maxPinnedCode = 10000
 
 func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) (pins, []string) {
-	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]jailinit.FileID{}}
+	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]jailinit.FileID{}, writable: writable}
 	if p.NixDaemon {
 		out.store = snapshotStore(nixStore)
 		if out.store == nil {
@@ -65,7 +66,7 @@ func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) 
 	var notes []string
 	for _, pattern := range p.BinaryPaths() {
 		for _, jailPath := range globInJail(p, home, cacheRoot, pattern) {
-			if profile.UnderTrustedRoot(jailPath) {
+			if out.systemPath(jailPath) {
 				continue
 			}
 			source, ok := hostSource(p, home, cacheRoot, jailPath)
@@ -117,9 +118,6 @@ func (ps pins) pinLibraries(p *profile.Profile, home, cacheRoot string, writable
 func (ps pins) untrusted(id proxy.Identity) string {
 	if id.Exe == "" || ps.systemPath(id.Exe) {
 		return ps.foreignCode(id)
-	}
-	if profile.UnderTrustedRoot(id.Exe) {
-		return fmt.Sprintf("%s is not in the Nix store as it was when the session started", id.Exe)
 	}
 	pinned, ok := ps.programs[id.Exe]
 	switch {
