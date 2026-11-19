@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -33,7 +34,7 @@ import (
 )
 
 const (
-	defaultWebAddr  = "127.0.0.1:7341"
+	defaultWebAddr  = "127.0.0.1:" + session.DefaultWebPort
 	webTokenBytes   = 32
 	webShutdownWait = 5 * time.Second
 )
@@ -91,7 +92,7 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if user.Desktop.Tray {
-		showTray(ctx, liveApprovals{paths: p}, addr, token, symbolicTrayPath(p, os.Getenv("XDG_CURRENT_DESKTOP")), out)
+		showTray(ctx, liveApprovals{paths: p}, p.Runtime, addr, token, symbolicTrayPath(p, os.Getenv("XDG_CURRENT_DESKTOP")), out)
 	}
 	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
@@ -117,7 +118,7 @@ func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Write
 	if err != nil {
 		return fmt.Errorf("web open: %w", err)
 	}
-	return openPage(ctx, *listen, token, "", opener{}, *print || overSSH() || !hasDisplay(), out)
+	return openPage(ctx, p.Runtime, *listen, token, "", opener{}, *print || overSSH() || !hasDisplay(), out)
 }
 
 func servedAddr(p config.Paths) string {
@@ -144,7 +145,7 @@ func (w webPage) Open(request, activation string) error {
 	if err != nil {
 		return err
 	}
-	return openPage(context.Background(), servedAddr(w.paths), token, request, opener{activation: activation}, false, io.Discard)
+	return openPage(context.Background(), w.paths.Runtime, servedAddr(w.paths), token, request, opener{activation: activation}, false, io.Discard)
 }
 
 func hasDisplay() bool { return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("DISPLAY") != "" }
@@ -174,7 +175,7 @@ func codeLink(addr, code, request string) string {
 	return link
 }
 
-func openPage(ctx context.Context, addr, token, request string, browser opener, print bool, out io.Writer) error {
+func openPage(ctx context.Context, runtime, addr, token, request string, browser opener, print bool, out io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	notRunning := fmt.Errorf("web open: doriath is not serving on %s; start it with `doriath web`, or enable approvals.web in home-manager", addr)
@@ -198,13 +199,52 @@ func openPage(ctx context.Context, addr, token, request string, browser opener, 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("web open: %s", strings.TrimSpace(string(code)))
 	}
-	link := codeLink(addr, string(code), request)
 	if print {
-		fmt.Fprintf(out, "%s\nThe link works once, for a minute.\n", link)
+		fmt.Fprintf(out, "%s\nThe link works once, for a minute.\n", codeLink(addr, string(code), request))
 		return nil
 	}
-	return browser.Open(link)
+	file, err := writeSignInPage(runtime, addr, string(code), request, time.Now())
+	if err != nil {
+		return fmt.Errorf("web open: %w", err)
+	}
+	if err := browser.Open(file); err != nil {
+		_ = os.Remove(file)
+		return err
+	}
+	return nil
 }
+
+const signInPageLife = 2 * time.Minute
+
+func writeSignInPage(dir, addr, code, request string, now time.Time) (string, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	old, _ := filepath.Glob(filepath.Join(dir, "web-open-*.html"))
+	for _, path := range old {
+		if info, err := os.Stat(path); err == nil && now.Sub(info.ModTime()) > signInPageLife {
+			_ = os.Remove(path)
+		}
+	}
+	f, err := os.CreateTemp(dir, "web-open-*.html")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	_, err = fmt.Fprintf(f, signInPage, html.EscapeString("http://"+addr+"/redeem"), html.EscapeString(code), html.EscapeString(request))
+	return f.Name(), err
+}
+
+const signInPage = `<!doctype html>
+<meta charset="utf-8">
+<title>Doriath</title>
+<form id="f" method="post" action="%s">
+<input type="hidden" name="code" value="%s">
+<input type="hidden" name="request" value="%s">
+<button>Open doriath</button>
+</form>
+<script>document.getElementById("f").submit()</script>
+`
 
 func servesPage(ctx context.Context, addr, token string) bool {
 	challenge := make([]byte, 16)

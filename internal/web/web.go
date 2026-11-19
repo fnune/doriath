@@ -1,7 +1,11 @@
-// Package web serves doriath's page on a loopback address. A browser
-// reaches it only with the token from the link the command prints, or with a
-// one-time code that doriath web open gets with the token, so other local
-// users and other web pages cannot read or answer requests.
+// Package web serves doriath's page on a loopback address. A browser signs in
+// with a one-time code that doriath web open gets with the token. The code
+// gives that browser its own cookie, which expires and is not the token.
+// Other web pages cannot answer requests, because each answer needs that
+// cookie and an Origin header that names this page. A server on another port
+// of the same address still receives the cookie, because browsers do not
+// separate cookies by port. The cookie lets a program that holds it read the
+// page and, with a forged Origin header, answer requests.
 package web
 
 import (
@@ -20,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -91,6 +96,8 @@ const (
 	codeBytes     = 16
 	codeLifetime  = time.Minute
 	maxCodes      = 16
+	maxBrowsers   = 32
+	browserBytes  = 32
 )
 
 //go:embed assets
@@ -105,8 +112,14 @@ type Server struct {
 	clock    Clock
 	token    string
 
-	mu    sync.Mutex
-	codes map[string]time.Time
+	mu       sync.Mutex
+	codes    map[string]time.Time
+	browsers []browser
+}
+
+type browser struct {
+	value   string
+	expires time.Time
 }
 
 func New(sessions Sessions, history History, checks Checks, clock Clock, token, addr string) (*Server, error) {
@@ -157,6 +170,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /ui/", http.StripPrefix("/ui/", http.FileServerFS(ui.Assets)))
 	mux.HandleFunc("GET /proof", s.proof)
 	mux.HandleFunc("POST /code", s.code)
+	mux.HandleFunc("POST /redeem", s.redeem)
 	mux.HandleFunc("POST /checks", s.authorized(s.recheck))
 	mux.HandleFunc("GET /main", s.authorized(s.main))
 	mux.HandleFunc("POST /decide", s.authorized(s.decide))
@@ -197,7 +211,40 @@ func (s *Server) validToken(t string) bool {
 
 func (s *Server) signedIn(r *http.Request) bool {
 	c, err := r.Cookie(cookieName)
-	return err == nil && s.validToken(c.Value)
+	if err != nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.clock.Now()
+	return slices.ContainsFunc(s.browsers, func(b browser) bool {
+		return subtle.ConstantTimeCompare([]byte(b.value), []byte(c.Value)) == 1 && now.Before(b.expires)
+	})
+}
+
+func (s *Server) signIn(w http.ResponseWriter) error {
+	raw := make([]byte, browserBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return err
+	}
+	value := hex.EncodeToString(raw)
+	now := s.clock.Now()
+	s.mu.Lock()
+	s.browsers = slices.DeleteFunc(s.browsers, func(b browser) bool { return !now.Before(b.expires) })
+	if len(s.browsers) >= maxBrowsers {
+		s.browsers = s.browsers[len(s.browsers)-maxBrowsers+1:]
+	}
+	s.browsers = append(s.browsers, browser{value: value, expires: now.Add(cookieMaxAge)})
+	s.mu.Unlock()
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   int(cookieMaxAge.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	return nil
 }
 
 func (s *Server) authorized(next http.HandlerFunc) http.HandlerFunc {
@@ -219,19 +266,11 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "doriath: this link is not valid or has expired; run doriath web open for a new one", http.StatusUnauthorized)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     cookieName,
-			Value:    s.token,
-			Path:     "/",
-			MaxAge:   int(cookieMaxAge.Seconds()),
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
-		target := "/"
-		if req := q.Get("request"); req != "" {
-			target += "?request=" + url.QueryEscape(req)
+		if err := s.signIn(w); err != nil {
+			http.Error(w, "doriath: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
-		http.Redirect(w, r, target, http.StatusSeeOther)
+		http.Redirect(w, r, landing(q.Get("request")), http.StatusSeeOther)
 		return
 	}
 	if !s.signedIn(r) {
@@ -240,6 +279,29 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	}
 	request := r.URL.Query().Get("request")
 	s.render(w, r, "page", http.StatusOK, request, "", request == "")
+}
+
+func landing(request string) string {
+	if request == "" {
+		return "/"
+	}
+	return "/?request=" + url.QueryEscape(request)
+}
+
+func (s *Server) redeem(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBody)
+	if err := r.ParseForm(); err != nil || !s.useCode(r.PostForm.Get("code")) {
+		http.Error(w, "doriath: this link is not valid or has expired; run doriath web open for a new one", http.StatusUnauthorized)
+		return
+	}
+	if err := s.signIn(w); err != nil {
+		http.Error(w, "doriath: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	h.Set("Cache-Control", "no-store")
+	fmt.Fprintf(w, "<!doctype html><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url=%s\"><title>Doriath</title><a href=\"%s\">Open doriath</a>", template.HTMLEscapeString(landing(r.PostForm.Get("request"))), template.HTMLEscapeString(landing(r.PostForm.Get("request"))))
 }
 
 func (s *Server) code(w http.ResponseWriter, r *http.Request) {

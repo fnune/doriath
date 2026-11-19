@@ -78,6 +78,23 @@ func request(id string, kind approval.Kind, summary string) approval.Request {
 	}
 }
 
+func browserCookie(h http.Handler) *http.Cookie {
+	ask := httptest.NewRequest(http.MethodPost, "/code", nil)
+	ask.Host = testAddr
+	ask.Header.Set("Authorization", "Bearer "+testToken)
+	asked := httptest.NewRecorder()
+	h.ServeHTTP(asked, ask)
+	r := httptest.NewRequest(http.MethodGet, "/?code="+asked.Body.String(), nil)
+	r.Host = testAddr
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 {
+		panic("the code did not sign in")
+	}
+	return cookies[0]
+}
+
 func setup(t *testing.T, reqs ...approval.Request) (*fakeSessions, http.Handler) {
 	t.Helper()
 	sessions := &fakeSessions{sessions: []Session{{ID: "s1", Profile: "my-app", Cwd: "/home/me/my-app", Requests: reqs}}}
@@ -92,7 +109,7 @@ func get(h http.Handler, target string, signedIn bool) *httptest.ResponseRecorde
 	r := httptest.NewRequest(http.MethodGet, target, nil)
 	r.Host = testAddr
 	if signedIn {
-		r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+		r.AddCookie(browserCookie(h))
 	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -109,7 +126,7 @@ func post(h http.Handler, form url.Values, origin string, htmx bool) *httptest.R
 	if htmx {
 		r.Header.Set("HX-Request", "true")
 	}
-	r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+	r.AddCookie(browserCookie(h))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -133,7 +150,7 @@ func TestRefusesAnotherHost(t *testing.T) {
 	_, h := setup(t)
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Host = "rebound.example:7341"
-	r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+	r.AddCookie(browserCookie(h))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != http.StatusMisdirectedRequest {
@@ -142,7 +159,7 @@ func TestRefusesAnotherHost(t *testing.T) {
 	for _, host := range []string{testAddr, "localhost:7341", "localhost:9000", "[::1]:7341"} {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Host = host
-		r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+		r.AddCookie(browserCookie(h))
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != http.StatusOK {
@@ -410,7 +427,7 @@ func TestCheckAgainRunsTheChecksOnlyFromThePage(t *testing.T) {
 		r := httptest.NewRequest(http.MethodPost, "/checks", nil)
 		r.Host = testAddr
 		r.Header.Set("Origin", origin)
-		r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+		r.AddCookie(browserCookie(h))
 		h.ServeHTTP(httptest.NewRecorder(), r)
 		if checks.refreshed != want {
 			t.Errorf("origin %s: refreshed %d times", origin, checks.refreshed)
@@ -437,7 +454,7 @@ func TestACodeSignsInOnceAndOnlyForTheTokenHolder(t *testing.T) {
 	}
 	code := w.Body.String()
 	first := get(h, "/?code="+code, false)
-	if first.Code != http.StatusSeeOther || !strings.Contains(first.Header().Get("Set-Cookie"), cookieName+"="+testToken) {
+	if first.Code != http.StatusSeeOther || !strings.Contains(first.Header().Get("Set-Cookie"), cookieName+"=") {
 		t.Fatalf("the code does not sign in: %d %v", first.Code, first.Header())
 	}
 	if cookies := first.Result().Cookies(); len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode {
@@ -631,5 +648,70 @@ func TestTheSubjectOfARequestShowsOnceAboveItsFacts(t *testing.T) {
 	}
 	if strings.Count(detail, ">app#42<") != 1 || strings.Contains(detail, "<dt>About</dt>") || !strings.Contains(detail, "<dt>merge_method</dt>") {
 		t.Errorf("detail repeats the subject or drops a fact:\n%s", detail)
+	}
+}
+
+func TestTheCookieIsNotTheToken(t *testing.T) {
+	_, h := setup(t)
+	if c := browserCookie(h); c.Value == testToken {
+		t.Fatal("the cookie holds the token")
+	}
+	r := httptest.NewRequest(http.MethodGet, "/main", nil)
+	r.Host = testAddr
+	r.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("the token as a cookie: status %d", w.Code)
+	}
+}
+
+func TestEachBrowserGetsItsOwnCookie(t *testing.T) {
+	_, h := setup(t)
+	if a, b := browserCookie(h), browserCookie(h); a.Value == b.Value {
+		t.Error("two sign-ins got the same cookie")
+	}
+}
+
+func TestOnlyTheNewestBrowsersStaySignedIn(t *testing.T) {
+	_, h := setup(t)
+	first := browserCookie(h)
+	for range maxBrowsers {
+		browserCookie(h)
+	}
+	r := httptest.NewRequest(http.MethodGet, "/main", nil)
+	r.Host = testAddr
+	r.AddCookie(first)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("the oldest browser: status %d", w.Code)
+	}
+}
+
+func TestAFormPostedByTheOpenerSignsInOnce(t *testing.T) {
+	_, h := setup(t)
+	ask := httptest.NewRequest(http.MethodPost, "/code", nil)
+	ask.Host = testAddr
+	ask.Header.Set("Authorization", "Bearer "+testToken)
+	asked := httptest.NewRecorder()
+	h.ServeHTTP(asked, ask)
+	redeem := func() *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/redeem", strings.NewReader(url.Values{"code": {asked.Body.String()}, "request": {"s1/a1"}}.Encode()))
+		r.Host = testAddr
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	first := redeem()
+	if first.Code != http.StatusOK || len(first.Result().Cookies()) != 1 || !strings.Contains(first.Body.String(), "url=/?request=s1%2Fa1") {
+		t.Fatalf("redeem: %d %v %s", first.Code, first.Header(), first.Body)
+	}
+	if first.Code == http.StatusSeeOther {
+		t.Error("a redirect from another site would drop the strict cookie")
+	}
+	if again := redeem(); again.Code != http.StatusUnauthorized {
+		t.Errorf("the code works twice: status %d", again.Code)
 	}
 }

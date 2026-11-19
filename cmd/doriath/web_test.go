@@ -128,3 +128,35 @@ func TestTheAnsweredListLeavesOutGrantedRepeats(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
+
+func TestTheSignInPageIsPrivateAndTheOpenerGetsOnlyItsPath(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	stale, err := writeSignInPage(dir, "127.0.0.1:7341", "oldcode", "", now.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(stale, now.Add(-time.Hour), now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	path, err := writeSignInPage(dir, "127.0.0.1:7341", "abc123", `s1/"><x`, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(path, "abc123") {
+		t.Errorf("the path that the opener gets holds the code: %s", path)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v, err %v", info.Mode(), err)
+	}
+	data, _ := os.ReadFile(path)
+	for _, want := range []string{`action="http://127.0.0.1:7341/redeem"`, `value="abc123"`, `value="s1/&#34;&gt;&lt;x"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("page lacks %s:\n%s", want, data)
+		}
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("a page of an earlier link stayed")
+	}
+}

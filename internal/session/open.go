@@ -50,6 +50,9 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 		return RequestResult{}, fmt.Errorf("%s: the profile refuses to open links to %s", raw, host)
 	}
 	if port := loopbackPort(u); port != 0 && !s.forwarding(port, port) {
+		if err := s.checkNotApprovalsPage(port); err != nil {
+			return RequestResult{}, err
+		}
 		return s.requestOpenForwarded(u, port, reason)
 	}
 	if rule.Action == profile.ActionAllow {

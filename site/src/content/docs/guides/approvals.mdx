@@ -73,7 +73,9 @@ doriath web open
 
 The page shows the requests of all running sessions and the answers of the last day. When nothing waits, it shows the checks of `doriath doctor`, and what the sessions of the last day blocked, with the profile lines to allow it. The page listens on `127.0.0.1:7341` and loads nothing from the network.
 
-`doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests. The token behind the link is in `$XDG_RUNTIME_DIR/doriath/web-token`, which is memory with mode 600, so it never reaches your disk. After a reboot doriath makes a new token, and you run `doriath web open` again.
+`doriath web open` writes a small page of its own, readable only by you, in the runtime directory, and opens that page in the browser. The page sends a code to the approvals page. The code works one time, for a minute, and does not appear in the arguments of any program. The browser then keeps its own cookie for 30 days, which is not the token of the page. Other users and other sites do not get a code, so they cannot read or answer requests. The token of the page is in `$XDG_RUNTIME_DIR/doriath/web-token`, which is memory with mode 600, so it never reaches your disk. After a reboot doriath makes a new token, and you run `doriath web open` again.
+
+A browser sends the cookie to each server on `127.0.0.1`, whatever its port. Do not open a link to another server on `127.0.0.1` in the browser that you use for the page, unless you started that server.
 
 Each open shows the page in a new tab, and the page then closes its older tabs. The browser lets a page close only a tab that has not gone to another page, so such a tab stays open.
 
@@ -147,7 +149,7 @@ When the agent opens a link that no rule allows, the page asks you: "Open a link
 
 ## Ports
 
-When the agent runs `doriath request forward PORT`, the page asks you: "Forward port PORT on your machine into the jail?". A link to `localhost` asks for its port in the same way, and doriath opens the link after you allow it.
+When the agent runs `doriath request forward PORT`, the page asks you: "Forward port PORT on your machine into the jail?". A link to `localhost` asks for its port in the same way, and doriath opens the link after you allow it. doriath refuses the port of the approvals page, for `request forward`, `request connect` and links.
 
 An allow makes doriath listen on the loopback address of your machine, and connect each connection to the port in the jail. Each program and each local user of your machine can then connect to the port. The forward lasts until the session ends. `doriath status` in the jail lists the forwards.
 

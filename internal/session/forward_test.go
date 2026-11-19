@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -257,5 +258,33 @@ func TestARelayErrorGoesToTheEventLogAndNotToTheTerminal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no event for the failed relay")
+	}
+}
+
+func TestThePortOfTheApprovalsPageIsNeverForwardedConnectedOrOpened(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 3)}
+	s, _ := linkSession(t, notifier)
+	if err := os.MkdirAll(s.deps.Paths.Runtime, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.deps.Paths.WebAddr(), []byte("127.0.0.1:7500"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, port := range []int{7341, 7500} {
+		if _, err := s.requestForward(port, 4321, ""); err == nil || !strings.Contains(err.Error(), "approvals page") {
+			t.Errorf("forward %d: %v", port, err)
+		}
+		if _, err := s.requestConnect(port, 4321, ""); err == nil || !strings.Contains(err.Error(), "approvals page") {
+			t.Errorf("connect %d: %v", port, err)
+		}
+		if _, err := s.requestOpen(fmt.Sprintf("http://127.0.0.1:%d/", port), ""); err == nil || !strings.Contains(err.Error(), "approvals page") {
+			t.Errorf("open %d: %v", port, err)
+		}
+		if err := s.forwardPort(port, port, signInDuration); err == nil {
+			t.Errorf("a sign-in forward of %d", port)
+		}
+	}
+	if len(notifier.seen) != 0 {
+		t.Error("asked about the port of the approvals page")
 	}
 }

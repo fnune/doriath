@@ -42,6 +42,9 @@ func (s *Session) requestConnect(hostPort, jailPort int, reason string) (Request
 	if err := checkPort(jailPort); err != nil {
 		return RequestResult{}, err
 	}
+	if err := s.checkNotApprovalsPage(hostPort); err != nil {
+		return RequestResult{}, err
+	}
 	if s.connecting(hostPort, jailPort) {
 		return RequestResult{Decision: approval.Decision{Verdict: approval.VerdictAllow}}, nil
 	}

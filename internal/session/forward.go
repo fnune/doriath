@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -36,6 +37,9 @@ func (s *Session) requestForward(hostPort, jailPort int, reason string) (Request
 	if err := checkPort(jailPort); err != nil {
 		return RequestResult{}, err
 	}
+	if err := s.checkNotApprovalsPage(hostPort); err != nil {
+		return RequestResult{}, err
+	}
 	if s.forwarding(hostPort, jailPort) {
 		return RequestResult{Decision: approval.Decision{Verdict: approval.VerdictAllow}}, nil
 	}
@@ -59,6 +63,21 @@ func portFacts(hostPort, jailPort int) []approval.Fact {
 		facts = append(facts, approval.Fact{Label: "Port in the jail", Value: strconv.Itoa(jailPort)})
 	}
 	return facts
+}
+
+const DefaultWebPort = "7341"
+
+func (s *Session) checkNotApprovalsPage(port int) error {
+	ports := []string{DefaultWebPort}
+	if data, err := os.ReadFile(s.deps.Paths.WebAddr()); err == nil {
+		if _, served, err := net.SplitHostPort(strings.TrimSpace(string(data))); err == nil {
+			ports = append(ports, served)
+		}
+	}
+	if slices.Contains(ports, strconv.Itoa(port)) {
+		return fmt.Errorf("port %d is where doriath serves the approvals page, so the jail cannot reach it", port)
+	}
+	return nil
 }
 
 func checkPort(port int) error {
@@ -85,6 +104,9 @@ func (s *Session) forwarding(hostPort, jailPort int) bool {
 }
 
 func (s *Session) forwardPort(hostPort, jailPort int, lasts time.Duration) error {
+	if err := s.checkNotApprovalsPage(hostPort); err != nil {
+		return err
+	}
 	if s.peers.init.Load() == 0 || s.deps.Nsenter == "" {
 		return errors.New("the jail is not running, or nsenter is missing")
 	}
