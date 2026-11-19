@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -61,22 +62,32 @@ func (r PermissionRequest) Describe() (summary, note, details string) {
 	return summary, truncate(note), truncate(details)
 }
 
-// Scope is what an allow for the session covers. A command's scope holds
-// all of it, so that an allow never reaches past the text you saw.
 func (r PermissionRequest) Scope() string {
-	if r.ToolName != "Bash" {
-		return r.ToolName
+	if field, ok := scopeFields[r.ToolName]; ok {
+		var input map[string]any
+		_ = json.Unmarshal(r.ToolInput, &input)
+		value, _ := input[field].(string)
+		return r.ToolName + " " + value
 	}
-	var input struct {
-		Command string `json:"command"`
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, r.ToolInput); err != nil {
+		return r.ToolName + " " + string(r.ToolInput)
 	}
-	_ = json.Unmarshal(r.ToolInput, &input)
-	return "Bash " + input.Command
+	return r.ToolName + " " + compact.String()
+}
+
+var scopeFields = map[string]string{
+	"Bash":         "command",
+	"Write":        "file_path",
+	"Edit":         "file_path",
+	"MultiEdit":    "file_path",
+	"NotebookEdit": "notebook_path",
+	"WebFetch":     "url",
 }
 
 func truncate(s string) string {
 	if len(s) > maxDetails {
-		return s[:maxDetails] + "…"
+		return fmt.Sprintf("%s… [%d more bytes not shown]", strings.ToValidUTF8(s[:maxDetails], ""), len(s)-maxDetails)
 	}
 	return s
 }

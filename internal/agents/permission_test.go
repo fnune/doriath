@@ -22,8 +22,8 @@ func TestDescribe(t *testing.T) {
 		t.Error("missing tool_name must be an error")
 	}
 	long, _ := ParsePermissionRequest([]byte(`{"tool_name":"Bash","tool_input":{"command":"` + strings.Repeat("a", 5000) + `"}}`))
-	if _, _, d := long.Describe(); len(d) > maxDetails+4 {
-		t.Errorf("details not truncated: %d", len(d))
+	if _, _, d := long.Describe(); len(d) > maxDetails+40 || !strings.HasSuffix(d, "[3000 more bytes not shown]") {
+		t.Errorf("details not truncated with a notice: %d %q", len(d), d[len(d)-40:])
 	}
 }
 
@@ -54,6 +54,50 @@ func TestPermissionDecision(t *testing.T) {
 		out, err := PermissionDecision(allow, "answered in doriath")
 		if err != nil || string(out) != want {
 			t.Errorf("allow=%v: got %s, %v", allow, out, err)
+		}
+	}
+}
+
+func TestAnAllowForAToolCoversOnlyCallsWithTheSameArguments(t *testing.T) {
+	scope := func(input string) string {
+		r, err := ParsePermissionRequest([]byte(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.Scope()
+	}
+	a := scope(`{"tool_name":"mcp__linear__save_issue","tool_input":{"title":"a","team":"x"}}`)
+	same := scope(`{"tool_name":"mcp__linear__save_issue","tool_input":{ "title": "a", "team": "x" }}`)
+	other := scope(`{"tool_name":"mcp__linear__save_issue","tool_input":{"title":"b","team":"x"}}`)
+	if a != same {
+		t.Errorf("the same call has two scopes: %q %q", a, same)
+	}
+	if a == other {
+		t.Errorf("a call with other arguments shares the scope %q", a)
+	}
+}
+
+func TestAnAllowForAFileOrPageToolCoversItsFileOrPageWhateverTheContent(t *testing.T) {
+	scope := func(input string) string {
+		r, err := ParsePermissionRequest([]byte(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.Scope()
+	}
+	for _, c := range []struct{ tool, field, value, other string }{
+		{"Write", "file_path", "/tmp/ok", "/home/me/.bashrc"},
+		{"Edit", "file_path", "/tmp/ok", "/home/me/.bashrc"},
+		{"WebFetch", "url", "https://a.example", "https://b.example"},
+	} {
+		call := func(value, content string) string {
+			return scope(`{"tool_name":"` + c.tool + `","tool_input":{"` + c.field + `":"` + value + `","content":"` + content + `","prompt":"` + content + `"}}`)
+		}
+		if call(c.value, "one") != call(c.value, "two") {
+			t.Errorf("%s: two calls on %s have two scopes", c.tool, c.value)
+		}
+		if call(c.value, "one") == call(c.other, "one") {
+			t.Errorf("%s: a call on %s shares the scope of %s", c.tool, c.other, c.value)
 		}
 	}
 }
