@@ -757,7 +757,7 @@ The `podman` module allows `docker.io/library/*`, `localhost/*`, the images of P
 
 The first pull of a tag records its digest in `~/.local/state/doriath/images/<profile>.json`. If the tag later resolves to a different digest, doriath asks you before the pull. Containers of a pinned tag run the pinned digest. To trust a tag again, delete its line.
 
-Containers can bind only what the profile mounts, with the same limits. doriath refuses privileged containers, added capabilities, devices, host namespaces other than the network, and image pushes without your approval.
+Containers can bind only what the profile mounts, with the same limits. A bind source or volume device cannot have a symlink below a writable mount. doriath reads the mounts of a container again when it starts or restarts, and when its pod starts. It accepts only the mount options that it knows, such as `ro`, `rw`, `rbind`, `z` and `Z`. doriath refuses privileged containers, added capabilities, devices, host namespaces other than the network, and image pushes without your approval.
 
 ## config.toml keys
 
