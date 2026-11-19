@@ -57,6 +57,25 @@ var deniedFamilies = []uint32{
 	unix.AF_PACKET, unix.AF_ALG, unix.AF_VSOCK, unix.AF_KEY, unix.AF_XDP,
 	unix.AF_BLUETOOTH, unix.AF_CAN, unix.AF_TIPC, unix.AF_RDS, unix.AF_LLC,
 	unix.AF_NFC, unix.AF_SMC, unix.AF_KCM, unix.AF_QIPCRTR, unix.AF_MCTP,
+	unix.AF_PPPOX, unix.AF_RXRPC, unix.AF_ISDN, unix.AF_IEEE802154, unix.AF_CAIF,
+	unix.AF_PHONET, unix.AF_X25, unix.AF_AX25, unix.AF_NETROM, unix.AF_ROSE,
+	unix.AF_APPLETALK, unix.AF_IPX, unix.AF_ATMPVC, unix.AF_ATMSVC, unix.AF_SNA,
+	unix.AF_ECONET, unix.AF_IRDA, unix.AF_IUCV, unix.AF_WANPIPE, unix.AF_NETBEUI,
+	unix.AF_ASH, unix.AF_IB, unix.AF_DECnet,
+}
+
+const (
+	personalityLinux       = 0x0
+	personalityLinux32     = 0x8
+	personalityUname26     = 0x20000
+	personalityNoRandomize = 0x40000
+	personalityQuery       = 0xffffffff
+)
+
+var allowedPersonalities = []uint32{
+	personalityLinux, personalityLinux32, personalityLinux32 | personalityUname26,
+	personalityUname26, personalityNoRandomize, personalityNoRandomize | personalityLinux32,
+	personalityQuery,
 }
 
 const x32SyscallBit = 0x40000000
@@ -93,7 +112,7 @@ func rules(arch Arch, p Policy) []rule {
 		"open_by_handle_at", "name_to_handle_at",
 		"quotactl", "quotactl_fd", "lookup_dcookie",
 		"pidfd_getfd", "process_vm_readv", "process_vm_writev",
-		"kcmp", "process_madvise",
+		"kcmp", "process_madvise", "syslog",
 	)
 	if arch == AMD64 {
 		rs = append(rs, deny(retEPERM, "iopl", "ioperm")...)
@@ -160,6 +179,7 @@ func program(arch Arch, p Policy) ([]unix.SockFilter, error) {
 	}
 	prog = append(prog, argumentRule(numbers["ioctl"], offsetArg1Low, terminalInjection)...)
 	prog = append(prog, argumentRule(numbers["socket"], offsetArg0Low, deniedFamilies)...)
+	prog = append(prog, argumentAllowlist(numbers["personality"], offsetArg0Low, allowedPersonalities)...)
 	if !p.AllowNamespaces {
 		prog = append(prog,
 			jump(opJeq, numbers["clone"], 0, 3),
@@ -182,6 +202,21 @@ func argumentRule(nr uint32, offset uint32, values []uint32) []unix.SockFilter {
 	}
 	return append(prog,
 		stmt(opJa, 1),
+		stmt(opRet, retEPERM),
+		stmt(opLoad, offsetNr),
+	)
+}
+
+func argumentAllowlist(nr uint32, offset uint32, values []uint32) []unix.SockFilter {
+	n := len(values)
+	prog := []unix.SockFilter{
+		jump(opJeq, nr, 0, uint8(n+2)),
+		stmt(opLoad, offset),
+	}
+	for i, v := range values {
+		prog = append(prog, jump(opJeq, v, uint8(n-i), 0))
+	}
+	return append(prog,
 		stmt(opRet, retEPERM),
 		stmt(opLoad, offsetNr),
 	)

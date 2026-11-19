@@ -7,6 +7,8 @@ func syscallNumbers(arch Arch) (map[string]uint32, error) {
 	case AMD64:
 		return map[string]uint32{
 			"ioctl":             16,
+			"syslog":            103,
+			"personality":       135,
 			"socket":            41,
 			"kcmp":              312,
 			"process_madvise":   440,
@@ -74,6 +76,8 @@ func syscallNumbers(arch Arch) (map[string]uint32, error) {
 			"request_key":       218,
 			"keyctl":            219,
 			"ioctl":             29,
+			"syslog":            116,
+			"personality":       92,
 			"socket":            198,
 			"kcmp":              272,
 			"process_madvise":   440,

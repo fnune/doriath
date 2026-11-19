@@ -14,7 +14,7 @@ var (
 		"bpf", "perf_event_open", "userfaultfd", "keyctl", "add_key", "request_key",
 		"acct", "swapon", "swapoff", "reboot", "open_by_handle_at", "name_to_handle_at",
 		"quotactl", "quotactl_fd", "lookup_dcookie", "pidfd_getfd", "process_vm_readv",
-		"process_vm_writev", "kcmp", "process_madvise",
+		"process_vm_writev", "kcmp", "process_madvise", "syslog",
 	}
 	namespaceDenied = []string{
 		"mount", "umount2", "pivot_root", "chroot", "move_mount", "open_tree", "fsopen",
@@ -36,6 +36,7 @@ func expected(arch Arch, p Policy, name string, nr uint32, arg0, arg1 uint64) ui
 		return retENOSYS
 	case name == "ioctl" && (uint32(arg1) == unix.TIOCSTI || uint32(arg1) == unix.TIOCLINUX),
 		name == "socket" && slices.Contains(deniedFamilies, uint32(arg0)),
+		name == "personality" && !slices.Contains(allowedPersonalities, uint32(arg0)),
 		name == "clone" && !p.AllowNamespaces && uint32(arg0)&namespaceCloneFlags != 0:
 		return retEPERM
 	}

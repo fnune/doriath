@@ -10,6 +10,8 @@ func TestTableMatchesUnix(t *testing.T) {
 	want := map[string]uint32{
 		"clone":             unix.SYS_CLONE,
 		"ioctl":             unix.SYS_IOCTL,
+		"syslog":            unix.SYS_SYSLOG,
+		"personality":       unix.SYS_PERSONALITY,
 		"socket":            unix.SYS_SOCKET,
 		"kcmp":              unix.SYS_KCMP,
 		"process_madvise":   unix.SYS_PROCESS_MADVISE,

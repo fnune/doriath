@@ -98,7 +98,7 @@ func TestEveryDeniedSyscallIsDenied(t *testing.T) {
 		"bpf", "perf_event_open", "userfaultfd", "keyctl", "add_key", "request_key",
 		"acct", "swapon", "swapoff", "reboot", "open_by_handle_at", "name_to_handle_at",
 		"quotactl", "quotactl_fd", "lookup_dcookie", "pidfd_getfd", "process_vm_readv",
-		"process_vm_writev", "kcmp", "process_madvise", "ptrace",
+		"process_vm_writev", "kcmp", "process_madvise", "syslog", "ptrace",
 		"mount", "umount2", "pivot_root", "chroot", "move_mount", "open_tree", "fsopen",
 		"fsconfig", "fsmount", "fspick", "mount_setattr", "setns", "unshare",
 	}
@@ -184,6 +184,39 @@ func TestArgumentRulesOnlyApplyToTheirSyscall(t *testing.T) {
 		c := syscallCall{nr: read[arch], arg0: unix.AF_PACKET, arg1: unix.TIOCSTI}
 		if got := decide(t, arch, Policy{}, c); got != retAllow {
 			t.Errorf("%s read with matching arguments: got %#x, want allow", arch, got)
+		}
+	}
+}
+
+func TestPersonalityAllowsOnlyTheValuesThatToolsNeed(t *testing.T) {
+	const readImpliesExec = 0x0400000
+	for _, arch := range []Arch{AMD64, ARM64} {
+		nr := numbersFor(t, arch)["personality"]
+		for _, persona := range []uint64{0, 0x8, 0x20000, 0x40000, 0xffffffff} {
+			if got := decide(t, arch, Policy{}, syscallCall{nr: nr, arg0: persona}); got != retAllow {
+				t.Errorf("%s personality %#x: got %#x, want allow", arch, persona, got)
+			}
+		}
+		for _, persona := range []uint64{readImpliesExec, readImpliesExec | 0x40000, 0x1, 0x0f} {
+			if got := decide(t, arch, Policy{}, syscallCall{nr: nr, arg0: persona}); got != retEPERM {
+				t.Errorf("%s personality %#x: got %#x, want EPERM", arch, persona, got)
+			}
+		}
+	}
+}
+
+func TestRareSocketFamiliesAreDenied(t *testing.T) {
+	for _, arch := range []Arch{AMD64, ARM64} {
+		nr := numbersFor(t, arch)["socket"]
+		for _, family := range []uint64{unix.AF_PPPOX, unix.AF_RXRPC, unix.AF_X25, unix.AF_APPLETALK, unix.AF_ISDN} {
+			if got := decide(t, arch, Policy{}, syscallCall{nr: nr, arg0: family}); got != retEPERM {
+				t.Errorf("%s socket family %d: got %#x, want EPERM", arch, family, got)
+			}
+		}
+		for _, family := range []uint64{unix.AF_UNIX, unix.AF_INET, unix.AF_INET6, unix.AF_NETLINK} {
+			if got := decide(t, arch, Policy{}, syscallCall{nr: nr, arg0: family}); got != retAllow {
+				t.Errorf("%s socket family %d: got %#x, want allow", arch, family, got)
+			}
 		}
 	}
 }
