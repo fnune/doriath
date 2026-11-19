@@ -54,7 +54,7 @@ a.brand { color: inherit; text-decoration: none; }
 .doriath-ui .detail-head .btn:hover { border-color: var(--ring); }
 .doriath-ui .detail-head .subject a, .doriath-ui .facts a { color: var(--ring); text-decoration-color: color-mix(in srgb, var(--ring) 40%, transparent); text-underline-offset: 2px; }
 .doriath-ui .item > .who { overflow: hidden; flex-wrap: nowrap; white-space: nowrap; }
-.doriath-ui .item > .who .described { overflow: hidden; text-overflow: ellipsis; }
+.doriath-ui .item > .who .described { overflow: hidden; text-overflow: ellipsis; padding-right: 0.2em; }
 .doriath-ui details.raw summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .doriath-ui details.raw pre { margin-top: 8px; }
 .doriath-ui .agent-text code.quote { font-family: var(--font-mono); font-style: normal; font-size: 13px; overflow-wrap: anywhere; }
