@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -683,5 +684,87 @@ func TestKeepBackupsWritesPastAPlantedBackupNamespaceRef(t *testing.T) {
 	}
 	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != first {
 		t.Fatalf("backup ref = %q, want %q", got, first)
+	}
+}
+
+func TestFinishKeepsTheStartValueOfATagTheAgentMovedOrDeleted(t *testing.T) {
+	r := repo(t)
+	git(t, r, "tag", "v1")
+	git(t, r, "tag", "v2")
+	first := git(t, r, "rev-parse", "HEAD")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	git(t, r, "tag", "-f", "v1")
+	git(t, r, "tag", "-d", "v2")
+	f.finish()
+	moved := rec.Repos[0].Moved
+	if !slices.Contains(moved, "refs/tags/v1") || !slices.Contains(moved, "refs/tags/v2") {
+		t.Fatalf("Moved = %v", moved)
+	}
+	if err := Restore(f.ctx, f.tools, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range []string{"v1", "v2"} {
+		if got := git(t, r, "rev-parse", tag+"^{commit}"); got != first {
+			t.Errorf("%s after restore = %q, want %q", tag, got, first)
+		}
+	}
+}
+
+func TestFinishKeepsTheStartValueOfTheStash(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "f"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, r, "add", "f")
+	git(t, r, "stash", "push", "-q")
+	stash := git(t, r, "rev-parse", "refs/stash")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "stash", "clear")
+	f.finish()
+	if err := Restore(f.ctx, f.tools, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "rev-parse", "refs/stash"); got != stash {
+		t.Errorf("stash after restore = %q, want %q", got, stash)
+	}
+}
+
+func TestFinishRemovesReplaceRefsTheSessionCreated(t *testing.T) {
+	r := repo(t)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "second")
+	old, other := git(t, r, "rev-parse", "HEAD~1"), git(t, r, "rev-parse", "HEAD")
+	git(t, r, "update-ref", "refs/replace/"+other, old)
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "update-ref", "refs/replace/"+old, other)
+	out := f.finish()
+	if _, err := exec.Command("git", "-C", r, "rev-parse", "--verify", "-q", "refs/replace/"+old).Output(); err == nil {
+		t.Error("a replace ref of the session stays")
+	}
+	if _, err := exec.Command("git", "-C", r, "rev-parse", "--verify", "-q", "refs/replace/"+other).Output(); err != nil {
+		t.Error("doriath removed a replace ref that was there at the start")
+	}
+	if !strings.Contains(out, "removed refs/replace/"+old) {
+		t.Errorf("Finish did not report the removal:\n%s", out)
+	}
+}
+
+func TestFinishPutsBackAReplaceRefTheAgentPointedElsewhere(t *testing.T) {
+	r := repo(t)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "second")
+	old, other := git(t, r, "rev-parse", "HEAD~1"), git(t, r, "rev-parse", "HEAD")
+	git(t, r, "update-ref", "refs/replace/"+other, old)
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "update-ref", "refs/replace/"+other, other)
+	out := f.finish()
+	if got := git(t, r, "rev-parse", "refs/replace/"+other); got != old {
+		t.Errorf("replace ref = %q, want %q", got, old)
+	}
+	if !strings.Contains(out, "put refs/replace/"+other+" back") {
+		t.Errorf("Finish did not report it:\n%s", out)
 	}
 }

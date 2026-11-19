@@ -62,11 +62,15 @@ type Repo struct {
 	MovedBookmarks []string          `json:"moved_bookmarks,omitempty"`
 	AgentWorktrees []string          `json:"agent_worktrees,omitempty"`
 	Gitlinks       map[string]string `json:"gitlinks,omitempty"`
+	Replace        map[string]string `json:"replace"`
 	Links          map[string]string `json:"links,omitempty"`
 }
 
 func BackupRef(session, branch string) string {
-	return "refs/doriath/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
+	if name, ok := strings.CutPrefix(branch, "refs/heads/"); ok {
+		return "refs/doriath/" + session + "/" + name
+	}
+	return "refs/doriath/" + session + "-refs/" + strings.TrimPrefix(branch, "refs/")
 }
 
 func (rec *Record) BackupRef(branch string) string {
@@ -232,6 +236,9 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 		if path != git {
 			r.Gitlinks = nestedGits(ctx, t, git, path)
 		}
+		if r.Replace, err = listRefs(ctx, t, git, "refs/replace"); err != nil {
+			return fmt.Errorf("record the replace refs of %s: %w", path, err)
+		}
 		rec.Repos = append(rec.Repos, r)
 		for _, sub := range submoduleStores(git, 1) {
 			branches, err := refs(ctx, t, sub)
@@ -241,8 +248,12 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 			if err := mirror(filepath.Join(sub, "objects"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "objects")); err != nil {
 				return fmt.Errorf("keep the objects of submodule %s: %w", sub, err)
 			}
+			replace, err := listRefs(ctx, t, sub, "refs/replace")
+			if err != nil {
+				return fmt.Errorf("record the replace refs of submodule %s: %w", sub, err)
+			}
 			checkout := submoduleCheckout(sub)
-			rec.Repos = append(rec.Repos, Repo{Path: checkout, GitDir: sub, Branches: branches, Worktrees: listWorktrees(sub), Gitlinks: nestedGits(ctx, t, sub, checkout), Links: storeLinks(sub)})
+			rec.Repos = append(rec.Repos, Repo{Path: checkout, GitDir: sub, Branches: branches, Worktrees: listWorktrees(sub), Gitlinks: nestedGits(ctx, t, sub, checkout), Replace: replace, Links: storeLinks(sub)})
 		}
 	}
 	return nil
@@ -416,6 +427,9 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, not
 			errs = append(errs, err)
 		}
 		if err := setAsideNestedGits(ctx, t, r, rec, fixed); err != nil {
+			errs = append(errs, err)
+		}
+		if err := dropNewReplaceRefs(ctx, t, r, fixed); err != nil {
 			errs = append(errs, err)
 		}
 		report(notices, rec.Session, r)
@@ -687,7 +701,11 @@ func defaultBranch(ctx context.Context, t Tools, gitDir string) string {
 }
 
 func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error) {
-	out, err := runStore(ctx, t, gitDir, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads")
+	return listRefs(ctx, t, gitDir, "refs/heads", "refs/tags", "refs/stash")
+}
+
+func listRefs(ctx context.Context, t Tools, gitDir string, patterns ...string) (map[string]string, error) {
+	out, err := runStore(ctx, t, gitDir, append([]string{"for-each-ref", "--format=%(objectname) %(refname)"}, patterns...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -698,6 +716,37 @@ func refs(ctx context.Context, t Tools, gitDir string) (map[string]string, error
 		}
 	}
 	return m, nil
+}
+
+func dropNewReplaceRefs(ctx context.Context, t Tools, r *Repo, w io.Writer) error {
+	if r.Replace == nil {
+		return nil
+	}
+	now, err := listRefs(ctx, t, r.GitDir, "refs/replace")
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(now)) {
+		start, existed := r.Replace[name]
+		if existed && start == now[name] {
+			continue
+		}
+		if existed {
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", name, start); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			fmt.Fprintf(w, "put %s back in %s: the agent pointed it at other content\n", name, r.Path)
+			continue
+		}
+		if err := dropRef(ctx, t, r.GitDir, name); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		fmt.Fprintf(w, "removed %s from %s: it made git on your machine show other content for an object\n", name, r.Path)
+	}
+	return errors.Join(errs...)
 }
 
 // JJSecureConfig returns the directory of a repository's secure config,
