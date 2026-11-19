@@ -159,11 +159,9 @@ func (s *Session) addRepositories(ctx context.Context, p *profile.Profile, host 
 		return notes, fmt.Errorf("vcs-readwrite and vcs-readonly need git on the host to keep your branches recoverable")
 	}
 	for _, repo := range repos {
-		n, err := vcs.Prepare(ctx, s.vcsTools(), repo)
-		if err != nil {
+		if err := vcs.Prepare(ctx, s.vcsTools(), repo); err != nil {
 			return notes, fmt.Errorf("prepare %s: %w", repo, err)
 		}
-		notes = append(notes, n...)
 	}
 	if r.stop != nil {
 		r.stop()

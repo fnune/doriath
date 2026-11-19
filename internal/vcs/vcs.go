@@ -60,6 +60,7 @@ type Repo struct {
 	Moved          []string          `json:"moved,omitempty"`
 	MovedBookmarks []string          `json:"moved_bookmarks,omitempty"`
 	AgentWorktrees []string          `json:"agent_worktrees,omitempty"`
+	Links          map[string]string `json:"links,omitempty"`
 }
 
 func BackupRef(session, branch string) string {
@@ -73,7 +74,7 @@ func Store(repo string) string {
 	if git, _ := Linked(repo); git != "" {
 		return git
 	}
-	if info, err := os.Stat(filepath.Join(repo, ".jj", "repo", "store", "git")); err == nil && info.IsDir() {
+	if info, err := os.Lstat(filepath.Join(repo, ".jj", "repo", "store", "git")); err == nil && info.IsDir() {
 		return filepath.Join(repo, ".jj", "repo", "store", "git")
 	}
 	return ""
@@ -116,7 +117,7 @@ func guardAlternates(gitDir string, depth int) error {
 	if err := os.MkdirAll(info, 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(filepath.Join(info, "alternates"), os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(info, "alternates"), os.O_CREATE|os.O_WRONLY|unix.O_NOFOLLOW, 0o644)
 	if err != nil {
 		return err
 	}
@@ -160,19 +161,19 @@ func colocated(repo string) bool {
 
 // Prepare creates the store directories, lock files and settings that git
 // and jj create on first use, because the agent cannot create them in a
-// read-only control directory. It returns notes on what it changed.
-func Prepare(ctx context.Context, t Tools, repo string) ([]string, error) {
+// read-only control directory.
+func Prepare(ctx context.Context, t Tools, repo string) error {
 	if git := Store(repo); git != "" {
 		for _, name := range []string{"worktrees", "logs", "refs"} {
 			if err := os.MkdirAll(filepath.Join(git, name), 0o755); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if err := guardAlternates(git, 0); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 // Start records the branches, bookmarks and worktrees of each repository,
@@ -190,7 +191,7 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 		if err != nil {
 			return fmt.Errorf("record the branches of %s: %w", path, err)
 		}
-		r := Repo{Path: path, GitDir: git, Branches: branches, Worktrees: entries(filepath.Join(git, "worktrees"))}
+		r := Repo{Path: path, GitDir: git, Branches: branches, Worktrees: listWorktrees(git), Links: storeLinks(git)}
 		if hasJJ(path) && !colocated(path) && t.JJ != "" {
 			if r.Bookmarks, err = bookmarks(ctx, t, path); err != nil {
 				return fmt.Errorf("record the bookmarks of %s: %w", path, err)
@@ -213,7 +214,7 @@ func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []str
 			if err := mirror(filepath.Join(sub, "objects"), filepath.Join(backup, fmt.Sprint(len(rec.Repos)), "objects")); err != nil {
 				return fmt.Errorf("keep the objects of submodule %s: %w", sub, err)
 			}
-			rec.Repos = append(rec.Repos, Repo{Path: submoduleCheckout(sub), GitDir: sub, Branches: branches, Worktrees: entries(filepath.Join(sub, "worktrees"))})
+			rec.Repos = append(rec.Repos, Repo{Path: submoduleCheckout(sub), GitDir: sub, Branches: branches, Worktrees: listWorktrees(sub), Links: storeLinks(sub)})
 		}
 	}
 	return nil
@@ -240,6 +241,13 @@ type Dirs interface {
 }
 
 func ModuleStores(modules string, dirs Dirs) []string {
+	return moduleStores(modules, dirs, 0)
+}
+
+func moduleStores(modules string, dirs Dirs, depth int) []string {
+	if depth > maxModuleDepth {
+		return nil
+	}
 	var out []string
 	for _, name := range dirs.Entries(modules) {
 		p := filepath.Join(modules, name)
@@ -248,7 +256,7 @@ func ModuleStores(modules string, dirs Dirs) []string {
 		case IsStore(p, dirs):
 			out = append(out, p)
 		default:
-			out = append(out, ModuleStores(p, dirs)...)
+			out = append(out, moduleStores(p, dirs, depth+1)...)
 		}
 	}
 	return out
@@ -295,10 +303,26 @@ func submoduleCheckout(store string) string {
 // repository pointer of the worktrees the agent added, and reports.
 func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, notices io.Writer, progress Progress) error {
 	var errs []error
+	known := map[string]string{}
+	for i := range rec.Repos {
+		rec.Repos[i].knownLinks(known)
+	}
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
 		if _, err := os.Stat(r.GitDir); errors.Is(err, os.ErrNotExist) {
 			fmt.Fprintf(notices, "%s is gone, so there is nothing to check in it\n", r.Path)
+			continue
+		}
+		if top := topStore(rec, r.GitDir); top != "" && hasLinkBelow(top, r.GitDir, known) {
+			fmt.Fprintf(notices, "the agent made the store %s a link to another folder, so doriath did not check %s\n", r.GitDir, r.Path)
+			continue
+		}
+		removed, restored, err := fixStoreLinks(r.GitDir, r.Links)
+		for _, note := range linkNotes(r.GitDir, removed, restored) {
+			fmt.Fprintln(fixed, note)
+		}
+		if err != nil {
+			errs = append(errs, err)
 			continue
 		}
 		if err := unmirror(filepath.Join(backup, fmt.Sprint(i), "objects"), filepath.Join(r.GitDir, "objects")); err != nil {
@@ -349,7 +373,7 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, not
 			fmt.Fprintf(fixed, "removed LFS object %s from %s: its content does not match its name\n", bad, r.Path)
 		}
 		r.AgentWorktrees = nil
-		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
+		for _, name := range listWorktrees(r.GitDir) {
 			if slices.Contains(r.Worktrees, name) {
 				continue
 			}
@@ -700,29 +724,43 @@ func sha256File(p string) (string, error) {
 
 func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bool) error {
 	name := filepath.Base(admin)
-	if info, err := os.Lstat(admin); err == nil && !info.IsDir() {
-		linkToElsewhere := admin
-		if err := os.Remove(linkToElsewhere); err != nil {
+	gitDir := filepath.Dir(filepath.Dir(admin))
+	worktrees, err := openDirBeneath(gitDir, "worktrees")
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = unix.Close(worktrees) }()
+	var st unix.Stat_t
+	if err := unix.Fstatat(worktrees, name, &st, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return nil
+	}
+	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
+		if err := unix.Unlinkat(worktrees, name, 0); err != nil {
 			return err
 		}
 		fmt.Fprintf(w, "removed worktree %s of %s, which the agent made a link to another directory\n", name, repo)
 		return nil
 	}
-	if live && removing(admin) {
+	adminFD, err := unix.Openat(worktrees, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(adminFD) }()
+	data, readErr := readAt(adminFD, "gitdir")
+	if live && (readErr != nil || removing(admin, data)) {
 		return nil
 	}
-	if fixed, err := resetCommondir(admin); err != nil {
+	if fixed, err := resetCommondir(adminFD); err != nil {
 		return err
 	} else if fixed {
 		fmt.Fprintf(w, "the agent pointed worktree %s of %s at another repository; doriath pointed it back\n", name, repo)
 	}
-	if neutralized, err := neutralizeWorktreeConfig(filepath.Join(admin, "config.worktree")); err != nil {
+	if neutralized, err := neutralizeWorktreeConfig(adminFD); err != nil {
 		return err
 	} else if neutralized {
 		fmt.Fprintf(w, "emptied the config the agent wrote for worktree %s of %s\n", name, repo)
 	}
-	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
-	if err != nil {
+	if readErr != nil {
 		return nil
 	}
 	checkout := filepath.Dir(resolve(admin, strings.TrimSpace(string(data))))
@@ -753,7 +791,6 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 		return fmt.Errorf("open worktree %s: %w", checkout, err)
 	}
 	defer func() { _ = unix.Close(dir) }()
-	var st unix.Stat_t
 	err = unix.Fstatat(dir, ".git", &st, unix.AT_SYMLINK_NOFOLLOW)
 	if live && errors.Is(err, unix.ENOENT) {
 		return nil
@@ -779,26 +816,28 @@ func repairWorktree(admin string, rec *Record, repo string, w io.Writer, live bo
 // read-only into its jail, and removing it would detach that mount. A file
 // with other links is removed instead, so that emptying it does not reach
 // the agent's other name for it.
-func neutralizeWorktreeConfig(p string) (bool, error) {
+func neutralizeWorktreeConfig(admin int) (bool, error) {
+	const name = "config.worktree"
 	var st unix.Stat_t
-	if err := unix.Lstat(p, &st); errors.Is(err, unix.ENOENT) {
+	if err := unix.Fstatat(admin, name, &st, unix.AT_SYMLINK_NOFOLLOW); errors.Is(err, unix.ENOENT) {
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
 	if !singleLinkFile(&st) {
-		return true, os.RemoveAll(p)
+		return true, takeAway(admin, name)
 	}
 	if st.Size == 0 {
 		return false, nil
 	}
-	f, err := os.OpenFile(p, os.O_WRONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	fd, err := unix.Openat(admin, name, unix.O_WRONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return true, os.RemoveAll(p)
+		return true, takeAway(admin, name)
 	}
+	f := os.NewFile(uintptr(fd), name)
 	defer f.Close()
-	if err := unix.Fstat(int(f.Fd()), &st); err != nil || !singleLinkFile(&st) {
-		return true, os.RemoveAll(p)
+	if err := unix.Fstat(fd, &st); err != nil || !singleLinkFile(&st) {
+		return true, takeAway(admin, name)
 	}
 	return true, f.Truncate(0)
 }
@@ -807,12 +846,8 @@ func singleLinkFile(st *unix.Stat_t) bool {
 	return st.Mode&unix.S_IFMT == unix.S_IFREG && st.Nlink == 1
 }
 
-func removing(admin string) bool {
-	data, err := os.ReadFile(filepath.Join(admin, "gitdir"))
-	if err != nil {
-		return true
-	}
-	_, err = os.Stat(filepath.Dir(resolve(admin, strings.TrimSpace(string(data)))))
+func removing(admin string, gitdir []byte) bool {
+	_, err := os.Stat(filepath.Dir(resolve(admin, strings.TrimSpace(string(gitdir)))))
 	return errors.Is(err, fs.ErrNotExist)
 }
 
@@ -821,22 +856,15 @@ func within(path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-func resetCommondir(admin string) (bool, error) {
-	p := filepath.Join(admin, "commondir")
-	data, err := os.ReadFile(p)
+func resetCommondir(admin int) (bool, error) {
+	data, err := readAt(admin, Commondir)
 	if err == nil && strings.TrimSpace(string(data)) == "../.." {
 		return false, nil
 	}
-	if err := os.RemoveAll(p); err != nil {
+	if err := takeAway(admin, Commondir); err != nil && !errors.Is(err, unix.ENOENT) {
 		return false, err
 	}
-	gitDir := filepath.Dir(filepath.Dir(admin))
-	dir, err := openBeneath(gitDir, filepath.Join("worktrees", filepath.Base(admin)))
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = unix.Close(dir) }()
-	return true, replaceAt(dir, "commondir", []byte("../..\n"))
+	return true, replaceAt(admin, Commondir, []byte("../..\n"))
 }
 
 func openBeneath(root, rel string) (int, error) {
@@ -991,7 +1019,7 @@ func linkOrCopy(src, dst string) error {
 }
 
 func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+	in, err := os.OpenFile(src, os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return err
 	}
@@ -1081,4 +1109,14 @@ func pointsTo(checkout, admin string) bool {
 	}
 	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
 	return ok && filepath.Clean(resolve(checkout, target)) == filepath.Clean(admin)
+}
+
+func topStore(rec *Record, gitDir string) string {
+	top := ""
+	for _, o := range rec.Repos {
+		if strings.HasPrefix(gitDir, o.GitDir+"/modules/") && (top == "" || len(o.GitDir) < len(top)) {
+			top = o.GitDir
+		}
+	}
+	return top
 }

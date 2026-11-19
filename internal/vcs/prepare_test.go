@@ -27,9 +27,8 @@ func TestPrepareCreatesWhatGitWouldOnFirstUse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	notes, err := Prepare(context.Background(), Tools{Git: "git"}, r)
-	if err != nil || notes != nil {
-		t.Fatalf("Prepare = %v, %v", notes, err)
+	if err := Prepare(context.Background(), Tools{Git: "git"}, r); err != nil {
+		t.Fatal(err)
 	}
 	for _, name := range []string{"worktrees", "logs", "refs"} {
 		if !isDir(filepath.Join(gitDir, name)) {
@@ -55,9 +54,8 @@ func TestPrepareLeavesTheGitConfigOfAColocatedRepositoryAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r)
-	if err != nil || len(notes) != 0 {
-		t.Fatalf("Prepare = %q, %v", notes, err)
+	if err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r); err != nil {
+		t.Fatal(err)
 	}
 	if after, _ := os.ReadFile(filepath.Join(r, ".git", "config")); string(after) != string(before) {
 		t.Errorf("the config changed:\n%s", after)
@@ -66,9 +64,8 @@ func TestPrepareLeavesTheGitConfigOfAColocatedRepositoryAlone(t *testing.T) {
 
 func TestPrepareLeavesTheGitConfigOfAJJStoreAlone(t *testing.T) {
 	r := jjRepo(t, false)
-	notes, err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r)
-	if err != nil || len(notes) != 0 {
-		t.Fatalf("Prepare = %q, %v", notes, err)
+	if err := Prepare(context.Background(), Tools{Git: "git", JJ: "jj"}, r); err != nil {
+		t.Fatal(err)
 	}
 	store := filepath.Join(r, ".jj", "repo", "store", "git")
 	if _, err := os.Stat(filepath.Join(store, "objects", "info", "alternates")); err != nil {

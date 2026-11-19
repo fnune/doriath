@@ -29,7 +29,7 @@ func Watch(ctx context.Context, rec *Record, w io.Writer) error {
 	for i := range rec.Repos {
 		r := &rec.Repos[i]
 		wt.add(filepath.Join(r.GitDir, "worktrees"), watched{repo: r, kind: kindWorktrees})
-		for _, name := range entries(filepath.Join(r.GitDir, "worktrees")) {
+		for _, name := range listWorktrees(r.GitDir) {
 			if !slices.Contains(r.Worktrees, name) {
 				wt.adopt(r, name)
 			}
