@@ -25,12 +25,21 @@ type fakePodman struct {
 	imageID, digest string
 	pullFails       bool
 	created         []string
+	documents       map[string]string
 }
 
 func (f *fakePodman) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.paths = append(f.paths, r.URL.Path)
 	f.mu.Unlock()
+	f.mu.Lock()
+	document, known := f.documents[strings.TrimPrefix(r.URL.Path, "/v4.0.0/libpod/")]
+	f.mu.Unlock()
+	if known {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, document)
+		return
+	}
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/images/create"), strings.HasSuffix(r.URL.Path, "/images/pull"):
 		f.pull(w, strings.Contains(r.URL.Path, "/libpod/"))
@@ -504,5 +513,29 @@ func TestARequestGetsWhyThePodmanServiceDidNotStart(t *testing.T) {
 	status, body := do(t, unixClient(serveBroker(t, b)), http.MethodGet, "/v4.0.0/libpod/_ping", "")
 	if status != http.StatusBadGateway || !strings.Contains(body, failed.Error()) {
 		t.Fatalf("status = %d, body = %s", status, body)
+	}
+}
+
+func TestAContainerStartsOnlyWithMountsThatPassTheCheckAgain(t *testing.T) {
+	h := newHarness(t)
+	h.podman.documents = map[string]string{
+		"containers/swapped/json": `{"Mounts":[{"Type":"bind","Source":"/ro","Destination":"/x","Options":["rbind"],"RW":true}]}`,
+		"containers/fine/json":    `{"Mounts":[{"Type":"bind","Source":"/work","Destination":"/x","Options":["rbind"],"RW":true},{"Type":"bind","Source":"/ro","Destination":"/y","Options":["rbind"],"RW":false}]}`,
+		"containers/volume/json":  `{"Mounts":[{"Type":"volume","Name":"v","Source":"/storage/v","Destination":"/x","RW":true}]}`,
+		"volumes/v/json":          `{"Driver":"local","Options":{"type":"none","device":"/ro","o":"rbind"}}`,
+		"pods/p/json":             `{"Containers":[{"Id":"fine"},{"Id":"swapped"}]}`,
+	}
+	for path, want := range map[string]int{
+		"/containers/swapped/start":        http.StatusForbidden,
+		"/libpod/containers/swapped/start": http.StatusForbidden,
+		"/containers/swapped/restart":      http.StatusForbidden,
+		"/containers/volume/start":         http.StatusForbidden,
+		"/libpod/pods/p/start":             http.StatusForbidden,
+		"/containers/fine/start":           http.StatusOK,
+		"/containers/unknown/start":        http.StatusOK,
+	} {
+		if status, body := h.do(t, "POST", path, ""); status != want {
+			t.Errorf("POST %s = %d %s, want %d", path, status, body, want)
+		}
 	}
 }

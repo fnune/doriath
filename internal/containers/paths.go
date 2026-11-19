@@ -26,6 +26,9 @@ func (c checker) bindSource(src string, a access) string {
 	if !path.IsAbs(src) {
 		return fmt.Sprintf("bind source %q is not an absolute path", src)
 	}
+	if link := c.linkInWritableMount(path.Clean(src)); link != "" {
+		return fmt.Sprintf("binding %s into a container is not allowed: %s is a symlink in a writable mount, and the agent can change where it points", src, link)
+	}
 	resolved := c.resolve(path.Clean(src))
 	m, ok := c.mountFor(resolved)
 	if !ok {
@@ -48,6 +51,24 @@ func (c checker) bindSource(src string, a access) string {
 			if inner.ReadOnly && p != resolved && within(p, resolved) {
 				return fmt.Sprintf("a non-recursive writable bind of %s is not allowed: it would uncover %s, which is read-only in profile %q; use a recursive bind (rbind)", src, inner.Path, c.profile)
 			}
+		}
+	}
+	return ""
+}
+
+func (c checker) linkInWritableMount(p string) string {
+	for _, m := range c.policy.Mounts {
+		root := path.Clean(m.Path)
+		if m.ReadOnly || m.Hidden || !path.IsAbs(root) || !within(p, root) || p == root {
+			continue
+		}
+		cur := root
+		for _, segment := range strings.Split(strings.TrimPrefix(p, strings.TrimSuffix(root, "/")+"/"), "/") {
+			next := path.Join(cur, segment)
+			if c.resolve(next) != path.Join(c.resolve(cur), segment) {
+				return next
+			}
+			cur = next
 		}
 	}
 	return ""

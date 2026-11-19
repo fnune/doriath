@@ -178,6 +178,17 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if target, ok := startTargetOf(r.Method, p); ok {
+		reason, err := b.startRefusal(r.Context(), c, target)
+		switch {
+		case err != nil:
+			b.refuse(w, r, http.StatusBadGateway, "cannot read the mounts of "+target.id+": "+err.Error())
+			return
+		case reason != "":
+			b.refuse(w, r, http.StatusForbidden, reason)
+			return
+		}
+	}
 	if v.image != nil && !b.runPinned(w, r, req.Body, *v.image) {
 		return
 	}
