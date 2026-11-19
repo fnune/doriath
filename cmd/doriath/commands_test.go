@@ -557,3 +557,17 @@ func TestApprovalsListsTheWarningOfARequest(t *testing.T) {
 		t.Errorf("out = %q", out.String())
 	}
 }
+
+func TestAnAnswerTakesItsFlagsBeforeOrAfterTheID(t *testing.T) {
+	for _, args := range [][]string{{"ab12c", "--for", "session", "--reason", "use CI"}, {"--for", "session", "--reason", "use CI", "ab12c"}} {
+		id, lasting, reason, err := parseAnswer("deny", args)
+		if err != nil || id != "ab12c" || lasting != "session" || reason != "use CI" {
+			t.Errorf("%v: %q %q %q, %v", args, id, lasting, reason, err)
+		}
+	}
+	for _, args := range [][]string{nil, {"ab12c", "cd34e"}, {"--reason", "x"}} {
+		if _, _, _, err := parseAnswer("allow", args); err == nil {
+			t.Errorf("%v: no error", args)
+		}
+	}
+}

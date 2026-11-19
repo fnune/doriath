@@ -229,28 +229,36 @@ func cmdApprovals(ctx context.Context, args []string, c clock, stdout io.Writer)
 		printPending(stdout, reqs, c.Now())
 		return nil
 	case "allow", "deny":
-		flags := flag.NewFlagSet(sub, flag.ContinueOnError)
-		lasting := flags.String("for", "once", "once, session, or a duration such as 30m")
-		reason := flags.String("reason", "", "a reason the agent sees")
-		if len(args) == 0 {
-			return fmt.Errorf("approvals %s: name the request id; to list them, run: %s", sub, cli.Code(cli.Line("approvals")))
-		}
-		id := args[0]
-		if err := flags.Parse(args[1:]); err != nil {
+		id, lasting, reason, err := parseAnswer(sub, args)
+		if err != nil {
 			return err
 		}
 		verdict := approval.VerdictAllow
 		if sub == "deny" {
 			verdict = approval.VerdictDeny
 		}
-		d, err := lastingDecision(verdict, *lasting, c.Now())
+		d, err := lastingDecision(verdict, lasting, c.Now())
 		if err != nil {
 			return err
 		}
-		d.Reason = *reason
+		d.Reason = reason
 		return decide(ctx, p, id, d)
 	}
 	return fmt.Errorf("approvals: unknown subcommand %q", sub)
+}
+
+func parseAnswer(sub string, args []string) (id, lasting, reason string, err error) {
+	flags := flag.NewFlagSet(sub, flag.ContinueOnError)
+	forFlag := flags.String("for", "once", "once, session, or a duration such as 30m")
+	reasonFlag := flags.String("reason", "", "a reason the agent sees")
+	operands, err := parseInterspersed(flags, args)
+	if err != nil {
+		return "", "", "", err
+	}
+	if len(operands) != 1 {
+		return "", "", "", fmt.Errorf("approvals %s: name one request id; to list them, run: %s", sub, cli.Code(cli.Line("approvals")))
+	}
+	return operands[0], *forFlag, *reasonFlag, nil
 }
 
 func lastingDecision(verdict approval.Verdict, lasting string, now time.Time) (approval.Decision, error) {
