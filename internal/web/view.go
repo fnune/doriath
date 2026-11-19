@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -71,6 +72,11 @@ type requestView struct {
 	ID        string
 	Kind      string
 	Summary   string
+	Title     string
+	Subject   string
+	Facts     []factView
+	Commands  []string
+	Link      approval.Link
 	Warning   string
 	Details   string
 	Note      string
@@ -93,11 +99,18 @@ type requestView struct {
 	created   time.Time
 }
 
+type factView struct {
+	Label string
+	Value string
+	URL   string
+}
+
 type answeredView struct {
 	Key      string
 	Selected bool
 	Detail   requestView
-	Summary  string
+	Title    string
+	Subject  string
 	Kind     string
 	Profile  sessionView
 	Verdict  string
@@ -239,6 +252,9 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		ID:        r.ID,
 		Kind:      string(r.Kind),
 		Summary:   session.Printable(r.Summary),
+		Title:     session.Printable(r.Title()),
+		Facts:     facts(r.Facts),
+		Commands:  printable(r.Commands),
 		Warning:   session.Printable(r.Warning),
 		Details:   session.Printable(r.Details),
 		Note:      session.Printable(r.Note),
@@ -253,6 +269,12 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 		Buttons:   buttons(r),
 		ByAgent:   r.Kind == approval.KindTool,
 		created:   r.Created,
+	}
+	if len(v.Facts) > 0 {
+		v.Subject = v.Facts[0].Value
+	}
+	if safeLink(r.Link.URL) && r.Link.Label != "" {
+		v.Link = approval.Link{Label: session.Printable(r.Link.Label), URL: r.Link.URL}
 	}
 	if r.Warning != "" {
 		v.Keep, v.KeepDeny = "", ""
@@ -283,6 +305,31 @@ func requestOf(r approval.Request, sv sessionView, now time.Time) requestView {
 	return v
 }
 
+func facts(in []approval.Fact) []factView {
+	out := make([]factView, 0, len(in))
+	for _, f := range in {
+		v := factView{Label: session.Printable(f.Label), Value: session.Printable(f.Value)}
+		if safeLink(f.URL) {
+			v.URL = f.URL
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func printable(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		out = append(out, session.Printable(s))
+	}
+	return out
+}
+
+func safeLink(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.Host != ""
+}
+
 func clock(d time.Duration) string {
 	sec := int(d.Seconds())
 	if sec < 60 {
@@ -302,9 +349,10 @@ func answeredOf(a Answered, now time.Time) answeredView {
 	return answeredView{
 		Key:     a.Request.Session + "/" + a.Request.ID,
 		Detail:  detail,
-		Summary: session.Printable(a.Request.Summary),
+		Title:   detail.Title,
+		Subject: detail.Subject,
 		Kind:    string(a.Request.Kind),
-		Profile: sessionView{Profile: a.Request.Profile, Hue: hue(a.Request.Profile)},
+		Profile: sessionView{Profile: a.Request.Profile, Description: session.Printable(a.Request.SessionDescription), Hue: hue(a.Request.Profile)},
 		Verdict: string(a.Decision.Verdict),
 		Label:   a.Request.Kind.Answered(a.Decision),
 		Ago:     ago(now.Sub(a.Time)),

@@ -50,6 +50,8 @@ func (s *Session) requestConnect(hostPort, jailPort int, reason string) (Request
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindConnect,
 		Summary: fmt.Sprintf("Let the jail connect to port %d on your machine?", hostPort),
+		Action:  "Connect to a port on your machine",
+		Facts:   portFacts(hostPort, jailPort),
 		Details: connectDetails(hostPort, jailPort),
 		Note:    reason,
 		Scope:   connectScope(hostPort, jailPort),

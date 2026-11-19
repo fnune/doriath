@@ -47,3 +47,14 @@ a.brand { color: inherit; text-decoration: none; }
 .doriath-ui .command { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .doriath-ui .command code { font-family: var(--font-mono); font-size: 12.5px; background: var(--code); padding: 6px 10px; border-radius: var(--radius); user-select: all; overflow-wrap: anywhere; }
 .doriath-ui .btn.copy { padding: 5px 12px; font-size: 13px; }
+.doriath-ui .item .subject { grid-column: 1 / -1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doriath-ui .item > .ago { justify-self: end; font-size: 12.5px; color: var(--muted); }
+.doriath-ui .detail-head .subject { margin: 2px 0 0; font-size: 14.5px; overflow-wrap: anywhere; }
+.doriath-ui .detail-head .btn { margin-top: 8px; color: var(--ink); text-decoration: none; }
+.doriath-ui .detail-head .btn:hover { border-color: var(--ring); }
+.doriath-ui .detail-head .subject a, .doriath-ui .facts a { color: var(--ring); text-decoration-color: color-mix(in srgb, var(--ring) 40%, transparent); text-underline-offset: 2px; }
+.doriath-ui .item > .who { overflow: hidden; flex-wrap: nowrap; white-space: nowrap; }
+.doriath-ui .item > .who .described { overflow: hidden; text-overflow: ellipsis; }
+.doriath-ui details.raw summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.doriath-ui details.raw pre { margin-top: 8px; }
+.doriath-ui .agent-text code.quote { font-family: var(--font-mono); font-style: normal; font-size: 13px; overflow-wrap: anywhere; }

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/godbus/dbus/v5"
 
@@ -30,6 +29,7 @@ const (
 	actionDeny         = "deny"
 	actionDenySession  = "deny-session"
 	actionDefault      = "default"
+	actionLink         = "open-link"
 )
 
 type Page interface {
@@ -37,8 +37,15 @@ type Page interface {
 	Open(request, activation string) error
 }
 
+type Browser interface {
+	Open(url, activation string) error
+}
+
 func Actions(req approval.Request) []string {
 	var out []string
+	if LinkOf(req) {
+		out = append(out, actionLink, req.Link.Label)
+	}
 	for _, b := range req.Buttons() {
 		out = append(out, actionFor[b.Answer], b.Label)
 	}
@@ -50,6 +57,10 @@ var actionFor = map[approval.Answer]string{
 	approval.AnswerSession:     actionAllowSession,
 	approval.AnswerDeny:        actionDeny,
 	approval.AnswerDenySession: actionDenySession,
+}
+
+func LinkOf(req approval.Request) bool {
+	return req.Link.Label != "" && safeURL(req.Link.URL)
 }
 
 func safeURL(raw string) bool {
@@ -66,7 +77,9 @@ func DecisionFor(action string) (approval.Decision, bool) {
 	return approval.Decision{}, false
 }
 
-func Body(req approval.Request, now time.Time) string {
+// Body holds what decides the answer, most specific first. The web page
+// shows the rest: the raw request, the scope and the lines to keep it.
+func Body(req approval.Request) string {
 	var b strings.Builder
 	agent := req.Agent
 	if agent == "" {
@@ -78,40 +91,34 @@ func Body(req approval.Request, now time.Time) string {
 	if req.Kind == approval.KindTool {
 		fmt.Fprintf(&b, "<i>Written by %s, not by doriath.</i>\n", html.EscapeString(agent))
 	}
-	if req.Note != "" {
-		fmt.Fprintf(&b, "%s wrote: <i>%s</i>\n", html.EscapeString(agent), html.EscapeString(req.Note))
+	for i, f := range req.Facts {
+		if i == 0 || f.Label == "" {
+			fmt.Fprintf(&b, "%s\n", html.EscapeString(f.Value))
+			continue
+		}
+		fmt.Fprintf(&b, "%s: %s\n", html.EscapeString(f.Label), html.EscapeString(f.Value))
 	}
-	if req.Details != "" {
+	if req.Note != "" {
+		fmt.Fprintf(&b, "<i>“%s”</i>\n", html.EscapeString(req.Note))
+	}
+	if len(req.Commands) > 0 {
+		fmt.Fprintf(&b, "<tt>“%s”</tt>\n", html.EscapeString(req.Commands[0]))
+	}
+	if len(req.Facts) == 0 && req.Details != "" {
 		fmt.Fprintf(&b, "<tt>%s</tt>\n", html.EscapeString(req.Details))
 	}
-	if req.Keep != "" {
-		fmt.Fprintf(&b, "To keep it, add to profile %s: <tt>%s</tt>\n", html.EscapeString(req.Profile), html.EscapeString(req.Keep))
-	}
-	if req.KeepDeny != "" {
-		fmt.Fprintf(&b, "To deny it in later sessions, add to profile %s: <tt>%s</tt>\n", html.EscapeString(req.Profile), html.EscapeString(req.KeepDeny))
-	}
-	if safeURL(req.URL) {
-		fmt.Fprintf(&b, "Link: %s\n", html.EscapeString(req.URL))
-	}
-	if req.Scope != "" && req.Offers(approval.AnswerSession) {
-		fmt.Fprintf(&b, "An answer for the session covers: <tt>%s</tt>\n", html.EscapeString(req.Scope))
-	}
-	fmt.Fprintf(&b, "Profile %s, session %s", html.EscapeString(req.Profile), html.EscapeString(req.Session))
 	if req.SessionDescription != "" {
-		fmt.Fprintf(&b, ", which %s describes as <i>%s</i>", html.EscapeString(agent), html.EscapeString(req.SessionDescription))
+		fmt.Fprintf(&b, "<i>“%s”</i>", html.EscapeString(req.SessionDescription))
+	} else {
+		b.WriteString(html.EscapeString(req.Session))
 	}
-	b.WriteString(".")
-	if !req.Expires.IsZero() {
-		fmt.Fprintf(&b, " Expires in %s.", req.Expires.Sub(now).Round(time.Second))
-	}
-	fmt.Fprintf(&b, " Or run: `doriath approvals`")
 	return b.String()
 }
 
 type Desktop struct {
-	conn *dbus.Conn
-	now  func() time.Time
-	Page Page
+	conn    *dbus.Conn
+	Page    Page
+	Browser Browser
 
 	owner string
 
@@ -120,12 +127,12 @@ type Desktop struct {
 	activations map[uint32]string
 }
 
-func NewDesktop(now func() time.Time) (*Desktop, error) {
+func NewDesktop() (*Desktop, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return nil, fmt.Errorf("connect to the session bus: %w", err)
 	}
-	d := &Desktop{conn: conn, now: now, handlers: map[uint32]func(string, string){}, activations: map[uint32]string{}}
+	d := &Desktop{conn: conn, handlers: map[uint32]func(string, string){}, activations: map[uint32]string{}}
 	for _, member := range []string{"ActivationToken", "ActionInvoked", "NotificationClosed"} {
 		if err := conn.AddMatchSignal(dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(objPath), dbus.WithMatchInterface(iface), dbus.WithMatchMember(member)); err != nil {
 			_ = conn.Close()
@@ -194,14 +201,14 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 		"resident":      dbus.MakeVariant(true),
 		"desktop-entry": dbus.MakeVariant("doriath"),
 	}
-	actions, body := Actions(req), Body(req, d.now())
+	actions, body := Actions(req), Body(req)
 	page := d.Page != nil && d.Page.Running()
 	if page {
 		actions = append(actions, actionDefault, "")
 	}
 	var id uint32
 	call := d.conn.Object(busName, objPath).Call(iface+".Notify", 0,
-		appName, uint32(0), "dialog-password", oneLineTitle(req.Session+": "+req.Summary), body, actions, hints, int32(0))
+		appName, uint32(0), "dialog-password", oneLineTitle(req.Title()), body, actions, hints, int32(0))
 	if err := call.Store(&id); err != nil {
 		return nil, fmt.Errorf("show notification: %w", err)
 	}
@@ -209,6 +216,10 @@ func (d *Desktop) Notify(_ context.Context, req approval.Request, respond func(a
 	d.handlers[id] = func(action, activation string) {
 		if page && action == actionDefault {
 			_ = d.Page.Open(req.Session+"/"+req.ID, activation)
+			return
+		}
+		if action == actionLink && d.Browser != nil && LinkOf(req) {
+			_ = d.Browser.Open(req.Link.URL, activation)
 			return
 		}
 		if dec, ok := DecisionFor(action); ok {

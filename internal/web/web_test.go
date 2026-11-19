@@ -572,8 +572,8 @@ func TestThePageShowsTheSessionDescriptionAsTheAgentsWords(t *testing.T) {
 	}
 	page := get(srv.Handler(), "/?request=s1/a1", true).Body.String()
 	want := `<span class="described" title="Written by the agent, not by doriath">“Fix &lt;b&gt;login&lt;/b&gt;”</span>`
-	if n := strings.Count(page, want); n != 2 {
-		t.Errorf("the description shows %d times, want in the session list and the request: %s", n, page)
+	if n := strings.Count(page, want); n != 3 {
+		t.Errorf("the description shows %d times, want in the session list, the request's row and the request: %s", n, page)
 	}
 }
 

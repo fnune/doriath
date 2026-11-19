@@ -96,8 +96,7 @@ func newDesktopEnv(t *testing.T) *desktopEnv {
 	address := dbustest.PrivateBus(t)
 	server := startServer(t, address)
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", address)
-	now := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
-	d, err := NewDesktop(func() time.Time { return now })
+	d, err := NewDesktop()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,10 +157,10 @@ func TestDesktopShowsAndDecides(t *testing.T) {
 
 	id, decisions, withdraw := e.notify(t, request)
 	got := e.server.last(t)
-	if got.summary != "s1: Run: push the branch" {
+	if got.summary != "Run: push the branch" {
 		t.Errorf("summary = %q", got.summary)
 	}
-	for _, want := range []string{"Written by claude, not by doriath.", "<tt>git push origin &lt;main&gt;</tt>", "Profile kitchen, session s1.", "Expires in 1m0s."} {
+	for _, want := range []string{"Written by claude, not by doriath.", "<tt>git push origin &lt;main&gt;</tt>", "s1"} {
 		if !strings.Contains(got.body, want) {
 			t.Errorf("body lacks %q: %q", want, got.body)
 		}
@@ -227,20 +226,46 @@ func TestDesktopIgnoresOtherSenders(t *testing.T) {
 	expectNoDecision(t, decisions)
 }
 
-func TestDesktopShowsLinksWithoutOpeningThem(t *testing.T) {
+func TestTheAgentsLinkGetsNoButton(t *testing.T) {
 	e := newDesktopEnv(t)
 	withLink := request
 	withLink.URL = "https://github.com/acme/app/pull/1"
 	_, _, _ = e.notify(t, withLink)
-	if got := e.server.last(t); slices.Contains(got.actions, "open") || !strings.Contains(got.body, "Link: "+withLink.URL) {
-		t.Errorf("a https link shows in the body, without a button: %v %q", got.actions, got.body)
+	if got := e.server.last(t); slices.Contains(got.actions, actionLink) {
+		t.Errorf("actions = %v", got.actions)
 	}
-	unsafe := request
-	unsafe.URL = "file:///etc/passwd"
-	_, _, _ = e.notify(t, unsafe)
-	if got := e.server.last(t); strings.Contains(got.body, "Link:") {
-		t.Errorf("a file link does not show: %q", got.body)
+}
+
+type fakeBrowser struct{ opened chan [2]string }
+
+func (b fakeBrowser) Open(url, activation string) error {
+	b.opened <- [2]string{url, activation}
+	return nil
+}
+
+func TestTheLinkButtonOpensThePageAndAnswersNothing(t *testing.T) {
+	e := newDesktopEnv(t)
+	browser := fakeBrowser{opened: make(chan [2]string, 1)}
+	e.desktop.Browser = browser
+	linked := request
+	linked.Link = approval.Link{Label: "Open PR", URL: "https://github.com/acme/app/pull/1"}
+	id, decisions, _ := e.notify(t, linked)
+	if got := e.server.last(t); len(got.actions) < 2 || got.actions[0] != actionLink || got.actions[1] != "Open PR" {
+		t.Fatalf("actions = %v", got.actions)
 	}
+	if err := e.server.conn.Emit(objPath, iface+".ActivationToken", id, "token"); err != nil {
+		t.Fatal(err)
+	}
+	e.server.invoke(t, id, actionLink)
+	select {
+	case opened := <-browser.opened:
+		if opened != [2]string{linked.Link.URL, "token"} {
+			t.Errorf("opened = %v", opened)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the link did not open")
+	}
+	expectNoDecision(t, decisions)
 }
 
 type fakePage struct{ opened chan [2]string }
@@ -261,7 +286,7 @@ func TestDesktopAnswersOrOpensThePageWhileItRuns(t *testing.T) {
 	if want := append(Actions(request), "default", ""); !slices.Equal(got.actions, want) {
 		t.Errorf("actions = %v, want %v", got.actions, want)
 	}
-	if got.body != Body(request, e.desktop.now()) {
+	if got.body != Body(request) {
 		t.Errorf("body = %q", got.body)
 	}
 
@@ -313,12 +338,12 @@ func TestDesktopInform(t *testing.T) {
 	}
 }
 
-func TestALongSummaryKeepsTheSessionInTheTitle(t *testing.T) {
+func TestTheTitleIsTheActionAlone(t *testing.T) {
 	e := newDesktopEnv(t)
-	long := request
-	long.Summary = "Allow " + strings.Repeat("a", 200) + ".example.com for profile kitchen?"
-	e.notify(t, long)
-	if got := e.server.last(t).summary; !strings.HasPrefix(got, "s1: ") {
+	acted := request
+	acted.Action = "Push"
+	e.notify(t, acted)
+	if got := e.server.last(t).summary; got != "Push" {
 		t.Errorf("summary = %q", got)
 	}
 }

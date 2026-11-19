@@ -43,7 +43,7 @@ action = "allow"
 method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
-summary = "Push to a Bitbucket repository"
+summary = "Push"
 
 [[http]]
 host = "api.bitbucket.org"
@@ -116,7 +116,8 @@ summary = "Change the repository's settings"
 method = "POST"
 path = "/2.0/repositories/*/*/pullrequests/*/merge"
 action = "approve"
-summary = "Merge a pull request"
+summary = "Merge pull request"
+subject = "{4}#{6}"
 
 [[http.rules]]
 method = "GET"
@@ -167,7 +168,8 @@ action = "allow"
 method = "POST"
 path = "/2.0/repositories/*/*/pullrequests/*/approve"
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
+subject = "{4}#{6}"
 
 [[http.rules]]
 method = "*"

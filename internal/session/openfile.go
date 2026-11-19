@@ -27,6 +27,8 @@ func (s *Session) requestOpenFile(u *url.URL, reason string) (RequestResult, err
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindOpen,
 		Summary: "Open " + path + " on your machine?",
+		Action:  "Open a file",
+		Facts:   []approval.Fact{{Label: "File", Value: s.fromHome(path)}},
 		Details: "The agent asks to open this file with the app that your machine uses for it:\n\n" + path + "\n\nThe jail shows this file, so the agent may have written it.",
 		Note:    reason,
 		Scope:   "open file " + path,

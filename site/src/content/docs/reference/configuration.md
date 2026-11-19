@@ -172,18 +172,25 @@ repositories = ["/repos/*/*"]
 # refs that a git push updates, such as "refs/heads/agent/**"). Rules that
 # read the body refuse bodies over 1 MB and compressed bodies. See
 # "Branches for the agent" on the Forges page for refs.
+# summary names what a held request does, and is the title of its
+# notification. subject is what it acts on, and link is a button that
+# opens its page without an answer. In both, {1} to {9} are the segments
+# of the request path, and {ref} is the branch or tag of a push of one
+# ref. A link has a fixed https:// host.
 [[http.rules]]
-method = "POST"
-path = "/repos/*/*/releases"
+method = "PUT"
+path = "/repos/*/*/pulls/*/merge"
 action = "approve"
-summary = "Create a GitHub release"
+summary = "Merge pull request"
+subject = "{3}#{5}"
+link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 
 [[http.rules]]
 method = "POST"
 path = "/graphql"
 graphql = { operation = "mutation", fields = ["mergePullRequest"] }
 action = "approve"
-summary = "Merge a pull request"
+summary = "Merge pull request"
 
 [[http.rules]]
 method = "*"

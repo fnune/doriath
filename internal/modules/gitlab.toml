@@ -189,7 +189,7 @@ credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", b
 method = "POST"
 path = "/api/v4/projects/*/releases"
 action = "approve"
-summary = "Create a GitLab release"
+summary = "Create a release"
 credential = { secret = "gitlab", scheme = "header", header = "PRIVATE-TOKEN", binaries = ["glab"] }
 
 [[http.rules]]
@@ -389,7 +389,7 @@ action = "allow"
 method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
-summary = "Push to a GitLab repository"
+summary = "Push"
 
 [[open]]
 host = "gitlab.com"

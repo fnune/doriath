@@ -52,7 +52,7 @@ func TestEveryModuleLoads(t *testing.T) {
 		{"POST", "/repos/a/b/pulls", "", "allow", ""},
 		{"POST", "/repos/a/b/actions/runs/1/rerun-failed-jobs", "", "allow", ""},
 		{"PUT", "/repos/a/b/contents/README.md", "", "approve", ""},
-		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve", ""},
+		{"POST", "/repos/a/b/actions/workflows/ci.yml/dispatches", "", "approve", "Run a workflow"},
 		{"POST", "/user/keys", "", "deny", ""},
 		{"POST", "/gists", "", "approve", ""},
 		{"PUT", "/repos/a/b/environments/prod/secrets/X", "", "deny", ""},
@@ -61,7 +61,7 @@ func TestEveryModuleLoads(t *testing.T) {
 		{"POST", "/graphql", `{"query":"mutation { addComment(input: {}) { clientMutationId } }"}`, "allow", ""},
 		{"POST", "/graphql", `{"query":"mutation { createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve", ""},
 		{"POST", "/graphql", `{"query":"mutation { addComment: createCommitOnBranch(input: {}) { commit { oid } } }"}`, "approve", ""},
-		{"POST", "/graphql", `{"query":"mutation { mergePullRequest(input: {}) { clientMutationId } }"}`, "approve", "Merge a pull request"},
+		{"POST", "/graphql", `{"query":"mutation { mergePullRequest(input: {}) { clientMutationId } }"}`, "approve", "Merge pull request"},
 		{"POST", "/graphql", `{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc"}}}`, "approve", ""},
 	} {
 		got, _ := gh.Decide(req.method, req.path, []byte(req.body))
@@ -244,7 +244,7 @@ func TestForgeModulesHoldAReviewThatApprovesAndLetOtherReviewsThrough(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	const approve = "Approve a pull request"
+	const approve = "Approve pull request"
 	form := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
 	for _, c := range []struct {
 		host, method, path, query string

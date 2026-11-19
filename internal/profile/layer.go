@@ -152,7 +152,15 @@ type ruleLayer struct {
 	Refs         []string          `toml:"refs"`
 	Action       string            `toml:"action"`
 	Summary      string            `toml:"summary"`
+	Subject      string            `toml:"subject"`
+	Link         *linkLayer        `toml:"link"`
+	MCPServer    string            `toml:"-"`
 	Credential   *credentialLayer  `toml:"credential"`
+}
+
+type linkLayer struct {
+	Label string `toml:"label"`
+	URL   string `toml:"url"`
 }
 
 type graphQLLayer struct {

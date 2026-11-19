@@ -40,6 +40,8 @@ func (s *Session) secretCard(name string, cause error) string {
 		Profile: p.Name,
 		Kind:    approval.KindSecret,
 		Summary: "Secret " + name + " is unavailable",
+		Action:  "Secret unavailable",
+		Facts:   []approval.Fact{{Label: "Secret", Value: name}, {Label: "Cause", Value: secret.Explained(cause).Error()}},
 		Details: fmt.Sprintf("%v\n\nWithout it, these fail: %s.\n\nFix the source on the host, such as a login, then try again. Or give the session a value with the command below.", secret.Explained(cause), strings.Join(secretUsers(p, name), ", ")),
 		Command: command,
 		Scope:   "secret " + name,

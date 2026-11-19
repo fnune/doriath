@@ -43,6 +43,8 @@ func (s *Session) askClipboard(ctx context.Context, mimeType string) error {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindClipboard,
 		Summary: "Let the agent read the image in your clipboard",
+		Action:  "Read the image you copied",
+		Facts:   []approval.Fact{{Label: "Type", Value: mimeType}},
 		Details: fmt.Sprintf("The agent asks for the image you copied, as %s. Allow it when you pasted an image; text in your clipboard never reaches the jail.", mimeType),
 		Scope:   "clipboard image",
 	}, s.deps.HostWait)

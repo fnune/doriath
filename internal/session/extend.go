@@ -35,6 +35,8 @@ func (s *Session) requestModule(module, path, reason string) (RequestResult, err
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindPath,
 		Summary: "Let the agent use module " + module + " in " + root,
+		Action:  "Use a module in a repository",
+		Facts:   []approval.Fact{{Label: "Repository", Value: s.fromHome(root)}, {Label: "Module", Value: module}},
 		Details: moduleDetails(module, root, ext),
 		Note:    reason,
 		Scope:   moduleScope(module, root),

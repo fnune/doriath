@@ -105,7 +105,8 @@ action = "deny"
 method = "POST"
 path = "/api/v1/repos/*/*/pulls/*/merge"
 action = "approve"
-summary = "Merge a pull request"
+summary = "Merge pull request"
+subject = "{5}#{7}"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
@@ -177,7 +178,8 @@ method = "POST"
 path = "/api/v1/repos/*/*/pulls/*/reviews/**"
 body_contains = ["APPROVE"]
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
+subject = "{5}#{7}"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
@@ -185,7 +187,8 @@ method = "POST"
 path = "/api/v1/repos/*/*/pulls/*/reviews/**"
 form = { event = "*APPROVE*" }
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
+subject = "{5}#{7}"
 credential = { secret = "forgejo", scheme = "token", binaries = ["tea", "fj", "berg"] }
 
 [[http.rules]]
@@ -265,7 +268,7 @@ action = "allow"
 method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
-summary = "Push to a Forgejo repository"
+summary = "Push"
 
 [[open]]
 host = "codeberg.org"

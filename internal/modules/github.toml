@@ -49,7 +49,8 @@ action = "allow"
 method = "POST"
 path = "/**/git-receive-pack"
 action = "approve"
-summary = "Push to a GitHub repository"
+summary = "Push"
+link = { label = "Open branch", url = "https://github.com/{1}/{2}/tree/{ref}" }
 
 [[http]]
 host = "api.github.com"
@@ -111,13 +112,17 @@ action = "deny"
 method = "PUT"
 path = "/repos/*/*/pulls/*/merge"
 action = "approve"
-summary = "Merge a pull request"
+summary = "Merge pull request"
+subject = "{3}#{5}"
+link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/releases"
 action = "approve"
-summary = "Create a GitHub release"
+summary = "Create a release"
+subject = "{3}"
+link = { label = "Open releases", url = "https://github.com/{2}/{3}/releases" }
 
 [[http.rules]]
 method = "GET"
@@ -194,14 +199,18 @@ method = "POST"
 path = "/repos/*/*/pulls/*/reviews/**"
 body_contains = ["APPROVE"]
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
+subject = "{3}#{5}"
+link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 
 [[http.rules]]
 method = "POST"
 path = "/repos/*/*/pulls/*/reviews/**"
 form = { event = "*APPROVE*" }
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
+subject = "{3}#{5}"
+link = { label = "Open PR", url = "https://github.com/{2}/{3}/pull/{5}" }
 
 [[http.rules]]
 method = "POST"
@@ -212,6 +221,57 @@ action = "allow"
 method = "POST"
 path = "/repos/*/*/pulls/*/requested_reviewers"
 action = "allow"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/pulls/comments/*/reactions"
+action = "approve"
+summary = "React to a review comment"
+subject = "{3}"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/issues/comments/*/reactions"
+action = "approve"
+summary = "React to a comment"
+subject = "{3}"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/issues/*/reactions"
+action = "approve"
+summary = "React to an issue or pull request"
+subject = "{3}#{5}"
+link = { label = "Open issue", url = "https://github.com/{2}/{3}/issues/{5}" }
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/stacks"
+action = "approve"
+summary = "Create a stack of pull requests"
+subject = "{3}"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/stacks/*/add"
+action = "approve"
+summary = "Add to a stack of pull requests"
+subject = "{3} stack {5}"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/stacks/*/unstack"
+action = "approve"
+summary = "Remove from a stack of pull requests"
+subject = "{3} stack {5}"
+
+[[http.rules]]
+method = "POST"
+path = "/repos/*/*/actions/workflows/*/dispatches"
+action = "approve"
+summary = "Run a workflow"
+subject = "{3} workflow {6}"
+link = { label = "Open workflow", url = "https://github.com/{2}/{3}/actions/workflows/{6}" }
 
 [[http.rules]]
 method = "POST"
@@ -267,9 +327,51 @@ action = "allow"
 [[http.rules]]
 method = "POST"
 path = "/graphql"
+graphql = { operation = "mutation", fields = ["mergePullRequest"] }
+action = "approve"
+summary = "Merge pull request"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["enablePullRequestAutoMerge"] }
+action = "approve"
+summary = "Turn on auto-merge"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["mergeBranch"] }
+action = "approve"
+summary = "Merge a branch"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
 graphql = { operation = "mutation", fields = ["mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch"] }
 action = "approve"
-summary = "Merge a pull request"
+summary = "Merge"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["enqueuePullRequest"] }
+action = "approve"
+summary = "Add to the merge queue"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["dequeuePullRequest"] }
+action = "approve"
+summary = "Remove from the merge queue"
+
+[[http.rules]]
+method = "POST"
+path = "/graphql"
+graphql = { operation = "mutation", fields = ["requestReviewsByLogin"] }
+action = "approve"
+summary = "Request reviews"
 
 [[http.rules]]
 method = "POST"
@@ -277,7 +379,7 @@ path = "/graphql"
 graphql = { operation = "mutation" }
 body_contains = ["APPROVE"]
 action = "approve"
-summary = "Approve a pull request"
+summary = "Approve pull request"
 
 [[http.rules]]
 method = "POST"

@@ -29,6 +29,10 @@ The approvals page shows a request as below. Desktop notifications and the termi
 
 doriath writes the summary and the scope. The text on the curled rule with the agent's name comes from the agent, and so do the details of a tool request.
 
+A request names what it does in a few words, such as Push or Request reviews, and lists the facts below it: what it acts on first, then the values that it changes. For an HTTP request, the action comes from the `summary` of its [rule](/reference/configuration/#profile-keys). Without one, it comes from the GraphQL field or the MCP tool, or it is the method and the path. The facts come from the rule's `subject`, the refs of a push, and the GraphQL variables, MCP arguments or JSON fields of the body. The raw request is folded below them.
+
+When a rule gives a `link`, the request has a button with its label, such as Open PR. The button opens the page in your browser and does not answer the request.
+
 A request for a host also shows what doriath knows about it:
 
 - What the host is, from a note in the profile or its modules, under `[egress] notes`.
@@ -59,7 +63,7 @@ A request with a warning from doriath offers only Allow once and Deny, also for 
 
 ## Desktop notifications
 
-On a machine with a desktop session, each request shows as a notification, through `[desktop] notifications = true` in `config.toml`. The notification has the same answers as buttons as the [approvals page](#the-approvals-page). While the page runs, a click on the notification itself opens the page at that request. Without a desktop session, doriath turns notifications off and tells you, as [remote hosts](#remote-hosts) describes.
+On a machine with a desktop session, each request shows as a notification, through `[desktop] notifications = true` in `config.toml`. The title is the action. The body starts with the facts, then shows the agent's note or the command line in quotes, and ends with the session's description or its name. The lines to keep a request in the profile, and the scope, show only on the [approvals page](#the-approvals-page). The notification has the same answers as buttons as the page, and the link button when the request has one. While the page runs, a click on the notification itself opens the page at that request. Without a desktop session, doriath turns notifications off and tells you, as [remote hosts](#remote-hosts) describes.
 
 ## The approvals page
 

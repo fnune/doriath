@@ -33,6 +33,8 @@ func (s *Session) requestWrite(path, reason string) (RequestResult, error) {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindPath,
 		Summary: "Let the agent write " + path,
+		Action:  "Write to a folder",
+		Facts:   []approval.Fact{{Label: "Folder", Value: s.fromHome(path)}},
 		Details: details,
 		Note:    reason,
 		Keep:    s.mountLines(path),

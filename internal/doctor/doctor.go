@@ -134,7 +134,7 @@ func Run(ctx context.Context, opts Options) []Result {
 
 	out = append(out, repository(opts)...)
 
-	if desktop, err := notify.NewDesktop(time.Now); err != nil {
+	if desktop, err := notify.NewDesktop(); err != nil {
 		note("desktop notifications", "unavailable; approvals work through `doriath approvals` only")
 	} else {
 		caps, err := desktop.Capabilities()

@@ -48,9 +48,42 @@ func TestActionsAndBody(t *testing.T) {
 		}
 	}
 	req.URL = "https://example.com"
-	body := Body(req, time.Unix(40, 0))
-	if !strings.Contains(body, "POST &lt;x&gt; &amp; y") || !strings.Contains(body, "Expires in 1m0s") {
+	if body := Body(req); !strings.Contains(body, "POST &lt;x&gt; &amp; y") {
 		t.Errorf("body = %q", body)
+	}
+}
+
+func TestALinkButtonOpensOnlyAnHTTPSPageWithALabel(t *testing.T) {
+	req := approval.Request{Kind: approval.KindHTTP, Link: approval.Link{Label: "Open PR", URL: "https://github.com/o/r/pull/1"}}
+	if got := Actions(req); len(got) != 8 || got[0] != actionLink || got[1] != "Open PR" {
+		t.Errorf("actions = %v", got)
+	}
+	for _, link := range []approval.Link{{Label: "Open PR", URL: "javascript:alert(1)"}, {URL: "https://github.com/o/r/pull/1"}} {
+		if got := Actions(approval.Request{Kind: approval.KindHTTP, Link: link}); len(got) != 6 {
+			t.Errorf("%+v: actions = %v", link, got)
+		}
+	}
+}
+
+func TestTheBodyLeadsWithTheFactsAndLeavesTheRestToThePage(t *testing.T) {
+	req := approval.Request{
+		Kind:     approval.KindHTTP,
+		Session:  "s1",
+		Profile:  "p",
+		Action:   "Request reviews",
+		Facts:    []approval.Fact{{Label: "About", Value: "repo#1"}, {Label: "userLogins", Value: "alice, <bob>"}},
+		Commands: []string{"gh pr edit 1 --add-reviewer alice", "bash"},
+		Details:  "POST https://api.example/graphql",
+		Scope:    "http POST api.example /graphql",
+		Keep:     "[[http.rules]]",
+		Expires:  time.Unix(100, 0),
+	}
+	want := "repo#1\nuserLogins: alice, &lt;bob&gt;\n<tt>“gh pr edit 1 --add-reviewer alice”</tt>\ns1"
+	if got := Body(req); got != want {
+		t.Errorf("body = %q, want %q", got, want)
+	}
+	if req.Title() != "Request reviews" {
+		t.Errorf("title = %q", req.Title())
 	}
 }
 
@@ -65,19 +98,11 @@ func TestSessionWideRequestsOfferNoOneOffAllow(t *testing.T) {
 	}
 }
 
-func TestAHostBodyShowsTheLinesToDenyIt(t *testing.T) {
-	req := approval.Request{Kind: approval.KindHost, Profile: "p", Scope: "host egress a.example", KeepDeny: "[egress]\ndeny = [\"a.example\"]"}
-	body := Body(req, time.Unix(0, 0))
-	if !strings.Contains(body, "To deny it in later sessions, add to profile p: <tt>[egress]\ndeny = [&#34;a.example&#34;]</tt>") || !strings.Contains(body, "An answer for the session covers") {
-		t.Errorf("body = %q", body)
-	}
-}
-
 func TestDesktop(t *testing.T) {
 	if os.Getenv("DORIATH_TEST_DESKTOP") == "" {
 		t.Skip("set DORIATH_TEST_DESKTOP=1 to show a real notification")
 	}
-	d, err := NewDesktop(time.Now)
+	d, err := NewDesktop()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +122,7 @@ func TestUrgency(t *testing.T) {
 }
 
 func TestToolRequestsAreLabeled(t *testing.T) {
-	body := Body(approval.Request{Kind: approval.KindTool, Agent: "claude"}, time.Now())
+	body := Body(approval.Request{Kind: approval.KindTool, Agent: "claude"})
 	if !strings.Contains(body, "Written by claude, not by doriath") {
 		t.Errorf("body = %q", body)
 	}
@@ -125,7 +150,7 @@ func TestANotificationTitleIsOneShortEscapedLine(t *testing.T) {
 
 func TestAWarnedRequestShowsTheWarningFirstAndOffersNoSessionAllow(t *testing.T) {
 	req := approval.Request{Kind: approval.KindPath, Profile: "work", Scope: "path write /home/u/.local/bin", Warning: "Your shells run programs from /home/u/.local/bin."}
-	body := Body(req, time.Now())
+	body := Body(req)
 	if !strings.HasPrefix(body, "<b>Warning from doriath:</b> Your shells run programs") {
 		t.Errorf("body = %q", body)
 	}
@@ -139,7 +164,7 @@ func TestAWarnedRequestShowsTheWarningFirstAndOffersNoSessionAllow(t *testing.T)
 
 func TestTheSessionDescriptionShowsAsTheAgentsWords(t *testing.T) {
 	req := approval.Request{Session: "s1", Profile: "p", Agent: "claude", Kind: approval.KindHost, SessionDescription: "Fix <b>login</b>"}
-	if got := Body(req, time.Now()); !strings.Contains(got, "session s1, which claude describes as <i>Fix &lt;b&gt;login&lt;/b&gt;</i>.") {
+	if got := Body(req); !strings.HasSuffix(got, "<i>“Fix &lt;b&gt;login&lt;/b&gt;”</i>") {
 		t.Errorf("body = %q", got)
 	}
 }

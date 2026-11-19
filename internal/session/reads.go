@@ -27,6 +27,8 @@ func (s *Session) requestRead(path, reason string) (RequestResult, error) {
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindRead,
 		Summary: "Let the agent read " + path,
+		Action:  "Read a folder",
+		Facts:   []approval.Fact{{Label: "Folder", Value: s.fromHome(path)}},
 		Details: "The agent asks to read " + path + ", which the jail does not show. An allow shows it, read-only, until the session ends.",
 		Note:    reason,
 		Keep:    fmt.Sprintf("[[mounts]]\npath = %q", s.profilePath(path)),

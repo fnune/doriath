@@ -216,7 +216,15 @@ type Rule struct {
 	Refs       []RefPattern
 	Action     Action
 	Summary    string
+	Subject    Template
+	Link       *RuleLink
+	MCPServer  string
 	Credential *Credential
+}
+
+type RuleLink struct {
+	Label string
+	URL   Template
 }
 
 func (h HTTPHost) NeedsBody(method, path string) bool {

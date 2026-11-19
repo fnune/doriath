@@ -77,7 +77,30 @@ func programName(exe string) string {
 	if exe == "" {
 		return "an unidentified program"
 	}
-	return strings.TrimSuffix(strings.TrimPrefix(filepath.Base(exe), "."), "-wrapped")
+	return proxy.ProgramName(exe)
+}
+
+func truncatedCommands(commands []string) []string {
+	out := make([]string, 0, len(commands))
+	for _, line := range commands {
+		if len(line) > maxCommandLine {
+			line = strings.ToValidUTF8(line[:maxCommandLine], "") + "…"
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+func (s *Session) fromHome(path string) string {
+	home := s.deps.Paths.Home
+	if home != "" && within(path, home) {
+		rel, _ := filepath.Rel(home, path)
+		if rel == "." {
+			return "~"
+		}
+		return "~/" + rel
+	}
+	return path
 }
 
 func (l *livePolicy) allow(host string) {
@@ -94,7 +117,7 @@ const pendingTTL = 12 * time.Hour
 func (s *Session) HoldHost(_ context.Context, host string, caller proxy.Identity) (bool, string) {
 	hint := time.AfterFunc(waitHintAfter, func() { s.hintPending(caller, approval.KindHost, s.hostSummary(host)) })
 	defer hint.Stop()
-	d, id := s.holdHost(host, s.hostDetails(host, caller), "")
+	d, id := s.holdHost(host, s.hostDetails(host, caller), "", caller)
 	if d.Verdict == approval.VerdictAllow {
 		return true, ""
 	}
@@ -132,12 +155,19 @@ func (s *Session) hostSummary(host string) string {
 	return fmt.Sprintf("Allow %s for profile %s?", host, s.req.Profile.Name)
 }
 
-func (s *Session) holdHost(host, details, reason string) (approval.Decision, string) {
+func (s *Session) holdHost(host, details, reason string, caller proxy.Identity) (approval.Decision, string) {
+	facts := []approval.Fact{{Label: "Host", Value: host}}
+	if caller.Exe != "" {
+		facts = append(facts, approval.Fact{Label: "Program", Value: proxy.ProgramName(caller.Exe)})
+	}
 	req := approval.Request{
 		Session:  s.id,
 		Profile:  s.req.Profile.Name,
 		Kind:     approval.KindHost,
 		Summary:  s.hostSummary(host),
+		Action:   "Connect to a new host",
+		Facts:    facts,
+		Commands: truncatedCommands(caller.Commands),
 		Details:  details,
 		Note:     reason,
 		Keep:     egressLines("allow", []string{host}),
@@ -207,7 +237,7 @@ func (s *Session) requestHost(host, reason string) (RequestResult, error) {
 	if note := s.req.Profile.HostNote(host); note != "" {
 		details = host + ": " + note + "\n\n" + details
 	}
-	d, id := s.holdHost(host, details, reason)
+	d, id := s.holdHost(host, details, reason, proxy.Identity{})
 	res := RequestResult{Decision: d}
 	if d.Verdict == approval.VerdictNone {
 		res.Pending = id

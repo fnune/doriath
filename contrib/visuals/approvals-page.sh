@@ -33,5 +33,5 @@ for theme in light dark; do
     link=$(isolated doriath web open --listen "$addr" --print | grep '^http')
     shot-scraper "$link" --output "$out/approvals-$theme.png" \
         --width 1200 --height 640 --retina --wait 1500 \
-        --javascript "document.documentElement.dataset.theme = '$theme'; [...document.querySelectorAll('a.item')].find(a => a.textContent.includes('Merge a pull request')).click()"
+        --javascript "document.documentElement.dataset.theme = '$theme'; [...document.querySelectorAll('a.item')].find(a => a.textContent.includes('Merge pull request')).click()"
 done

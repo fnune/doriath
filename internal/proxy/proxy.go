@@ -336,7 +336,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		if tools := profile.DescribeMCP(body); len(rule.MCPTools) > 0 && tools != "" {
 			summary += " " + tools
 		}
-		details := fmt.Sprintf("%s https://%s%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()), bodyExcerpt(body))
+		details := fmt.Sprintf("%s https://%s%s%s", r.Method, host, r.URL.RequestURI(), caller(r.Context()))
 		if push != nil {
 			var names []string
 			for _, u := range refs {
@@ -349,14 +349,23 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 			}
 			summary += ": " + strings.Join(names, ", ")
 		}
+		shown := body
+		if shown == nil && push == nil {
+			shown = peekBody(r, maxShownBody)
+		}
+		desc := describe(httpRequest{rule: rule, matched: matched, method: r.Method, host: host, path: reqPath, repo: rules.Repository(reqPath), operation: operation, body: shown, refs: refs, unread: unread, caller: IdentityFrom(r.Context())})
 		stopHint := s.hintWhenHeld(r.Context(), summary)
 		d, err := s.approver.Submit(r.Context(), approval.Request{
-			Session: s.cfg.Session,
-			Profile: s.cfg.Profile,
-			Kind:    approval.KindHTTP,
-			Summary: summary,
-			Details: details,
-			Scope:   scope(rule, matched, r.Method, reqPath, host, body, push, rules.Repository(reqPath), operation),
+			Session:  s.cfg.Session,
+			Profile:  s.cfg.Profile,
+			Kind:     approval.KindHTTP,
+			Summary:  summary,
+			Action:   desc.action,
+			Facts:    desc.facts,
+			Commands: desc.commands,
+			Link:     desc.link,
+			Details:  details + bodyExcerpt(shown),
+			Scope:    scope(rule, matched, r.Method, reqPath, host, body, push, rules.Repository(reqPath), operation),
 		}, s.cfg.ApprovalTTL)
 		stopHint()
 		if err != nil || d.Verdict != approval.VerdictAllow {
@@ -553,10 +562,14 @@ func bodyExcerpt(body []byte) string {
 	}
 	text := string(body)
 	var gql struct {
-		Query string `json:"query"`
+		Query     string          `json:"query"`
+		Variables json.RawMessage `json:"variables"`
 	}
 	if json.Unmarshal(body, &gql) == nil && gql.Query != "" {
 		text = gql.Query
+		if len(gql.Variables) > 0 && string(gql.Variables) != "null" {
+			text += "\nvariables " + string(gql.Variables)
+		}
 	}
 	if len(text) > excerptLimit {
 		text = text[:excerptLimit] + "…"
@@ -565,6 +578,23 @@ func bodyExcerpt(body []byte) string {
 }
 
 const maxInspectedBody = 1 << 20
+
+const maxShownBody = 64 << 10
+
+func peekBody(r *http.Request, limit int64) []byte {
+	if r.Body == nil || !identityEncoding(r.Header.Get("Content-Encoding")) {
+		return nil
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	r.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(data), r.Body), r.Body}
+	if err != nil || int64(len(data)) > limit {
+		return nil
+	}
+	return data
+}
 
 func readBody(r *http.Request, limit int64) ([]byte, bool, error) {
 	if r.Body == nil {

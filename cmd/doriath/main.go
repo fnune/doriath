@@ -311,12 +311,12 @@ func cmdRun(args []string) (int, error) {
 	var notifier approval.Notifier = notify.None{}
 	var informer session.Informer = notify.None{}
 	if user.Desktop.Notifications {
-		desktop, err := notify.NewDesktop(time.Now)
+		desktop, err := notify.NewDesktop()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "doriath: desktop notifications are off (%v); use `doriath approvals`\n", err)
 		} else {
 			defer func() { _ = desktop.Close() }()
-			desktop.Page = webPage{paths: p}
+			desktop.Page, desktop.Browser = webPage{paths: p}, browser{}
 			notifier, informer = desktop, desktop
 		}
 	}
@@ -451,6 +451,10 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 // page, without which a Wayland compositor neither raises the browser nor
 // marks it as wanting attention.
 type opener struct{ activation string }
+
+type browser struct{}
+
+func (browser) Open(url, activation string) error { return opener{activation: activation}.Open(url) }
 
 func (o opener) Open(url string) error {
 	cmd := exec.Command("xdg-open", url)

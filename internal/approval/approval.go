@@ -113,13 +113,17 @@ func (k Kind) Answered(d Decision) string {
 }
 
 type Request struct {
-	ID      string `json:"id"`
-	Session string `json:"session"`
-	Profile string `json:"profile"`
-	Agent   string `json:"agent,omitempty"`
-	Kind    Kind   `json:"kind"`
-	Summary string `json:"summary"`
-	Details string `json:"details,omitempty"`
+	ID       string   `json:"id"`
+	Session  string   `json:"session"`
+	Profile  string   `json:"profile"`
+	Agent    string   `json:"agent,omitempty"`
+	Kind     Kind     `json:"kind"`
+	Summary  string   `json:"summary"`
+	Action   string   `json:"action,omitempty"`
+	Facts    []Fact   `json:"facts,omitempty"`
+	Commands []string `json:"commands,omitempty"`
+	Link     Link     `json:"link,omitzero"`
+	Details  string   `json:"details,omitempty"`
 	// Warning is doriath's own text on a request that touches a path your
 	// machine runs or reads on its own.
 	Warning            string    `json:"warning,omitempty"`
@@ -135,6 +139,25 @@ type Request struct {
 	// AgentWaits is when the agent stops waiting for the answer. The request
 	// stays answerable after that, until Expires.
 	AgentWaits time.Time `json:"agent_waits,omitzero"`
+}
+
+type Fact struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+	URL   string `json:"url,omitempty"`
+}
+
+// Link is the page a request is about. Opening it answers nothing.
+type Link struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+func (r Request) Title() string {
+	if r.Action != "" {
+		return r.Action
+	}
+	return r.Summary
 }
 
 type Verdict string

@@ -40,11 +40,21 @@ func (s *Session) requestForward(hostPort, jailPort int, reason string) (Request
 		Profile: s.req.Profile.Name,
 		Kind:    approval.KindForward,
 		Summary: fmt.Sprintf("Forward port %d on your machine into the jail?", hostPort),
+		Action:  "Forward a port into the jail",
+		Facts:   portFacts(hostPort, jailPort),
 		Details: forwardDetails(hostPort, jailPort),
 		Note:    reason,
 		Scope:   forwardScope(hostPort, jailPort),
 	}
 	return s.holdAndGrant(req, func() error { return s.forwardPort(hostPort, jailPort, 0) })
+}
+
+func portFacts(hostPort, jailPort int) []approval.Fact {
+	facts := []approval.Fact{{Label: "Port on your machine", Value: strconv.Itoa(hostPort)}}
+	if jailPort != hostPort {
+		facts = append(facts, approval.Fact{Label: "Port in the jail", Value: strconv.Itoa(jailPort)})
+	}
+	return facts
 }
 
 func checkPort(port int) error {
