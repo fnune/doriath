@@ -433,3 +433,22 @@ func TestAStoreTheAgentMadeGetsNoGitConfigEdit(t *testing.T) {
 		t.Error("a store that the agent made got the git config rule")
 	}
 }
+
+func TestAnEditThatIsTooLongToShowIsRefused(t *testing.T) {
+	notifier := &answering{seen: make(chan approval.Request, 1)}
+	s := newTestSession(t, notifier)
+	repo := filepath.Join(s.home, "repo")
+	envrc := filepath.Join(repo, ".envrc")
+	mkdirAll(t, repo)
+	if err := os.WriteFile(envrc, []byte("use flake\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.req.Profile.Mounts = []profile.Mount{{Path: repo, Mode: profile.ModeWrite}, {Path: envrc, Mode: profile.ModeRead}}
+	long := strings.Repeat("echo a long line of text\n", 1000)
+	if _, err := s.requestEdit(envrc, long, ""); err == nil || !strings.Contains(err.Error(), "more than doriath can show you") {
+		t.Errorf("err = %v", err)
+	}
+	if len(notifier.seen) != 0 {
+		t.Error("asked about changes that the request cannot show")
+	}
+}

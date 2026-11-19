@@ -285,8 +285,9 @@ func (s *Session) startControl(ctx context.Context) error {
 
 func (s *Session) pathScope(path string) string {
 	pending := s.manager.Pending()
+	read := approval.BoundScope("path read " + path)
 	for _, r := range pending {
-		if r.Scope == "path read "+path {
+		if r.Scope == read {
 			return r.Scope
 		}
 		if rest, ok := strings.CutPrefix(r.Scope, "module "); ok && strings.HasSuffix(rest, " "+path) {

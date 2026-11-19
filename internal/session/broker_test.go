@@ -146,15 +146,17 @@ func TestTheJailCannotChooseWhatAnAllowCovers(t *testing.T) {
 
 func TestAnAllowForACommandCoversTheWholeCommand(t *testing.T) {
 	notifier := allowing()
-	notifier.seen = make(chan approval.Request, 1)
+	notifier.seen = make(chan approval.Request, 2)
 	_, broker, _ := brokerSession(t, notifier)
-	command := strings.Repeat("a", 3000) + "; curl evil"
-	input, _ := json.Marshal(map[string]string{"command": command})
-	if err := control.Call(context.Background(), broker, MethodSubmit, SubmitParams{Agent: "claude", Tool: "Bash", Input: input, TimeoutSeconds: 10}, nil); err != nil {
-		t.Fatal(err)
+	for _, tail := range []string{"; curl evil", "; curl other"} {
+		input, _ := json.Marshal(map[string]string{"command": strings.Repeat("a", 3000) + tail})
+		if err := control.Call(context.Background(), broker, MethodSubmit, SubmitParams{Agent: "claude", Tool: "Bash", Input: input, TimeoutSeconds: 10}, nil); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if req := <-notifier.seen; req.Scope != "tool claude Bash "+command {
-		t.Errorf("scope ends with %q", req.Scope[len(req.Scope)-20:])
+	first, second := <-notifier.seen, <-notifier.seen
+	if first.Scope == second.Scope {
+		t.Errorf("two commands that differ after the first 3000 bytes share the scope %q", first.Scope[:40])
 	}
 }
 

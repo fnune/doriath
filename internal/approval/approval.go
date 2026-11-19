@@ -2,6 +2,8 @@ package approval
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path"
@@ -326,6 +328,7 @@ func (m *Manager) Submit(ctx context.Context, req Request, ttl time.Duration) (D
 }
 
 func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, registered func(*pending), decided func(Decision)) (Decision, error) {
+	req = req.bounded()
 	now := m.clock.Now()
 	m.mu.Lock()
 	if g, ok := m.grants[grantKey(req)]; ok && req.Scope != "" {
@@ -335,7 +338,7 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 			if d.Verdict == VerdictDeny {
 				d.Reason = "the user denied it for this session"
 			}
-			m.recorder.Decided(req, d)
+			m.recorder.Decided(req.outline(), d)
 			return d, nil
 		}
 		delete(m.grants, grantKey(req))
@@ -346,7 +349,7 @@ func (m *Manager) submit(ctx context.Context, req Request, ttl time.Duration, re
 		m.mu.Unlock()
 		d := Decision{Verdict: VerdictDeny, Reason: fmt.Sprintf("%d requests are already waiting for a decision; wait for those first", MaxPending)}
 		if record {
-			m.recorder.Decided(req, d)
+			m.recorder.Decided(req.outline(), d)
 		}
 		return d, nil
 	}
@@ -472,6 +475,7 @@ func (m *Manager) Propose(req Request, ttl time.Duration, decided func(Decision)
 // until it is decided or ttl passes, and decided runs when it is decided.
 // Hold returns the request's id, for Wait, unless a grant answered at once.
 func (m *Manager) Hold(req Request, ttl, wait time.Duration, decided func(Decision)) (Decision, string) {
+	req = req.bounded()
 	waitsUntil := m.clock.Now().Add(wait)
 	req.AgentWaits = waitsUntil
 	var p *pending
@@ -523,6 +527,7 @@ func (m *Manager) Wait(ctx context.Context, id string) (Decision, error) {
 }
 
 func (m *Manager) WaitScope(ctx context.Context, scope string) (Decision, error) {
+	scope = BoundScope(scope)
 	return m.waitFor(ctx, scope, func(r Request) bool { return r.Scope == scope })
 }
 
@@ -551,6 +556,57 @@ func (m *Manager) waitFor(ctx context.Context, name string, match func(Request) 
 	case <-ctx.Done():
 		return Decision{Verdict: VerdictNone, Reason: "stopped waiting"}, nil
 	}
+}
+
+const (
+	maxSummary  = 1000
+	maxNote     = 2000
+	maxDetails  = 32 << 10
+	MaxFact     = 8 << 10
+	maxCommand  = 1000
+	maxCommands = 20
+	maxScope    = 2000
+	maxOutline  = 200
+)
+
+func cut(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	return strings.ToValidUTF8(s[:limit], "") + "…"
+}
+
+func BoundScope(scope string) string {
+	if len(scope) <= maxScope {
+		return scope
+	}
+	sum := sha256.Sum256([]byte(scope))
+	return strings.ToValidUTF8(scope[:maxScope-17], "") + "#" + hex.EncodeToString(sum[:8])
+}
+
+func (r Request) bounded() Request {
+	r.Summary = cut(r.Summary, maxSummary)
+	r.Action = cut(r.Action, maxSummary)
+	r.Note = cut(r.Note, maxNote)
+	r.Details = cut(r.Details, maxDetails)
+	r.Scope = BoundScope(r.Scope)
+	r.Facts = slices.Clone(r.Facts)
+	for i := range r.Facts {
+		r.Facts[i].Label = cut(r.Facts[i].Label, maxOutline)
+		r.Facts[i].Value = cut(r.Facts[i].Value, MaxFact)
+	}
+	if len(r.Commands) > maxCommands {
+		r.Commands = r.Commands[:maxCommands]
+	}
+	r.Commands = slices.Clone(r.Commands)
+	for i := range r.Commands {
+		r.Commands[i] = cut(r.Commands[i], maxCommand)
+	}
+	return r
+}
+
+func (r Request) outline() Request {
+	return Request{Session: r.Session, Profile: r.Profile, Agent: r.Agent, Kind: r.Kind, Summary: cut(r.Summary, maxOutline), Scope: r.Scope}
 }
 
 func grantKey(r Request) string { return string(r.Kind) + "\x00" + r.Scope }

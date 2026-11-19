@@ -398,3 +398,83 @@ func TestTheLeadCommandSkipsTheHelpersThatAProgramStartsOfItself(t *testing.T) {
 		t.Errorf("lead = %q, rest = %v", lead, rest)
 	}
 }
+
+type outlineRecorder struct {
+	mu      sync.Mutex
+	decided []Request
+}
+
+func (*outlineRecorder) Requested(Request) {}
+
+func (r *outlineRecorder) Decided(req Request, _ Decision) {
+	r.mu.Lock()
+	r.decided = append(r.decided, req)
+	r.mu.Unlock()
+}
+
+func TestAGrantHitLogsNoTextFromTheAgent(t *testing.T) {
+	recorder := &outlineRecorder{}
+	m := NewManager(newClock(), &fakeNotifier{}, recorder, &seqIDs{})
+	first := Request{Kind: KindOpen, Scope: "open evil.example", Summary: "Open a link"}
+	go func() { _, _ = m.Submit(context.Background(), first, time.Minute) }()
+	for len(m.Pending()) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := m.Decide(m.Pending()[0].ID, Decision{Verdict: VerdictDeny, Lasting: LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	repeat := first
+	repeat.Note, repeat.Details = strings.Repeat("A", 900<<10), strings.Repeat("B", 900<<10)
+	repeat.Facts = []Fact{{Label: "Link", Value: strings.Repeat("C", 900<<10)}}
+	d, _ := m.Submit(context.Background(), repeat, time.Minute)
+	if d.By != ByGrant {
+		t.Fatalf("decision = %+v", d)
+	}
+	logged := recorder.decided[len(recorder.decided)-1]
+	if logged.Note != "" || logged.Details != "" || len(logged.Facts) != 0 || logged.Scope != "open evil.example" {
+		t.Errorf("the log got %d bytes of the request", len(logged.Note)+len(logged.Details))
+	}
+}
+
+func TestTextFromTheAgentIsCutWhenTheRequestIsSubmitted(t *testing.T) {
+	m, _, notifier, _ := setup()
+	req := Request{
+		Kind: KindOpen, Summary: strings.Repeat("s", 1<<20), Note: strings.Repeat("n", 1<<20), Details: strings.Repeat("d", 1<<20),
+		Facts:    []Fact{{Label: strings.Repeat("l", 1<<20), Value: strings.Repeat("v", 1<<20)}},
+		Commands: slices.Repeat([]string{strings.Repeat("c", 1<<20)}, 100),
+		Scope:    strings.Repeat("x", 1<<20),
+	}
+	go func() { _, _ = m.Submit(context.Background(), req, time.Minute) }()
+	notifier.waitShown(t, 1)
+	got := m.Pending()[0]
+	total := len(got.Summary) + len(got.Note) + len(got.Details) + len(got.Facts[0].Label) + len(got.Facts[0].Value) + len(got.Scope)
+	for _, c := range got.Commands {
+		total += len(c)
+	}
+	if total > 100<<10 || len(got.Commands) > maxCommands {
+		t.Errorf("a request holds %d bytes in %d commands", total, len(got.Commands))
+	}
+}
+
+func TestTwoLongScopesThatDifferAtTheEndStayApart(t *testing.T) {
+	m, _, _, _ := setup()
+	a, b := strings.Repeat("x", 1<<20)+"a", strings.Repeat("x", 1<<20)+"b"
+	go func() { _, _ = m.Submit(context.Background(), Request{Kind: KindTool, Scope: a}, time.Minute) }()
+	for len(m.Pending()) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := m.Decide(m.Pending()[0].ID, Decision{Verdict: VerdictAllow, Lasting: LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := m.Submit(context.Background(), Request{Kind: KindTool, Scope: a}, time.Minute); d.By != ByGrant {
+		t.Errorf("the same long scope is asked again: %+v", d)
+	}
+	go func() { _, _ = m.Submit(context.Background(), Request{Kind: KindTool, Scope: b}, time.Minute) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for len(m.Pending()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(m.Pending()) != 1 {
+		t.Error("an allow for one long scope covered another")
+	}
+}

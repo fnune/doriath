@@ -3,6 +3,7 @@ package approval
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -186,5 +187,23 @@ func TestSubmitWaitsUntilTheRequestExpires(t *testing.T) {
 	}
 	if r := m.Pending()[0]; !r.AgentWaits.Equal(r.Expires) {
 		t.Fatalf("agent waits until %v, request expires %v", r.AgentWaits, r.Expires)
+	}
+}
+
+func TestWaitScopeFindsARequestWhoseScopeWasCutAtSubmit(t *testing.T) {
+	m, _, _, _ := setup()
+	scope := "path write /" + strings.Repeat("x", 1<<12)
+	submitAsync(m, scope)
+	req := waitPending(t, m)
+	waited := make(chan Decision, 1)
+	go func() {
+		d, _ := m.WaitScope(context.Background(), scope)
+		waited <- d
+	}()
+	if err := m.Decide(req.ID, Decision{Verdict: VerdictAllow, Lasting: LastingSession}); err != nil {
+		t.Fatal(err)
+	}
+	if d := <-waited; d.Verdict != VerdictAllow {
+		t.Fatalf("WaitScope = %+v", d)
 	}
 }

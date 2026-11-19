@@ -57,6 +57,9 @@ func (s *Session) requestEdit(path, content, reason string) (RequestEditResult, 
 		res.Decision = approval.Decision{Verdict: approval.VerdictAllow, By: "doriath"}
 		return res, apply()
 	}
+	if len(described) > approval.MaxFact {
+		return RequestEditResult{}, fmt.Errorf("%s: the changes are longer than %d bytes, which is more than doriath can show you. Ask for fewer changes at once", path, approval.MaxFact)
+	}
 	sum := sha256.Sum256([]byte(content))
 	req := approval.Request{
 		Session: s.id,
