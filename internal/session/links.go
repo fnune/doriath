@@ -24,6 +24,7 @@ type linkKeeper struct {
 	stop    context.CancelFunc
 	stopped chan struct{}
 	report  func(path, found string)
+	rootOf  func(path string) string
 }
 
 func newLinkKeeper(report func(path, found string)) *linkKeeper {
@@ -102,23 +103,37 @@ func (k *linkKeeper) restore(path string) {
 	k.mu.Lock()
 	target := k.targets[path]
 	k.mu.Unlock()
-	found, err := os.Readlink(path)
-	if err == nil && found == target {
+	root := filepath.Dir(path)
+	if k.rootOf != nil {
+		root = k.rootOf(path)
+	}
+	if root == "" {
+		k.report(path, "a folder that holds a link, and no writable folder of the profile holds it, so doriath could not put the link back safely")
 		return
 	}
+	parent, name, err := openParentBeneath(root, path)
+	if err != nil {
+		k.report(path, "a folder that holds a link, and doriath could not put the link back: "+err.Error())
+		return
+	}
+	defer parent.Close()
+	buf := make([]byte, unix.PathMax)
+	n, err := unix.Readlinkat(int(parent.Fd()), name, buf)
+	if err == nil && string(buf[:n]) == target {
+		return
+	}
+	found := "a file or folder"
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		found = "nothing"
-	case err != nil:
-		found = "a file or folder"
-	default:
-		found = "a link to " + found
+	case err == nil:
+		found = "a link to " + string(buf[:n])
 	}
-	if err := os.RemoveAll(path); err != nil {
+	if err := os.RemoveAll(viaDescriptor(parent, name)); err != nil {
 		k.report(path, found+", and doriath could not remove it: "+err.Error())
 		return
 	}
-	if err := os.Symlink(target, path); err != nil {
+	if err := unix.Symlinkat(target, int(parent.Fd()), name); err != nil {
 		k.report(path, found+", and doriath could not put the link back: "+err.Error())
 		return
 	}

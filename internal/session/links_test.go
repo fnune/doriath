@@ -100,3 +100,62 @@ func TestAnUnchangedLinkIsNotReported(t *testing.T) {
 		t.Errorf("reported %v", r.found)
 	}
 }
+
+func TestAKeptLinkBehindAFolderThatTheJailReplacedWithASymlinkLeavesTheHostFileAlone(t *testing.T) {
+	mount := t.TempDir()
+	victims := t.TempDir()
+	if err := os.WriteFile(filepath.Join(victims, "config.toml"), []byte("host file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(mount, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "config.toml")
+	link := filepath.Join(mount, "sub", "config.toml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	r := &restoredLinks{found: map[string]string{}}
+	k := newLinkKeeper(r.report)
+	k.rootOf = func(string) string { return mount }
+	defer k.Close()
+	if err := k.Keep(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(mount, "sub"), filepath.Join(mount, "moved")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victims, filepath.Join(mount, "sub")); err != nil {
+		t.Fatal(err)
+	}
+	k.Check()
+	data, err := os.ReadFile(filepath.Join(victims, "config.toml"))
+	if err != nil || string(data) != "host file" {
+		t.Fatalf("host file = %q, %v", data, err)
+	}
+}
+
+func TestAKeptLinkOutsideEveryWritableFolderIsReportedAndNotRestoredByPlainPath(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "config.toml")
+	if err := os.Symlink(filepath.Join(t.TempDir(), "config.toml"), link); err != nil {
+		t.Fatal(err)
+	}
+	r := &restoredLinks{found: map[string]string{}}
+	k := newLinkKeeper(r.report)
+	k.rootOf = func(string) string { return "" }
+	defer k.Close()
+	if err := k.Keep(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	k.Check()
+	if _, ok := r.found[link]; !ok {
+		t.Errorf("no report for %s: %v", link, r.found)
+	}
+	if exists(link) {
+		t.Error("the link came back through a root that follows symlinks")
+	}
+}

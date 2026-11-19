@@ -23,6 +23,7 @@ type moveGuard struct {
 	dest    string
 	fw      *fswatch.Watcher
 	watched map[string]bool
+	refused map[string]bool
 	stop    context.CancelFunc
 	stopped chan struct{}
 	report  func(path, moved, reason string, err error)
@@ -34,7 +35,7 @@ type guardedHold struct {
 }
 
 func newMoveGuard(holds []guardedHold, dest string, report func(path, moved, reason string, err error)) (*moveGuard, error) {
-	g := &moveGuard{holds: holds, dest: dest, watched: map[string]bool{}, report: report}
+	g := &moveGuard{holds: holds, dest: dest, watched: map[string]bool{}, refused: map[string]bool{}, report: report}
 	g.sweep()
 	if len(holds) == 0 {
 		return g, nil
@@ -77,15 +78,23 @@ func (g *moveGuard) sweep() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for _, h := range g.holds {
-		if _, err := os.Lstat(h.Path); err != nil {
+		parent, name, err := openParentBeneath(h.root, h.Path)
+		if err != nil {
+			if !errors.Is(err, fs.ErrNotExist) && !g.refused[h.Path] {
+				g.refused[h.Path] = true
+				g.report(h.Path, "", h.Reason, err)
+			}
 			continue
 		}
-		moved, err := g.move(h)
-		g.report(h.Path, moved, h.Reason, err)
+		if presentIn(parent, name) {
+			moved, err := g.move(h, parent, name)
+			g.report(h.Path, moved, h.Reason, err)
+		}
+		_ = parent.Close()
 	}
 }
 
-func (g *moveGuard) move(h guardedHold) (string, error) {
+func (g *moveGuard) move(h guardedHold, parent *os.File, name string) (string, error) {
 	rel, err := filepath.Rel(h.root, h.Path)
 	if err != nil {
 		return "", err
@@ -100,14 +109,15 @@ func (g *moveGuard) move(h guardedHold) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
 		return "", err
 	}
-	err = os.Rename(h.Path, dest)
+	held := viaDescriptor(parent, name)
+	err = unix.Renameat(int(parent.Fd()), name, unix.AT_FDCWD, dest)
 	if errors.Is(err, unix.EXDEV) {
-		if err = copyTree(h.Path, dest); err == nil {
-			err = os.RemoveAll(h.Path)
+		if err = copyTree(held, dest); err == nil {
+			err = os.RemoveAll(held)
 		}
 	}
 	if err != nil {
-		if removeErr := os.RemoveAll(h.Path); removeErr != nil {
+		if removeErr := os.RemoveAll(held); removeErr != nil {
 			return "", fmt.Errorf("%w, and doriath could not remove it: %w", err, removeErr)
 		}
 		return "", fmt.Errorf("%w, so doriath removed it", err)

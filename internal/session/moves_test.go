@@ -90,3 +90,67 @@ func exists(path string) bool {
 	_, err := os.Lstat(path)
 	return !errors.Is(err, fs.ErrNotExist)
 }
+
+func TestAHeldPathBehindASymlinkThatTheAgentMadeIsLeftAlone(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	victim := filepath.Join(root, "other", ".config")
+	for _, d := range []string{repo, victim} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	precious := filepath.Join(victim, "lefthook.yml")
+	if err := os.WriteFile(precious, []byte("user data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, filepath.Join(repo, ".config")); err != nil {
+		t.Fatal(err)
+	}
+	hold := guardedHold{PathHold: profile.PathHold{Path: filepath.Join(repo, ".config", "lefthook.yml"), Missing: profile.MissingMove}, root: repo}
+	var reported []error
+	g, err := newMoveGuard([]guardedHold{hold}, filepath.Join(root, "moved"), func(path, moved, reason string, err error) {
+		if moved != "" {
+			t.Errorf("moved %s to %s", path, moved)
+		}
+		reported = append(reported, err)
+	})
+	if err != nil {
+		t.Skip(err)
+	}
+	defer g.Close()
+	g.sweep()
+	if _, err := os.Stat(precious); err != nil {
+		t.Fatalf("doriath moved a file that lies outside the mount: %v", err)
+	}
+	if len(reported) != 1 || reported[0] == nil {
+		t.Errorf("the planted symlink must be reported once as an error: %v", reported)
+	}
+}
+
+func TestAHeldPathThatTheAgentCreatesIsMovedOutOfTheMount(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if err := os.MkdirAll(filepath.Join(repo, ".config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	planted := filepath.Join(repo, ".config", "lefthook.yml")
+	if err := os.WriteFile(planted, []byte("pre-commit: {}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hold := guardedHold{PathHold: profile.PathHold{Path: planted, Missing: profile.MissingMove}, root: repo}
+	var moved string
+	g, err := newMoveGuard([]guardedHold{hold}, filepath.Join(root, "moved"), func(_, to, _ string, err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		moved = to
+	})
+	if err != nil {
+		t.Skip(err)
+	}
+	defer g.Close()
+	if _, err := os.Lstat(planted); err == nil || moved == "" {
+		t.Fatalf("the planted file stays; moved to %q", moved)
+	}
+}

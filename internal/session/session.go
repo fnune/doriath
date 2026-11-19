@@ -272,6 +272,7 @@ func (s *Session) prepare(ctx context.Context) error {
 	s.log.Write("session-start", map[string]any{"cwd": s.req.Cwd, "command": s.req.Command})
 	s.egress = newEgressLog(s.log)
 	s.links = newLinkKeeper(s.linkRestored)
+	s.links.rootOf = s.writableRootOf
 	s.closers = append(s.closers, s.links.Close, s.stopForwards, s.stopConnects)
 	s.startProfileForwards()
 	s.policy = newLivePolicy(p, s.req.Learn)

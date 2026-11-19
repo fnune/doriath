@@ -308,3 +308,16 @@ func (s *Session) profilePath(path string) string {
 	}
 	return path
 }
+
+func (s *Session) writableRootOf(path string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root := ""
+	deepest := 0
+	for _, m := range s.req.Profile.Mounts {
+		if m.Mode == profile.ModeWrite && m.Path != path && within(path, m.Path) && len(m.Path) > deepest {
+			root, deepest = m.Path, len(m.Path)
+		}
+	}
+	return root
+}
