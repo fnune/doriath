@@ -19,12 +19,49 @@ type pins struct {
 	programs map[string]jailinit.FileID
 	code     map[string]jailinit.FileID
 	archives *codeArchives
+	store    map[string]struct{}
+}
+
+const nixStore = "/nix/store"
+
+func snapshotStore(dir string) map[string]struct{} {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]struct{}, len(entries))
+	for _, e := range entries {
+		out[e.Name()] = struct{}{}
+	}
+	return out
+}
+
+func (ps pins) systemPath(path string) bool {
+	if !profile.UnderTrustedRoot(path) {
+		return false
+	}
+	if ps.store == nil {
+		return true
+	}
+	name, ok := strings.CutPrefix(path, nixStore+"/")
+	if !ok {
+		return true
+	}
+	name, _, _ = strings.Cut(name, "/")
+	_, known := ps.store[name]
+	return known
 }
 
 const maxPinnedCode = 10000
 
 func pinBinaries(p *profile.Profile, home, cacheRoot string, writable []string) (pins, []string) {
 	out := pins{programs: map[string]jailinit.FileID{}, code: map[string]jailinit.FileID{}}
+	if p.NixDaemon {
+		out.store = snapshotStore(nixStore)
+		if out.store == nil {
+			out.store = map[string]struct{}{}
+		}
+	}
 	var notes []string
 	for _, pattern := range p.BinaryPaths() {
 		for _, jailPath := range globInJail(p, home, cacheRoot, pattern) {
@@ -78,8 +115,11 @@ func (ps pins) pinLibraries(p *profile.Profile, home, cacheRoot string, writable
 }
 
 func (ps pins) untrusted(id proxy.Identity) string {
-	if id.Exe == "" || profile.UnderTrustedRoot(id.Exe) {
+	if id.Exe == "" || ps.systemPath(id.Exe) {
 		return ps.foreignCode(id)
+	}
+	if profile.UnderTrustedRoot(id.Exe) {
+		return fmt.Sprintf("%s is not in the Nix store as it was when the session started", id.Exe)
 	}
 	pinned, ok := ps.programs[id.Exe]
 	switch {
@@ -93,7 +133,7 @@ func (ps pins) untrusted(id proxy.Identity) string {
 
 func (ps pins) foreignCode(id proxy.Identity) string {
 	for _, code := range id.Code {
-		if file, pinned := ps.code[code.Path]; (pinned && file == code.File) || profile.UnderTrustedRoot(code.Path) {
+		if file, pinned := ps.code[code.Path]; (pinned && file == code.File) || ps.systemPath(code.Path) {
 			continue
 		}
 		reason := ps.archives.check(id.PID, code)

@@ -42,6 +42,24 @@ func TestOnlyThePinnedFileAndSystemCodeAreTrusted(t *testing.T) {
 	}
 }
 
+func TestAStorePathAddedAfterTheStartGetsNoCredentialWithTheNixDaemon(t *testing.T) {
+	ps := pins{store: map[string]struct{}{"x-gh-2.0": {}}}
+	known := proxy.Identity{Exe: "/nix/store/x-gh-2.0/bin/gh"}
+	added := proxy.Identity{Exe: "/nix/store/y-gh/bin/gh"}
+	preload := proxy.Identity{Exe: "/nix/store/x-gh-2.0/bin/gh", Code: []jailinit.MappedFile{{Path: "/nix/store/y-evil/lib/evil.so", Ino: 1}}}
+	if got := ps.untrusted(known); got != "" {
+		t.Errorf("a path from the start: %q", got)
+	}
+	for name, id := range map[string]proxy.Identity{"a program": added, "a library": preload} {
+		if got := ps.untrusted(id); got == "" {
+			t.Errorf("%s that the session added to the store is trusted", name)
+		}
+	}
+	if got := (pins{}).untrusted(added); got != "" {
+		t.Errorf("without the nix-daemon module the store is read-only, but %q", got)
+	}
+}
+
 func TestPinsFindTheProfilesFilesInMountsAndCaches(t *testing.T) {
 	home := t.TempDir()
 	cacheRoot := t.TempDir()
