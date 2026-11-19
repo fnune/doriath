@@ -77,6 +77,8 @@ func (g *guardDialer) refuse(host string, a netip.Addr) string {
 		return "a loopback address; use [egress] ports for host services"
 	case a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast():
 		return "a link-local address, where cloud metadata services live"
+	case a == azureWireServer:
+		return "the Azure host service address, where cloud metadata services live"
 	case a.IsMulticast() || a.IsUnspecified() || a.IsInterfaceLocalMulticast():
 		return "not a unicast address"
 	case private(a) && !g.exact[host]:
@@ -85,10 +87,13 @@ func (g *guardDialer) refuse(host string, a netip.Addr) string {
 	return ""
 }
 
+var azureWireServer = netip.MustParseAddr("168.63.129.16")
+
 var nonPublic = []netip.Prefix{
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("192.0.0.0/24"),
 	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
 }
 
 func private(a netip.Addr) bool {
