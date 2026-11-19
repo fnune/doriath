@@ -41,7 +41,8 @@ type Record struct {
 	Writable []string `json:"writable"`
 	// Owner is the doriath process that runs the session. Another start
 	// must not finish the record while that process runs.
-	Owner Owner `json:"owner,omitzero"`
+	Owner Owner  `json:"owner,omitzero"`
+	Nonce string `json:"nonce,omitempty"`
 }
 
 // Owner names a process by its id and its start time, which together stay
@@ -66,6 +67,25 @@ type Repo struct {
 
 func BackupRef(session, branch string) string {
 	return "refs/doriath/" + session + "/" + strings.TrimPrefix(branch, "refs/heads/")
+}
+
+func (rec *Record) BackupRef(branch string) string {
+	if rec.Nonce == "" {
+		return BackupRef(rec.Session, branch)
+	}
+	return BackupRef(rec.Session+"-"+rec.Nonce, branch)
+}
+
+func (rec *Record) ensureNonce() error {
+	if rec.Nonce != "" {
+		return nil
+	}
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return err
+	}
+	rec.Nonce = hex.EncodeToString(b[:])
+	return nil
 }
 
 func Store(repo string) string {
@@ -181,6 +201,9 @@ func Prepare(ctx context.Context, t Tools, repo string) error {
 // and hardlinks its objects under backup, so that a git gc in the session
 // cannot drop what your branches point at.
 func Start(ctx context.Context, t Tools, backup string, rec *Record, repos []string) error {
+	if err := rec.ensureNonce(); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, path := range repos {
 		git := Store(path)
@@ -358,9 +381,11 @@ func Finish(ctx context.Context, t Tools, backup string, rec *Record, fixed, not
 			if now[name] == r.Branches[name] {
 				continue
 			}
-			if _, err := runStore(ctx, t, r.GitDir, "update-ref", BackupRef(rec.Session, name), r.Branches[name]); err != nil {
+			if err := clearBackupBlocker(ctx, t, r.GitDir); err != nil {
 				errs = append(errs, err)
-				continue
+			}
+			if _, err := runStore(ctx, t, r.GitDir, "update-ref", rec.BackupRef(name), r.Branches[name]); err != nil {
+				errs = append(errs, fmt.Errorf("keep the start value %s of %s: %w", short(r.Branches[name]), name, err))
 			}
 			r.Moved = append(r.Moved, name)
 		}
@@ -470,7 +495,7 @@ func Restore(ctx context.Context, t Tools, rec *Record, w io.Writer) error {
 				errs = append(errs, err)
 				continue
 			}
-			if _, err := runStore(ctx, t, r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
+			if err := dropRef(ctx, t, r.GitDir, rec.BackupRef(name)); err != nil {
 				errs = append(errs, err)
 				continue
 			}
@@ -535,9 +560,12 @@ func KeepBackups(ctx context.Context, t Tools, recs ...*Record) error {
 				stores[r.GitDir] = now
 			}
 			for _, name := range r.Moved {
-				ref := BackupRef(rec.Session, name)
+				ref := rec.BackupRef(name)
 				if now[ref] == r.Branches[name] {
 					continue
+				}
+				if err := clearBackupBlocker(ctx, t, r.GitDir); err != nil {
+					errs = append(errs, err)
 				}
 				if _, err := runStore(ctx, t, r.GitDir, "update-ref", ref, r.Branches[name]); err != nil {
 					errs = append(errs, err)
@@ -546,6 +574,29 @@ func KeepBackups(ctx context.Context, t Tools, recs ...*Record) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func dropRef(ctx context.Context, t Tools, gitDir, ref string) error {
+	_, err := runStore(ctx, t, gitDir, "rev-parse", "--verify", "--quiet", ref)
+	if exit := (*exec.ExitError)(nil); errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	_, err = runStore(ctx, t, gitDir, "update-ref", "-d", ref)
+	return err
+}
+
+func clearBackupBlocker(ctx context.Context, t Tools, gitDir string) error {
+	planted, err := runStore(ctx, t, gitDir, "for-each-ref", "--format=%(refname)", "refs/doriath")
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(strings.Fields(planted), "refs/doriath") {
+		return nil
+	}
+	_, err = runStore(ctx, t, gitDir, "update-ref", "--no-deref", "-d", "refs/doriath")
+	return err
 }
 
 func backupRefs(ctx context.Context, t Tools, gitDir string) (map[string]string, error) {
@@ -566,7 +617,7 @@ func DropBackups(ctx context.Context, t Tools, rec *Record) error {
 	var errs []error
 	for _, r := range rec.Repos {
 		for _, name := range r.Moved {
-			if _, err := runStore(ctx, t, r.GitDir, "update-ref", "-d", BackupRef(rec.Session, name)); err != nil {
+			if err := dropRef(ctx, t, r.GitDir, rec.BackupRef(name)); err != nil {
 				errs = append(errs, err)
 			}
 		}

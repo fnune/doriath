@@ -74,7 +74,11 @@ echo done
 	if got := git(t, repo, "rev-parse", "agent"); got == "" {
 		t.Error("the agent's branch is missing")
 	}
-	if got := git(t, repo, "rev-parse", vcs.BackupRef(e.lastID, "refs/heads/gone")); got != gone {
+	saved, err := vcs.Load(filepath.Join(e.paths.Backups(), e.lastID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, repo, "rev-parse", saved.BackupRef("refs/heads/gone")); got != gone {
 		t.Errorf("start value of gone = %q, want %q", got, gone)
 	}
 	if got := git(t, repo, "cat-file", "-t", gone); got != "commit" {

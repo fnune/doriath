@@ -89,7 +89,7 @@ func TestFinishKeepsWhatTheSessionDeleted(t *testing.T) {
 		t.Fatal("the test needs the commit gone before Finish")
 	}
 	f.finish()
-	if got := git(t, r, "rev-parse", BackupRef("s1", "refs/heads/topic")); got != topic {
+	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/topic")); got != topic {
 		t.Fatalf("backup ref = %q, want %q", got, topic)
 	}
 	if !rec.Finished || len(rec.Repos[0].Moved) != 1 {
@@ -114,11 +114,11 @@ func TestALaterSessionCannotDeleteTheStartValueOfAMovedBranch(t *testing.T) {
 	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
 	f.finish()
 
-	git(t, r, "update-ref", "-d", BackupRef("s1", "refs/heads/main"))
+	git(t, r, "update-ref", "-d", rec.BackupRef("refs/heads/main"))
 	if err := KeepBackups(f.ctx, f.tools, rec); err != nil {
 		t.Fatal(err)
 	}
-	if got := git(t, r, "rev-parse", BackupRef("s1", "refs/heads/main")); got != first {
+	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != first {
 		t.Fatalf("backup ref = %q, want %q", got, first)
 	}
 }
@@ -589,14 +589,99 @@ func TestEverySessionGetsBackTheStartValuesThatALaterSessionDeleted(t *testing.T
 		f.finish()
 		recs = append(recs, rec)
 	}
-	git(t, r, "update-ref", "-d", BackupRef("s1", "refs/heads/main"))
-	git(t, r, "update-ref", BackupRef("s2", "refs/heads/main"), "HEAD")
+	git(t, r, "update-ref", "-d", recs[0].BackupRef("refs/heads/main"))
+	git(t, r, "update-ref", recs[1].BackupRef("refs/heads/main"), "HEAD")
 	if err := KeepBackups(context.Background(), Tools{Git: "git"}, recs...); err != nil {
 		t.Fatal(err)
 	}
-	for i, id := range []string{"s1", "s2"} {
-		if got := git(t, r, "rev-parse", BackupRef(id, "refs/heads/main")); got != starts[i] {
-			t.Errorf("backup ref of %s = %q, want %q", id, got, starts[i])
+	for i, rec := range recs {
+		if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != starts[i] {
+			t.Errorf("backup ref of %s = %q, want %q", rec.Session, got, starts[i])
 		}
+	}
+}
+
+func TestAPlantedRefCannotBlockTheBackupOfAMovedBranch(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "main")
+	rec := &Record{Session: "calm-fox", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "update-ref", "refs/doriath/calm-fox/main", first)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	f.finish()
+	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != first {
+		t.Errorf("backup ref = %q, want %q", got, first)
+	}
+}
+
+func TestABranchCountsAsMovedWhenItsBackupRefFails(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "main")
+	rec := &Record{Session: "s1", Nonce: "fixed", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "update-ref", "refs/doriath/s1-fixed", first)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	var out strings.Builder
+	if err := Finish(f.ctx, f.tools, f.backup, f.rec, &out, &out, nil); err == nil {
+		t.Fatal("Finish hid that it could not keep the start value")
+	}
+	if got := rec.Repos[0].Moved; len(got) != 1 || got[0] != "refs/heads/main" {
+		t.Fatalf("Moved = %v", got)
+	}
+	if err := Restore(f.ctx, f.tools, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "rev-parse", "main"); got != first {
+		t.Errorf("main after restore = %q, want %q", got, first)
+	}
+}
+
+func TestRestoreReadsTheBackupNamesOfARecordWithoutANonce(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "main")
+	git(t, r, "update-ref", "refs/doriath/s1/main", first)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	rec := &Record{Session: "s1", Finished: true, Repos: []Repo{{
+		Path: r, GitDir: filepath.Join(r, ".git"),
+		Branches: map[string]string{"refs/heads/main": first}, Moved: []string{"refs/heads/main"},
+	}}}
+	if err := Restore(context.Background(), Tools{Git: "git"}, rec, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "rev-parse", "main"); got != first {
+		t.Errorf("main after restore = %q, want %q", got, first)
+	}
+	if out, err := exec.Command("git", "-C", r, "rev-parse", "--verify", "-q", "refs/doriath/s1/main").Output(); err == nil {
+		t.Errorf("the old backup ref stays: %s", out)
+	}
+}
+
+func TestFinishKeepsTheStartValueWhenTheAgentPlantedTheBackupNamespaceAsARef(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "main")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	git(t, r, "update-ref", "refs/doriath", "HEAD")
+	f.finish()
+	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != first {
+		t.Fatalf("backup ref = %q, want %q", got, first)
+	}
+}
+
+func TestKeepBackupsWritesPastAPlantedBackupNamespaceRef(t *testing.T) {
+	r := repo(t)
+	first := git(t, r, "rev-parse", "main")
+	rec := &Record{Session: "s1", Started: time.Now()}
+	f := start(t, rec, r)
+	git(t, r, "commit", "-q", "--allow-empty", "-m", "agent")
+	f.finish()
+	git(t, r, "update-ref", "-d", rec.BackupRef("refs/heads/main"))
+	git(t, r, "update-ref", "refs/doriath", "HEAD")
+	if err := KeepBackups(f.ctx, f.tools, rec); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, r, "rev-parse", rec.BackupRef("refs/heads/main")); got != first {
+		t.Fatalf("backup ref = %q, want %q", got, first)
 	}
 }
