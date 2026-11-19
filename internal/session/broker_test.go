@@ -174,9 +174,13 @@ func TestBrokerWaitsForAHostByItsLowercaseName(t *testing.T) {
 
 func TestBrokerPassesMessagesToTheInformerAndTheAuditLog(t *testing.T) {
 	inf := &informer{}
-	s, broker, _ := brokerSession(t, nil, func(d *Deps) { d.Informer = inf })
+	own := &informer{}
+	s, broker, _ := brokerSession(t, nil, func(d *Deps) { d.AgentInformer, d.Informer = inf, own })
 	if err := control.Call(context.Background(), broker, MethodInform, InformParams{Title: "Tests pass", Body: "all 12"}, nil); err != nil {
 		t.Fatal(err)
+	}
+	if len(own.titles) != 0 {
+		t.Errorf("an agent message used the budget of doriath's own notices: %v", own.titles)
 	}
 	if !slices.Equal(inf.titles, []string{"Tests pass"}) || !strings.Contains(s.audit.String(), `"inform"`) {
 		t.Errorf("titles = %v, audit:\n%s", inf.titles, s.audit)

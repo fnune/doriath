@@ -226,8 +226,8 @@ func (s *Session) startBroker(ctx context.Context) error {
 				return nil, fmt.Errorf("too many notifications: doriath shows %d at once and one more each %s", informBurst, refillEvery)
 			}
 			s.log.Write("inform", p)
-			if s.deps.Informer != nil {
-				if err := s.deps.Informer.Inform(s.id, p.Title, p.Body); err != nil {
+			if s.deps.AgentInformer != nil {
+				if err := s.deps.AgentInformer.Inform(s.id, p.Title, p.Body); err != nil {
 					return nil, err
 				}
 			}

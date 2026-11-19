@@ -309,7 +309,7 @@ func cmdRun(args []string) (int, error) {
 
 	clock := realClock{}
 	var notifier approval.Notifier = notify.None{}
-	var informer session.Informer = notify.None{}
+	var informer, agentInformer session.Informer = notify.None{}, notify.None{}
 	if user.Desktop.Notifications {
 		desktop, err := notify.NewDesktop()
 		if err != nil {
@@ -317,7 +317,7 @@ func cmdRun(args []string) (int, error) {
 		} else {
 			defer func() { _ = desktop.Close() }()
 			desktop.Page, desktop.Browser = webPage{paths: p}, browser{}
-			notifier, informer = desktop, desktop
+			notifier, informer, agentInformer = desktop, desktop, notify.Limit(desktop, clock)
 		}
 	}
 	tools := vcsJailTools(p)
@@ -326,36 +326,37 @@ func cmdRun(args []string) (int, error) {
 		fmt.Fprintf(os.Stderr, "doriath: move the OAuth logins into the keyring: %v\n", err)
 	}
 	deps := session.Deps{
-		Paths:       p,
-		User:        user,
-		Logins:      keyring.Logins{},
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithGitHubApps(appMinter(start)).WithOAuth(oauth.NewTokensOwnedBy(keyring.Logins{}, prof.SecretOwner).WithLoginProfile(prof.LoginProfile).WithLockDir(p.Runtime)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
-		Notifier:    notifier,
-		Informer:    informer,
-		Clock:       clock,
-		Dialer:      &net.Dialer{Timeout: 30 * time.Second},
-		Resolver:    net.DefaultResolver,
-		LocalDialer: &net.Dialer{Timeout: 10 * time.Second},
-		Getenv:      os.Getenv,
-		Environ:     os.Environ(),
-		Stdin:       os.Stdin,
-		Stdout:      os.Stdout,
-		Stderr:      os.Stderr,
-		Bwrap:       bwrap,
-		Exe:         exe,
-		VCS:         tools,
-		Unshare:     lookPath("unshare"),
-		Nsenter:     lookPath("nsenter"),
-		Podman:      lookPath("podman"),
-		Git:         lookPath("git"),
-		JJ:          lookPath("jj"),
-		HostWait:    hostWait(user, notifier),
-		ToolWait:    user.Approvals.ToolWait,
-		SystemdRun:  lookPath("systemd-run"),
-		Promote:     promote.Writable,
-		Read:        promote.Readable,
-		Open:        openOnHost,
-		Clipboard:   hostClipboard(os.Getenv, lookPath("wl-paste")),
+		Paths:         p,
+		User:          user,
+		Logins:        keyring.Logins{},
+		Secrets:       secret.NewConfigured(prof.Secrets, execRunner{}).WithGitHubApps(appMinter(start)).WithOAuth(oauth.NewTokensOwnedBy(keyring.Logins{}, prof.SecretOwner).WithLoginProfile(prof.LoginProfile).WithLockDir(p.Runtime)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
+		Notifier:      notifier,
+		Informer:      informer,
+		AgentInformer: agentInformer,
+		Clock:         clock,
+		Dialer:        &net.Dialer{Timeout: 30 * time.Second},
+		Resolver:      net.DefaultResolver,
+		LocalDialer:   &net.Dialer{Timeout: 10 * time.Second},
+		Getenv:        os.Getenv,
+		Environ:       os.Environ(),
+		Stdin:         os.Stdin,
+		Stdout:        os.Stdout,
+		Stderr:        os.Stderr,
+		Bwrap:         bwrap,
+		Exe:           exe,
+		VCS:           tools,
+		Unshare:       lookPath("unshare"),
+		Nsenter:       lookPath("nsenter"),
+		Podman:        lookPath("podman"),
+		Git:           lookPath("git"),
+		JJ:            lookPath("jj"),
+		HostWait:      hostWait(user, notifier),
+		ToolWait:      user.Approvals.ToolWait,
+		SystemdRun:    lookPath("systemd-run"),
+		Promote:       promote.Writable,
+		Read:          promote.Readable,
+		Open:          openOnHost,
+		Clipboard:     hostClipboard(os.Getenv, lookPath("wl-paste")),
 	}
 	if os.Getenv("DORIATH_TIMINGS") != "" {
 		deps.Timings = os.Stderr

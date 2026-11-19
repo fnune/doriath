@@ -76,7 +76,10 @@ type Deps struct {
 	Logins   secret.Keyring
 	Notifier approval.Notifier
 	Informer Informer
-	Clock    approval.Clock
+	// AgentInformer takes what the agent sends, with a limit that doriath's
+	// own notices do not share.
+	AgentInformer Informer
+	Clock         approval.Clock
 	// Dialer reaches upstream hosts. With a Resolver set, it is wrapped so
 	// the proxy cannot reach loopback, link-local or unnamed private
 	// addresses. LocalDialer reaches the forwarded host ports.
