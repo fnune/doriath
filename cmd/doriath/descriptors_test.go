@@ -49,3 +49,16 @@ func TestInternalCommandsKeepTheirDescriptors(t *testing.T) {
 		t.Error("a user command is internal")
 	}
 }
+
+func TestSandboxExecIsNotDumpableBeforeItInstallsTheFilter(t *testing.T) {
+	if err := unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0) }()
+	if err := cmdSandboxExec([]string{"--no-such-flag"}); err == nil {
+		t.Fatal("an unknown flag was accepted")
+	}
+	if got, err := unix.PrctlRetInt(unix.PR_GET_DUMPABLE, 0, 0, 0, 0); err != nil || got != 0 {
+		t.Fatalf("dumpable = %d, %v", got, err)
+	}
+}

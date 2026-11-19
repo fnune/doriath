@@ -541,7 +541,17 @@ func (l *stringList) Set(s string) error {
 	return nil
 }
 
+func makeNonDumpable() error {
+	if err := unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0); err != nil {
+		return fmt.Errorf("protect the memory of the process: %w", err)
+	}
+	return nil
+}
+
 func cmdSandboxExec(args []string) error {
+	if err := makeNonDumpable(); err != nil {
+		return fmt.Errorf("sandbox-exec: %w", err)
+	}
 	flags := flag.NewFlagSet("__sandbox-exec", flag.ContinueOnError)
 	var writable stringList
 	flags.Var(&writable, "writable", "a path the command may write beneath")
