@@ -8,6 +8,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/cli"
+	"github.com/fnune/doriath/internal/proxy"
 	"github.com/fnune/doriath/internal/secret"
 )
 
@@ -25,6 +26,13 @@ func (c carding) Get(ctx context.Context, name string) (secret.Value, error) {
 		return v, fmt.Errorf("%w. doriath asked the user to fix it on the approvals page. To wait for the answer, run %s", err, cli.Code(cli.Line("request", "wait", id)))
 	}
 	return v, err
+}
+
+// Reject passes on a server's refusal of a token to the store that holds it.
+func (c carding) Reject(name, token string) {
+	if r, ok := c.s.deps.Secrets.(proxy.Rejecter); ok {
+		r.Reject(name, token)
+	}
 }
 
 func (s *Session) secretCard(name string, cause error) string {

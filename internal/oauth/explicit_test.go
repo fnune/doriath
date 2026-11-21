@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/oauth2"
-
 	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -281,13 +279,102 @@ func TestAnExplicitLoginRefusesAnAnswerForAnotherRequest(t *testing.T) {
 	}
 }
 
-func TestExplicitEndpointsLeaveDiscoveryToTheOtherWays(t *testing.T) {
-	tok := &oauth2.Token{AccessToken: "a"}
-	s := State{ClientID: "c", TokenURL: "https://t.example/token", Token: tok}
-	if s.Explicit {
-		t.Fatal("a login to discovered endpoints is not explicit")
+func expireLogin(t *testing.T, logins secret.Keyring) {
+	t.Helper()
+	s, err := load(logins, "work", "claude")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := s.tokenSource().(*refreshing); ok {
-		t.Error("a discovered login refreshes through the explicit client")
+	s.Token.Expiry = time.Now().Add(-time.Minute)
+	if err := s.save(logins, "work", "claude"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTwoStoresThatShareALoginUseTheTokenThatTheFirstRefreshWrote(t *testing.T) {
+	f := newExplicitServer(t)
+	logins := keyringtest.New()
+	if err := Login(context.Background(), f.oauth(secret.TokenBodyJSON), logins, "work", "claude", browser{t}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	first, second := NewTokens(logins, "work"), NewTokens(logins, "work")
+	if _, err := second.Token(context.Background(), "claude", secret.OAuth{}); err != nil {
+		t.Fatal(err)
+	}
+	expireLogin(t, logins)
+	// The second store holds the old token in memory, and it has expired too.
+	second.cached["claude"].Expiry = time.Now().Add(-time.Minute)
+	v, err := first.Token(context.Background(), "claude", secret.OAuth{})
+	if err != nil || string(v.Reveal()) != "access-2" {
+		t.Fatalf("first = %q, %v", v.Reveal(), err)
+	}
+	// A refresh with the old refresh token fails now, as it does at Anthropic.
+	f.mu.Lock()
+	f.rotateFrom = "refresh-2"
+	before := len(f.requests)
+	f.mu.Unlock()
+	v, err = second.Token(context.Background(), "claude", secret.OAuth{})
+	if err != nil || string(v.Reveal()) != "access-2" {
+		t.Fatalf("second = %q, %v", v.Reveal(), err)
+	}
+	if f.tokenRequests() != before {
+		t.Errorf("the second store refreshed again: %d requests", f.tokenRequests()-before)
+	}
+}
+
+func TestARejectedTokenMakesTheNextCallUseANewerOneOrRefresh(t *testing.T) {
+	f := newExplicitServer(t)
+	logins := keyringtest.New()
+	if err := Login(context.Background(), f.oauth(secret.TokenBodyJSON), logins, "work", "claude", browser{t}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	a, b := NewTokens(logins, "work"), NewTokens(logins, "work")
+	for _, tk := range []*Tokens{a, b} {
+		if v, err := tk.Token(context.Background(), "claude", secret.OAuth{}); err != nil || string(v.Reveal()) != "access-1" {
+			t.Fatalf("%q, %v", v.Reveal(), err)
+		}
+	}
+	// The server refuses access-1 in both stores. A refreshes, and B finds A's token.
+	a.Reject("claude", "access-1")
+	if v, err := a.Token(context.Background(), "claude", secret.OAuth{}); err != nil || string(v.Reveal()) != "access-2" {
+		t.Fatalf("a = %q, %v", v.Reveal(), err)
+	}
+	b.Reject("claude", "access-1")
+	before := f.tokenRequests()
+	if v, err := b.Token(context.Background(), "claude", secret.OAuth{}); err != nil || string(v.Reveal()) != "access-2" {
+		t.Fatalf("b = %q, %v", v.Reveal(), err)
+	}
+	if f.tokenRequests() != before {
+		t.Error("b asked the server although the keyring had a newer token")
+	}
+	b.Reject("claude", "some other token")
+	if v, _ := b.Token(context.Background(), "claude", secret.OAuth{}); string(v.Reveal()) != "access-2" {
+		t.Errorf("a rejection of another token changed the answer: %q", v.Reveal())
+	}
+}
+
+func TestStoresInOneFolderRefreshOneAtATime(t *testing.T) {
+	f := newExplicitServer(t)
+	logins := keyringtest.New()
+	if err := Login(context.Background(), f.oauth(secret.TokenBodyJSON), logins, "work", "claude", browser{t}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	expireLogin(t, logins)
+	dir := t.TempDir()
+	before := f.tokenRequests()
+	var wg sync.WaitGroup
+	for range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v, err := NewTokens(logins, "work").WithLockDir(dir).Token(context.Background(), "claude", secret.OAuth{})
+			if err != nil || string(v.Reveal()) != "access-2" {
+				t.Errorf("token = %q, %v", v.Reveal(), err)
+			}
+		}()
+	}
+	wg.Wait()
+	if n := f.tokenRequests() - before; n != 1 {
+		t.Errorf("%d refreshes, want 1", n)
 	}
 }

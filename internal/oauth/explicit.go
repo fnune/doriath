@@ -117,25 +117,6 @@ func (c tokenClient) post(ctx context.Context, fields map[string]string) (*oauth
 	return tok, nil
 }
 
-// refreshing is a token source that always asks the token endpoint. It sits
-// under oauth2.ReuseTokenSource, which calls it only for an expired token.
-type refreshing struct {
-	client  tokenClient
-	refresh string
-}
-
-func (r *refreshing) Token() (*oauth2.Token, error) {
-	if r.refresh == "" {
-		return nil, errors.New("the login has no refresh token")
-	}
-	tok, err := r.client.refresh(context.Background(), r.refresh)
-	if err != nil {
-		return nil, err
-	}
-	r.refresh = tok.RefreshToken
-	return tok, nil
-}
-
 func (s State) tokenClient() tokenClient {
 	return tokenClient{url: s.TokenURL, json: s.TokenBody == secret.TokenBodyJSON, clientID: s.ClientID, scopes: s.Scopes}
 }

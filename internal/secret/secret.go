@@ -339,6 +339,14 @@ func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 	return c
 }
 
+// Reject tells the OAuth login of a secret that a server refused its token,
+// so that the next Get gives a newer token, or refreshes.
+func (c *Configured) Reject(name, token string) {
+	if r, ok := c.oauth.(interface{ Reject(name, token string) }); ok {
+		r.Reject(name, token)
+	}
+}
+
 // WithGitHubApps lets the store mint the tokens of GitHub Apps.
 func (c *Configured) WithGitHubApps(a AppTokens) *Configured {
 	c.apps = a

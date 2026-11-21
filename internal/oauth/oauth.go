@@ -82,13 +82,22 @@ func SignedIn(v secret.Keyring, profile, name string) bool {
 	return err == nil
 }
 
+// Tokens serves the access tokens of logins in the keyring. Several sessions,
+// and several programs, share one login, and a server that rotates refresh
+// tokens kills the old pair of whoever refreshed before. So a Tokens value
+// keeps no refresh token of its own: it reads the keyring before it refreshes,
+// takes a lock that other processes take too, and uses a token that another
+// process wrote in the meantime.
 type Tokens struct {
-	logins secret.Keyring
-	owner  func(secret string) string
-	target func(secret string) string
+	logins  secret.Keyring
+	owner   func(secret string) string
+	target  func(secret string) string
+	lockDir string
+	now     func() time.Time
 
-	mu      sync.Mutex
-	sources map[string]oauth2.TokenSource
+	mu       sync.Mutex
+	cached   map[string]*oauth2.Token
+	rejected map[string]string
 }
 
 func NewTokens(logins secret.Keyring, profile string) *Tokens {
@@ -96,7 +105,7 @@ func NewTokens(logins secret.Keyring, profile string) *Tokens {
 }
 
 func NewTokensOwnedBy(logins secret.Keyring, owner func(secret string) string) *Tokens {
-	return &Tokens{logins: logins, owner: owner, target: owner, sources: map[string]oauth2.TokenSource{}}
+	return &Tokens{logins: logins, owner: owner, target: owner, now: time.Now, cached: map[string]*oauth2.Token{}, rejected: map[string]string{}}
 }
 
 // WithLoginProfile sets the profile that the messages name in the command to
@@ -107,52 +116,82 @@ func (t *Tokens) WithLoginProfile(target func(secret string) string) *Tokens {
 	return t
 }
 
-func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {
+// WithLockDir sets the folder for the lock files that keep processes from
+// refreshing one login at the same time. Without it, only this value refreshes
+// under a lock.
+func (t *Tokens) WithLockDir(dir string) *Tokens {
+	t.lockDir = dir
+	return t
+}
+
+func (t *Tokens) notSignedIn(name string) error {
+	return fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
+}
+
+func (t *Tokens) usable(tok *oauth2.Token, name string) bool {
+	return tok != nil && tok.Valid() && tok.AccessToken != t.rejected[name]
+}
+
+func (t *Tokens) Token(ctx context.Context, name string, _ secret.OAuth) (secret.Value, error) {
 	t.mu.Lock()
-	src, ok := t.sources[name]
-	if !ok {
-		profile := t.owner(name)
-		s, err := load(t.logins, profile, name)
-		if errors.Is(err, secret.ErrNotInKeyring) {
-			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
-		}
-		if err != nil {
-			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: %w", name, err)
-		}
-		src = oauth2.ReuseTokenSource(s.Token, &saving{src: s.tokenSource(), state: s, logins: t.logins, profile: profile, name: name})
-		t.sources[name] = src
+	defer t.mu.Unlock()
+	if tok := t.cached[name]; t.usable(tok, name) {
+		return secret.NewValue([]byte(tok.AccessToken)), nil
 	}
-	t.mu.Unlock()
-	tok, err := src.Token()
+	profile := t.owner(name)
+	unlock, err := t.lock(profile, name)
+	if err != nil {
+		return secret.Value{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	defer unlock()
+	s, err := load(t.logins, profile, name)
+	if errors.Is(err, secret.ErrNotInKeyring) {
+		return secret.Value{}, t.notSignedIn(name)
+	}
+	if err != nil {
+		return secret.Value{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	if t.usable(s.Token, name) {
+		t.cached[name] = s.Token
+		return secret.NewValue([]byte(s.Token.AccessToken)), nil
+	}
+	tok, err := s.refresh(ctx)
 	if err != nil {
 		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
 	}
+	s.Token = tok
+	if err := s.save(t.logins, profile, name); err != nil {
+		return secret.Value{}, fmt.Errorf("secret %q: keep the refreshed login: %w", name, err)
+	}
+	delete(t.rejected, name)
+	t.cached[name] = tok
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }
 
-func (s State) tokenSource() oauth2.TokenSource {
+// Reject says that a server refused this access token. The next call reads
+// the keyring for a newer token that another process wrote, and refreshes if
+// there is none.
+func (t *Tokens) Reject(name, accessToken string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if tok := t.cached[name]; tok != nil && tok.AccessToken == accessToken {
+		delete(t.cached, name)
+	}
+	t.rejected[name] = accessToken
+}
+
+// refresh asks the token endpoint for a new token with the refresh token of
+// the login in the keyring, whatever the expiry says.
+func (s State) refresh(ctx context.Context) (*oauth2.Token, error) {
+	if s.Token.RefreshToken == "" {
+		return nil, errors.New("the login has no refresh token")
+	}
 	if s.Explicit {
-		return &refreshing{client: s.tokenClient(), refresh: s.Token.RefreshToken}
+		return s.tokenClient().refresh(ctx, s.Token.RefreshToken)
 	}
-	return s.config().TokenSource(context.Background(), s.Token)
-}
-
-type saving struct {
-	src           oauth2.TokenSource
-	state         State
-	logins        secret.Keyring
-	profile, name string
-}
-
-func (s *saving) Token() (*oauth2.Token, error) {
-	tok, err := s.src.Token()
-	if err != nil {
-		return nil, err
-	}
-	s.state.Token = tok
-	return tok, s.state.save(s.logins, s.profile, s.name)
+	expired := *s.Token
+	expired.Expiry = time.Now().Add(-time.Hour)
+	return s.config().TokenSource(ctx, &expired).Token()
 }
 
 // Migrate moves the login files of earlier versions into the keyring and

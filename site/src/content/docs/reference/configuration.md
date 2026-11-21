@@ -727,6 +727,8 @@ The proxy adds a fresh access token to each request that uses the secret, so the
 If the refresh token stops working, doriath tells you to run `doriath profiles login` again. doriath writes each refreshed token back to the keyring.
 
 - An entry has the service `doriath-oauth` and the account `PROFILE/NAME`. A login and a keyring secret with the same name do not share an entry.
+- Sessions and programs share a login, and a server can rotate the refresh token at each refresh. doriath reads the keyring before it refreshes, takes a lock in `$XDG_RUNTIME_DIR` so that one process refreshes at a time, and uses a token that another process wrote. If a server answers 401 to a request that carries the token, the next request gets a newer token or a refresh.
+- The jail cannot open the sign-in page of a login that doriath holds. The request fails with the command to run on the host.
 - If no keyring answers, the login is unavailable. doriath does not keep it in a file.
 - A built-in module can define an `oauth` secret, as the `claude` module does. Its login belongs to the module, not to a profile: the account is `module:NAME/SECRET`, and every profile with the module shares it. Run `doriath profiles login PROFILE` with any such profile. A profile that gives the same secret name replaces the source of the module, and then its own entry holds the login. Modules in your folder cannot define secrets.
 - Earlier versions kept logins in `~/.local/state/doriath/oauth/`. The next `doriath run` or `doriath profiles login` moves each file into the keyring and deletes it, so you do not sign in again. If the keyring does not answer, the files stay. `doriath doctor` lists them.

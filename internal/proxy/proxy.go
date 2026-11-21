@@ -52,6 +52,13 @@ type Secrets interface {
 	Get(ctx context.Context, name string) (secret.Value, error)
 }
 
+// Rejecter is a store that wants to hear that a server refused a token, so
+// that its next answer holds a newer token. Get answers a login that another
+// process refreshed, or refreshes it.
+type Rejecter interface {
+	Reject(name, token string)
+}
+
 type Issuer interface {
 	Certificate(host string) (*tls.Certificate, error)
 }
@@ -389,6 +396,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		c = rule.Credential
 	}
 	var sign signOnTheWayOut
+	var rejected func()
 	switch {
 	case c == nil:
 	case !c.AllowsBinary(IdentityFrom(r.Context()).Program()):
@@ -408,6 +416,9 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		}
 	default:
 		name, value, err := s.credentialHeader(r.Context(), *c)
+		if rej, ok := s.secrets.(Rejecter); ok && err == nil {
+			rejected = func() { rej.Reject(c.Secret, tokenOf(value)) }
+		}
 		if err != nil {
 			s.record(Event{Kind: "error", Host: host, Method: r.Method, Path: r.URL.Path, Reason: err.Error()})
 			deny(w, http.StatusBadGateway, fmt.Sprintf("doriath: cannot load the credential for %s: %v", host, err))
@@ -418,7 +429,7 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 		}
 		r.Header.Set(name, value)
 	}
-	s.forwardAudited(w, r, target, sign)
+	s.forwardAudited(w, r, target, sign, rejected)
 }
 
 func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
@@ -437,10 +448,25 @@ func (s *Server) plain(w http.ResponseWriter, r *http.Request) {
 	s.forward(w, r, "http", r.URL.Host)
 }
 
-func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string, sign signOnTheWayOut) {
+// tokenOf is the token in the value of an Authorization header.
+func tokenOf(header string) string {
+	_, token, found := strings.Cut(header, " ")
+	if !found {
+		return header
+	}
+	return token
+}
+
+// forwardAudited sends the request on. When the server answers 401 to a
+// request that carried a credential, rejected runs, so that the next request
+// does not carry the same token again.
+func (s *Server) forwardAudited(w http.ResponseWriter, r *http.Request, host string, sign signOnTheWayOut, rejected func()) {
 	exe := IdentityFrom(r.Context()).Exe
 	s.forwardWith(w, r, "https", host, sign, func(resp *http.Response) error {
 		s.record(Event{Kind: "request", Host: host, Method: r.Method, Path: r.URL.Path, Exe: exe, Status: resp.StatusCode})
+		if resp.StatusCode == http.StatusUnauthorized && rejected != nil {
+			rejected()
+		}
 		return nil
 	})
 }

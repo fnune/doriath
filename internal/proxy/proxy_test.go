@@ -229,6 +229,11 @@ func newHarnessFor(t *testing.T, p *profile.Profile) *harness {
 // handler. up is what the tests read back, and stays empty if handler is not it.
 func newHarnessServing(t *testing.T, p *profile.Profile, up *upstream, handler http.Handler) *harness {
 	t.Helper()
+	return newHarnessWithSecrets(t, p, up, handler, mapSecrets{"github": "real-token", "claude": "real-login", "aws": `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session","Expiration":"2099-01-01T00:00:00Z"}`})
+}
+
+func newHarnessWithSecrets(t *testing.T, p *profile.Profile, up *upstream, handler http.Handler, secrets Secrets) *harness {
+	t.Helper()
 	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com", "bridge.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +258,7 @@ func newHarnessServing(t *testing.T, p *profile.Profile, up *upstream, handler h
 		Config{Session: "s1", Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: upCA.Pool()},
 		p,
 		approver,
-		mapSecrets{"github": "real-token", "claude": "real-login", "aws": `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session","Expiration":"2099-01-01T00:00:00Z"}`},
+		secrets,
 		session,
 		redirectDialer{tlsAddr: tlsServer.Listener.Addr().String(), plainAddr: plainServer.Listener.Addr().String()},
 		ev,
@@ -1244,5 +1249,38 @@ func TestReverseProxyErrorsGoToTheEventLog(t *testing.T) {
 	}
 	if len(rec.list) != 1 || rec.list[0].Kind != "error" || rec.list[0].Host != "example.com" || rec.list[0].Reason != "httputil: ReverseProxy read error during body copy: client disconnected" {
 		t.Fatalf("events: %+v", rec.list)
+	}
+}
+
+type rejectingSecrets struct {
+	mapSecrets
+	mu       sync.Mutex
+	rejected []string
+}
+
+func (r *rejectingSecrets) Reject(name, token string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rejected = append(r.rejected, name+":"+token)
+}
+
+type refusingUpstream struct{}
+
+func (refusingUpstream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+func TestARefusedTokenIsReportedToTheStoreSoTheNextRequestUsesANewOne(t *testing.T) {
+	store := &rejectingSecrets{mapSecrets: mapSecrets{"github": "real-token"}}
+	h := newHarnessWithSecrets(t, loadPolicy(t), &upstream{}, refusingUpstream{}, store)
+	resp, err := h.client().Get("https://api.github.com/user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = body(t, resp)
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if resp.StatusCode != http.StatusUnauthorized || len(store.rejected) != 1 || store.rejected[0] != "github:real-token" {
+		t.Errorf("status %d, rejected %v", resp.StatusCode, store.rejected)
 	}
 }
