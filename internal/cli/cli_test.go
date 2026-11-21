@@ -22,3 +22,11 @@ func TestWordsQuotesOnlyWhatTheShellWouldSplit(t *testing.T) {
 		t.Errorf("Words = %s, want %s", got, want)
 	}
 }
+
+func TestTOMLKeyQuotesWhatABareKeyCannotHold(t *testing.T) {
+	for key, want := range map[string]string{"github": "github", "my_key-2": "my_key-2", "forgejo:fnune": `"forgejo:fnune"`, "api.v2": `"api.v2"`} {
+		if got := TOMLKey(key); got != want {
+			t.Errorf("TOMLKey(%q) = %s, want %s", key, got, want)
+		}
+	}
+}

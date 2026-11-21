@@ -1,6 +1,9 @@
 package cli
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 const Name = "doriath"
 
@@ -33,4 +36,20 @@ func unsafe(r rune) bool {
 		return false
 	}
 	return !strings.ContainsRune("@%+=:,./_-", r)
+}
+
+// TOMLKey is a key as TOML needs it: bare when it can be, else quoted.
+func TOMLKey(key string) string {
+	if key != "" && strings.IndexFunc(key, notBareKey) < 0 {
+		return key
+	}
+	return strconv.Quote(key)
+}
+
+func notBareKey(r rune) bool {
+	switch {
+	case 'a' <= r && r <= 'z', 'A' <= r && r <= 'Z', '0' <= r && r <= '9', r == '-', r == '_':
+		return false
+	}
+	return true
 }

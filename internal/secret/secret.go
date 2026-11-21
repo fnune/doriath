@@ -237,7 +237,7 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	}
 	b, ok := c.backends[name]
 	if !ok {
-		return Value{}, fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile", name, ErrUnknown, name)
+		return Value{}, fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile", name, ErrUnknown, cli.TOMLKey(name))
 	}
 	if b.OAuth != nil {
 		if c.oauth == nil {
@@ -276,7 +276,7 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 func (c *Configured) Provide(name string, v Value) error {
 	b, ok := c.backends[name]
 	if !ok {
-		return fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile, and start a new session", name, ErrUnknown, name)
+		return fmt.Errorf("secret %q: %w: add [secrets.%s] to the profile, and start a new session", name, ErrUnknown, cli.TOMLKey(name))
 	}
 	if b.OAuth != nil {
 		return fmt.Errorf("secret %q is an OAuth login: run `doriath profiles login` on the host instead", name)

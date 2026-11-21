@@ -682,3 +682,50 @@ func TestCodeArchivesMergeAcrossModulesAndExpandTheHome(t *testing.T) {
 		t.Errorf("a relative archive path must fail: %v", err)
 	}
 }
+
+func TestSecretNamesMayHoldSeparators(t *testing.T) {
+	for _, name := range []string{"forgejo:fnune:repos:write", "api.v2", "my_token", "a-b", "9lives", "a:b_c.d-e"} {
+		profile := "[secrets.\"" + name + "\"]\nkeyring = true\n\n[[http]]\nhost = \"a.example\"\ncredential = { secret = \"" + name + "\" }\n\n[[mcp]]\nname = \"m\"\nurl = \"https://a.example/mcp\"\nsecret = \"" + name + "\"\n\n[signing]\nkey = \"" + name + "\"\n"
+		p, err := load(t, profile, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if !p.Secrets[name].Keyring || p.SigningKey != name {
+			t.Errorf("%s: secrets %+v, signing %q", name, p.Secrets, p.SigningKey)
+		}
+	}
+}
+
+func TestSecretNamesRefuseWhatBreaksTheKeyringOrTheTable(t *testing.T) {
+	for _, name := range []string{"-a", ":a", ".a", "_a", "a/b", "a b", "A", "..", ":", "a\\\\b", "é"} {
+		profile := "[secrets.\"" + name + "\"]\nkeyring = true\n"
+		if _, err := load(t, profile, nil); err == nil || !strings.Contains(err.Error(), "start with a letter or digit") {
+			t.Errorf("%q: err = %v", name, err)
+		}
+		for where, body := range map[string]string{
+			"credential": "[[http]]\nhost = \"a.example\"\ncredential = { secret = \"" + name + "\" }\n",
+			"mcp":        "[[mcp]]\nname = \"m\"\nurl = \"https://a.example/mcp\"\nsecret = \"" + name + "\"\n",
+		} {
+			if _, err := load(t, body, nil); err == nil || !strings.Contains(err.Error(), "start with a letter or digit") {
+				t.Errorf("%s %q: err = %v", where, name, err)
+			}
+		}
+	}
+}
+
+func TestProfilesAndModulesKeepTheirNamePattern(t *testing.T) {
+	for _, name := range []string{"a:b", "a.b", "a_b"} {
+		l := loader(fstest.MapFS{"p.toml": file("")}, fstest.MapFS{})
+		if _, err := l.Load(name); err == nil || !strings.Contains(err.Error(), "use lowercase letters, digits and dashes") {
+			t.Errorf("profile %q: err = %v", name, err)
+		}
+	}
+}
+
+func TestAMissingSecretWithSeparatorsPrintsAQuotedTable(t *testing.T) {
+	_, err := load(t, "[[http]]\nhost = \"a.example\"\ncredential = { secret = \"forgejo:fnune\" }\n", nil)
+	if err == nil || !strings.Contains(err.Error(), `add it under [secrets."forgejo:fnune"] in the profile`) {
+		t.Errorf("err = %v", err)
+	}
+}

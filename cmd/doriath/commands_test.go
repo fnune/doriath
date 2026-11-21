@@ -575,3 +575,19 @@ func TestLoginMovesAnOldLoginFileIntoTheKeyring(t *testing.T) {
 		t.Errorf("output = %q", out.String())
 	}
 }
+
+func TestLoginStoresASecretWithSeparatorsInItsName(t *testing.T) {
+	p := testPaths(t)
+	writeProfile(t, p, "app", "modules = []\n\n[secrets.\"forgejo:fnune:repos:write\"]\nkeyring = true\n")
+	kr := memoryKeyring{}
+	var out bytes.Buffer
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "forgejo:fnune:repos:write"}, strings.NewReader("tok\n"), kr, keyringtest.New(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if kr["app/forgejo:fnune:repos:write"] != "tok" {
+		t.Errorf("keyring = %v", kr)
+	}
+	if !strings.Contains(out.String(), "Stored forgejo:fnune:repos:write in the keyring for profile app.") {
+		t.Errorf("output = %q", out.String())
+	}
+}

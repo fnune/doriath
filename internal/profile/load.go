@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/secret"
 )
 
@@ -38,6 +39,13 @@ const (
 )
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+// secretNamePattern lets a secret name carry separators, such as
+// "forgejo:fnune:repos:write". A name never holds a slash, because the keyring
+// account is PROFILE/NAME, and starts with a letter or digit.
+var secretNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9:_.-]*$`)
+
+const secretNameRule = "use lowercase letters, digits, dashes, colons, underscores and dots, and start with a letter or digit"
 
 const maxProfileDepth = 8
 
@@ -1145,8 +1153,8 @@ func (b *builder) build(top layer) (*Profile, error) {
 	}
 	for _, name := range slices.Sorted(maps.Keys(b.secrets)) {
 		s := b.secrets[name]
-		if !namePattern.MatchString(name) {
-			errs = append(errs, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", name))
+		if !secretNamePattern.MatchString(name) {
+			errs = append(errs, fmt.Errorf("secret %q: %s", name, secretNameRule))
 			continue
 		}
 		backend := secret.Backend{Command: s.Command, Keyring: s.Keyring, Required: s.Required || name == b.signing}
@@ -1173,7 +1181,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 	p.Unsigned = b.unsigned
 	if b.signing != "" {
 		if _, ok := p.Secrets[b.signing]; !ok {
-			errs = append(errs, fmt.Errorf("signing key %q: add it under [secrets.%s] in the profile", b.signing, b.signing))
+			errs = append(errs, fmt.Errorf("signing key %q: add it under [secrets.%s] in the profile", b.signing, cli.TOMLKey(b.signing)))
 		}
 		p.SigningKey = b.signing
 	}
@@ -1189,7 +1197,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			}
 			if _, ok := p.Secrets[c.Secret]; !ok {
 				missing = append(missing, c.Secret)
-				errs = append(errs, fmt.Errorf("http %s: secret %q: add it under [secrets.%s] in the profile", h.Host, c.Secret, c.Secret))
+				errs = append(errs, fmt.Errorf("http %s: secret %q: add it under [secrets.%s] in the profile", h.Host, c.Secret, cli.TOMLKey(c.Secret)))
 			}
 		}
 	}
@@ -1296,8 +1304,8 @@ func (b *builder) buildHTTP(h httpLayer) (HTTPHost, error) {
 }
 
 func (b *builder) buildCredential(c credentialLayer) (Credential, error) {
-	if !namePattern.MatchString(c.Secret) {
-		return Credential{}, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", c.Secret)
+	if !secretNamePattern.MatchString(c.Secret) {
+		return Credential{}, fmt.Errorf("secret %q: %s", c.Secret, secretNameRule)
 	}
 	scheme := Scheme(c.Scheme)
 	if c.Scheme == "" {
@@ -1608,8 +1616,8 @@ func (b *builder) buildMCP(m mcpLayer) (MCPServer, error) {
 	}
 	var cred *credentialLayer
 	if m.Secret != "" {
-		if !namePattern.MatchString(m.Secret) {
-			return MCPServer{}, fmt.Errorf("mcp %s: secret %q: use lowercase letters, digits and dashes", m.Name, m.Secret)
+		if !secretNamePattern.MatchString(m.Secret) {
+			return MCPServer{}, fmt.Errorf("mcp %s: secret %q: %s", m.Name, m.Secret, secretNameRule)
 		}
 		cred = &credentialLayer{Secret: m.Secret, Scheme: string(SchemeBearer)}
 	}

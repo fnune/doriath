@@ -389,6 +389,19 @@ doriath profiles allow my-app --current ~/src/my-app
 
 A secret has a name that you choose, and a source under `[secrets.NAME]`: a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
 
+A name uses lowercase letters, digits, dashes, colons, underscores and dots, and starts with a letter or digit. It holds no slash. TOML needs quotes around a key with a colon or a dot:
+
+```toml
+[secrets."forgejo:fnune:repos:write"]
+keyring = true
+
+[[http]]
+host = "git.example.com"
+credential = { secret = "forgejo:fnune:repos:write" }
+```
+
+The same name goes in `doriath profiles login my-app forgejo:fnune:repos:write`.
+
 | Key                          | Uses the secret as                       |
 | ---------------------------- | ---------------------------------------- |
 | `[[http]] credential.secret` | the credential the proxy adds for a host |
