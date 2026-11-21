@@ -465,7 +465,7 @@ func TestAFailedRenewalKeepsTheTokenUntilItExpires(t *testing.T) {
 func TestAGitHubAppSecretWithoutAKeyOrAMinterIsUnavailable(t *testing.T) {
 	apps := &fakeApps{expires: func(now time.Time) time.Time { return now }, now: time.Now}
 	missing := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}}, &fakeRunner{}).WithGitHubApps(apps)
-	if _, err := missing.Get(context.Background(), "app"); err == nil || !strings.Contains(err.Error(), `the private key of the GitHub App`) || !errors.Is(err, ErrUnknown) {
+	if _, err := missing.Get(context.Background(), "app"); err == nil || !strings.Contains(err.Error(), `the private key in "key"`) || !errors.Is(err, ErrUnknown) {
 		t.Errorf("a key that is not a secret: %v", err)
 	}
 	without := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}, "key": {Command: []string{"k"}}}, &fakeRunner{stdout: "pem"})
@@ -503,6 +503,20 @@ func TestGitHubAppValidation(t *testing.T) {
 	} {
 		if err := c.b.Validate(); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err = %v, want %q", name, err, c.want)
+		}
+	}
+}
+
+func TestWithoutNameStripsOnlyTheLeadingName(t *testing.T) {
+	for in, want := range map[string]string{
+		`secret "a:b": no GitHub remote, so no token`:      "no GitHub remote, so no token",
+		`secret "a" is empty`:                              "is empty",
+		`secret "a\"b": command x: failed`:                 "command x: failed",
+		`secret "a": the private key: secret "k": missing`: `the private key: secret "k": missing`,
+		`command x: failed`:                                "command x: failed",
+	} {
+		if got := WithoutName(errors.New(in)); got != want {
+			t.Errorf("%s = %q, want %q", in, got, want)
 		}
 	}
 }

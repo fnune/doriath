@@ -104,18 +104,18 @@ func (m Minter) targets(ctx context.Context, app secret.GitHubApp) (string, []st
 		return owner, repos, nil
 	}
 	if m.Repository == "" || m.Remotes == nil {
-		return "", nil, errors.New("the session has no repository, so the token has no repository to reach. Start the session in a git repository with a GitHub remote, or set repositories in github_app")
+		return "", nil, errors.New("no repository, so no token")
 	}
 	urls, err := m.Remotes(ctx, m.Repository)
 	if err != nil {
-		return "", nil, fmt.Errorf("read the remotes of %s: %w", m.Repository, err)
+		return "", nil, fmt.Errorf("read the git remotes: %w", err)
 	}
 	for _, u := range urls {
 		if owner, repo, ok := ParseRemote(u); ok {
 			return owner, []string{repo}, nil
 		}
 	}
-	return "", nil, fmt.Errorf("the repository %s has no GitHub remote, so the token has no repository to reach. Add a remote on github.com, or set repositories in github_app", m.Repository)
+	return "", nil, errors.New("no GitHub remote, so no token")
 }
 
 // SignJWT signs the token that proves to GitHub that you hold the key of the app.
@@ -240,7 +240,7 @@ func (m Minter) installation(ctx context.Context, jwt, owner, repo string) (int6
 	var api *apiError
 	switch {
 	case errors.As(err, &api) && api.status == http.StatusUnauthorized:
-		return 0, fmt.Errorf("GitHub refused the app's key (%s). Check that app_id and the private key belong to the same app, and that the clock of this machine is right", api.message)
+		return 0, fmt.Errorf("GitHub refused the key (%s): check app_id, the key and the clock", api.message)
 	case errors.As(err, &api) && api.status == http.StatusNotFound:
 		return 0, m.notInstalled(ctx, jwt, owner, repo)
 	case err != nil:
@@ -257,7 +257,7 @@ func (m Minter) notInstalled(ctx context.Context, jwt, owner, repo string) error
 		HTMLURL string `json:"html_url"`
 	}
 	if m.call(ctx, jwt, http.MethodGet, "/app", nil, &app) == nil && app.HTMLURL != "" {
-		msg += ". Install it, and give it access to the repository, at " + strings.TrimSuffix(app.HTMLURL, "/") + "/installations/new"
+		msg += ": install it at " + strings.TrimSuffix(app.HTMLURL, "/") + "/installations/new"
 	}
 	return errors.New(msg)
 }
@@ -272,7 +272,7 @@ func (m Minter) accessToken(ctx context.Context, jwt string, installation int64,
 	var api *apiError
 	switch {
 	case errors.As(err, &api) && api.status == http.StatusUnprocessableEntity:
-		return "", time.Time{}, fmt.Errorf("GitHub refused the token for %s: %s. Check that the app has these permissions and that its installation allows them", strings.Join(repos, ", "), api.message)
+		return "", time.Time{}, fmt.Errorf("GitHub refused the permissions for %s: %s", strings.Join(repos, ", "), api.message)
 	case err != nil:
 		return "", time.Time{}, fmt.Errorf("mint a token on %s: %w", owner, err)
 	case out.Token == "" || out.ExpiresAt.IsZero():

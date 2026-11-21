@@ -421,13 +421,31 @@ func (c *Configured) fetch(ctx context.Context, name string, b Backend, firstTry
 	return v, time.Time{}, err
 }
 
+// secretPrefix is the start of a secret error, which names the secret.
+var secretPrefix = regexp.MustCompile(`^secret "(?:[^"\\]|\\.)*"(?:: | )`)
+
+// WithoutName is the message of a secret error without the name of the
+// secret, for a line that names it already.
+func WithoutName(err error) string {
+	return secretPrefix.ReplaceAllString(err.Error(), "")
+}
+
+// renamed is an error with another message, which still unwraps to the cause.
+type renamed struct {
+	msg string
+	err error
+}
+
+func (e *renamed) Error() string { return e.msg }
+func (e *renamed) Unwrap() error { return e.err }
+
 func (c *Configured) mintApp(ctx context.Context, name string, app GitHubApp) (Value, time.Time, error) {
 	if c.apps == nil {
 		return Value{}, time.Time{}, fmt.Errorf("secret %q: GitHub App tokens are not available here", name)
 	}
 	key, err := c.get(ctx, app.Key)
 	if err != nil {
-		return Value{}, time.Time{}, fmt.Errorf("secret %q: the private key of the GitHub App: %w", name, err)
+		return Value{}, time.Time{}, &renamed{msg: fmt.Sprintf("secret %q: the private key in %q: %s", name, app.Key, WithoutName(err)), err: err}
 	}
 	v, expires, err := c.apps.Mint(ctx, app, key)
 	if err != nil {

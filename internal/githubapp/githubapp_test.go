@@ -173,7 +173,7 @@ func TestAKeyThatDoesNotBelongToTheAppIsRefused(t *testing.T) {
 	_, other := newKey(t)
 	f := newFakeGitHub(t, key)
 	_, _, err := f.minter("https://github.com/fnune/doriath").Mint(context.Background(), app, other)
-	if err == nil || !strings.Contains(err.Error(), "GitHub refused the app's key") || !strings.Contains(err.Error(), "app_id") {
+	if err == nil || err.Error() != "GitHub refused the key (Bad credentials): check app_id, the key and the clock" {
 		t.Fatalf("err = %v", err)
 	}
 	if _, _, err := f.minter("https://github.com/fnune/doriath").Mint(context.Background(), app, secret.NewValue([]byte("not a key"))); err == nil || !strings.Contains(err.Error(), "not in PEM form") {
@@ -185,7 +185,7 @@ func TestWithoutAnInstallationTheErrorGivesTheInstallURL(t *testing.T) {
 	key, pemKey := newKey(t)
 	f := newFakeGitHub(t, key)
 	_, _, err := f.minter("git@github.com:fnune/other.git").Mint(context.Background(), app, pemKey)
-	want := "the app is not installed on fnune/other. Install it, and give it access to the repository, at https://github.com/apps/fnune-agents/installations/new"
+	want := "the app is not installed on fnune/other: install it at https://github.com/apps/fnune-agents/installations/new"
 	if err == nil || err.Error() != want {
 		t.Fatalf("err = %v", err)
 	}
@@ -196,7 +196,7 @@ func TestATokenThatGitHubRefusesNamesThePermissions(t *testing.T) {
 	f := newFakeGitHub(t, key)
 	f.tokenStatus = http.StatusUnprocessableEntity
 	_, _, err := f.minter("https://github.com/fnune/doriath").Mint(context.Background(), app, pemKey)
-	if err == nil || !strings.Contains(err.Error(), "GitHub refused the token for doriath") || !strings.Contains(err.Error(), "permissions requested are not granted") {
+	if err == nil || err.Error() != "GitHub refused the permissions for doriath: The permissions requested are not granted to this installation." {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -223,12 +223,12 @@ func TestWithoutAGitHubRemoteTheErrorSaysWhatToAdd(t *testing.T) {
 	key, pemKey := newKey(t)
 	f := newFakeGitHub(t, key)
 	_, _, err := f.minter("https://gitlab.com/fnune/doriath.git", "git@example.com:a/b").Mint(context.Background(), app, pemKey)
-	if err == nil || !strings.Contains(err.Error(), "has no GitHub remote") || !strings.Contains(err.Error(), "repositories in github_app") {
+	if err == nil || err.Error() != "no GitHub remote, so no token" {
 		t.Errorf("err = %v", err)
 	}
 	m := f.minter()
 	m.Repository = ""
-	if _, _, err := m.Mint(context.Background(), app, pemKey); err == nil || !strings.Contains(err.Error(), "no repository") {
+	if _, _, err := m.Mint(context.Background(), app, pemKey); err == nil || err.Error() != "no repository, so no token" {
 		t.Errorf("no repository: %v", err)
 	}
 	if len(f.paths()) != 0 {

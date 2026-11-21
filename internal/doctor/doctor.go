@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -167,8 +168,11 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 	checkSecret := func(name string, b secret.Backend, err error) {
 		err = secret.Explained(err)
 		if err != nil && !b.Required {
-			out = append(out, Result{Name: name, Level: Note, Detail: err.Error() + ": sessions start without it"})
+			out = append(out, Result{Name: name, Level: Note, Detail: secret.WithoutName(err) + ": sessions start without it"})
 			return
+		}
+		if err != nil {
+			err = errors.New(secret.WithoutName(err))
 		}
 		check(name, err)
 	}
