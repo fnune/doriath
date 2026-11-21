@@ -298,12 +298,20 @@ func tomlFieldNames(t reflect.Type, names map[string]bool) map[string]bool {
 }
 
 type secretLayer struct {
-	File     string      `toml:"file"` // only to refuse it with a pointer to the keyring
-	Command  []string    `toml:"command"`
-	Keyring  bool        `toml:"keyring"`
-	OAuth    *oauthLayer `toml:"oauth"`
-	Refresh  string      `toml:"refresh"`
-	Required bool        `toml:"required"`
+	File      string          `toml:"file"` // only to refuse it with a pointer to the keyring
+	Command   []string        `toml:"command"`
+	Keyring   bool            `toml:"keyring"`
+	OAuth     *oauthLayer     `toml:"oauth"`
+	GitHubApp *githubAppLayer `toml:"github_app"`
+	Refresh   string          `toml:"refresh"`
+	Required  bool            `toml:"required"`
+}
+
+type githubAppLayer struct {
+	AppID        int64             `toml:"app_id"`
+	Key          string            `toml:"key"`
+	Permissions  map[string]string `toml:"permissions"`
+	Repositories []string          `toml:"repositories"`
 }
 
 type oauthLayer struct {

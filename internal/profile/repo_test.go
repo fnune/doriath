@@ -301,3 +301,12 @@ func TestARepositoryProfileThatNamesASecretNobodyGivesSaysWhatToAdd(t *testing.T
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestARepositoryProfileCannotMintTokensWithYourKey(t *testing.T) {
+	l := repoLoader()
+	l.Repository.(fstest.MapFS)["app.toml"] = file("[secrets.github]\ngithub_app = { app_id = 1, key = \"k\", permissions = { contents = \"read\" } }\n")
+	_, err := l.Load("work+repo:app")
+	if err == nil || !strings.Contains(err.Error(), `secret "github": a repository profile cannot mint tokens with a key of yours`) || !strings.Contains(err.Error(), "my-app+repo:app") {
+		t.Fatalf("err = %v", err)
+	}
+}

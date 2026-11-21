@@ -392,3 +392,117 @@ func TestOnlyANamedNonOAuthSecretCanBeProvided(t *testing.T) {
 		}
 	}
 }
+
+type fakeApps struct {
+	calls   int
+	keys    []string
+	err     error
+	expires func(now time.Time) time.Time
+	now     func() time.Time
+}
+
+func (f *fakeApps) Mint(_ context.Context, app GitHubApp, key Value) (Value, time.Time, error) {
+	f.calls++
+	f.keys = append(f.keys, string(key.Reveal()))
+	if f.err != nil {
+		return Value{}, time.Time{}, f.err
+	}
+	return NewValue([]byte(fmt.Sprintf("ghs_%d", f.calls))), f.expires(f.now()), nil
+}
+
+var testApp = GitHubApp{AppID: 7, Key: "key", Permissions: map[string]string{"contents": "write"}}
+
+func TestAGitHubAppTokenIsMintedWithTheKeyAndRenewedBeforeItExpires(t *testing.T) {
+	c := &clock{t: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)}
+	apps := &fakeApps{now: c.now, expires: func(now time.Time) time.Time { return now.Add(time.Hour) }}
+	run := &fakeRunner{stdout: "-----PEM-----\n"}
+	s := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}, "key": {Command: []string{"rbw", "get", "key"}}}, run).WithGitHubApps(apps).WithClock(c.now)
+	get := func() string {
+		v, err := s.Get(context.Background(), "app")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(v.Reveal())
+	}
+	first, second := get(), get()
+	if first != "ghs_1" || second != "ghs_1" || apps.calls != 1 {
+		t.Fatalf("a token is minted once while it lasts: %d calls", apps.calls)
+	}
+	if apps.keys[0] != "-----PEM-----" || run.calls != 1 {
+		t.Errorf("key = %q, key command ran %d times", apps.keys[0], run.calls)
+	}
+	c.t = c.t.Add(54 * time.Minute)
+	if get() != "ghs_1" {
+		t.Error("the token is renewed too early")
+	}
+	c.t = c.t.Add(2 * time.Minute)
+	if get() != "ghs_2" || apps.calls != 2 {
+		t.Errorf("the token is not renewed before it expires: %d calls", apps.calls)
+	}
+	if run.calls != 1 {
+		t.Errorf("the key was read again: %d", run.calls)
+	}
+}
+
+func TestAFailedRenewalKeepsTheTokenUntilItExpires(t *testing.T) {
+	c := &clock{t: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)}
+	apps := &fakeApps{now: c.now, expires: func(now time.Time) time.Time { return now.Add(time.Hour) }}
+	s := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}, "key": {Command: []string{"k"}}}, &fakeRunner{stdout: "pem"}).WithGitHubApps(apps).WithClock(c.now)
+	if _, err := s.Get(context.Background(), "app"); err != nil {
+		t.Fatal(err)
+	}
+	apps.err = errors.New("GitHub is down")
+	c.t = c.t.Add(56 * time.Minute)
+	if v, err := s.Get(context.Background(), "app"); err != nil || string(v.Reveal()) != "ghs_1" {
+		t.Fatalf("before expiry = %q, %v", v.Reveal(), err)
+	}
+	c.t = c.t.Add(10 * time.Minute)
+	if _, err := s.Get(context.Background(), "app"); err == nil || !strings.Contains(err.Error(), `secret "app": GitHub is down`) {
+		t.Errorf("after expiry: %v", err)
+	}
+}
+
+func TestAGitHubAppSecretWithoutAKeyOrAMinterIsUnavailable(t *testing.T) {
+	apps := &fakeApps{expires: func(now time.Time) time.Time { return now }, now: time.Now}
+	missing := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}}, &fakeRunner{}).WithGitHubApps(apps)
+	if _, err := missing.Get(context.Background(), "app"); err == nil || !strings.Contains(err.Error(), `the private key of the GitHub App`) || !errors.Is(err, ErrUnknown) {
+		t.Errorf("a key that is not a secret: %v", err)
+	}
+	without := NewConfigured(map[string]Backend{"app": {GitHubApp: &testApp}, "key": {Command: []string{"k"}}}, &fakeRunner{stdout: "pem"})
+	if _, err := without.Get(context.Background(), "app"); err == nil || !strings.Contains(err.Error(), "GitHub App tokens are not available here") {
+		t.Errorf("without a minter: %v", err)
+	}
+}
+
+func TestGitHubAppValidation(t *testing.T) {
+	with := func(change func(*GitHubApp)) Backend {
+		a := testApp
+		a.Permissions = map[string]string{"contents": "write"}
+		change(&a)
+		return Backend{GitHubApp: &a}
+	}
+	if err := with(func(*GitHubApp) {}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := with(func(a *GitHubApp) { a.Repositories = []string{"fnune/a", "Fnune/b.c"} }).Validate(); err != nil {
+		t.Errorf("repositories: %v", err)
+	}
+	for name, c := range map[string]struct {
+		b    Backend
+		want string
+	}{
+		"no app id":                {with(func(a *GitHubApp) { a.AppID = 0 }), "set app_id"},
+		"no key":                   {with(func(a *GitHubApp) { a.Key = "" }), "set key"},
+		"no permissions":           {with(func(a *GitHubApp) { a.Permissions = nil }), "set permissions"},
+		"bad permission name":      {with(func(a *GitHubApp) { a.Permissions = map[string]string{"Pull-Requests": "write"} }), `permission "Pull-Requests"`},
+		"bad permission level":     {with(func(a *GitHubApp) { a.Permissions = map[string]string{"contents": "all"} }), `contents = "all": want read, write or admin`},
+		"repository without owner": {with(func(a *GitHubApp) { a.Repositories = []string{"doriath"} }), `want owner/repo`},
+		"two owners":               {with(func(a *GitHubApp) { a.Repositories = []string{"a/x", "b/y"} }), "different owners"},
+		"with a command":           {Backend{Command: []string{"x"}, GitHubApp: &testApp}, "exactly one of command, keyring, oauth or github_app"},
+		"with refresh":             {Backend{GitHubApp: &testApp, Refresh: time.Hour}, "renews before it expires"},
+	} {
+		if err := c.b.Validate(); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", name, err, c.want)
+		}
+	}
+}

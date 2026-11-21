@@ -387,7 +387,7 @@ doriath profiles allow my-app --current ~/src/my-app
 
 ## Secrets
 
-A secret has a name that you choose, and a source under `[secrets.NAME]`: a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
+A secret has a name that you choose, and a source under `[secrets.NAME]`: a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins), or a [`github_app` token](#github-app-tokens). These keys use a secret by its name:
 
 A name uses lowercase letters, digits, dashes, colons, underscores and dots, and starts with a letter or digit. It holds no slash. TOML needs quotes around a key with a colon or a dot:
 
@@ -657,6 +657,39 @@ To replace one value, name the secret, such as `doriath profiles login my-app fo
 - If no keyring answers, the secret is unavailable. doriath does not read the value from a file or another source.
 - doriath has no `file` source, so that no secret stays on your disk. A profile with `file` does not load. Use `keyring = true`, and store the value with `doriath profiles login PROFILE NAME` and standard input.
 - A repository profile cannot use `keyring`, because the keyring holds your own values.
+
+## GitHub App tokens
+
+A secret with `github_app` is a short-lived token of your own [GitHub App](https://docs.github.com/en/apps/overview). doriath mints it for the repository of the session, so the agent never gets a token that reaches your other repositories. This example gives the token to the [`github` module](/reference/modules/#github):
+
+```toml
+[secrets.github]
+github_app = { app_id = 123456, key = "github:agents:key", permissions = { contents = "write", pull_requests = "write", issues = "write", checks = "read", actions = "read" } }
+
+[secrets."github:agents:key"]
+command = ["rbw", "get", "github-agents-key"]
+```
+
+- `app_id` is the number of the app, which GitHub shows on the settings page of the app.
+- `key` names another secret that holds the private key of the app, in PEM form. It can use a `command` or `keyring`.
+- `permissions` lists what the token can do, each as `read`, `write` or `admin`. The names are those of the GitHub API, such as `pull_requests`. A token has no permission that you leave out.
+- `repositories` is optional. It lists repositories as `owner/repo`, all of one owner, and the token reaches those in place of the repository of the session. Use it for a session outside the repository that it works on.
+
+At session start doriath signs a JWT with the key, finds the installation of the app on the repository, and asks GitHub for a token for that one repository with these permissions. The token lasts one hour. doriath mints a new one 5 minutes before it expires.
+
+doriath takes the repository from the remotes of the session's repository, `origin` first. It reads `github.com` remotes in the HTTPS form, `https://github.com/owner/repo.git`, and in the SSH forms, `git@github.com:owner/repo.git` and `ssh://git@github.com/owner/repo.git`. GitHub Enterprise hosts are not supported.
+
+- The secret is unavailable, with a message that says what to do, if the repository has no GitHub remote, if the app is not installed on the repository, or if GitHub refuses the key. When the app is not installed, the message gives the link to install it.
+- The key stays on your machine. A profile that uses the key secret in a credential, an MCP server or `[signing]` does not load.
+- A repository profile cannot define a `github_app` secret, because it would use your key.
+- `refresh` does not apply, because the token renews itself.
+
+The app needs these settings, which GitHub's own pages describe in [registering a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app):
+
+- Repository permissions that match `permissions` above. The `metadata` permission is read-only and always on.
+- No webhook, and not public. Only you install it.
+- An installation on each repository that sessions use. See [installing your own GitHub App](https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app).
+- A private key. See [managing private keys](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps). Put it in your password manager, or in the keyring with `doriath profiles login PROFILE github:agents:key`, which reads the key from standard input. Do not keep the downloaded file.
 
 ## OAuth logins
 

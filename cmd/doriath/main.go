@@ -329,7 +329,7 @@ func cmdRun(args []string) (int, error) {
 		Paths:       p,
 		User:        user,
 		Logins:      keyring.Logins{},
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithOAuth(oauth.NewTokensOwnedBy(keyring.Logins{}, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithGitHubApps(appMinter(start)).WithOAuth(oauth.NewTokensOwnedBy(keyring.Logins{}, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

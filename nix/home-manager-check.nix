@@ -82,6 +82,11 @@ let
         };
         signing.keyring = true;
         forge.keyring = true;
+        app.github_app = {
+          app_id = 9;
+          key = "signing";
+          permissions.contents = "read";
+        };
         api.oauth.mcp = "https://mcp.team.example/mcp";
         issuer.oauth = {
           issuer = "https://login.team.example";
@@ -182,7 +187,7 @@ let
 in
 assert builtins.isString home.activationPackage.drvPath;
 assert lib.assertMsg trayWithoutPageFails "desktop.tray needs desktop.web.enable";
-assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of command, keyring or oauth";
+assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of command, keyring, oauth or github_app";
 pkgs.runCommand "doriath-home-manager-module"
   {
     nativeBuildInputs = [
@@ -209,6 +214,7 @@ pkgs.runCommand "doriath-home-manager-module"
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
     expect '.Secrets.signing.Keyring == true'
     expect '.Secrets.forge.Keyring == true'
+    expect '.Secrets.app.GitHubApp | .AppID == 9 and .Key == "signing" and .Permissions == {contents: "read"}'
     expect '.Secrets.github.Refresh == 2700000000000'
     expect '.Secrets.api.OAuth.MCP == "https://mcp.team.example/mcp"'
     expect '.Secrets.issuer.OAuth | .Issuer == "https://login.team.example" and .ClientID == "doriath" and .Scopes == ["read", "write"]'

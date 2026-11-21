@@ -47,6 +47,7 @@ type Options struct {
 	Runner       secret.Runner
 	Keyring      secret.Keyring
 	Logins       secret.Keyring
+	Apps         secret.AppTokens
 	Asker        secret.Asker
 	Allow        func(*profile.Profile) error
 	Dir          string
@@ -179,7 +180,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(opts.Logins, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
+		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(opts.Logins, prof.SecretOwner)).WithGitHubApps(opts.Apps).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -196,6 +197,8 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 					err = fmt.Errorf("not signed in: run %s", cli.Code(cli.Line("profiles", "login", prof.Name, name)))
 				}
 				checkSecret(label+" (oauth)", b, err)
+			case b.GitHubApp != nil:
+				checkSecret(label+" (github app)", b, nil)
 			case b.Keyring:
 				checkSecret(label+" (keyring)", b, nil)
 			default:

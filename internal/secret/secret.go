@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -36,9 +37,10 @@ var ErrUnknown = errors.New("unknown secret")
 var ErrUnavailable = errors.New("unavailable")
 
 type Backend struct {
-	Command []string
-	Keyring bool
-	OAuth   *OAuth
+	Command   []string
+	Keyring   bool
+	OAuth     *OAuth
+	GitHubApp *GitHubApp
 	// Refresh reads a command secret again after this long, for a
 	// short-lived token whose source prints no expiry.
 	Refresh time.Duration
@@ -46,6 +48,23 @@ type Backend struct {
 	// it, the session starts and what needs the secret fails until the
 	// secret works.
 	Required bool `json:"-"`
+}
+
+// GitHubApp mints a short-lived token for an installation of a GitHub App.
+// Key names the secret that holds the app's private key. Repositories, as
+// owner/repo, replaces the repository of the session.
+type GitHubApp struct {
+	AppID        int64
+	Key          string
+	Permissions  map[string]string
+	Repositories []string
+}
+
+// AppTokens mints the token of a GitHub App from its private key, for the
+// repository of the session or the ones that the app names. It returns when
+// the token expires.
+type AppTokens interface {
+	Mint(ctx context.Context, app GitHubApp, privateKey Value) (Value, time.Time, error)
 }
 
 type OAuth struct {
@@ -57,19 +76,26 @@ type OAuth struct {
 
 func (b Backend) Validate() error {
 	set := 0
-	for _, ok := range []bool{len(b.Command) > 0, b.Keyring, b.OAuth != nil} {
+	for _, ok := range []bool{len(b.Command) > 0, b.Keyring, b.OAuth != nil, b.GitHubApp != nil} {
 		if ok {
 			set++
 		}
 	}
 	if set != 1 {
-		return errors.New("set exactly one of command, keyring or oauth")
+		return errors.New("set exactly one of command, keyring, oauth or github_app")
 	}
 	switch {
 	case b.Refresh != 0 && b.OAuth != nil:
 		return errors.New("refresh: an OAuth login refreshes on its own")
+	case b.Refresh != 0 && b.GitHubApp != nil:
+		return errors.New("refresh: a GitHub App token renews before it expires")
 	case b.Refresh != 0 && b.Refresh < MinRefresh:
 		return fmt.Errorf("refresh: want %s or more", MinRefresh)
+	}
+	if a := b.GitHubApp; a != nil {
+		if err := a.validate(); err != nil {
+			return err
+		}
 	}
 	if o := b.OAuth; o != nil {
 		switch {
@@ -85,6 +111,43 @@ func (b Backend) Validate() error {
 				return fmt.Errorf("oauth: %q: want an https URL", u)
 			}
 		}
+	}
+	return nil
+}
+
+var (
+	permissionName = regexp.MustCompile(`^[a-z_]+$`)
+	repositoryName = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9-]*)/([A-Za-z0-9._-]+)$`)
+)
+
+func (a GitHubApp) validate() error {
+	if a.AppID <= 0 {
+		return errors.New("github_app: set app_id to the number of the app")
+	}
+	if a.Key == "" {
+		return errors.New("github_app: set key to the secret that holds the private key of the app")
+	}
+	if len(a.Permissions) == 0 {
+		return errors.New("github_app: set permissions, such as { contents = \"write\" }, so that the token holds no more than the agent needs")
+	}
+	for name, level := range a.Permissions {
+		switch {
+		case !permissionName.MatchString(name):
+			return fmt.Errorf("github_app: permission %q: use the name that GitHub gives, such as pull_requests", name)
+		case level != "read" && level != "write" && level != "admin":
+			return fmt.Errorf("github_app: permission %s = %q: want read, write or admin", name, level)
+		}
+	}
+	owner := ""
+	for _, r := range a.Repositories {
+		m := repositoryName.FindStringSubmatch(r)
+		switch {
+		case m == nil:
+			return fmt.Errorf("github_app: repository %q: want owner/repo", r)
+		case owner != "" && !strings.EqualFold(owner, m[1]):
+			return fmt.Errorf("github_app: repositories of %q and %q have different owners, and one token reaches the repositories of one owner", owner, m[1])
+		}
+		owner = m[1]
 	}
 	return nil
 }
@@ -137,6 +200,7 @@ type Configured struct {
 	now      func() time.Time
 
 	oauth OAuthTokens
+	apps  AppTokens
 
 	keyring Keyring
 	owner   func(name string) string
@@ -205,6 +269,12 @@ func (c *Configured) WithOAuth(t OAuthTokens) *Configured {
 	return c
 }
 
+// WithGitHubApps lets the store mint the tokens of GitHub Apps.
+func (c *Configured) WithGitHubApps(a AppTokens) *Configured {
+	c.apps = a
+	return c
+}
+
 func (c *Configured) WithKeyring(k Keyring, owner func(name string) string) *Configured {
 	c.keyring, c.owner = k, owner
 	return c
@@ -230,6 +300,10 @@ func (c *Configured) WithClock(now func() time.Time) *Configured {
 func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.get(ctx, name)
+}
+
+func (c *Configured) get(ctx context.Context, name string) (Value, error) {
 	now := c.now()
 	old, seen := c.cache[name]
 	if seen && (old.due.IsZero() || now.Before(old.due)) {
@@ -255,7 +329,7 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 	if !seen && failedBefore && now.Before(f.retryAt) {
 		return Value{}, unavailableError{f.err}
 	}
-	v, err := c.fetch(ctx, name, b, !seen && !failedBefore)
+	v, expires, err := c.fetch(ctx, name, b, !seen && !failedBefore)
 	if err != nil {
 		if seen && (old.expires.IsZero() || now.Before(old.expires)) {
 			old.due = now.Add(retryFailedRefreshAfter)
@@ -267,7 +341,7 @@ func (c *Configured) Get(ctx context.Context, name string) (Value, error) {
 		return Value{}, err
 	}
 	delete(c.failed, name)
-	c.cache[name] = lifetime(v, b, now)
+	c.cache[name] = lifetime(v, b, now, expires)
 	return v, nil
 }
 
@@ -307,12 +381,16 @@ func (c *Configured) Unavailable() map[string]error {
 	return out
 }
 
-func lifetime(v Value, b Backend, now time.Time) cached {
+func lifetime(v Value, b Backend, now, minted time.Time) cached {
 	e := cached{value: v}
 	if b.Refresh > 0 {
 		e.due = now.Add(b.Refresh)
 	}
-	if expires, ok := credentialProcessExpiry(v.b); ok {
+	expires, ok := minted, !minted.IsZero()
+	if !ok {
+		expires, ok = credentialProcessExpiry(v.b)
+	}
+	if ok {
 		e.expires = expires
 		early := min(refreshEarly, expires.Sub(now)/2)
 		if due := expires.Add(-early); e.due.IsZero() || due.Before(e.due) {
@@ -335,7 +413,30 @@ func credentialProcessExpiry(data []byte) (time.Time, bool) {
 	return doc.Expiration, true
 }
 
-func (c *Configured) fetch(ctx context.Context, name string, b Backend, firstTry bool) (Value, error) {
+func (c *Configured) fetch(ctx context.Context, name string, b Backend, firstTry bool) (Value, time.Time, error) {
+	if b.GitHubApp != nil {
+		return c.mintApp(ctx, name, *b.GitHubApp)
+	}
+	v, err := c.fetchPlain(ctx, name, b, firstTry)
+	return v, time.Time{}, err
+}
+
+func (c *Configured) mintApp(ctx context.Context, name string, app GitHubApp) (Value, time.Time, error) {
+	if c.apps == nil {
+		return Value{}, time.Time{}, fmt.Errorf("secret %q: GitHub App tokens are not available here", name)
+	}
+	key, err := c.get(ctx, app.Key)
+	if err != nil {
+		return Value{}, time.Time{}, fmt.Errorf("secret %q: the private key of the GitHub App: %w", name, err)
+	}
+	v, expires, err := c.apps.Mint(ctx, app, key)
+	if err != nil {
+		return Value{}, time.Time{}, fmt.Errorf("secret %q: %w", name, err)
+	}
+	return v, expires, nil
+}
+
+func (c *Configured) fetchPlain(ctx context.Context, name string, b Backend, firstTry bool) (Value, error) {
 	if b.Keyring {
 		return c.readKeyring(ctx, name, firstTry)
 	}

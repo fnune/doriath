@@ -122,7 +122,7 @@ func TestLoadRejects(t *testing.T) {
 		"missing module":           {profile: `modules = ["nope"]`, want: `module "nope" not found`},
 		"undefined secret":         {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
 		"undefined signing":        {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
-		"secret both":              {profile: "[secrets.x]\nkeyring = true\ncommand = [\"b\"]", want: "exactly one of command, keyring or oauth"},
+		"secret both":              {profile: "[secrets.x]\nkeyring = true\ncommand = [\"b\"]", want: "exactly one of command, keyring, oauth or github_app"},
 		"secret from a file":       {profile: "[secrets.x]\nfile = \"/a\"", want: "keyring = true"},
 		"secret from a file named": {profile: "[secrets.x]\nfile = \"/a\"\nkeyring = true", want: "doriath profiles login PROFILE x"},
 		"writable nix store":       {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
@@ -727,5 +727,56 @@ func TestAMissingSecretWithSeparatorsPrintsAQuotedTable(t *testing.T) {
 	_, err := load(t, "[[http]]\nhost = \"a.example\"\ncredential = { secret = \"forgejo:fnune\" }\n", nil)
 	if err == nil || !strings.Contains(err.Error(), `add it under [secrets."forgejo:fnune"] in the profile`) {
 		t.Errorf("err = %v", err)
+	}
+}
+
+const appProfile = `[secrets.github]
+github_app = { app_id = 123456, key = "github:agents:installations:mint", permissions = { contents = "write", pull_requests = "write" } }
+
+[secrets."github:agents:installations:mint"]
+command = ["rbw", "get", "github-agents-key"]
+`
+
+func TestASecretCanBeTheTokenOfAGitHubApp(t *testing.T) {
+	p, err := load(t, appProfile+"\n[[http]]\nhost = \"api.github.com\"\ncredential = { secret = \"github\" }\n", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := p.Secrets["github"].GitHubApp
+	if a == nil || a.AppID != 123456 || a.Key != "github:agents:installations:mint" || a.Permissions["pull_requests"] != "write" {
+		t.Errorf("github_app = %+v", a)
+	}
+	if p.Sources["source github: token of GitHub App 123456"] == nil {
+		t.Errorf("sources = %v", p.Sources)
+	}
+}
+
+func TestThePrivateKeyOfAGitHubAppReachesNoHost(t *testing.T) {
+	key := `"github:agents:installations:mint"`
+	for name, c := range map[string]struct{ extra, want string }{
+		"a credential":    {"[[http]]\nhost = \"a.example\"\ncredential = { secret = " + key + " }\n", `it holds the private key of the GitHub App in "github", which stays on your machine, so the credential for a.example cannot use it`},
+		"a rule":          {"[[http]]\nhost = \"a.example\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/**\"\naction = \"allow\"\ncredential = { secret = " + key + " }\n", "so the credential for a.example cannot use it"},
+		"an MCP server":   {"[[mcp]]\nname = \"m\"\nurl = \"https://a.example/mcp\"\nsecret = " + key + "\n", "so the MCP server m cannot use it"},
+		"the signing key": {"[signing]\nkey = " + key + "\n", "so the signing key cannot use it"},
+	} {
+		if _, err := load(t, appProfile+"\n"+c.extra, nil); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}
+
+func TestTheKeyOfAGitHubAppMustBeASecretThatHoldsAKey(t *testing.T) {
+	app := func(key string) string {
+		return "[secrets.github]\ngithub_app = { app_id = 1, key = \"" + key + "\", permissions = { contents = \"read\" } }\n"
+	}
+	for name, c := range map[string]struct{ profile, want string }{
+		"no such secret": {app("k"), `github_app key "k": add it under [secrets.k] in the profile`},
+		"itself":         {app("github"), `github_app key "github" must hold the private key itself`},
+		"a login":        {app("k") + "[secrets.k.oauth]\nissuer = \"https://a.example\"\nclient_id = \"c\"\n", `github_app key "k" must hold the private key itself`},
+		"another app":    {app("k") + "[secrets.k]\ngithub_app = { app_id = 2, key = \"github\", permissions = { contents = \"read\" } }\n", `must hold the private key itself`},
+	} {
+		if _, err := load(t, c.profile, nil); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v", name, err)
+		}
 	}
 }

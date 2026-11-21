@@ -35,6 +35,37 @@ let
         default = null;
         description = "Keep the secret in the keyring of your desktop. Store it with `doriath profiles login NAME`.";
       };
+      github_app = lib.mkOption {
+        type = lib.types.nullOr (
+          lib.types.submodule {
+            options = {
+              app_id = lib.mkOption {
+                type = lib.types.int;
+                description = "The number of the GitHub App.";
+              };
+              key = lib.mkOption {
+                type = lib.types.str;
+                description = "The name of the secret that holds the private key of the app.";
+              };
+              permissions = lib.mkOption {
+                type = lib.types.attrsOf lib.types.str;
+                example = {
+                  contents = "write";
+                  pull_requests = "write";
+                };
+                description = "The permissions of the token, each read, write or admin.";
+              };
+              repositories = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [ ];
+                description = "Repositories as owner/repo for the token, in place of the repository of the session.";
+              };
+            };
+          }
+        );
+        default = null;
+        description = "A short-lived token for the installation of a GitHub App on the repository of the session.";
+      };
       oauth = lib.mkOption {
         type = lib.types.nullOr (
           lib.types.submodule {
@@ -307,8 +338,9 @@ in
               s.command
               s.keyring
               s.oauth
+              s.github_app
             ] == 1;
-          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of command, keyring or oauth.";
+          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of command, keyring, oauth or github_app.";
         }) p.secrets
       ) cfg.profiles
     );

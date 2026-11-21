@@ -561,6 +561,10 @@ func (b *builder) apply(l layer) {
 			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot run a command on your machine. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
 			continue
 		}
+		if l.fromRepository() && v.GitHubApp != nil {
+			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot mint tokens with a key of yours. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
+			continue
+		}
 		if l.fromRepository() && v.Keyring {
 			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot read your keyring. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
 			continue
@@ -787,12 +791,62 @@ func describeSecretSource(v secretLayer) string {
 		return "command " + strings.Join(v.Command, " ")
 	case v.Keyring:
 		return "keyring"
+	case v.GitHubApp != nil:
+		return fmt.Sprintf("token of GitHub App %d", v.GitHubApp.AppID)
 	case v.OAuth != nil && v.OAuth.MCP != "":
 		return "login to MCP server " + v.OAuth.MCP
 	case v.OAuth != nil:
 		return "login at " + v.OAuth.Issuer
 	}
 	return "unset"
+}
+
+// appKeyErrors checks the secrets that hold the private key of a GitHub App.
+// The key stays on your machine, so nothing may send it anywhere: no
+// credential, MCP server or signing key can use it.
+func appKeyErrors(p *Profile) []error {
+	var errs []error
+	keyOf := map[string]string{}
+	for _, name := range slices.Sorted(maps.Keys(p.Secrets)) {
+		a := p.Secrets[name].GitHubApp
+		if a == nil {
+			continue
+		}
+		key, ok := p.Secrets[a.Key]
+		switch {
+		case !ok:
+			errs = append(errs, fmt.Errorf("secret %q: github_app key %q: add it under [secrets.%s] in the profile", name, a.Key, cli.TOMLKey(a.Key)))
+		case a.Key == name || key.GitHubApp != nil || key.OAuth != nil:
+			errs = append(errs, fmt.Errorf("secret %q: github_app key %q must hold the private key itself, from a command or the keyring", name, a.Key))
+		default:
+			keyOf[a.Key] = name
+		}
+	}
+	refuse := func(key, use string) {
+		if app, ok := keyOf[key]; ok {
+			errs = append(errs, fmt.Errorf("secret %q: it holds the private key of the GitHub App in %q, which stays on your machine, so %s cannot use it", key, app, use))
+		}
+	}
+	for _, h := range p.HTTP {
+		creds := []*Credential{h.Credential}
+		for _, r := range h.Rules {
+			creds = append(creds, r.Credential)
+		}
+		for _, c := range creds {
+			if c != nil {
+				refuse(c.Secret, "the credential for "+string(h.Host))
+			}
+		}
+	}
+	for _, m := range p.MCP {
+		if m.Secret != "" {
+			refuse(m.Secret, "the MCP server "+m.Name)
+		}
+	}
+	if p.SigningKey != "" {
+		refuse(p.SigningKey, "the signing key")
+	}
+	return errs
 }
 
 func (b *builder) recordDecisions(l layer) {
@@ -1166,6 +1220,9 @@ func (b *builder) build(top layer) (*Profile, error) {
 			}
 			backend.Refresh = d
 		}
+		if a := s.GitHubApp; a != nil {
+			backend.GitHubApp = &secret.GitHubApp{AppID: a.AppID, Key: a.Key, Permissions: a.Permissions, Repositories: a.Repositories}
+		}
 		if o := s.OAuth; o != nil {
 			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, ClientID: o.ClientID, Scopes: o.Scopes}
 		}
@@ -1201,6 +1258,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			}
 		}
 	}
+	errs = append(errs, appKeyErrors(p)...)
 	if b.limits.Tasks < 0 {
 		errs = append(errs, fmt.Errorf("limits tasks %d: must be zero (no limit) or more", b.limits.Tasks))
 	}
