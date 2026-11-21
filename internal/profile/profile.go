@@ -133,12 +133,19 @@ const (
 	// secret, in the JSON that credential_process prints. The agent signs
 	// with placeholder keys.
 	SchemeSigV4 Scheme = "sigv4"
+	// SchemeWebSocket puts the token in a field of the first message that
+	// the client sends on a WebSocket, in place of what the client sent. The
+	// Claude in Chrome bridge takes its login in oauth_token of that message.
+	SchemeWebSocket Scheme = "websocket"
 )
 
 type Credential struct {
 	Secret   string
 	Scheme   Scheme
 	Username string
+	// Field is the JSON field of the first WebSocket message that gets the
+	// token, for SchemeWebSocket.
+	Field string
 	// KeyID is the placeholder access key that the jail signs with for
 	// SchemeSigV4. A presigned URL with another key, such as one an AWS
 	// service hands out, passes as it is.

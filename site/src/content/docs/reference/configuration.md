@@ -151,7 +151,9 @@ allow = ["js.stripe.com"]
 [[http]]
 host = "api.github.com"
 # scheme is bearer, token, basic with username, header with the name of
-# a header, such as PRIVATE-TOKEN, or sigv4. With sigv4, the agent signs
+# a header, such as PRIVATE-TOKEN, websocket with the name of a JSON
+# field, or sigv4. With websocket, the proxy puts the token in that field
+# of the first message that the client sends on a WebSocket. With sigv4, the agent signs
 # AWS requests with placeholder keys, and the proxy signs them again with
 # the secret, which is the JSON that credential_process prints.
 # binaries gives the credential only to these programs, as in

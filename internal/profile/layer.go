@@ -156,6 +156,7 @@ type credentialLayer struct {
 	Scheme   string   `toml:"scheme"`
 	Username string   `toml:"username"`
 	Header   string   `toml:"header"`
+	Field    string   `toml:"field"`
 	KeyID    string   `toml:"key_id"`
 	Binaries []string `toml:"binaries"`
 }

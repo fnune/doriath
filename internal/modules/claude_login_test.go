@@ -153,3 +153,17 @@ func TestARepositoryProfileCannotReplaceTheLoginOfTheClaudeModule(t *testing.T) 
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestClaudeInChromeSignsInThroughTheProxy(t *testing.T) {
+	p, err := loadWithClaude(t, map[string]string{"app": `modules = ["claude"]`}, "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, ok := p.Intercepted("bridge.claudeusercontent.com")
+	if !ok || h.Credential == nil || h.Credential.Secret != "claude" || h.Credential.Scheme != profile.SchemeWebSocket || h.Credential.Field != "oauth_token" || !slices.Equal(h.Credential.Binaries, []string{"claude"}) {
+		t.Fatalf("credential = %+v", h.Credential)
+	}
+	if !p.AllowsHost("bridge.claudeusercontent.com") {
+		t.Error("the bridge is not allowed")
+	}
+}

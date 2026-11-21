@@ -96,6 +96,13 @@ path = "/api/event_logging/**"
 action = "deny"
 summary = "Send usage events to Anthropic"
 
+# Claude in Chrome sends the login in oauth_token, in the first message that
+# it sends on its WebSocket to the bridge. The proxy replaces what it sends.
+[[http]]
+host = "bridge.claudeusercontent.com"
+default = "allow"
+credential = { secret = "claude", scheme = "websocket", field = "oauth_token", binaries = ["claude"] }
+
 # Claude Code sends the login to claude.ai for account calls. It also sends it
 # to mcp-proxy.anthropic.com, which stays denied with the connectors.
 [[http]]

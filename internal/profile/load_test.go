@@ -149,7 +149,7 @@ func TestLoadRejects(t *testing.T) {
 		},
 		"unknown scheme": {
 			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"digest\" }",
-			want:    "want bearer, token, basic, header or sigv4",
+			want:    "want bearer, token, basic, header, sigv4 or websocket",
 		},
 		"empty credential binary": {
 			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"\"] }",

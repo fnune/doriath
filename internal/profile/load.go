@@ -1405,6 +1405,9 @@ func (b *builder) buildCredential(c credentialLayer) (Credential, error) {
 	if c.Header != "" && scheme != SchemeHeader {
 		return Credential{}, fmt.Errorf("header is only used with the header scheme")
 	}
+	if c.Field != "" && scheme != SchemeWebSocket {
+		return Credential{}, fmt.Errorf("field is only used with the websocket scheme")
+	}
 	if c.KeyID != "" && scheme != SchemeSigV4 {
 		return Credential{}, fmt.Errorf("key_id is only used with the sigv4 scheme")
 	}
@@ -1414,12 +1417,16 @@ func (b *builder) buildCredential(c credentialLayer) (Credential, error) {
 		if c.Username == "" {
 			return Credential{}, fmt.Errorf("the basic scheme needs a username")
 		}
+	case SchemeWebSocket:
+		if !jsonField.MatchString(c.Field) {
+			return Credential{}, fmt.Errorf("the websocket scheme needs the name of a field, such as oauth_token")
+		}
 	case SchemeHeader:
 		if !headerName.MatchString(c.Header) {
 			return Credential{}, fmt.Errorf("the header scheme needs a header name, such as PRIVATE-TOKEN")
 		}
 	default:
-		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic, header or sigv4", c.Scheme)
+		return Credential{}, fmt.Errorf("scheme %q: want bearer, token, basic, header, sigv4 or websocket", c.Scheme)
 	}
 	var binaries []string
 	for _, bin := range c.Binaries {
@@ -1435,8 +1442,10 @@ func (b *builder) buildCredential(c credentialLayer) (Credential, error) {
 		}
 		binaries = append(binaries, bin)
 	}
-	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Header: http.CanonicalHeaderKey(c.Header), KeyID: c.KeyID, Binaries: binaries}, nil
+	return Credential{Secret: c.Secret, Scheme: scheme, Username: c.Username, Field: c.Field, Header: http.CanonicalHeaderKey(c.Header), KeyID: c.KeyID, Binaries: binaries}, nil
 }
+
+var jsonField = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 var methodPattern = regexp.MustCompile(`^(\*|[A-Z]+)$`)
 

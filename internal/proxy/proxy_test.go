@@ -222,11 +222,18 @@ func newHarnessWith(t *testing.T, toml string) *harness {
 func newHarnessFor(t *testing.T, p *profile.Profile) *harness {
 	t.Helper()
 	up := &upstream{}
-	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
+	return newHarnessServing(t, p, up, up)
+}
+
+// newHarnessServing starts the proxy in front of a TLS server that runs
+// handler. up is what the tests read back, and stays empty if handler is not it.
+func newHarnessServing(t *testing.T, p *profile.Profile, up *upstream, handler http.Handler) *harness {
+	t.Helper()
+	upCA, err := ca.New([]string{"api.github.com", "github.com", "example.com", "mcp.example.com", "bridge.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tlsServer := httptest.NewUnstartedServer(up)
+	tlsServer := httptest.NewUnstartedServer(handler)
 	tlsServer.TLS = &tls.Config{GetCertificate: func(h *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		return upCA.Certificate(h.ServerName)
 	}}
@@ -236,7 +243,7 @@ func newHarnessFor(t *testing.T, p *profile.Profile) *harness {
 	plainServer := httptest.NewServer(up)
 	t.Cleanup(plainServer.Close)
 
-	session, err := ca.New([]string{"api.github.com", "github.com", "mcp.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
+	session, err := ca.New([]string{"api.github.com", "github.com", "mcp.example.com", "bridge.example.com", "sts.us-east-1.amazonaws.com"}, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +253,7 @@ func newHarnessFor(t *testing.T, p *profile.Profile) *harness {
 		Config{Session: "s1", Profile: "t", ApprovalTTL: time.Second, UpstreamRoots: upCA.Pool()},
 		p,
 		approver,
-		mapSecrets{"github": "real-token", "aws": `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session","Expiration":"2099-01-01T00:00:00Z"}`},
+		mapSecrets{"github": "real-token", "claude": "real-login", "aws": `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session","Expiration":"2099-01-01T00:00:00Z"}`},
 		session,
 		redirectDialer{tlsAddr: tlsServer.Listener.Addr().String(), plainAddr: plainServer.Listener.Addr().String()},
 		ev,

@@ -393,6 +393,11 @@ func (s *Server) intercepted(w http.ResponseWriter, r *http.Request, host, targe
 	case c == nil:
 	case !c.AllowsBinary(IdentityFrom(r.Context()).Program()):
 		s.withheld(host, IdentityFrom(r.Context()))
+	case c.Scheme == profile.SchemeWebSocket:
+		if isWebSocketUpgrade(r) {
+			s.forwardWebSocket(w, r, target, *c)
+			return
+		}
 	case c.Scheme == profile.SchemeSigV4:
 		var err error
 		sign, err = s.sigv4(r.Context(), *c, r)

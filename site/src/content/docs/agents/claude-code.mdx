@@ -21,7 +21,7 @@ doriath opens the Claude sign-in page in your browser, and keeps the login in th
 - Claude Code keeps its own login in `.credentials.json` in its config directory. The `claude` module deletes that file in the cache of the profile at each session start, because it would hold a refresh token that the agent can read. `doriath doctor` reports such files.
 - To use another source for one profile, such as an API key from a password manager, give `[secrets.claude]` in the profile. It replaces the login of the module.
 
-Claude sends the token only to `api.anthropic.com` and `claude.ai`. Two features can still fail: connectors, which reach `mcp-proxy.anthropic.com` and stay off, and Claude in Chrome, whose `bridge.claudeusercontent.com` connection the proxy does not touch, so it has no token.
+Claude sends the token to `api.anthropic.com` and `claude.ai` in a header. Claude in Chrome sends it to `bridge.claudeusercontent.com` in the first message of a WebSocket, and the proxy replaces the placeholder there. Connectors reach `mcp-proxy.anthropic.com`, which stays refused, so they stay off.
 
 ## The adapter
 
@@ -62,7 +62,7 @@ Claude reaches the connectors through `mcp-proxy.anthropic.com`, which the `clau
 
 ## Claude in Chrome
 
-Claude in Chrome works in the jail with no change to the profile. Chrome starts a native host outside the jail, which puts a socket in `/tmp/claude-mcp-browser-bridge-<user>`. The `claude` module shows that directory read-only, and allows `bridge.claudeusercontent.com`, which Claude also uses to reach the extension. Open Chrome before the session starts, because doriath skips the directory if it does not exist yet. A profile that existed before you turned on Claude in Chrome does not have the setting, so run `/chrome` once in a session, or start Claude with `--chrome`.
+Claude in Chrome works in the jail with no change to the profile. Chrome starts a native host outside the jail, which puts a socket in `/tmp/claude-mcp-browser-bridge-<user>`. The `claude` module shows that directory read-only, and allows `bridge.claudeusercontent.com`, which Claude also uses to reach the extension. Claude signs in to that host with a login in the first message of its WebSocket. The proxy puts the real token in that message, so the jail never holds it. Open Chrome before the session starts, because doriath skips the directory if it does not exist yet. A profile that existed before you turned on Claude in Chrome does not have the setting, so run `/chrome` once in a session, or start Claude with `--chrome`.
 
 The browser runs outside the jail, with your sign-ins, and its requests do not go through the proxy. The `claude` module makes `javascript_tool` and `file_upload` ask first. The other Chrome tools, such as navigation and clicks, do not ask. To make them ask, add them to `ask`, or turn Chrome off with `/chrome` in the session.
 
