@@ -69,9 +69,11 @@ type Secrets interface {
 }
 
 type Deps struct {
-	Paths    config.Paths
-	User     config.User
-	Secrets  Secrets
+	Paths   config.Paths
+	User    config.User
+	Secrets Secrets
+	// Logins holds the OAuth logins, apart from the keyring secrets.
+	Logins   secret.Keyring
 	Notifier approval.Notifier
 	Informer Informer
 	Clock    approval.Clock
@@ -190,7 +192,7 @@ func New(deps Deps, req Request) (*Session, error) {
 	steps.step("resolve the profile")
 	listings := newListingCache()
 	stopNote := noteIfSlow(deps.Stderr, slowWalk, "looking for git and jj repositories in the profile's mounts; a mount that holds many checkouts slows the start")
-	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Paths.State)
+	req.Profile = refuseOwnLogins(withLinkedStores(resolved, listings), deps.Logins)
 	stopNote()
 	steps.step("find repositories")
 	if err := CheckSigning(req.Profile, deps.VCS); err != nil {
@@ -595,8 +597,7 @@ func (s *Session) secretNotes(ctx context.Context) ([]string, error) {
 }
 
 func (s *Session) signedIn(secret string) bool {
-	_, err := os.Stat(oauth.StatePath(s.deps.Paths.State, s.req.Profile.SecretOwner(secret), secret))
-	return !errors.Is(err, os.ErrNotExist)
+	return s.deps.Logins != nil && oauth.SignedIn(s.deps.Logins, s.req.Profile.SecretOwner(secret), secret)
 }
 
 func secretUsers(p *profile.Profile, name string) []string {

@@ -9,9 +9,10 @@ import (
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/oauth"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
-func refuseOwnLogins(p *profile.Profile, stateDir string) *profile.Profile {
+func refuseOwnLogins(p *profile.Profile, logins secret.Keyring) *profile.Profile {
 	out := *p
 	out.HTTP = slices.Clone(p.HTTP)
 	for _, m := range p.MCP {
@@ -30,7 +31,7 @@ func refuseOwnLogins(p *profile.Profile, stateDir string) *profile.Profile {
 		}
 		summary := fmt.Sprintf("doriath holds the %s login for profile %s, so the agent needs none. If calls to %s fail, run on the host: %s", m.Secret, p.Name, m.Name, cli.Code(cli.Line("profiles", "login", p.Name, m.Secret)))
 		var rules []profile.Rule
-		for _, path := range loginPaths(stateDir, p.SecretOwner(m.Secret), m.Secret, host) {
+		for _, path := range loginPaths(logins, p.SecretOwner(m.Secret), m.Secret, host) {
 			if pp, err := profile.ParsePathPattern(path); err == nil {
 				rules = append(rules, profile.Rule{Method: "POST", Path: pp, Action: profile.ActionDeny, Summary: summary})
 			}
@@ -45,9 +46,9 @@ func refuseOwnLogins(p *profile.Profile, stateDir string) *profile.Profile {
 	return &out
 }
 
-func loginPaths(stateDir, profileName, secret, host string) []string {
+func loginPaths(logins secret.Keyring, profileName, name, host string) []string {
 	common := []string{"/token", "/oauth/token", "/register"}
-	token, registration, ok := oauth.Endpoints(stateDir, profileName, secret)
+	token, registration, ok := endpoints(logins, profileName, name)
 	if !ok {
 		return common
 	}
@@ -61,4 +62,11 @@ func loginPaths(stateDir, profileName, secret, host string) []string {
 		paths = append(paths, "/register")
 	}
 	return paths
+}
+
+func endpoints(logins secret.Keyring, profileName, name string) (token, registration string, ok bool) {
+	if logins == nil {
+		return "", "", false
+	}
+	return oauth.Endpoints(logins, profileName, name)
 }

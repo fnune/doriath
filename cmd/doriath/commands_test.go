@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
-	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/secret"
 	"github.com/fnune/doriath/internal/session"
 )
@@ -428,17 +428,14 @@ mcp = "https://mcp.notion.com/mcp"
 [secrets.key]
 command = ["true"]
 `)
+	logins := keyringtest.New()
 	for _, s := range []string{"linear", "notion"} {
-		state := oauth.StatePath(p.State, "app", s)
-		if err := os.MkdirAll(filepath.Dir(state), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(state, []byte("{}"), 0o600); err != nil {
+		if err := logins.Write("app", s, secret.NewValue([]byte(`{"token":{"access_token":"a"}}`))); err != nil {
 			t.Fatal(err)
 		}
 	}
 	var out bytes.Buffer
-	if err := cmdProfiles([]string{"login", "app"}, strings.NewReader(""), &out); err != nil {
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app"}, strings.NewReader(""), memoryKeyring{}, logins, &out); err != nil {
 		t.Fatal(err)
 	}
 	want := "Already signed in for linear; name it to sign in again.\n" +
@@ -447,7 +444,7 @@ command = ["true"]
 	if out.String() != want {
 		t.Errorf("login = %q, want %q", out.String(), want)
 	}
-	if err := cmdProfiles([]string{"login", "app", "key"}, strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "key"}, strings.NewReader(""), memoryKeyring{}, logins, &out); err == nil || !strings.Contains(err.Error(), "profile app has no [secrets.key] with oauth") {
 		t.Errorf("a secret without oauth: %v", err)
 	}
 }
@@ -479,7 +476,7 @@ keyring = true
 `)
 	kr := memoryKeyring{"app/stored": "old"}
 	var out bytes.Buffer
-	if err := cmdLogin(p, loader(p, p.Home), []string{"app"}, strings.NewReader("tok\n"), kr, &out); err != nil {
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app"}, strings.NewReader("tok\n"), kr, keyringtest.New(), &out); err != nil {
 		t.Fatal(err)
 	}
 	if kr["app/forge"] != "tok" || kr["app/stored"] != "old" {
@@ -490,10 +487,10 @@ keyring = true
 			t.Errorf("output %q lacks %q", out.String(), want)
 		}
 	}
-	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "stored"}, strings.NewReader("new\n"), kr, &out); err != nil || kr["app/stored"] != "new" {
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "stored"}, strings.NewReader("new\n"), kr, keyringtest.New(), &out); err != nil || kr["app/stored"] != "new" {
 		t.Errorf("naming a stored secret replaces it: %v, %v", kr, err)
 	}
-	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "forge"}, strings.NewReader("\n"), kr, &out); err == nil || !strings.Contains(err.Error(), "is empty") {
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app", "forge"}, strings.NewReader("\n"), kr, keyringtest.New(), &out); err == nil || !strings.Contains(err.Error(), "is empty") {
 		t.Errorf("an empty value: %v", err)
 	}
 }
@@ -549,5 +546,31 @@ func TestAnAnswerTakesItsFlagsBeforeOrAfterTheID(t *testing.T) {
 		if _, _, _, err := parseAnswer("allow", args); err == nil {
 			t.Errorf("%v: no error", args)
 		}
+	}
+}
+
+func TestLoginMovesAnOldLoginFileIntoTheKeyring(t *testing.T) {
+	p := testPaths(t)
+	writeProfile(t, p, "app", "modules = []\n\n[secrets.linear.oauth]\nmcp = \"https://mcp.linear.app/mcp\"\n")
+	old := filepath.Join(p.State, "oauth", "app", "linear.json")
+	if err := os.MkdirAll(filepath.Dir(old), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(old, []byte(`{"token":{"access_token":"a"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logins := keyringtest.New()
+	var out bytes.Buffer
+	if err := cmdLogin(p, loader(p, p.Home), []string{"app"}, strings.NewReader(""), memoryKeyring{}, logins, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !logins.Has("app", "linear") {
+		t.Error("the login is not in the keyring")
+	}
+	if _, err := os.Stat(filepath.Dir(old)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the old login stays on disk: %v", err)
+	}
+	if !strings.Contains(out.String(), "Already signed in for linear") {
+		t.Errorf("output = %q", out.String())
 	}
 }

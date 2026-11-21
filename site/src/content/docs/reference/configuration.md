@@ -643,7 +643,7 @@ To replace one value, name the secret, such as `doriath profiles login my-app fo
 
 ## OAuth logins
 
-A secret with `oauth` is a login that doriath keeps on the host. To sign in, run this command on the host:
+A secret with `oauth` is a login that doriath keeps in the [keyring](#keyring-secrets) of your desktop. To sign in, run this command on the host:
 
 ```sh
 doriath profiles login NAME
@@ -656,7 +656,11 @@ The command signs in to each OAuth secret of the profile that has no login, or t
 
 The proxy adds a fresh access token to each request that uses the secret, so the agent never holds a token. In a session, doriath refuses the sign-in of the agent to a server that doriath has a login for, because the agent can read a token that it gets in the jail. The metadata of the server stays readable.
 
-If the refresh token stops working, doriath tells you to run `doriath profiles login` again. Tokens are in `~/.local/state/doriath/oauth/<profile>/<name>.json`, with mode 600, outside the jail.
+If the refresh token stops working, doriath tells you to run `doriath profiles login` again. doriath writes each refreshed token back to the keyring.
+
+- An entry has the service `doriath-oauth` and the account `PROFILE/NAME`. A login and a keyring secret with the same name do not share an entry.
+- If no keyring answers, the login is unavailable. doriath does not keep it in a file.
+- Earlier versions kept logins in `~/.local/state/doriath/oauth/`. The next `doriath run` or `doriath profiles login` moves each file into the keyring and deletes it, so you do not sign in again. If the keyring does not answer, the files stay. `doriath doctor` lists them.
 
 ## Containers
 
@@ -719,7 +723,6 @@ bar = true
 | `~/.local/state/doriath/audit.jsonl`      | Every session, egress decision and approval. Read it with `doriath log`, or lnav with `contrib/lnav`. |
 | `~/.local/state/doriath/images/`          | Container image digests for each profile                                                              |
 | `~/.local/state/doriath/profiles/`        | What you allowed for each profile in each repository                                                  |
-| `~/.local/state/doriath/oauth/`           | OAuth logins for each profile, with their refresh tokens                                              |
 | `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
 | `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |
 | `~/.local/state/doriath/moved/<session>/` | What the agent created at a held path, which doriath moved out of the repository                      |

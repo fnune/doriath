@@ -1,5 +1,5 @@
 // Package oauth signs in to OAuth servers on the host and keeps their tokens
-// there. doriath profiles login runs the browser flow once; sessions then get fresh
+// in the keyring of your desktop. doriath profiles login runs the browser flow once; sessions then get fresh
 // access tokens from here, which the proxy adds to requests, so no token
 // ever reaches the jail.
 package oauth
@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,54 +49,49 @@ func (s State) config() *oauth2.Config {
 	}
 }
 
-func StatePath(stateDir, profile, name string) string {
-	return filepath.Join(stateDir, "oauth", profile, name+".json")
-}
-
-func load(path string) (State, error) {
-	data, err := os.ReadFile(path)
+func load(v secret.Keyring, profile, name string) (State, error) {
+	value, err := v.Read(profile, name)
 	if err != nil {
 		return State{}, err
 	}
 	var s State
-	if err := json.Unmarshal(data, &s); err != nil {
-		return State{}, fmt.Errorf("%s: %w", path, err)
+	if err := json.Unmarshal(value.Reveal(), &s); err != nil {
+		return State{}, fmt.Errorf("login %s/%s in the keyring: %w", profile, name, err)
 	}
 	if s.Token == nil {
-		return State{}, fmt.Errorf("%s: no token", path)
+		return State{}, fmt.Errorf("login %s/%s in the keyring: no token", profile, name)
 	}
 	return s, nil
 }
 
-func (s State) save(path string) error {
-	data, err := json.MarshalIndent(s, "", "  ")
+func (s State) save(v secret.Keyring, profile, name string) error {
+	data, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return v.Write(profile, name, secret.NewValue(data))
+}
+
+// SignedIn tells whether the keyring holds a login for the secret.
+func SignedIn(v secret.Keyring, profile, name string) bool {
+	_, err := load(v, profile, name)
+	return err == nil
 }
 
 type Tokens struct {
-	stateDir string
-	owner    func(secret string) string
+	logins secret.Keyring
+	owner  func(secret string) string
 
 	mu      sync.Mutex
 	sources map[string]oauth2.TokenSource
 }
 
-func NewTokens(stateDir, profile string) *Tokens {
-	return NewTokensOwnedBy(stateDir, func(string) string { return profile })
+func NewTokens(logins secret.Keyring, profile string) *Tokens {
+	return NewTokensOwnedBy(logins, func(string) string { return profile })
 }
 
-func NewTokensOwnedBy(stateDir string, owner func(secret string) string) *Tokens {
-	return &Tokens{stateDir: stateDir, owner: owner, sources: map[string]oauth2.TokenSource{}}
+func NewTokensOwnedBy(logins secret.Keyring, owner func(secret string) string) *Tokens {
+	return &Tokens{logins: logins, owner: owner, sources: map[string]oauth2.TokenSource{}}
 }
 
 func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {
@@ -103,9 +99,8 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	src, ok := t.sources[name]
 	if !ok {
 		profile := t.owner(name)
-		path := StatePath(t.stateDir, profile, name)
-		s, err := load(path)
-		if errors.Is(err, os.ErrNotExist) {
+		s, err := load(t.logins, profile, name)
+		if errors.Is(err, secret.ErrNotInKeyring) {
 			t.mu.Unlock()
 			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", profile, name)))
 		}
@@ -113,7 +108,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 			t.mu.Unlock()
 			return secret.Value{}, fmt.Errorf("secret %q: %w", name, err)
 		}
-		src = oauth2.ReuseTokenSource(s.Token, &saving{src: s.config().TokenSource(context.Background(), s.Token), state: s, path: path})
+		src = oauth2.ReuseTokenSource(s.Token, &saving{src: s.config().TokenSource(context.Background(), s.Token), state: s, logins: t.logins, profile: profile, name: name})
 		t.sources[name] = src
 	}
 	t.mu.Unlock()
@@ -125,9 +120,10 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 }
 
 type saving struct {
-	src   oauth2.TokenSource
-	state State
-	path  string
+	src           oauth2.TokenSource
+	state         State
+	logins        secret.Keyring
+	profile, name string
 }
 
 func (s *saving) Token() (*oauth2.Token, error) {
@@ -136,17 +132,74 @@ func (s *saving) Token() (*oauth2.Token, error) {
 		return nil, err
 	}
 	s.state.Token = tok
-	return tok, s.state.save(s.path)
+	return tok, s.state.save(s.logins, s.profile, s.name)
+}
+
+// Migrate moves the login files of earlier versions into the keyring and
+// deletes them. A login that the keyring already holds is newer than its
+// file, so only the file goes. A file stays when the keyring does not answer.
+func Migrate(stateDir string, logins secret.Keyring) error {
+	root := filepath.Join(stateDir, "oauth")
+	profiles, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, dir := range profiles {
+		profile := dir.Name()
+		files, err := os.ReadDir(filepath.Join(root, profile))
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, f := range files {
+			path := filepath.Join(root, profile, f.Name())
+			name, isLogin := strings.CutSuffix(f.Name(), ".json")
+			if !isLogin {
+				errs = append(errs, os.Remove(path))
+				continue
+			}
+			errs = append(errs, moveLogin(path, logins, profile, name))
+		}
+		_ = os.Remove(filepath.Join(root, profile))
+	}
+	_ = os.Remove(root)
+	return errors.Join(errs...)
+}
+
+func moveLogin(path string, logins secret.Keyring, profile, name string) error {
+	_, err := logins.Read(profile, name)
+	switch {
+	case err == nil:
+		return os.Remove(path)
+	case !errors.Is(err, secret.ErrNotInKeyring):
+		return fmt.Errorf("keep %s: %w", path, err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var s State
+	if err := json.Unmarshal(data, &s); err != nil || s.Token == nil {
+		return fmt.Errorf("keep %s: it holds no login", path)
+	}
+	if err := logins.Write(profile, name, secret.NewValue(data)); err != nil {
+		return fmt.Errorf("keep %s: %w", path, err)
+	}
+	return os.Remove(path)
 }
 
 type Browser interface {
 	Open(url string) error
 }
 
-// Login signs in for one OAuth secret and saves the result at path. The
+// Login signs in for one OAuth secret and saves the result in the keyring. The
 // server redirects your browser back to a listener on the host's loopback
 // address, which the jail cannot reach.
-func Login(ctx context.Context, o secret.OAuth, path string, browser Browser, w io.Writer) error {
+func Login(ctx context.Context, o secret.OAuth, logins secret.Keyring, profile, name string, browser Browser, w io.Writer) error {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -172,7 +225,7 @@ func Login(ctx context.Context, o secret.OAuth, path string, browser Browser, w 
 	if s.Token.RefreshToken == "" {
 		fmt.Fprintln(w, "The server gave no refresh token, so you sign in again when this one expires.")
 	}
-	return s.save(path)
+	return s.save(logins, profile, name)
 }
 
 func loginMCP(ctx context.Context, server, redirect string, fetch auth.AuthorizationCodeFetcher) (State, error) {
@@ -225,8 +278,8 @@ func loginMCP(ctx context.Context, server, redirect string, fetch auth.Authoriza
 	return s, nil
 }
 
-func Endpoints(stateDir, profile, name string) (token, registration string, ok bool) {
-	s, err := load(StatePath(stateDir, profile, name))
+func Endpoints(logins secret.Keyring, profile, name string) (token, registration string, ok bool) {
+	s, err := load(logins, profile, name)
 	if err != nil {
 		return "", "", false
 	}

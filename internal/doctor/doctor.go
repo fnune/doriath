@@ -2,7 +2,6 @@ package doctor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -45,6 +44,7 @@ type Options struct {
 	FetchSecrets bool
 	Runner       secret.Runner
 	Keyring      secret.Keyring
+	Logins       secret.Keyring
 	Asker        secret.Asker
 	Allow        func(*profile.Profile) error
 	Dir          string
@@ -168,7 +168,6 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 		}
 		check(name, err)
 	}
-	p := opts.Paths
 	secrets := 0
 	for _, prof := range profiles {
 		if opts.FetchSecrets && len(prof.Secrets) > 0 {
@@ -177,7 +176,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
+		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(opts.Logins, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -189,8 +188,8 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				cancel()
 				checkSecret(label, b, err)
 			case b.OAuth != nil:
-				_, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(name), name))
-				if errors.Is(err, os.ErrNotExist) {
+				var err error
+				if !oauth.SignedIn(opts.Logins, prof.SecretOwner(name), name) {
 					err = fmt.Errorf("not signed in: run %s", cli.Code(cli.Line("profiles", "login", prof.Name, name)))
 				}
 				checkSecret(label+" (oauth)", b, err)

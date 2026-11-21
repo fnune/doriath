@@ -322,10 +322,14 @@ func cmdRun(args []string) (int, error) {
 	}
 	tools := vcsJailTools(p)
 
+	if err := oauth.Migrate(p.State, keyring.Logins{}); err != nil {
+		fmt.Fprintf(os.Stderr, "doriath: move the OAuth logins into the keyring: %v\n", err)
+	}
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
+		Logins:      keyring.Logins{},
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithOAuth(oauth.NewTokensOwnedBy(keyring.Logins{}, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

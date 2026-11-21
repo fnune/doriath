@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"slices"
 
 	"github.com/fnune/doriath/internal/config"
@@ -15,7 +14,10 @@ import (
 	"github.com/fnune/doriath/internal/secret"
 )
 
-func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr secret.Keyring, w io.Writer) error {
+func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr, logins secret.Keyring, w io.Writer) error {
+	if err := oauth.Migrate(p.State, logins); err != nil {
+		return fmt.Errorf("login: move the OAuth logins into the keyring: %w", err)
+	}
 	prof, err := l.Load(args[0])
 	if err != nil {
 		return err
@@ -29,7 +31,7 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr
 		targets = []string{s}
 	} else {
 		for _, s := range slices.Sorted(maps.Keys(prof.Secrets)) {
-			done, err := loggedIn(p, prof, kr, s)
+			done, err := loggedIn(prof, kr, logins, s)
 			if err != nil {
 				return fmt.Errorf("login %s: %w", s, err)
 			}
@@ -60,7 +62,7 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr
 			continue
 		}
 		fmt.Fprintf(w, "Signing in for %s.\n", s)
-		if err := oauth.Login(context.Background(), *prof.Secrets[s].OAuth, oauth.StatePath(p.State, owner, s), opener{}, w); err != nil {
+		if err := oauth.Login(context.Background(), *prof.Secrets[s].OAuth, logins, owner, s, opener{}, w); err != nil {
 			return fmt.Errorf("login %s: %w", s, err)
 		}
 		fmt.Fprintf(w, "Signed in for %s in profile %s.\n", s, owner)
@@ -68,12 +70,11 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr
 	return nil
 }
 
-func loggedIn(p config.Paths, prof *profile.Profile, kr secret.Keyring, s string) (bool, error) {
+func loggedIn(prof *profile.Profile, kr, logins secret.Keyring, s string) (bool, error) {
 	b := prof.Secrets[s]
 	switch {
 	case b.OAuth != nil:
-		_, err := os.Stat(oauth.StatePath(p.State, prof.SecretOwner(s), s))
-		return err == nil, nil
+		return oauth.SignedIn(logins, prof.SecretOwner(s), s), nil
 	case b.Keyring:
 		_, err := kr.Read(prof.SecretOwner(s), s)
 		if errors.Is(err, secret.ErrNotInKeyring) {

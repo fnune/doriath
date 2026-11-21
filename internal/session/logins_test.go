@@ -1,12 +1,10 @@
 package session
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -30,15 +28,11 @@ func refused(h profile.HTTPHost, method, path string) bool {
 }
 
 func TestTheAgentCannotSignInWhereDoriathHoldsTheLogin(t *testing.T) {
-	state := t.TempDir()
-	path := oauth.StatePath(state, "work", "linear")
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	logins := keyringtest.New()
+	if err := logins.Write("work", "linear", secret.NewValue([]byte(`{"client_id":"c","token_url":"https://mcp.linear.app/oauth2/token","registration_url":"https://mcp.linear.app/oauth2/register","token":{"access_token":"a"}}`))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(`{"client_id":"c","token_url":"https://mcp.linear.app/oauth2/token","registration_url":"https://mcp.linear.app/oauth2/register","token":{"access_token":"a"}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	h := refuseOwnLogins(loginProfile(secret.Backend{OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}), state).HTTP[0]
+	h := refuseOwnLogins(loginProfile(secret.Backend{OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}), logins).HTTP[0]
 	for _, p := range []string{"/oauth2/token", "/oauth2/register"} {
 		if !refused(h, "POST", p) {
 			t.Errorf("POST %s goes through", p)
@@ -53,7 +47,7 @@ func TestTheAgentCannotSignInWhereDoriathHoldsTheLogin(t *testing.T) {
 }
 
 func TestWithoutASavedLoginTheCommonSignInPathsAreRefused(t *testing.T) {
-	h := refuseOwnLogins(loginProfile(secret.Backend{OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}), t.TempDir()).HTTP[0]
+	h := refuseOwnLogins(loginProfile(secret.Backend{OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}), keyringtest.New()).HTTP[0]
 	for _, p := range []string{"/token", "/oauth/token", "/register"} {
 		if !refused(h, "POST", p) {
 			t.Errorf("POST %s goes through", p)
@@ -62,7 +56,7 @@ func TestWithoutASavedLoginTheCommonSignInPathsAreRefused(t *testing.T) {
 }
 
 func TestASecretThatIsNoLoginLeavesTheHostAlone(t *testing.T) {
-	h := refuseOwnLogins(loginProfile(secret.Backend{Command: []string{"pass", "linear"}}), t.TempDir()).HTTP[0]
+	h := refuseOwnLogins(loginProfile(secret.Backend{Command: []string{"pass", "linear"}}), keyringtest.New()).HTTP[0]
 	if len(h.Rules) != 0 {
 		t.Errorf("rules = %+v", h.Rules)
 	}

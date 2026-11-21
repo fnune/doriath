@@ -421,7 +421,7 @@ func cmdProfiles(args []string, stdin io.Reader, stdout io.Writer) error {
 		return profilesAllow(loader(p, dir), allowed.NewStore(p.AllowedProfiles()), args[1], dir, stdout)
 	}
 	if args[0] == "login" && (len(args) == 2 || len(args) == 3) {
-		return cmdLogin(p, l, args[1:], stdin, keyring.Desktop{}, stdout)
+		return cmdLogin(p, l, args[1:], stdin, keyring.Desktop{}, keyring.Logins{}, stdout)
 	}
 	if args[0] == "clean" && len(args) == 2 {
 		return cleanCaches(args[1], stdout)
@@ -466,7 +466,7 @@ func cmdDoctor(args []string, w io.Writer) int {
 	allow := func(prof *profile.Profile) error {
 		return confirmProfile(allowed.NewStore(p.AllowedProfiles()), prof, allowedKey(prof, cwd), os.Stdin, os.Stderr, isTerminal(os.Stdin))
 	}
-	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Keyring: keyring.Desktop{}, Asker: askpass.New(os.Getenv, exec.LookPath), Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
+	results := doctor.Run(context.Background(), doctor.Options{Paths: p, Loader: loader(p, cwd), FetchSecrets: *fetch, Runner: execRunner{}, Keyring: keyring.Desktop{}, Logins: keyring.Logins{}, Asker: askpass.New(os.Getenv, exec.LookPath), Allow: allow, Dir: cwd, Profile: *prof, VCS: vcsJailTools(p)})
 	t.Header("doctor")
 	t.Line(term.OK, "directories")
 	levels := map[doctor.Level]term.Level{doctor.OK: term.OK, doctor.Problem: term.Problem, doctor.Note: term.Info}

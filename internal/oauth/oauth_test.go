@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/secret"
 )
 
@@ -130,53 +131,48 @@ func (b browser) Open(u string) error {
 
 func TestLoginToAnMCPServerAndRefresh(t *testing.T) {
 	f := newFakeServer(t)
-	dir := t.TempDir()
-	path := StatePath(dir, "work", "notion")
+	logins := keyringtest.New()
 	var out strings.Builder
-	if err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, path, browser{t}, &out); err != nil {
+	if err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, logins, "work", "notion", browser{t}, &out); err != nil {
 		t.Fatalf("%v\n%s", err, out.String())
 	}
-	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("state: %v %v", info, err)
-	}
-	s, err := load(path)
+	s, err := load(logins, "work", "notion")
 	if err != nil || s.ClientID != "registered-client" || s.Token.RefreshToken != "refresh-1" {
 		t.Fatalf("state = %+v, %v", s, err)
 	}
 
-	tokens := NewTokens(dir, "work")
+	tokens := NewTokens(logins, "work")
 	v, err := tokens.Token(context.Background(), "notion", secret.OAuth{})
 	if err != nil || string(v.Reveal()) != "access-1" {
 		t.Fatalf("token = %q, %v", v.Reveal(), err)
 	}
 
 	s.Token.Expiry = time.Now().Add(-time.Minute)
-	if err := s.save(path); err != nil {
+	if err := s.save(logins, "work", "notion"); err != nil {
 		t.Fatal(err)
 	}
-	v, err = NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
+	v, err = NewTokens(logins, "work").Token(context.Background(), "notion", secret.OAuth{})
 	if err != nil || string(v.Reveal()) != "access-2" {
 		t.Fatalf("refreshed token = %q, %v", v.Reveal(), err)
 	}
-	if s, _ := load(path); s.Token.RefreshToken != "refresh-2" {
+	if s, _ := load(logins, "work", "notion"); s.Token.RefreshToken != "refresh-2" {
 		t.Errorf("a rotated refresh token must be saved: %+v", s.Token)
 	}
 }
 
 func TestLoginWithAnIssuer(t *testing.T) {
 	f := newFakeServer(t)
-	path := filepath.Join(t.TempDir(), "google.json")
-	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client", Scopes: []string{"read"}}, path, browser{t}, io.Discard); err != nil {
+	logins := keyringtest.New()
+	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client", Scopes: []string{"read"}}, logins, "work", "google", browser{t}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if s, err := load(path); err != nil || s.ClientID != "my-client" || s.Token.AccessToken != "access-1" {
+	if s, err := load(logins, "work", "google"); err != nil || s.ClientID != "my-client" || s.Token.AccessToken != "access-1" {
 		t.Fatalf("state = %+v, %v", s, err)
 	}
 }
 
 func TestTokenWithoutLoginNamesTheCommand(t *testing.T) {
-	_, err := NewTokens(t.TempDir(), "work").Token(context.Background(), "notion", secret.OAuth{})
+	_, err := NewTokens(keyringtest.New(), "work").Token(context.Background(), "notion", secret.OAuth{})
 	if err == nil || !strings.Contains(err.Error(), "doriath profiles login work notion") {
 		t.Fatalf("err = %v", err)
 	}
@@ -206,15 +202,15 @@ func (b callbackBrowser) Open(u string) error {
 
 func TestRefusedSignInSaysWhatTheServerSaid(t *testing.T) {
 	f := newFakeServer(t)
-	path := filepath.Join(t.TempDir(), "notion.json")
+	logins := keyringtest.New()
 	refuse := callbackBrowser{t: t, answer: func(url.Values) url.Values {
 		return url.Values{"error": {"access_denied"}, "error_description": {"you said no"}}
 	}}
-	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, path, refuse, io.Discard)
+	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, logins, "work", "notion", refuse, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "the server refused the sign-in: access_denied you said no") {
 		t.Fatalf("err = %v", err)
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
+	if logins.Has("work", "notion") {
 		t.Fatal("a refused sign-in must save nothing")
 	}
 }
@@ -224,7 +220,7 @@ func TestSignInMustAnswerTheRequestDoriathMade(t *testing.T) {
 	forge := callbackBrowser{t: t, answer: func(url.Values) url.Values {
 		return url.Values{"code": {"the-code"}, "state": {"another"}}
 	}}
-	err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, filepath.Join(t.TempDir(), "s.json"), forge, io.Discard)
+	err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, keyringtest.New(), "work", "s", forge, io.Discard)
 	if err == nil || err.Error() != "the sign-in answered for another request" {
 		t.Fatalf("err = %v", err)
 	}
@@ -237,7 +233,7 @@ func TestSignInMustAnswerTheRequestDoriathMade(t *testing.T) {
 
 func TestLoginRefusesAServerThatAsksNoLogin(t *testing.T) {
 	f := newFakeServer(t)
-	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/public-mcp"}, filepath.Join(t.TempDir(), "s.json"), browser{t}, io.Discard)
+	err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/public-mcp"}, keyringtest.New(), "work", "s", browser{t}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "answered 200 OK, not 401: it does not ask for a login") {
 		t.Fatalf("err = %v", err)
 	}
@@ -252,7 +248,7 @@ func TestLoginSaysWhatYouMustDoYourself(t *testing.T) {
 		return url.Values{"code": {"the-code"}, "state": {signIn.Get("state")}}
 	}}
 	var out strings.Builder
-	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, filepath.Join(t.TempDir(), "s.json"), noBrowser, &out); err != nil {
+	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client"}, keyringtest.New(), "work", "s", noBrowser, &out); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"Sign in at:\n  " + f.URL + "/authorize?", "Open it in your browser on this machine.", "The server gave no refresh token"} {
@@ -264,32 +260,109 @@ func TestLoginSaysWhatYouMustDoYourself(t *testing.T) {
 
 func TestRevokedLoginAsksYouToSignInAgain(t *testing.T) {
 	f := newFakeServer(t)
-	dir := t.TempDir()
+	logins := keyringtest.New()
 	expired := &oauth2.Token{AccessToken: "old", RefreshToken: "revoked", Expiry: time.Now().Add(-time.Minute)}
-	if err := (State{ClientID: "c", TokenURL: f.URL + "/token", Token: expired}).save(StatePath(dir, "work", "notion")); err != nil {
+	if err := (State{ClientID: "c", TokenURL: f.URL + "/token", Token: expired}).save(logins, "work", "notion"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
+	_, err := NewTokens(logins, "work").Token(context.Background(), "notion", secret.OAuth{})
 	if err == nil || !strings.HasPrefix(err.Error(), `secret "notion": refresh the login: `) || !strings.HasSuffix(err.Error(), "; run `doriath profiles login work notion` again") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-func TestDamagedLoginStateNamesTheFile(t *testing.T) {
+func TestDamagedLoginStateNamesTheEntry(t *testing.T) {
 	for name, content := range map[string]string{"not JSON": "{", "no token": `{"client_id":"c"}`} {
 		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := StatePath(dir, "work", "notion")
-			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			logins := keyringtest.New()
+			if err := logins.Write("work", "notion", secret.NewValue([]byte(content))); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			_, err := NewTokens(dir, "work").Token(context.Background(), "notion", secret.OAuth{})
-			if err == nil || !strings.Contains(err.Error(), path) {
+			_, err := NewTokens(logins, "work").Token(context.Background(), "notion", secret.OAuth{})
+			if err == nil || !strings.Contains(err.Error(), "login work/notion in the keyring") {
 				t.Fatalf("err = %v", err)
 			}
 		})
+	}
+}
+
+func TestWithoutAKeyringTheLoginIsUnavailableAndNoFileIsRead(t *testing.T) {
+	dir := t.TempDir()
+	writeOldLogin(t, dir, "notion", `{"token":{"access_token":"from-a-file"}}`)
+	logins := keyringtest.New()
+	logins.Err = errors.New("no secret service")
+	_, err := NewTokens(logins, "work").Token(context.Background(), "notion", secret.OAuth{})
+	if err == nil || !strings.Contains(err.Error(), "no secret service") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func writeOldLogin(t *testing.T, stateDir, name, content string) string {
+	t.Helper()
+	path := filepath.Join(stateDir, "oauth", "work", name+".json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestMigrateMovesOldLoginFilesIntoTheKeyring(t *testing.T) {
+	dir := t.TempDir()
+	old := `{"client_id":"c","token":{"access_token":"a","refresh_token":"r"}}`
+	path := writeOldLogin(t, dir, "notion", old)
+	writeOldLogin(t, dir, "newer", `{"token":{"access_token":"stale"}}`)
+	leftover := path + ".tmp"
+	if err := os.WriteFile(leftover, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logins := keyringtest.New()
+	if err := logins.Write("work", "newer", secret.NewValue([]byte(`{"token":{"access_token":"fresh"}}`))); err != nil {
+		t.Fatal(err)
+	}
+	if err := Migrate(dir, logins); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := logins.Read("work", "notion"); err != nil || string(v.Reveal()) != old {
+		t.Errorf("moved login = %q, %v", v.Reveal(), err)
+	}
+	if v, _ := logins.Read("work", "newer"); string(v.Reveal()) != `{"token":{"access_token":"fresh"}}` {
+		t.Errorf("a file replaced a newer login: %q", v.Reveal())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "oauth")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("login files stay on disk: %v", err)
+	}
+	if err := Migrate(dir, logins); err != nil {
+		t.Errorf("a second run: %v", err)
+	}
+}
+
+func TestMigrateKeepsAFileWhenTheKeyringDoesNotAnswer(t *testing.T) {
+	dir := t.TempDir()
+	path := writeOldLogin(t, dir, "notion", `{"token":{"access_token":"a"}}`)
+	logins := keyringtest.New()
+	logins.Err = errors.New("no secret service")
+	if err := Migrate(dir, logins); err == nil || !strings.Contains(err.Error(), "no secret service") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("the login is gone, and nothing holds it: %v", err)
+	}
+}
+
+func TestMigrateKeepsAFileThatHoldsNoLogin(t *testing.T) {
+	dir := t.TempDir()
+	path := writeOldLogin(t, dir, "notion", `{"client_id":"c"}`)
+	logins := keyringtest.New()
+	if err := Migrate(dir, logins); err == nil {
+		t.Fatal("want an error")
+	}
+	if logins.Has("work", "notion") {
+		t.Error("a file without a token became a login")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("the file is gone: %v", err)
 	}
 }

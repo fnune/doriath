@@ -3,14 +3,12 @@ package session
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
-	"github.com/fnune/doriath/internal/oauth"
+	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -173,13 +171,11 @@ func TestASignedInOAuthLoginIsNotFetchedAtStart(t *testing.T) {
 	s := sessionWithSecrets(t, backends)
 	logins := &countingLogins{}
 	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}).WithOAuth(logins)
-	state := oauth.StatePath(s.deps.Paths.State, "deploy", "linear")
-	if err := os.MkdirAll(filepath.Dir(state), 0o700); err != nil {
+	stored := keyringtest.New()
+	if err := stored.Write("deploy", "linear", secret.NewValue([]byte(`{"token":{"access_token":"a"}}`))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(state, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	s.deps.Logins = stored
 	if err := s.fetchSecrets(context.Background()); err != nil {
 		t.Fatal(err)
 	}
