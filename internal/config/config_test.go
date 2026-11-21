@@ -88,7 +88,7 @@ func TestLoadUser(t *testing.T) {
 		t.Fatalf("err = %v, want the new key named", err)
 	}
 
-	write("[secrets.x]\nfile = \"~/token\"\n")
+	write("[secrets.x]\nkeyring = true\n")
 	if _, err := LoadUser(path); err == nil || !strings.Contains(err.Error(), "unknown keys") {
 		t.Fatalf("err = %v, want unknown keys", err)
 	}

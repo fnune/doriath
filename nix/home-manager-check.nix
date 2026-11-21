@@ -80,7 +80,7 @@ let
           required = true;
           refresh = "45m";
         };
-        signing.file = "/run/secrets/signing";
+        signing.keyring = true;
         forge.keyring = true;
         api.oauth.mcp = "https://mcp.team.example/mcp";
         issuer.oauth = {
@@ -152,25 +152,13 @@ let
   invalidSecrets = [
     { }
     {
-      file = "/run/secrets/both";
-      command = [ "true" ];
-    }
-    {
-      file = "/run/secrets/both";
-      oauth.mcp = "https://mcp.team.example/mcp";
-    }
-    {
       command = [ "true" ];
       oauth.mcp = "https://mcp.team.example/mcp";
-    }
-    {
-      file = "/run/secrets/both";
-      keyring = true;
     }
     { keyring = false; }
     {
-      file = "/run/secrets/all";
       command = [ "true" ];
+      keyring = true;
       oauth.mcp = "https://mcp.team.example/mcp";
     }
   ];
@@ -194,7 +182,7 @@ let
 in
 assert builtins.isString home.activationPackage.drvPath;
 assert lib.assertMsg trayWithoutPageFails "desktop.tray needs desktop.web.enable";
-assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of file, command, keyring or oauth";
+assert lib.assertMsg invalidSecretsFail "a secret must have exactly one of command, keyring or oauth";
 pkgs.runCommand "doriath-home-manager-module"
   {
     nativeBuildInputs = [
@@ -219,7 +207,7 @@ pkgs.runCommand "doriath-home-manager-module"
     expect --arg hello "$hello" '.Env.PathPrepend == [$hello, "/opt/team/bin"]'
     expect '[.Mounts[] | select(.Mode == "write")] | length == 1'
     expect '.Secrets.github.Command == ["rbw", "get", "github"]'
-    expect '.Secrets.signing.File == "/run/secrets/signing"'
+    expect '.Secrets.signing.Keyring == true'
     expect '.Secrets.forge.Keyring == true'
     expect '.Secrets.github.Refresh == 2700000000000'
     expect '.Secrets.api.OAuth.MCP == "https://mcp.team.example/mcp"'

@@ -34,7 +34,7 @@ Only the jail trusts the TLS authority, and it lasts for one session. [`doriath 
 
 ## Credentials
 
-doriath reads each [secret](/reference/configuration/#secrets) on the host when the session starts, and no secret enters the jail. The source is a file, a command such as `rbw` or `bw`, or an OAuth login.
+doriath reads each [secret](/reference/configuration/#secrets) on the host when the session starts, and no secret enters the jail. The source is a command such as `rbw` or `bw`, the keyring of your desktop, or an OAuth login.
 
 An `[[http]]` entry names the secret, its scheme and the programs that get it. With the [`github` module](/reference/modules/#github), only requests from `gh` and `git` carry your token. The agent can push through these programs, but it cannot read the token.
 

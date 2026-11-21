@@ -111,12 +111,19 @@ Make new credentials for each profile, so that a token reaches only the reposito
 3. Create an SSH key for commit signing, and add it to GitHub as a signing key. The commits of the agent then show as verified, with you as the author.
 
 ```sh
-install -d -m 700 ~/.config/doriath/keys
-ssh-keygen -t ed25519 -N '' -C 'doriath my-app signing' -f ~/.config/doriath/keys/my-app-signing
-cat ~/.config/doriath/keys/my-app-signing.pub
+dir=$(mktemp -d -p "$XDG_RUNTIME_DIR")
+ssh-keygen -t ed25519 -N '' -C 'doriath my-app signing' -f "$dir/signing"
+cat "$dir/signing.pub"
 ```
 
-Then add the `github` module, so that the agent can push and open pull requests. Each `[secrets.NAME]` table gives the source of one secret: a file with mode 600, or a command that prints it.
+`$XDG_RUNTIME_DIR` is memory, so the private key never reaches your disk. Add the public key to GitHub. Then store the private key in the keyring of your desktop, after you write the profile below, and delete the folder:
+
+```sh
+doriath profiles login my-app signing < "$dir/signing"
+rm -r "$dir"
+```
+
+Then add the `github` module, so that the agent can push and open pull requests. Each `[secrets.NAME]` table gives the source of one secret: a command that prints it, or an entry in the keyring of your desktop.
 
 ```toml title="~/.config/doriath/profiles/my-app.toml"
 description = "My app"
@@ -126,7 +133,7 @@ modules = ["vcs-readwrite", "docs", "go", "node", "github", "claude"]
 command = ["rbw", "get", "github-my-app"]
 
 [secrets.signing]
-file = "~/.config/doriath/keys/my-app-signing"
+keyring = true
 
 [signing]
 key = "signing"

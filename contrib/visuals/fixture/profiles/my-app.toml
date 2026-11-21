@@ -2,4 +2,4 @@ description = "Acme app: Go, git and the acme/app repository on GitHub"
 modules = ["vcs-readwrite", "docs", "go", "github"]
 
 [secrets.github]
-file = "~/.config/doriath/keys/github-my-app"
+command = ["echo", "ghp_0123456789abcdefFAKEFAKEFAKEFAKEFAKE"]

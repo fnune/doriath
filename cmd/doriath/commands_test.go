@@ -217,31 +217,13 @@ func TestLiveSessionsDropsEndedSessions(t *testing.T) {
 	}
 }
 
-func TestDoctorFlagsReadableSecretFile(t *testing.T) {
+func TestDoctorChecksProfilesAndSecretSources(t *testing.T) {
 	p := testPaths(t)
 	t.Setenv("DORIATH_BWRAP", filepath.Join(p.Home, "no-bwrap"))
-	keys := filepath.Join(p.Home, "keys")
-	if err := os.MkdirAll(keys, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	open := filepath.Join(keys, "open")
-	private := filepath.Join(keys, "private")
-	if err := os.WriteFile(open, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(open, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(private, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	writeProfile(t, p, "app", `modules = []
 
-[secrets.open]
-file = "`+open+`"
-
 [secrets.private]
-file = "`+private+`"
+keyring = true
 `)
 	writeProfile(t, p, "broken", `modules = ["no-such-module"]`)
 
@@ -250,8 +232,7 @@ file = "`+private+`"
 		t.Errorf("doctor exits %d with problems", code)
 	}
 	for _, want := range []string{
-		"  ✕ secret app/open (file): " + open + " is readable by other users: run `chmod 600 " + open + "`\n",
-		"  ✓ secret app/private (file)\n",
+		"  ✓ secret app/private (keyring)\n",
 		"  ✓ profile app\n",
 		"  ✕ profile broken: ",
 		"  · secrets: run `doriath doctor --secrets`",
@@ -436,7 +417,6 @@ func TestLoginArguments(t *testing.T) {
 
 func TestLoginSkipsSecretsAlreadySignedIn(t *testing.T) {
 	p := testPaths(t)
-	key := filepath.Join(p.Home, "key")
 	writeProfile(t, p, "app", `modules = []
 
 [secrets.linear.oauth]
@@ -446,7 +426,7 @@ mcp = "https://mcp.linear.app/mcp"
 mcp = "https://mcp.notion.com/mcp"
 
 [secrets.key]
-file = "`+key+`"
+command = ["true"]
 `)
 	for _, s := range []string{"linear", "notion"} {
 		state := oauth.StatePath(p.State, "app", s)

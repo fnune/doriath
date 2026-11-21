@@ -105,7 +105,12 @@ func TestAnAgentWorksInARepositorySetUpLikeYours(t *testing.T) {
 
 	desktop := fmt.Appendf(nil, "user.name\nYou\x00user.email\nyou@example.org\x00commit.gpgsign\ntrue\x00gpg.format\nssh\x00user.signingkey\n%s\x00", yours)
 	e.vcs = []vcstools.Tool{gittool.New(desktop, map[string][]byte{"core.excludesfile": []byte(".idea/\n")}), jjtool.New(e.home, osKind)}
-	e.secrets["agent-key"] = secret.Backend{File: agents}
+	agentKey, err := os.ReadFile(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.keyring["agent-key"] = string(agentKey)
+	e.secrets["agent-key"] = secret.Backend{Keyring: true}
 	p := e.profile(fmt.Sprintf(`
 [[mounts]]
 path = %q

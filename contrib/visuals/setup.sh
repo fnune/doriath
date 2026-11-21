@@ -7,7 +7,7 @@ root=${VISUALS_ROOT:-/tmp/doriath-visuals}
 
 rm -rf "$root"
 home=$root/home
-mkdir -p "$home/.config/doriath/profiles" "$home/.config/doriath/keys" \
+mkdir -p "$home/.config/doriath/profiles" \
     "$root/data" "$root/state" "$root/cache" "$root/runtime" "$root/bin"
 chmod 700 "$root/runtime"
 ln -s "$binary" "$root/bin/doriath"
@@ -19,8 +19,6 @@ fi
 
 cp "$here"/fixture/config.toml "$home/.config/doriath/config.toml"
 cp "$here"/fixture/profiles/*.toml "$home/.config/doriath/profiles/"
-printf 'ghp_0123456789abcdefFAKEFAKEFAKEFAKEFAKE\n' >"$home/.config/doriath/keys/github-my-app"
-chmod 600 "$home/.config/doriath/keys/github-my-app"
 
 repo=$home/acme-app
 mkdir -p "$repo"

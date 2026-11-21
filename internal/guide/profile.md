@@ -85,13 +85,12 @@ Ask which password manager the person uses. `command -v rbw bw op secret-tool` s
 - `op`: `["op", "read", "op://VAULT/ITEM/credential"]`
 - `secret-tool`: `["secret-tool", "lookup", "KEY", "VALUE"]`
 - the keyring of the desktop, without a command: `keyring = true`. doriath asks the person for the value in a dialog of the desktop at the start of the first session.
-- a file with mode 600: `file = "~/.config/doriath/keys/NAME"`
 
 Run `command -v` for the program of the command. If the path is a shim of a version manager, such as mise or asdf, use the absolute path of the real program. A shim selects its tool from a config in the working folder, and the agent can write that config.
 
 Run `git config --get commit.gpgsign` and `jj config get signing.behavior`. If either one signs commits, the profile needs `[signing]`. Give the person the two choices:
 
-- A signing key for the profile. The person creates it with `ssh-keygen -t ed25519 -N '' -f ~/.config/doriath/keys/NAME-signing`, and adds the public key to the forge as a signing key. The profile then has `[secrets.signing]` and `[signing] key = "signing"`.
+- A signing key for the profile. The person creates it in a folder under `$XDG_RUNTIME_DIR`, which is memory, with `ssh-keygen -t ed25519 -N '' -f DIR/signing`, and adds the public key to the forge as a signing key. They store the private key with `doriath profiles login PROFILE signing < DIR/signing`, and delete the folder. The profile then has `[secrets.signing]` with `keyring = true`, and `[signing] key = "signing"`.
 - `[signing] enable = false`. The agent then commits unsigned.
 
 A session starts without a secret that fails, and what needs the secret fails until the person fixes it. The signing key, and each secret with `required = true`, stop the session instead. Tell the person to create the secrets before the first session.

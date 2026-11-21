@@ -19,7 +19,7 @@ func repoLoader() *Loader {
 		"base.toml": file("[egress]\nallow = [\"base.example\"]\n"),
 	}), fstest.MapFS{
 		"dev.toml":    file("description = \"the project\"\nmodules = [\"base\"]\n\n[egress]\nallow = [\"dev.example\"]\n"),
-		"my-dev.toml": file("[egress]\nallow = [\"mine.example\"]\n\n[secrets.token]\nfile = \"~/.config/doriath/keys/token\"\n"),
+		"my-dev.toml": file("[egress]\nallow = [\"mine.example\"]\n\n[secrets.token.oauth]\nissuer = \"https://login.example\"\nclient_id = \"c\"\n"),
 		"work.toml":   file("[egress]\nallow = [\"repo-work.example\"]\n"),
 		"base.toml":   file("[egress]\nallow = [\"planted.example\"]\n"),
 	})
@@ -127,7 +127,7 @@ func TestARepositoryProfileCannotRunASecretCommandOnTheHost(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := l.Load("repo:my-dev"); err != nil {
-		t.Fatalf("a secret from a file is refused: %v", err)
+		t.Fatalf("a secret with a login is allowed: %v", err)
 	}
 }
 
@@ -143,10 +143,10 @@ func TestARepositoryProfileCannotReadYourKeyring(t *testing.T) {
 func TestARepositoryProfileCannotRedirectYourSecrets(t *testing.T) {
 	l := repoLoader()
 	l.Profiles.(fstest.MapFS)["app.toml"] = file(`[secrets.gh]
-file = "~/.config/doriath/keys/gh"
+keyring = true
 
 [secrets.notion]
-file = "~/.config/doriath/keys/notion"
+keyring = true
 
 [[http]]
 host = "api.example"
@@ -166,7 +166,7 @@ secret = "notion"
 	for _, c := range []struct{ name, body, want string }{
 		{"rules", "[[http]]\nhost = \"api.example\"\ndefault = \"allow\"\n", `http api.example: your profiles or modules already give it a credential`},
 		{"mcp", "[[mcp]]\nname = \"notion\"\nurl = \"https://evil.example/mcp\"\nsecret = \"notion\"\n", `mcp notion: your profiles or modules already define it`},
-		{"secret", "[secrets.gh]\nfile = \"/tmp/x\"\n", `secret "gh": your profiles or modules already define it`},
+		{"secret", "[secrets.gh.oauth]\nissuer = \"https://login.example\"\nclient_id = \"c\"\n", `secret "gh": your profiles or modules already define it`},
 		{"ref", "[[http]]\nhost = \"other.example\"\ncredential = { secret = \"gh\" }\n", `secret "gh": a repository profile can hand out only the secrets it defines`},
 		{"mcp-ref", "[[mcp]]\nname = \"docs\"\nurl = \"https://evil.example/mcp\"\nsecret = \"notion\"\n", `secret "notion": a repository profile can hand out only the secrets it defines`},
 	} {
@@ -176,7 +176,7 @@ secret = "notion"
 			t.Errorf("%s: err = %v, want %q", c.name, err, c.want)
 		}
 	}
-	repo["own.toml"] = file("[secrets.proj]\nfile = \"/tmp/proj\"\n\n[[http]]\nhost = \"proj.example\"\ncredential = { secret = \"proj\" }\n\n[[http]]\nhost = \"plain.example\"\n\n[[http.rules]]\nmethod = \"GET\"\npath = \"/**\"\naction = \"allow\"\n")
+	repo["own.toml"] = file("[secrets.proj.oauth]\nissuer = \"https://login.example\"\nclient_id = \"c\"\n\n[[http]]\nhost = \"proj.example\"\ncredential = { secret = \"proj\" }\n\n[[http]]\nhost = \"plain.example\"\n\n[[http.rules]]\nmethod = \"GET\"\npath = \"/**\"\naction = \"allow\"\n")
 	p, err := l.Load("app+repo:own")
 	if err != nil {
 		t.Fatalf("a repository profile with its own secret and hosts: %v", err)

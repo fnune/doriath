@@ -81,7 +81,7 @@ home-manager writes each profile to `~/.config/doriath/profiles/<name>.toml` as 
 
 Profiles and modules accept all [profile keys](/reference/configuration/#profile-keys). A module names its secrets in `uses_secrets`, and a profile gives their sources.
 
-Each [secret](/reference/configuration/#secrets) has one source: `file`, `command`, `keyring` or `oauth`, with `required` and `refresh` if needed. This example has a command that refreshes and both forms of [OAuth login](/reference/configuration/#oauth-logins):
+Each [secret](/reference/configuration/#secrets) has one source: `command`, `keyring` or `oauth`, with `required` and `refresh` if needed. This example has a command that refreshes and both forms of [OAuth login](/reference/configuration/#oauth-logins):
 
 ```nix
 programs.doriath.profiles.my-app.secrets = {

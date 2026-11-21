@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -38,11 +36,10 @@ var ErrUnknown = errors.New("unknown secret")
 var ErrUnavailable = errors.New("unavailable")
 
 type Backend struct {
-	File    string
 	Command []string
 	Keyring bool
 	OAuth   *OAuth
-	// Refresh reads a file or command secret again after this long, for a
+	// Refresh reads a command secret again after this long, for a
 	// short-lived token whose source prints no expiry.
 	Refresh time.Duration
 	// Required stops a session from starting without the secret. Without
@@ -60,13 +57,13 @@ type OAuth struct {
 
 func (b Backend) Validate() error {
 	set := 0
-	for _, ok := range []bool{b.File != "", len(b.Command) > 0, b.Keyring, b.OAuth != nil} {
+	for _, ok := range []bool{len(b.Command) > 0, b.Keyring, b.OAuth != nil} {
 		if ok {
 			set++
 		}
 	}
 	if set != 1 {
-		return errors.New("set exactly one of file, command, keyring or oauth")
+		return errors.New("set exactly one of command, keyring or oauth")
 	}
 	switch {
 	case b.Refresh != 0 && b.OAuth != nil:
@@ -122,11 +119,6 @@ type Runner interface {
 	Output(ctx context.Context, c Command) (stdout, stderr []byte, err error)
 }
 
-type FileReader interface {
-	Stat(path string) (fs.FileInfo, error)
-	ReadFile(path string) ([]byte, error)
-}
-
 const commandTimeout = 2 * time.Minute
 
 const (
@@ -142,7 +134,6 @@ const (
 type Configured struct {
 	backends map[string]Backend
 	run      Runner
-	files    FileReader
 	now      func() time.Time
 
 	oauth OAuthTokens
@@ -227,8 +218,8 @@ func (c *Configured) WithAsker(a Asker) *Configured {
 	return c
 }
 
-func NewConfigured(backends map[string]Backend, run Runner, files FileReader) *Configured {
-	return &Configured{backends: backends, run: run, files: files, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
+func NewConfigured(backends map[string]Backend, run Runner) *Configured {
+	return &Configured{backends: backends, run: run, now: time.Now, cache: map[string]cached{}, failed: map[string]failure{}}
 }
 
 func (c *Configured) WithClock(now func() time.Time) *Configured {
@@ -345,20 +336,6 @@ func credentialProcessExpiry(data []byte) (time.Time, bool) {
 }
 
 func (c *Configured) fetch(ctx context.Context, name string, b Backend, firstTry bool) (Value, error) {
-	if b.File != "" {
-		info, err := c.files.Stat(b.File)
-		if err != nil {
-			return Value{}, fmt.Errorf("secret %q: %w", name, err)
-		}
-		if info.Mode().Perm()&0o077 != 0 {
-			return Value{}, fmt.Errorf("secret %q: %s is readable by other users (mode %04o): run `chmod 600 %s`", name, b.File, info.Mode().Perm(), b.File)
-		}
-		data, err := c.files.ReadFile(b.File)
-		if err != nil {
-			return Value{}, fmt.Errorf("secret %q: %w", name, err)
-		}
-		return trimmed(name, data)
-	}
 	if b.Keyring {
 		return c.readKeyring(ctx, name, firstTry)
 	}
@@ -417,8 +394,3 @@ func trimmed(name string, data []byte) (Value, error) {
 func lastLine(s string) string {
 	return s[strings.LastIndex(s, "\n")+1:]
 }
-
-type OSFiles struct{}
-
-func (OSFiles) Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
-func (OSFiles) ReadFile(path string) ([]byte, error)  { return os.ReadFile(path) }

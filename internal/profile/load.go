@@ -538,6 +538,10 @@ func (b *builder) apply(l layer) {
 	}
 	for _, k := range slices.Sorted(maps.Keys(l.Secrets)) {
 		v := l.Secrets[k]
+		if v.File != "" {
+			b.errs = append(b.errs, fmt.Errorf("secret %q: doriath no longer reads secrets from files, so that none stays on your disk. Use keyring = true, and store the value with `doriath profiles login PROFILE %s`, which reads it from standard input", k, k))
+			continue
+		}
 		if l.fromRepository() && len(v.Command) > 0 {
 			b.errs = append(b.errs, fmt.Errorf("secret %q: a repository profile cannot run a command on your machine. Define the secret in a profile of your own, and start the session with both, such as my-app+%s", k, l.profileName()))
 			continue
@@ -713,8 +717,6 @@ func describeSecretSource(v secretLayer) string {
 	switch {
 	case len(v.Command) > 0:
 		return "command " + strings.Join(v.Command, " ")
-	case v.File != "":
-		return "file " + v.File
 	case v.Keyring:
 		return "keyring"
 	case v.OAuth != nil && v.OAuth.MCP != "":
@@ -1086,7 +1088,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			errs = append(errs, fmt.Errorf("secret %q: use lowercase letters, digits and dashes", name))
 			continue
 		}
-		backend := secret.Backend{File: s.File, Command: s.Command, Keyring: s.Keyring, Required: s.Required || name == b.signing}
+		backend := secret.Backend{Command: s.Command, Keyring: s.Keyring, Required: s.Required || name == b.signing}
 		if s.Refresh != "" {
 			d, err := time.ParseDuration(s.Refresh)
 			if err != nil {
@@ -1097,14 +1099,6 @@ func (b *builder) build(top layer) (*Profile, error) {
 		}
 		if o := s.OAuth; o != nil {
 			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, ClientID: o.ClientID, Scopes: o.Scopes}
-		}
-		if s.File != "" {
-			file, err := b.expand(s.File)
-			if err != nil || !filepath.IsAbs(file) {
-				errs = append(errs, fmt.Errorf("secret %q: file %q must be absolute or start with ~/", name, s.File))
-				continue
-			}
-			backend.File = file
 		}
 		if err := backend.Validate(); err != nil {
 			errs = append(errs, fmt.Errorf("secret %q: %w", name, err))

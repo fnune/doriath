@@ -149,7 +149,7 @@ type harness struct {
 
 const testProfile = `
 [secrets.github]
-file = "/run/secrets/github"
+keyring = true
 
 [egress]
 allow = ["example.com", "plain.example"]

@@ -24,7 +24,7 @@ func (failingRunner) Output(context.Context, secret.Command) ([]byte, []byte, er
 func sessionWithSecrets(t *testing.T, backends map[string]secret.Backend) *testSession {
 	t.Helper()
 	s := newTestSession(t, &answering{})
-	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}, secret.OSFiles{})
+	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{})
 	s.req.Profile = &profile.Profile{
 		Name:    "deploy",
 		Secrets: backends,
@@ -84,7 +84,7 @@ func TestAProvidedSecretLeavesTheStatusAndTheAuditLogNamesIt(t *testing.T) {
 }
 
 func TestTheSigningKeyCannotBeProvided(t *testing.T) {
-	s := sessionWithSecrets(t, map[string]secret.Backend{"signing": {File: "/k", Required: true}})
+	s := sessionWithSecrets(t, map[string]secret.Backend{"signing": {Keyring: true, Required: true}})
 	s.req.Profile.SigningKey = "signing"
 	if err := s.provide("signing", secret.NewValue([]byte("key"))); err == nil || !strings.Contains(err.Error(), "signing key") {
 		t.Errorf("err = %v", err)
@@ -155,7 +155,7 @@ func TestAMissingOAuthLoginCountsAsMissingAtStart(t *testing.T) {
 	backends := map[string]secret.Backend{"linear": {OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}}
 	s := sessionWithSecrets(t, backends)
 	logins := &countingLogins{}
-	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}, secret.OSFiles{}).WithOAuth(logins)
+	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}).WithOAuth(logins)
 	if err := s.fetchSecrets(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestASignedInOAuthLoginIsNotFetchedAtStart(t *testing.T) {
 	backends := map[string]secret.Backend{"linear": {OAuth: &secret.OAuth{MCP: "https://mcp.linear.app/mcp"}}}
 	s := sessionWithSecrets(t, backends)
 	logins := &countingLogins{}
-	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}, secret.OSFiles{}).WithOAuth(logins)
+	s.deps.Secrets = secret.NewConfigured(backends, failingRunner{}).WithOAuth(logins)
 	state := oauth.StatePath(s.deps.Paths.State, "deploy", "linear")
 	if err := os.MkdirAll(filepath.Dir(state), 0o700); err != nil {
 		t.Fatal(err)

@@ -155,7 +155,7 @@ allow = ["uploads.example"]
 func TestMCPToolCallsFollowTheServersLists(t *testing.T) {
 	p := loadProfile(t, `
 [secrets.notion]
-file = "/run/secrets/notion"
+keyring = true
 
 [[mcp]]
 name = "notion"
@@ -227,7 +227,7 @@ deny = ["notion-delete-*"]
 func TestAnMCPSecretReachesOnlyTheServersEndpoint(t *testing.T) {
 	p := loadProfile(t, `
 [secrets.notion]
-file = "/run/secrets/notion"
+keyring = true
 
 [[mcp]]
 name = "notion"

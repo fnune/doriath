@@ -45,7 +45,7 @@ url = "https://docs.example.com/mcp"
 func TestMCPServerKeepsTheProfilesRulesForItsHost(t *testing.T) {
 	p := mustLoad(t, `
 [secrets.notion]
-file = "/t"
+keyring = true
 
 [[http]]
 host = "mcp.notion.com"

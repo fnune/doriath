@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"slices"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 )
 
@@ -26,17 +24,9 @@ func (f *fakeRunner) Output(_ context.Context, c Command) ([]byte, []byte, error
 	return []byte(f.stdout), []byte(f.stderr), f.err
 }
 
-type mapFiles struct{ fs fstest.MapFS }
-
-func (m mapFiles) Stat(p string) (fs.FileInfo, error) { return m.fs.Stat(strings.TrimPrefix(p, "/")) }
-
-func (m mapFiles) ReadFile(p string) ([]byte, error) {
-	return m.fs.ReadFile(strings.TrimPrefix(p, "/"))
-}
-
 func TestCommandBackendIsCalledOnce(t *testing.T) {
 	run := &fakeRunner{stdout: "tok\n"}
-	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run, mapFiles{})
+	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run)
 	for range 3 {
 		v, err := s.Get(context.Background(), "gh")
 		if err != nil || string(v.Reveal()) != "tok" {
@@ -48,26 +38,12 @@ func TestCommandBackendIsCalledOnce(t *testing.T) {
 	}
 }
 
-func TestFileBackendRefusesLoosePermissions(t *testing.T) {
-	files := mapFiles{fstest.MapFS{
-		"tight": {Data: []byte("abc\n"), Mode: 0o600},
-		"loose": {Data: []byte("abc\n"), Mode: 0o644},
-	}}
-	s := NewConfigured(map[string]Backend{"tight": {File: "/tight"}, "loose": {File: "/loose"}}, &fakeRunner{}, files)
-	if v, err := s.Get(context.Background(), "tight"); err != nil || string(v.Reveal()) != "abc" {
-		t.Fatalf("tight = %q, %v", v.Reveal(), err)
-	}
-	if _, err := s.Get(context.Background(), "loose"); err == nil || !strings.Contains(err.Error(), "chmod 600") {
-		t.Fatalf("loose err = %v", err)
-	}
-}
-
 func TestErrors(t *testing.T) {
-	s := NewConfigured(map[string]Backend{}, &fakeRunner{}, mapFiles{})
+	s := NewConfigured(map[string]Backend{}, &fakeRunner{})
 	if _, err := s.Get(context.Background(), "missing"); !errors.Is(err, ErrUnknown) {
 		t.Fatalf("missing err = %v", err)
 	}
-	empty := NewConfigured(map[string]Backend{"e": {Command: []string{"true"}}}, &fakeRunner{stdout: "\n"}, mapFiles{})
+	empty := NewConfigured(map[string]Backend{"e": {Command: []string{"true"}}}, &fakeRunner{stdout: "\n"})
 	if _, err := empty.Get(context.Background(), "e"); err == nil {
 		t.Fatal("an empty secret must be an error")
 	}
@@ -83,14 +59,14 @@ func TestValueNeverPrints(t *testing.T) {
 }
 
 func TestBackendValidate(t *testing.T) {
-	if (Backend{}).Validate() == nil || (Backend{File: "a", Command: []string{"b"}}).Validate() == nil {
+	if (Backend{}).Validate() == nil || (Backend{Command: []string{"a"}, Keyring: true}).Validate() == nil {
 		t.Fatal("want errors")
 	}
-	if (Backend{File: "a"}).Validate() != nil || (Backend{Keyring: true}).Validate() != nil {
-		t.Fatal("file alone and keyring alone are valid")
+	if (Backend{Command: []string{"a"}}).Validate() != nil || (Backend{Keyring: true}).Validate() != nil {
+		t.Fatal("command alone and keyring alone are valid")
 	}
-	if (Backend{File: "a", Keyring: true}).Validate() == nil {
-		t.Fatal("a keyring secret with a file is invalid")
+	if (Backend{Command: []string{"a"}, Keyring: true}).Validate() == nil {
+		t.Fatal("a keyring secret with a command is invalid")
 	}
 }
 
@@ -121,7 +97,7 @@ func ownedByWork(string) string { return "work" }
 
 func TestKeyringSecretsAreReadOnceFromTheEntryOfTheirProfile(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{"work/forge": "tok\n", "home/forge": "other"}}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork)
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(kr, ownedByWork)
 	for range 3 {
 		v, err := s.Get(context.Background(), "forge")
 		if err != nil || string(v.Reveal()) != "tok" {
@@ -134,7 +110,7 @@ func TestKeyringSecretsAreReadOnceFromTheEntryOfTheirProfile(t *testing.T) {
 }
 
 func TestAMissingKeyringEntryNamesTheLoginCommand(t *testing.T) {
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{entries: map[string]string{}}, ownedByWork)
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(&fakeKeyring{entries: map[string]string{}}, ownedByWork)
 	_, err := s.Get(context.Background(), "forge")
 	if want := "secret \"forge\" is not in the keyring: run `doriath profiles login work forge`"; err == nil || err.Error() != want {
 		t.Errorf("err = %v, want %s", err, want)
@@ -155,7 +131,7 @@ func (f *fakeAsker) Ask(context.Context, string, string) (Value, error) {
 func TestAMissingKeyringEntryIsAskedForOnceAndKept(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{}}
 	ask := &fakeAsker{answer: "tok"}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask)
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(kr, ownedByWork).WithAsker(ask)
 	v, err := s.Get(context.Background(), "forge")
 	if err != nil || string(v.Reveal()) != "tok" || kr.entries["work/forge"] != "tok" {
 		t.Fatalf("Get = %q, %v; keyring = %v", v.Reveal(), err, kr.entries)
@@ -169,7 +145,7 @@ func TestAClosedDialogComesBackOnlyAfterRetry(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{}}
 	ask := &fakeAsker{err: errors.New("you closed the dialog without a value")}
 	c := &clock{t: time.Unix(0, 0)}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(ask).WithClock(c.now)
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(kr, ownedByWork).WithAsker(ask).WithClock(c.now)
 	if _, err := s.Get(context.Background(), "forge"); err == nil {
 		t.Fatal("a closed dialog gives the secret")
 	}
@@ -187,7 +163,7 @@ func TestAClosedDialogComesBackOnlyAfterRetry(t *testing.T) {
 
 func TestAnEmptyAnswerIsNotKept(t *testing.T) {
 	kr := &fakeKeyring{entries: map[string]string{}}
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(kr, ownedByWork).WithAsker(&fakeAsker{answer: "\n"})
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(kr, ownedByWork).WithAsker(&fakeAsker{answer: "\n"})
 	if _, err := s.Get(context.Background(), "forge"); err == nil || len(kr.entries) != 0 {
 		t.Errorf("err = %v, keyring = %v", err, kr.entries)
 	}
@@ -195,14 +171,14 @@ func TestAnEmptyAnswerIsNotKept(t *testing.T) {
 
 func TestAKeyringThatFailsLeavesTheSecretUnavailable(t *testing.T) {
 	broken := errors.New("read the keyring: no Secret Service")
-	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{}).WithKeyring(&fakeKeyring{err: broken}, ownedByWork)
+	s := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}).WithKeyring(&fakeKeyring{err: broken}, ownedByWork)
 	if _, err := s.Get(context.Background(), "forge"); !errors.Is(err, broken) {
 		t.Errorf("err = %v, want %v", err, broken)
 	}
 	if _, ok := s.Unavailable()["forge"]; !ok {
 		t.Error("the secret is not marked unavailable")
 	}
-	without := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{}, mapFiles{})
+	without := NewConfigured(map[string]Backend{"forge": {Keyring: true}}, &fakeRunner{})
 	if _, err := without.Get(context.Background(), "forge"); err == nil || !strings.Contains(err.Error(), "the keyring is not available here") {
 		t.Errorf("without a keyring: %v", err)
 	}
@@ -217,7 +193,7 @@ func (f *fakeOAuth) Token(_ context.Context, name string, _ OAuth) (Value, error
 
 func TestOAuthSecretsAreNotCached(t *testing.T) {
 	tokens := &fakeOAuth{}
-	c := NewConfigured(map[string]Backend{"notion": {OAuth: &OAuth{MCP: "https://mcp.notion.com/mcp"}}}, nil, nil).WithOAuth(tokens)
+	c := NewConfigured(map[string]Backend{"notion": {OAuth: &OAuth{MCP: "https://mcp.notion.com/mcp"}}}, nil).WithOAuth(tokens)
 	for want := 1; want <= 2; want++ {
 		v, err := c.Get(context.Background(), "notion")
 		if err != nil || string(v.Reveal()) != fmt.Sprintf("notion-%d", want) {
@@ -232,7 +208,7 @@ func TestOAuthBackendValidation(t *testing.T) {
 		"issuer without id":    {OAuth: &OAuth{Issuer: "https://b/"}},
 		"mcp with a client id": {OAuth: &OAuth{MCP: "https://a/", ClientID: "c"}},
 		"plain http":           {OAuth: &OAuth{MCP: "http://a/"}},
-		"oauth and a file":     {File: "/x", OAuth: &OAuth{MCP: "https://a/"}},
+		"oauth and a command":  {Command: []string{"x"}, OAuth: &OAuth{MCP: "https://a/"}},
 	} {
 		if b.Validate() == nil {
 			t.Errorf("%s: want an error", name)
@@ -247,7 +223,7 @@ func TestAFailedCommandRunsAgainAfterThirtySecondsWithoutTheTerminal(t *testing.
 	start := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
 	c := &clock{t: start}
 	run := &fakeRunner{err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run, mapFiles{}).WithClock(c.now)
+	s := NewConfigured(map[string]Backend{"gh": {Command: []string{"rbw", "get", "gh"}}}, run).WithClock(c.now)
 	if _, err := s.Get(context.Background(), "gh"); err == nil || err.Error() != `secret "gh": command rbw: exit status 1` {
 		t.Fatalf("err = %v", err)
 	}
@@ -281,7 +257,7 @@ func TestSecretKeepsAllButOneTrailingLineEnding(t *testing.T) {
 		"a\nb\n":    "a\nb",
 		"pass word": "pass word",
 	} {
-		s := NewConfigured(map[string]Backend{"s": {Command: []string{"cat"}}}, &fakeRunner{stdout: out}, mapFiles{})
+		s := NewConfigured(map[string]Backend{"s": {Command: []string{"cat"}}}, &fakeRunner{stdout: out})
 		if v, err := s.Get(context.Background(), "s"); err != nil || string(v.Reveal()) != want {
 			t.Errorf("%q: got %q, %v; want %q", out, v.Reveal(), err, want)
 		}
@@ -290,12 +266,10 @@ func TestSecretKeepsAllButOneTrailingLineEnding(t *testing.T) {
 
 func TestErrorsSayWhatToDo(t *testing.T) {
 	s := NewConfigured(map[string]Backend{
-		"absent": {File: "/absent"},
-		"login":  {OAuth: &OAuth{MCP: "https://mcp.example.com/mcp"}},
-	}, &fakeRunner{}, mapFiles{fstest.MapFS{}})
+		"login": {OAuth: &OAuth{MCP: "https://mcp.example.com/mcp"}},
+	}, &fakeRunner{})
 	for name, want := range map[string]string{
 		"missing": `secret "missing": unknown secret: add [secrets.missing] to the profile`,
-		"absent":  `secret "absent": open absent: file does not exist`,
 		"login":   `secret "login": OAuth logins are not available here`,
 	} {
 		if _, err := s.Get(context.Background(), name); err == nil || err.Error() != want {
@@ -312,7 +286,7 @@ func TestASecretThatExpiresIsReadAgainBeforeIt(t *testing.T) {
 	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	c := &clock{t: start}
 	run := &fakeRunner{stdout: `{"Version":1,"AccessKeyId":"A","Expiration":"2026-10-22T13:00:00Z"}`}
-	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run, mapFiles{}).WithClock(c.now)
+	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run).WithClock(c.now)
 	get := func() {
 		t.Helper()
 		if _, err := s.Get(context.Background(), "aws"); err != nil {
@@ -339,7 +313,7 @@ func TestAFailedRefreshKeepsTheValueUntilItExpires(t *testing.T) {
 	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	c := &clock{t: start}
 	run := &fakeRunner{stdout: `{"Expiration":"2026-10-22T13:00:00Z"}`}
-	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run, mapFiles{}).WithClock(c.now)
+	s := NewConfigured(map[string]Backend{"aws": {Command: []string{"creds"}}}, run).WithClock(c.now)
 	if _, err := s.Get(context.Background(), "aws"); err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +336,7 @@ func TestRefreshReadsATokenAgainOnItsSchedule(t *testing.T) {
 	start := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	c := &clock{t: start}
 	run := &fakeRunner{stdout: "ya29.token\n"}
-	s := NewConfigured(map[string]Backend{"gcp": {Command: []string{"gcloud"}, Refresh: 45 * time.Minute}}, run, mapFiles{}).WithClock(c.now)
+	s := NewConfigured(map[string]Backend{"gcp": {Command: []string{"gcloud"}, Refresh: 45 * time.Minute}}, run).WithClock(c.now)
 	for _, at := range []time.Duration{0, 44 * time.Minute, 46 * time.Minute} {
 		c.t = start.Add(at)
 		if _, err := s.Get(context.Background(), "gcp"); err != nil {
@@ -379,7 +353,7 @@ func TestRefreshReadsATokenAgainOnItsSchedule(t *testing.T) {
 
 func TestAFailedCommandIsReportedByItsLastLineAfterPromptsAndProgress(t *testing.T) {
 	run := &fakeRunner{stderr: "? Master password: [hidden]\nstack trace\nYou are not logged in.", err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"locked": {Command: []string{"bw", "unlock"}}}, run, mapFiles{})
+	s := NewConfigured(map[string]Backend{"locked": {Command: []string{"bw", "unlock"}}}, run)
 	if _, err := s.Get(context.Background(), "locked"); err == nil || !strings.HasSuffix(Explained(err).Error(), ": You are not logged in.") {
 		t.Fatalf("err = %v", err)
 	}
@@ -387,7 +361,7 @@ func TestAFailedCommandIsReportedByItsLastLineAfterPromptsAndProgress(t *testing
 
 func TestWhatAFailedCommandPrintsStaysOutOfItsError(t *testing.T) {
 	run := &fakeRunner{stderr: "wrong format: hunter2", err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"token": {Command: []string{"wrapper"}}}, run, mapFiles{})
+	s := NewConfigured(map[string]Backend{"token": {Command: []string{"wrapper"}}}, run)
 	if _, err := s.Get(context.Background(), "token"); err == nil || strings.Contains(err.Error(), "hunter2") || !strings.Contains(err.Error(), "exit status 1") {
 		t.Fatalf("err = %v", err)
 	}
@@ -395,7 +369,7 @@ func TestWhatAFailedCommandPrintsStaysOutOfItsError(t *testing.T) {
 
 func TestAProvidedSecretReplacesAFailedOneForTheSession(t *testing.T) {
 	run := &fakeRunner{err: errors.New("exit status 1")}
-	s := NewConfigured(map[string]Backend{"acme": {Command: []string{"acme-token"}, Refresh: time.Minute}}, run, mapFiles{})
+	s := NewConfigured(map[string]Backend{"acme": {Command: []string{"acme-token"}, Refresh: time.Minute}}, run)
 	if _, err := s.Get(context.Background(), "acme"); err == nil {
 		t.Fatal("the failing command gave a value")
 	}
@@ -411,7 +385,7 @@ func TestAProvidedSecretReplacesAFailedOneForTheSession(t *testing.T) {
 }
 
 func TestOnlyANamedNonOAuthSecretCanBeProvided(t *testing.T) {
-	s := NewConfigured(map[string]Backend{"linear": {OAuth: &OAuth{MCP: "https://mcp.linear.app/mcp"}}, "gh": {Command: []string{"gh"}}}, &fakeRunner{}, mapFiles{})
+	s := NewConfigured(map[string]Backend{"linear": {OAuth: &OAuth{MCP: "https://mcp.linear.app/mcp"}}, "gh": {Command: []string{"gh"}}}, &fakeRunner{})
 	for name, value := range map[string]string{"nope": "x", "linear": "x", "gh": "  "} {
 		if err := s.Provide(name, NewValue([]byte(value))); err == nil {
 			t.Errorf("provide %s = nil", name)

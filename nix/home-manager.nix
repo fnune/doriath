@@ -20,11 +20,6 @@ let
 
   secretType = lib.types.submodule {
     options = {
-      file = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "A file that holds the secret. It must not be readable by other users.";
-      };
       command = lib.mkOption {
         type = lib.types.nullOr (lib.types.listOf lib.types.str);
         default = null;
@@ -77,7 +72,7 @@ let
         type = lib.types.nullOr lib.types.str;
         default = null;
         example = "45m";
-        description = "Read a file or command secret again after this duration, at least 1m. OAuth logins refresh automatically.";
+        description = "Read a command secret again after this duration, at least 1m. OAuth logins refresh automatically.";
       };
       required = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
@@ -309,12 +304,11 @@ in
         lib.mapAttrsToList (name: s: {
           assertion =
             lib.count (source: source != null && source != false) [
-              s.file
               s.command
               s.keyring
               s.oauth
             ] == 1;
-          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of file, command, keyring or oauth.";
+          message = "programs.doriath.profiles.${profile}.secrets.${name}: set exactly one of command, keyring or oauth.";
         }) p.secrets
       ) cfg.profiles
     );

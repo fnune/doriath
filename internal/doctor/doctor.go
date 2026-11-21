@@ -177,7 +177,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
+		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -194,13 +194,6 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 					err = fmt.Errorf("not signed in: run %s", cli.Code(cli.Line("profiles", "login", prof.Name, name)))
 				}
 				checkSecret(label+" (oauth)", b, err)
-			case b.File != "":
-				info, err := os.Stat(b.File)
-				if err == nil && info.Mode().Perm()&0o077 != 0 {
-					check(label+" (file)", fmt.Errorf("%s is readable by other users: run %s", b.File, cli.Code(cli.Words("chmod", "600", b.File))))
-					continue
-				}
-				checkSecret(label+" (file)", b, err)
 			case b.Keyring:
 				checkSecret(label+" (keyring)", b, nil)
 			default:

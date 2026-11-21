@@ -51,8 +51,8 @@ modules = ["vcs-readwrite", "github", "claude"]
 # Top-level keys go before the first table.
 devices = ["/dev/tpmrm0"]
 
-# The source of each secret: a file with mode 600, a command that prints it,
-# or an OAuth login. doriath reads it when the session starts, and the
+# The source of each secret: a command that prints it, an entry in the
+# keyring of your desktop, or an OAuth login. doriath reads it when the session starts, and the
 # jail never sees it. required = true stops the session when the
 # secret fails. See "Secrets".
 [secrets.github]
@@ -66,7 +66,7 @@ required = true
 oauth = { mcp = "https://mcp.linear.app/mcp" }
 
 [secrets.agent-signing]
-file = "~/.config/doriath/keys/agent-signing"
+keyring = true
 
 # Paths that the jail shows, at the same path.
 # mode is read (the default), write or hide. missing is error (the
@@ -331,7 +331,7 @@ doriath run --profile my-app+repo:dev -- claude
 
 These limits apply to a repository profile:
 
-- It cannot set a secret `command`, because the command runs on your machine with your environment, and the checkout can change it. A secret `file` is allowed. Keep secret commands in your own profile, and compose the two.
+- It cannot set a secret `command`, because the command runs on your machine with your environment, and the checkout can change it. A secret with a login is allowed. Keep secret commands in your own profile, and compose the two.
 - It cannot change where your secrets go. It gives out only the secrets that it defines. It cannot add rules to an `[[http]]` host that your profiles or modules give a credential, replace one of their `[[mcp]]` servers, or define a secret with the name of one of theirs.
 - It cannot mount your keys, logins, git and jj config, or the configuration, state and cache of doriath. It can hide them.
 - In an [edit](#edits) `safe` list, it cannot name a git setting that runs a program or sends data to another place, such as `core.hookspath`, `credential.*`, `url.*`, `include.*` or `remote.*`.
@@ -349,7 +349,7 @@ doriath asks you before the first session of each profile in each repository. It
 
 Below the summary, doriath lists what decides where a secret goes and what the jail can do beyond its mounts:
 
-- the command, file or login behind each secret
+- the command, keyring entry or login behind each secret
 - each credential, with the host and programs that it reaches
 - each host `default`, and the links that the browser opens
 - settings such as `nix.daemon`, `hardening` and the safe edits
@@ -383,7 +383,7 @@ doriath profiles allow my-app --current ~/src/my-app
 
 ## Secrets
 
-A secret has a name that you choose, and a source under `[secrets.NAME]`: a `file` with mode 600, a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
+A secret has a name that you choose, and a source under `[secrets.NAME]`: a `command` that prints the secret, an entry in the [keyring](#keyring-secrets) of your desktop, or an [`oauth` login](#oauth-logins). These keys use a secret by its name:
 
 | Key                          | Uses the secret as                       |
 | ---------------------------- | ---------------------------------------- |
@@ -393,7 +393,7 @@ A secret has a name that you choose, and a source under `[secrets.NAME]`: a `fil
 
 A module can name a secret without its source, and the profile gives the source. For example, a profile with the `github` module needs `[secrets.github]`. If a credential or a signing key names a secret without a source, doriath refuses the profile and prints the table to add.
 
-doriath reads each file and command secret when the session starts, before the agent. A command gets your terminal, so a password manager can ask for its password there. doriath first prints the name of the secret and the command, so you can see that the prompt comes from your profile. For example, Bitwarden's `bw` asks one time for each session:
+doriath reads each command and keyring secret when the session starts, before the agent. A command gets your terminal, so a password manager can ask for its password there. doriath first prints the name of the secret and the command, so you can see that the prompt comes from your profile. For example, Bitwarden's `bw` asks one time for each session:
 
 ```toml
 [secrets.github]
@@ -638,6 +638,7 @@ To replace one value, name the secret, such as `doriath profiles login my-app fo
 - doriath closes a dialog that gets no answer in 2 minutes.
 - Each profile has its own entries, so two profiles can give different values to one secret name. An entry has the service `doriath` and the account `PROFILE/NAME`.
 - If no keyring answers, the secret is unavailable. doriath does not read the value from a file or another source.
+- doriath has no `file` source, so that no secret stays on your disk. A profile with `file` does not load. Use `keyring = true`, and store the value with `doriath profiles login PROFILE NAME` and standard input.
 - A repository profile cannot use `keyring`, because the keyring holds your own values.
 
 ## OAuth logins

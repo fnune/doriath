@@ -20,11 +20,8 @@ func TestTheAWSCLISignsWithPlaceholdersAndAWSGetsTheRealKey(t *testing.T) {
 		t.Skip("no AWS CLI from nix")
 	}
 	e := newEnv(t)
-	creds := filepath.Join(t.TempDir(), "aws.json")
-	if err := os.WriteFile(creds, []byte(`{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	e.secrets["aws"] = secret.Backend{File: creds}
+	e.keyring["aws"] = `{"Version":1,"AccessKeyId":"AKIAREALKEY","SecretAccessKey":"real-secret","SessionToken":"real-session"}`
+	e.secrets["aws"] = secret.Backend{Keyring: true}
 	p := e.profile(`
 [env]
 set = { AWS_ACCESS_KEY_ID = "AKIADORIATHPLACEHOLD", AWS_SECRET_ACCESS_KEY = "doriath-placeholder", AWS_REGION = "us-east-1" }
@@ -71,11 +68,8 @@ func TestAWSAcceptsWhatTheProxySignsAgain(t *testing.T) {
 		pr.SetURL(target)
 		pr.Out.Host = pr.In.Host
 	}}
-	creds := filepath.Join(t.TempDir(), "aws.json")
-	if err := os.WriteFile(creds, []byte(`{"Version":1,"AccessKeyId":"test","SecretAccessKey":"test"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	e.secrets["aws"] = secret.Backend{File: creds}
+	e.keyring["aws"] = `{"Version":1,"AccessKeyId":"test","SecretAccessKey":"test"}`
+	e.secrets["aws"] = secret.Backend{Keyring: true}
 	e.modules = []string{"aws"}
 	p := e.profile("\n[env]\nset = { AWS_REGION = \"us-east-1\", AWS_PAGER = \"\" }\n")
 	bucket := "doriath-test"

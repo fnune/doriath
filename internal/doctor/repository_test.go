@@ -57,7 +57,7 @@ func details(results []Result) string {
 
 func TestARepositoryIsCheckedWithTheProfileItsEnvrcNames(t *testing.T) {
 	opts := repoOptions(t, "use flake\nuse doriath app\n", map[string]string{
-		"app":     "modules = [\"vcs-readonly\"]\n\n[secrets.key]\nfile = \"/k\"\n\n[signing]\nkey = \"key\"\n",
+		"app":     "modules = [\"vcs-readonly\"]\n\n[secrets.key]\nkeyring = true\n\n[signing]\nkey = \"key\"\n",
 		"default": "modules = []\n",
 	})
 	got := details(repository(opts))

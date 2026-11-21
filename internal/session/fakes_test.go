@@ -94,7 +94,7 @@ func newTestSession(t *testing.T, notifier approval.Notifier) *testSession {
 	log := audit.New(&buf, stillClock{}.Now, "s1", "p")
 	promoted := &promotions{}
 	s := &Session{
-		deps:             Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable, Read: promoted.Readable},
+		deps:             Deps{Paths: paths, Secrets: secret.NewConfigured(nil, nil), Clock: stillClock{}, HostWait: time.Hour, Promote: promoted.Writable, Read: promoted.Readable},
 		req:              Request{Profile: &profile.Profile{Name: "p", PathRules: builtinRules(t, home)}},
 		id:               "s1",
 		log:              log,

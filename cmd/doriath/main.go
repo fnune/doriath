@@ -325,7 +325,7 @@ func cmdRun(args []string) (int, error) {
 	deps := session.Deps{
 		Paths:       p,
 		User:        user,
-		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}, secret.OSFiles{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
+		Secrets:     secret.NewConfigured(prof.Secrets, execRunner{}).WithOAuth(oauth.NewTokensOwnedBy(p.State, prof.SecretOwner)).WithKeyring(keyring.Desktop{}, prof.SecretOwner).WithAsker(askpass.New(os.Getenv, exec.LookPath)),
 		Notifier:    notifier,
 		Informer:    informer,
 		Clock:       clock,

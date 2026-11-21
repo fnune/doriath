@@ -120,6 +120,7 @@ type env struct {
 	dialer     proxyDialer
 	bundle     string
 	secrets    map[string]secret.Backend
+	keyring    memoryKeyring
 	roots      *ca.Authority
 	binaries   string
 	systemdRun string
@@ -174,10 +175,6 @@ func newEnv(t *testing.T) *env {
 	if err := os.WriteFile(bundlePath, append(system, upCA.CertPEM()...), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	tokenPath := filepath.Join(root, "token")
-	if err := os.WriteFile(tokenPath, []byte("real-token\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	return &env{
 		t:    t,
 		home: home,
@@ -193,7 +190,8 @@ func newEnv(t *testing.T) *env {
 		dialer:   redirect{addr: srv.Listener.Addr().String()},
 		bundle:   bundlePath,
 		roots:    upCA,
-		secrets:  map[string]secret.Backend{"github": {File: tokenPath}},
+		secrets:  map[string]secret.Backend{"github": {Keyring: true}},
+		keyring:  memoryKeyring{"github": "real-token\n"},
 	}
 }
 
@@ -228,7 +226,7 @@ action = "approve"
 summary = "Create a GitHub release"
 %s`, listed, e.work, e.binaries, extra)
 	for _, name := range slices.Sorted(maps.Keys(e.secrets)) {
-		body += fmt.Sprintf("\n[secrets.%s]\nfile = %q\nrequired = %t\n", name, e.secrets[name].File, e.secrets[name].Required)
+		body += fmt.Sprintf("\n[secrets.%s]\nkeyring = true\nrequired = %t\n", name, e.secrets[name].Required)
 	}
 	if err := os.WriteFile(filepath.Join(e.paths.Profiles(), "it.toml"), []byte(body), 0o600); err != nil {
 		e.t.Fatal(err)
@@ -280,7 +278,7 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 	deps := session.Deps{
 		VCS:           e.vcs,
 		Paths:         e.paths,
-		Secrets:       secret.NewConfigured(p.Secrets, nil, secret.OSFiles{}),
+		Secrets:       secret.NewConfigured(p.Secrets, nil).WithKeyring(e.keyring, p.SecretOwner),
 		Notifier:      notify.None{},
 		Informer:      notify.None{},
 		Clock:         clock{},
@@ -514,11 +512,8 @@ func TestGitSigningAndGuards(t *testing.T) {
 		t.Skip("git not installed")
 	}
 	e := newEnv(t)
-	keyPath := filepath.Join(filepath.Dir(e.home), "agent-key")
-	if err := os.WriteFile(keyPath, signingKey(t), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	e.secrets["agent-key"] = secret.Backend{File: keyPath}
+	e.keyring["agent-key"] = string(signingKey(t))
+	e.secrets["agent-key"] = secret.Backend{Keyring: true}
 	if out, err := exec.Command("git", "init", "-q", e.work).CombinedOutput(); err != nil {
 		t.Fatal(string(out))
 	}
@@ -1013,16 +1008,18 @@ echo done
 
 func TestAnOptionalSecretThatCannotBeReadLeavesTheSessionRunning(t *testing.T) {
 	e := newEnv(t)
-	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token")}
+	delete(e.keyring, "github")
+	e.secrets["github"] = secret.Backend{Keyring: true}
 	code, out := e.run(e.profile(""), `curl -sS https://api.github.com/user`, nil)
-	if code != 0 || !strings.Contains(out, `secret \"github\": stat `) || !strings.Contains(out, "doriath asked the user to fix it on the approvals page") || !strings.Contains(out, "secrets missing github") {
+	if code != 0 || !strings.Contains(out, `secret \"github\" is not in the keyring`) || !strings.Contains(out, "doriath asked the user to fix it on the approvals page") || !strings.Contains(out, "secrets missing github") {
 		t.Fatalf("code %d:\n%s", code, out)
 	}
 }
 
 func TestARequiredSecretThatCannotBeReadStopsTheSessionBeforeTheAgent(t *testing.T) {
 	e := newEnv(t)
-	e.secrets["github"] = secret.Backend{File: filepath.Join(e.work, "missing-token"), Required: true}
+	delete(e.keyring, "github")
+	e.secrets["github"] = secret.Backend{Keyring: true, Required: true}
 	_, out, err := e.start(e.profile(""), `echo ran > "$PWD/ran"`, nil)
 	if err == nil || !strings.Contains(err.Error(), `secret "github"`) {
 		t.Fatalf("err = %v\n%s", err, out)
@@ -1145,4 +1142,19 @@ cat %[2]s
 	default:
 		t.Error("the link never reached the host")
 	}
+}
+
+type memoryKeyring map[string]string
+
+func (m memoryKeyring) Read(_, name string) (secret.Value, error) {
+	v, ok := m[name]
+	if !ok {
+		return secret.Value{}, secret.ErrNotInKeyring
+	}
+	return secret.NewValue([]byte(v)), nil
+}
+
+func (m memoryKeyring) Write(_, name string, v secret.Value) error {
+	m[name] = string(v.Reveal())
+	return nil
 }

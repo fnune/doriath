@@ -107,55 +107,55 @@ func TestLoadRejects(t *testing.T) {
 		modules fstest.MapFS
 		want    string
 	}{
-		"unknown key":             {profile: `mountz = []`, want: "unknown keys: mountz"},
-		"key in mixed case":       {profile: "[[http]]\nhost = \"a.com\"\n[[http.Rules]]\nmethod = \"GET\"\npath = \"/\"\naction = \"deny\"", want: "write it in lower case"},
-		"bad mode":                {profile: "[[mounts]]\npath = \"/x\"\nmode = \"rwx\"", want: `mode "rwx"`},
-		"relative path":           {profile: "[[mounts]]\npath = \"x\"", want: "must be absolute"},
-		"bad host":                {profile: "[egress]\nallow = [\"https://x.com\"]", want: "host pattern"},
-		"wildcard inside":         {profile: "[egress]\nallow = [\"a.*.com\"]", want: "host pattern"},
-		"port range":              {profile: "[egress]\nports = [0]", want: "out of range"},
-		"basic without user":      {profile: "[[http]]\nhost = \"github.com\"\ncredential = { secret = \"gh\", scheme = \"basic\" }", want: "needs a username"},
-		"bad action":              {profile: "[[http]]\nhost = \"github.com\"\ndefault = \"maybe\"", want: `action "maybe"`},
-		"bad path glob":           {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/a*\"\naction = \"deny\"", want: "whole segment"},
-		"cache outside home":      {profile: "[[caches]]\npath = \"/var/cache\"", want: "inside the home"},
-		"device outside dev":      {profile: "devices = [\"/etc/passwd\"]", want: "under /dev"},
-		"missing module":          {profile: `modules = ["nope"]`, want: `module "nope" not found`},
-		"undefined secret":        {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
-		"undefined signing":       {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
-		"secret both":             {profile: "[secrets.x]\nfile = \"/a\"\ncommand = [\"b\"]", want: "exactly one of file, command, keyring or oauth"},
-		"secret keyring and file": {profile: "[secrets.x]\nfile = \"/a\"\nkeyring = true", want: "exactly one of file, command, keyring or oauth"},
-		"secret relative":         {profile: "[secrets.x]\nfile = \"rel\"", want: "must be absolute"},
-		"writable nix store":      {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
-		"writable opt":            {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"write\"", want: "must not be writable"},
-		"bad memory limit":        {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
-		"bad cpu limit":           {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
-		"negative tasks":          {profile: "[limits]\ntasks = -1", want: "limits tasks"},
-		"bad image glob":          {profile: "[podman]\nimages = [\"docker.io/[\"]", want: "podman images"},
-		"short image name":        {profile: "[podman]\nimages = [\"postgres\"]", want: "name the registry"},
-		"name field differs":      {profile: `name = "q"`, want: `name field says "q"`},
-		"bad env name":            {profile: "[env]\nset = { \"1X\" = \"a\" }", want: `env set "1X": invalid variable name`},
-		"bad env pass":            {profile: "[env]\npass = [\"A-B\"]", want: `env pass "A-B": invalid variable name`},
-		"port twice":              {profile: "[egress]\nports = [5432]\ntcp_ports = [5432]", want: "listed both as HTTP and as TCP"},
-		"bad host label":          {profile: "[egress]\nallow = [\"a_b.com\"]", want: `invalid label "a_b"`},
-		"bad secret name":         {profile: "[secrets.\"g h\"]\nfile = \"/a\"", want: "use lowercase letters"},
+		"unknown key":              {profile: `mountz = []`, want: "unknown keys: mountz"},
+		"key in mixed case":        {profile: "[[http]]\nhost = \"a.com\"\n[[http.Rules]]\nmethod = \"GET\"\npath = \"/\"\naction = \"deny\"", want: "write it in lower case"},
+		"bad mode":                 {profile: "[[mounts]]\npath = \"/x\"\nmode = \"rwx\"", want: `mode "rwx"`},
+		"relative path":            {profile: "[[mounts]]\npath = \"x\"", want: "must be absolute"},
+		"bad host":                 {profile: "[egress]\nallow = [\"https://x.com\"]", want: "host pattern"},
+		"wildcard inside":          {profile: "[egress]\nallow = [\"a.*.com\"]", want: "host pattern"},
+		"port range":               {profile: "[egress]\nports = [0]", want: "out of range"},
+		"basic without user":       {profile: "[[http]]\nhost = \"github.com\"\ncredential = { secret = \"gh\", scheme = \"basic\" }", want: "needs a username"},
+		"bad action":               {profile: "[[http]]\nhost = \"github.com\"\ndefault = \"maybe\"", want: `action "maybe"`},
+		"bad path glob":            {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/a*\"\naction = \"deny\"", want: "whole segment"},
+		"cache outside home":       {profile: "[[caches]]\npath = \"/var/cache\"", want: "inside the home"},
+		"device outside dev":       {profile: "devices = [\"/etc/passwd\"]", want: "under /dev"},
+		"missing module":           {profile: `modules = ["nope"]`, want: `module "nope" not found`},
+		"undefined secret":         {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
+		"undefined signing":        {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
+		"secret both":              {profile: "[secrets.x]\nkeyring = true\ncommand = [\"b\"]", want: "exactly one of command, keyring or oauth"},
+		"secret from a file":       {profile: "[secrets.x]\nfile = \"/a\"", want: "keyring = true"},
+		"secret from a file named": {profile: "[secrets.x]\nfile = \"/a\"\nkeyring = true", want: "doriath profiles login PROFILE x"},
+		"writable nix store":       {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
+		"writable opt":             {profile: "[[mounts]]\npath = \"/opt/tool\"\nmode = \"write\"", want: "must not be writable"},
+		"bad memory limit":         {profile: "[limits]\nmemory = \"8 GB\"", want: "limits memory"},
+		"bad cpu limit":            {profile: "[limits]\ncpu = \"2\"", want: "limits cpu"},
+		"negative tasks":           {profile: "[limits]\ntasks = -1", want: "limits tasks"},
+		"bad image glob":           {profile: "[podman]\nimages = [\"docker.io/[\"]", want: "podman images"},
+		"short image name":         {profile: "[podman]\nimages = [\"postgres\"]", want: "name the registry"},
+		"name field differs":       {profile: `name = "q"`, want: `name field says "q"`},
+		"bad env name":             {profile: "[env]\nset = { \"1X\" = \"a\" }", want: `env set "1X": invalid variable name`},
+		"bad env pass":             {profile: "[env]\npass = [\"A-B\"]", want: `env pass "A-B": invalid variable name`},
+		"port twice":               {profile: "[egress]\nports = [5432]\ntcp_ports = [5432]", want: "listed both as HTTP and as TCP"},
+		"bad host label":           {profile: "[egress]\nallow = [\"a_b.com\"]", want: `invalid label "a_b"`},
+		"bad secret name":          {profile: "[secrets.\"g h\"]\nkeyring = true", want: "use lowercase letters"},
 		"bad credential secret": {
 			profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"G\" }",
 			want:    `secret "G": use lowercase letters`,
 		},
 		"username without basic": {
-			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", username = \"x\" }",
+			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", username = \"x\" }",
 			want:    "username is only used with the basic scheme",
 		},
 		"unknown scheme": {
-			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"digest\" }",
+			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"digest\" }",
 			want:    "want bearer, token, basic, header or sigv4",
 		},
 		"empty credential binary": {
-			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"\"] }",
+			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"\"] }",
 			want:    "binaries entries must not be empty",
 		},
 		"relative credential binary": {
-			profile: "[secrets.gh]\nfile = \"/a\"\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"bin/gh\"] }",
+			profile: "[secrets.gh]\nkeyring = true\n[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", binaries = [\"bin/gh\"] }",
 			want:    `binary "bin/gh": a path must be absolute`,
 		},
 		"lower-case method":    {profile: "[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"get\"\npath = \"/\"\naction = \"deny\"", want: "want an uppercase HTTP method"},
@@ -177,27 +177,27 @@ func TestLoadRejects(t *testing.T) {
 		},
 		"module with secrets": {
 			profile: `modules = ["a"]`,
-			modules: fstest.MapFS{"a.toml": file("[secrets.gh]\nfile = \"/t\"")},
+			modules: fstest.MapFS{"a.toml": file("[secrets.gh]\nkeyring = true")},
 			want:    "belong in profiles",
 		},
 		"bad missing": {profile: "[[mounts]]\npath = \"/x\"\nmissing = \"maybe\"", want: `missing "maybe": want error, skip or hold`},
 		"module credential with an undeclared secret": {
-			profile: "modules = [\"a\"]\n[secrets.gh]\nfile = \"/t\"",
+			profile: "modules = [\"a\"]\n[secrets.gh]\nkeyring = true",
 			modules: fstest.MapFS{"a.toml": file("[[http]]\nhost = \"evil.example\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }")},
 			want:    `module "a": it hands secret "gh"`,
 		},
 		"module rule credential with an undeclared secret": {
-			profile: "modules = [\"a\"]\n[secrets.gh]\nfile = \"/t\"",
+			profile: "modules = [\"a\"]\n[secrets.gh]\nkeyring = true",
 			modules: fstest.MapFS{"a.toml": file("[[http]]\nhost = \"a.com\"\n[[http.rules]]\nmethod = \"GET\"\npath = \"/\"\naction = \"allow\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }")},
 			want:    `module "a": it hands secret "gh"`,
 		},
 		"module signing with an undeclared key": {
-			profile: "modules = [\"a\"]\n[secrets.k]\nfile = \"/t\"",
+			profile: "modules = [\"a\"]\n[secrets.k]\nkeyring = true",
 			modules: fstest.MapFS{"a.toml": file("[signing]\nkey = \"k\"")},
 			want:    `module "a": it hands secret "k"`,
 		},
 		"module mcp server with an undeclared secret": {
-			profile: "modules = [\"a\"]\n[secrets.n]\nfile = \"/t\"",
+			profile: "modules = [\"a\"]\n[secrets.n]\nkeyring = true",
 			modules: fstest.MapFS{"a.toml": file("[[mcp]]\nname = \"n\"\nurl = \"https://a.com/mcp\"\nsecret = \"n\"")},
 			want:    `module "a": it hands secret "n"`,
 		},
@@ -521,7 +521,7 @@ command = ["deploy-token"]
 required = true
 
 [secrets.signing]
-file = "~/.config/doriath/keys/agent-signing"
+keyring = true
 
 [signing]
 key = "signing"
@@ -588,7 +588,7 @@ func TestSourcesNameWhatDecidesWhereSecretsGo(t *testing.T) {
 command = ["pass", "show", "gh"]
 
 [secrets.key]
-file = "~/.config/doriath/keys/key"
+keyring = true
 
 [secrets.forge]
 keyring = true
@@ -630,7 +630,7 @@ cpu = "200%"
 	}
 	for _, key := range []string{
 		"source gh: command pass show gh",
-		"source key: file ~/.config/doriath/keys/key",
+		"source key: keyring",
 		"source forge: keyring",
 		"credential api.example: gh for gh, curl",
 		"credential api.example POST /upload: key for any program",

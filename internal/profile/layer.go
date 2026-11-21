@@ -298,7 +298,7 @@ func tomlFieldNames(t reflect.Type, names map[string]bool) map[string]bool {
 }
 
 type secretLayer struct {
-	File     string      `toml:"file"`
+	File     string      `toml:"file"` // only to refuse it with a pointer to the keyring
 	Command  []string    `toml:"command"`
 	Keyring  bool        `toml:"keyring"`
 	OAuth    *oauthLayer `toml:"oauth"`

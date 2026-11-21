@@ -80,8 +80,8 @@ command = ["cloud-token"]
 
 func TestProfilesThatDisagreeOnASecretOrAKeyAreRefused(t *testing.T) {
 	l := composed(t, map[string]string{
-		"a": "[secrets.github]\ncommand = [\"gh\", \"auth\", \"token\"]\n\n[secrets.key-a]\nfile = \"/k/a\"\n\n[signing]\nkey = \"key-a\"\n",
-		"b": "[secrets.github]\nfile = \"/k/github\"\n\n[secrets.key-b]\nfile = \"/k/b\"\n\n[signing]\nkey = \"key-b\"\n",
+		"a": "[secrets.github]\ncommand = [\"gh\", \"auth\", \"token\"]\n\n[secrets.key-a]\nkeyring = true\n\n[signing]\nkey = \"key-a\"\n",
+		"b": "[secrets.github]\nkeyring = true\n\n[secrets.key-b]\nkeyring = true\n\n[signing]\nkey = \"key-b\"\n",
 	})
 	_, err := l.Load("a+b")
 	if err == nil || !strings.Contains(err.Error(), `secret "github": profiles a and b give it different sources`) || !strings.Contains(err.Error(), "profiles a and b sign with different keys") {
