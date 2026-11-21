@@ -8,6 +8,7 @@ import (
 
 	"github.com/fnune/doriath/internal/approval"
 	"github.com/fnune/doriath/internal/profile"
+	"github.com/fnune/doriath/internal/secret"
 )
 
 func TestOnlyPlainWebLinksAreOpened(t *testing.T) {
@@ -156,5 +157,19 @@ func TestASessionAllowOfAHeldLinkCoversOnlyLinksOfTheSameRule(t *testing.T) {
 	want := []string{"open forge.example /settings/**", "open forge.example /login/**", "open other.example"}
 	if !slices.Equal(scopes, want) || len(opened.urls) != 4 {
 		t.Errorf("asked for %q, want %q; opened %v", scopes, want, opened.urls)
+	}
+}
+
+func TestTheSignInPageOfALoginThatDoriathHoldsIsNotOpened(t *testing.T) {
+	s, opened := linkSession(t, &answering{}, rule(t, "claude.com", "/cai/oauth/authorize", profile.ActionAllow))
+	s.req.Profile.Name = "app"
+	s.req.Profile.Secrets = map[string]secret.Backend{"claude": {OAuth: &secret.OAuth{AuthorizeURL: "https://claude.com/cai/oauth/authorize", TokenURL: "https://platform.claude.com/v1/oauth/token", ClientID: "c"}}}
+	_, err := s.requestOpen("https://claude.com/cai/oauth/authorize?code=true&client_id=c", "")
+	want := "doriath holds the login for this sign-in page, so the agent cannot sign in there. Ask the user to run `doriath profiles login app claude` on the host"
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(opened.urls) != 0 {
+		t.Errorf("opened %v", opened.urls)
 	}
 }

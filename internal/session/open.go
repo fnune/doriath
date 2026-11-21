@@ -3,13 +3,16 @@ package session
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fnune/doriath/internal/approval"
+	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/profile"
 )
 
@@ -33,6 +36,9 @@ func (s *Session) requestOpen(raw, reason string) (RequestResult, error) {
 		return RequestResult{}, err
 	}
 	host := strings.ToLower(u.Hostname())
+	if name, held := s.heldLoginAt(u); held {
+		return RequestResult{}, fmt.Errorf("%s: doriath holds the login for this sign-in page, so the agent cannot sign in there. Ask the user to run %s on the host", raw, cli.Code(cli.Line("profiles", "login", s.req.Profile.LoginProfile(name), name)))
+	}
 	scope := "open " + host
 	rule, ok := s.req.Profile.OpenRule(host, linkPath(u))
 	if ok {
@@ -155,6 +161,22 @@ func isLoopback(host string) bool {
 		return true
 	}
 	return false
+}
+
+// heldLoginAt is the secret whose OAuth sign-in page is the link, when the
+// profile holds a login with explicit endpoints.
+func (s *Session) heldLoginAt(u *url.URL) (string, bool) {
+	for _, name := range slices.Sorted(maps.Keys(s.req.Profile.Secrets)) {
+		o := s.req.Profile.Secrets[name].OAuth
+		if o == nil || o.AuthorizeURL == "" {
+			continue
+		}
+		a, err := url.Parse(o.AuthorizeURL)
+		if err == nil && strings.EqualFold(a.Hostname(), u.Hostname()) && strings.TrimSuffix(a.Path, "/") == strings.TrimSuffix(u.Path, "/") {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 func (s *Session) openLink(u *url.URL, forward bool) error {
