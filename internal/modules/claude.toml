@@ -1,6 +1,22 @@
-description = "Claude Code, with its own login, your settings read-only and claude.ai connectors off."
+description = "Claude Code, with a login that doriath holds, your settings read-only and claude.ai connectors off."
+uses_secrets = ["claude"]
+
+# The endpoints and the client ID are the public constants of Claude Code's
+# login. Run doriath profiles login PROFILE once, and every profile with this
+# module shares the login. A profile that gives its own [secrets.claude]
+# replaces this one.
+[secrets.claude]
+required = true
+
+[secrets.claude.oauth]
+authorize_url = "https://claude.com/cai/oauth/authorize"
+token_url = "https://platform.claude.com/v1/oauth/token"
+token_body = "json"
+client_id = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+scopes = ["user:inference", "user:profile"]
 [env]
-set = { DISABLE_AUTOUPDATER = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
+# Claude Code sends this placeholder, and the proxy replaces it with the login.
+set = { CLAUDE_CODE_OAUTH_TOKEN = "doriath-placeholder", DISABLE_AUTOUPDATER = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com", "bridge.claudeusercontent.com"]
@@ -57,6 +73,7 @@ mode = "write"
 [[http]]
 host = "api.anthropic.com"
 default = "allow"
+credential = { secret = "claude", scheme = "bearer", binaries = ["claude"] }
 
 [[http.rules]]
 method = "*"
@@ -79,21 +96,16 @@ path = "/api/event_logging/**"
 action = "deny"
 summary = "Send usage events to Anthropic"
 
+# Claude Code sends the login to claude.ai for account calls. It also sends it
+# to mcp-proxy.anthropic.com, which stays denied with the connectors.
+[[http]]
+host = "claude.ai"
+default = "allow"
+credential = { secret = "claude", scheme = "bearer", binaries = ["claude"] }
+
 [claude]
 disable_connectors = true
 ask = [
   "mcp__claude-in-chrome__javascript_tool",
   "mcp__claude-in-chrome__file_upload",
 ]
-
-[[open]]
-host = "claude.com"
-path = "/cai/oauth/authorize"
-action = "allow"
-forward_redirect = true
-
-[[open]]
-host = "platform.claude.com"
-path = "/oauth/authorize"
-action = "allow"
-forward_redirect = true

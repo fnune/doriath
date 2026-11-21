@@ -3,7 +3,25 @@ title: Claude Code
 description: What doriath sets up for Claude Code, and the choices left to you.
 ---
 
-Your Claude configuration needs no change. The [`claude` module](/reference/modules/#claude) gives each profile its own `~/.claude`, with your `CLAUDE.md`, settings and skills as read-only files. Each session starts with a fresh copy of your plugins, which Claude can write to, and nothing it writes there reaches yours. The login belongs to the profile, so run `/login` once in a session: doriath opens the sign-in page in your browser, and forwards the answer back into the jail. A new profile starts with your onboarding done.
+Your Claude configuration needs no change. The [`claude` module](/reference/modules/#claude) gives each profile its own `~/.claude`, with your `CLAUDE.md`, settings and skills as read-only files. Each session starts with a fresh copy of your plugins, which Claude can write to, and nothing it writes there reaches yours. The login stays on the host: doriath holds it, and the proxy adds it to requests, so Claude never reads a token. A new profile starts with your onboarding done. [The login](#the-login) shows how to sign in.
+
+## The login
+
+Run this command on the host, one time:
+
+```sh
+doriath profiles login my-app
+```
+
+doriath opens the Claude sign-in page in your browser, and keeps the login in the [keyring](/reference/configuration/#oauth-logins) of your desktop. Every profile with the `claude` module shares this one login, so you sign in once. The entry has the service `doriath-oauth` and the account `module:claude/claude`. You can name any profile that has the module.
+
+- A session without the login stops before Claude starts, and prints the command to run.
+- Claude gets the placeholder `doriath-placeholder` in `CLAUDE_CODE_OAUTH_TOKEN`. The proxy replaces it with the real token on `api.anthropic.com` and `claude.ai`, for the `claude` program only.
+- The jail cannot open the sign-in pages, so Claude cannot sign in by itself.
+- Claude Code keeps its own login in `.credentials.json` in its config directory. The `claude` module deletes that file in the cache of the profile at each session start, because it would hold a refresh token that the agent can read. `doriath doctor` reports such files.
+- To use another source for one profile, such as an API key from a password manager, give `[secrets.claude]` in the profile. It replaces the login of the module.
+
+Claude sends the token only to `api.anthropic.com` and `claude.ai`. Two features can still fail: connectors, which reach `mcp-proxy.anthropic.com` and stay off, and Claude in Chrome, whose `bridge.claudeusercontent.com` connection the proxy does not touch, so it has no token.
 
 ## The adapter
 

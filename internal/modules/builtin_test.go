@@ -60,6 +60,10 @@ func TestARequestForAPathThatYourMachineRunsOnItsOwnWarns(t *testing.T) {
 	}
 }
 
+type shippedMap struct{ fstest.MapFS }
+
+func (shippedMap) Shipped() {}
+
 func TestAProfileThatYouAllowedBeforeTheBuiltinModulesStartsWithoutAQuestion(t *testing.T) {
 	before := fstest.MapFS{}
 	entries, err := fs.ReadDir(FS, ".")
@@ -79,7 +83,7 @@ func TestAProfileThatYouAllowedBeforeTheBuiltinModulesStartsWithoutAQuestion(t *
 	}
 	before["vcs-readwrite.toml"] = &fstest.MapFile{Data: old}
 	profiles := fstest.MapFS{"app.toml": {Data: []byte("modules = [\"vcs-readwrite\", \"claude\", \"nix\"]\n")}}
-	approved, err := (&profile.Loader{Profiles: profiles, Modules: []fs.FS{before}, Home: "/home/u"}).Load("app")
+	approved, err := (&profile.Loader{Profiles: profiles, Modules: []fs.FS{shippedMap{before}}, Home: "/home/u"}).Load("app")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -591,3 +591,25 @@ func TestLoginStoresASecretWithSeparatorsInItsName(t *testing.T) {
 		t.Errorf("output = %q", out.String())
 	}
 }
+
+func TestLoginOfTheClaudeModuleIsSharedBetweenProfiles(t *testing.T) {
+	p := testPaths(t)
+	writeProfile(t, p, "one", `modules = ["claude"]`)
+	writeProfile(t, p, "two", `modules = ["claude"]`)
+	logins := keyringtest.New()
+	if err := logins.Write("module:claude", "claude", secret.NewValue([]byte(`{"token":{"access_token":"a"}}`))); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"one", "two"} {
+		var out bytes.Buffer
+		if err := cmdLogin(p, loader(p, p.Home), []string{name}, strings.NewReader(""), memoryKeyring{}, logins, &out); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out.String(), "Already signed in for claude") {
+			t.Errorf("profile %s: %q", name, out.String())
+		}
+	}
+	if logins.Has("one", "claude") || logins.Has("two", "claude") {
+		t.Error("a profile got an entry of its own")
+	}
+}

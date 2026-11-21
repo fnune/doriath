@@ -23,7 +23,7 @@ doriath never writes to profiles, because a profile can come from Nix. An approv
 
 ## Profiles and modules
 
-A profile holds secrets, whose commands run on your machine. It also owns state, such as caches, the agent's login and image pins. A module holds no secrets and no state, so doriath can ship modules and a team can share them.
+A profile holds secrets, whose commands run on your machine. It also owns state, such as caches, the agent's login and image pins. A module holds no secrets and no state, so doriath can ship modules and a team can share them. The one exception is a built-in module that defines a login with `oauth`, such as the `claude` module.
 
 A profile lists its `modules`, as [modules](/reference/modules/) describes. A session can join profiles with `+`, as [composed profiles](#composed-profiles) describes. doriath builds one list of layers: the modules of each profile in order, each module after its own `modules`, then the profile, then the next profile. These rules merge the layers:
 
@@ -726,6 +726,7 @@ If the refresh token stops working, doriath tells you to run `doriath profiles l
 
 - An entry has the service `doriath-oauth` and the account `PROFILE/NAME`. A login and a keyring secret with the same name do not share an entry.
 - If no keyring answers, the login is unavailable. doriath does not keep it in a file.
+- A built-in module can define an `oauth` secret, as the `claude` module does. Its login belongs to the module, not to a profile: the account is `module:NAME/SECRET`, and every profile with the module shares it. Run `doriath profiles login PROFILE` with any such profile. A profile that gives the same secret name replaces the source of the module, and then its own entry holds the login. Modules in your folder cannot define secrets.
 - Earlier versions kept logins in `~/.local/state/doriath/oauth/`. The next `doriath run` or `doriath profiles login` moves each file into the keyring and deletes it, so you do not sign in again. If the keyring does not answer, the files stay. `doriath doctor` lists them.
 
 ## Containers

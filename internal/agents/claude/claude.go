@@ -18,6 +18,11 @@ import (
 	"github.com/fnune/doriath/internal/profile"
 )
 
+// CredentialsFile is where Claude Code keeps its own login, with a refresh
+// token, in its config directory. doriath holds the login instead, so a file
+// there is a login on disk that the agent can read.
+const CredentialsFile = ".credentials.json"
+
 type Adapter struct{}
 
 func (Adapter) Name() string { return "claude" }
@@ -46,6 +51,9 @@ func (Adapter) Seeds(s agents.Session) []agents.Seed {
 func (Adapter) Start(s agents.Session, argv []string) ([]string, map[string]string, error) {
 	configDir := filepath.Join(s.Home, ".claude")
 	if private := s.HostPath(configDir); private != "" {
+		if err := os.Remove(filepath.Join(private, CredentialsFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, fmt.Errorf("delete the login that Claude left on disk: %w", err)
+		}
 		if err := copyPluginsIn(filepath.Join(configDir, "plugins"), filepath.Join(private, "plugins")); err != nil {
 			return nil, nil, fmt.Errorf("copy the Claude plugins: %w", err)
 		}

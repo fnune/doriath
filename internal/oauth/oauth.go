@@ -85,6 +85,7 @@ func SignedIn(v secret.Keyring, profile, name string) bool {
 type Tokens struct {
 	logins secret.Keyring
 	owner  func(secret string) string
+	target func(secret string) string
 
 	mu      sync.Mutex
 	sources map[string]oauth2.TokenSource
@@ -95,7 +96,15 @@ func NewTokens(logins secret.Keyring, profile string) *Tokens {
 }
 
 func NewTokensOwnedBy(logins secret.Keyring, owner func(secret string) string) *Tokens {
-	return &Tokens{logins: logins, owner: owner, sources: map[string]oauth2.TokenSource{}}
+	return &Tokens{logins: logins, owner: owner, target: owner, sources: map[string]oauth2.TokenSource{}}
+}
+
+// WithLoginProfile sets the profile that the messages name in the command to
+// sign in again, when it is not the owner of the login: a login that a
+// module gives belongs to every profile with the module.
+func (t *Tokens) WithLoginProfile(target func(secret string) string) *Tokens {
+	t.target = target
+	return t
 }
 
 func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.Value, error) {
@@ -106,7 +115,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		s, err := load(t.logins, profile, name)
 		if errors.Is(err, secret.ErrNotInKeyring) {
 			t.mu.Unlock()
-			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", profile, name)))
+			return secret.Value{}, fmt.Errorf("secret %q: not signed in: run %s", name, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
 		}
 		if err != nil {
 			t.mu.Unlock()
@@ -118,7 +127,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 	t.mu.Unlock()
 	tok, err := src.Token()
 	if err != nil {
-		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.owner(name), name)))
+		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.target(name), name)))
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
 }

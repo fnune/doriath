@@ -500,6 +500,20 @@ func (p *Profile) SecretOwner(name string) string {
 	return p.StateName()
 }
 
+// SharedOwnerPrefix starts the owner of a login that a built-in module gives.
+// Every profile with the module shares that login, and no profile name has a
+// colon, so the owner cannot be the name of a profile.
+const SharedOwnerPrefix = "module:"
+
+// LoginProfile is the profile to name in `doriath profiles login` for a
+// secret: the one that gives it, or this profile when a module does.
+func (p *Profile) LoginProfile(name string) string {
+	if owner := p.SecretOwner(name); !strings.HasPrefix(owner, SharedOwnerPrefix) {
+		return owner
+	}
+	return p.Name
+}
+
 func (p *Profile) StateName() string {
 	if p.stateName != "" {
 		return p.stateName

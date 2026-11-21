@@ -33,8 +33,10 @@ import (
 	"github.com/fnune/doriath/internal/ca"
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/control"
+	"github.com/fnune/doriath/internal/keyringtest"
 	"github.com/fnune/doriath/internal/modules"
 	"github.com/fnune/doriath/internal/notify"
+	"github.com/fnune/doriath/internal/oauth"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/promote"
 	"github.com/fnune/doriath/internal/secret"
@@ -121,6 +123,7 @@ type env struct {
 	bundle     string
 	secrets    map[string]secret.Backend
 	keyring    memoryKeyring
+	logins     *keyringtest.Memory
 	roots      *ca.Authority
 	binaries   string
 	systemdRun string
@@ -192,6 +195,7 @@ func newEnv(t *testing.T) *env {
 		roots:    upCA,
 		secrets:  map[string]secret.Backend{"github": {Keyring: true}},
 		keyring:  memoryKeyring{"github": "real-token\n"},
+		logins:   claudeLogin(t),
 	}
 }
 
@@ -278,7 +282,8 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 	deps := session.Deps{
 		VCS:           e.vcs,
 		Paths:         e.paths,
-		Secrets:       secret.NewConfigured(p.Secrets, nil).WithKeyring(e.keyring, p.SecretOwner),
+		Secrets:       secret.NewConfigured(p.Secrets, nil).WithKeyring(e.keyring, p.SecretOwner).WithOAuth(oauth.NewTokensOwnedBy(e.logins, p.SecretOwner).WithLoginProfile(p.LoginProfile)),
+		Logins:        e.logins,
 		Notifier:      notify.None{},
 		Informer:      notify.None{},
 		Clock:         clock{},
@@ -1157,4 +1162,14 @@ func (m memoryKeyring) Read(_, name string) (secret.Value, error) {
 func (m memoryKeyring) Write(_, name string, v secret.Value) error {
 	m[name] = string(v.Reveal())
 	return nil
+}
+
+// claudeLogin is the login that the claude module needs before a session starts.
+func claudeLogin(t *testing.T) *keyringtest.Memory {
+	t.Helper()
+	logins := keyringtest.New()
+	if err := logins.Write("module:claude", "claude", secret.NewValue([]byte(`{"token":{"access_token":"real-claude-login","expiry":"2999-01-01T00:00:00Z"}}`))); err != nil {
+		t.Fatal(err)
+	}
+	return logins
 }

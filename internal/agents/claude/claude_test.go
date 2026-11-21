@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -255,5 +256,41 @@ func TestAnAllowListOfServersKeepsTheProfilesOwnServers(t *testing.T) {
 func TestTheEmptyPlaceholderThatVCSHoldsReadsAsNoProjectSettings(t *testing.T) {
 	if _, err := Settings(&profile.Profile{}, "/w", time.Minute, mapFiles{"/w/.claude/settings.json": ""}); err != nil {
 		t.Fatalf("the placeholder for a missing settings file stopped the session: %v", err)
+	}
+}
+
+func TestASessionDeletesTheLoginThatClaudeLeftOnDisk(t *testing.T) {
+	private := t.TempDir()
+	login := filepath.Join(private, CredentialsFile)
+	if err := os.WriteFile(login, []byte(`{"claudeAiOauth":{"refreshToken":"x"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(private, "settings.json")
+	if err := os.WriteFile(other, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	s := agents.Session{
+		Profile: &profile.Profile{},
+		Home:    home,
+		HostPath: func(p string) string {
+			if p == filepath.Join(home, ".claude") {
+				return private
+			}
+			return ""
+		},
+		WriteFile: func(name string, _ []byte) (string, error) { return "/run/doriath/" + name, nil },
+		Place:     func(string, []byte) error { return nil },
+	}
+	for range 2 {
+		if _, _, err := (Adapter{}).Start(s, []string{"claude"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(login); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the login stays on disk: %v", err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("another file went: %v", err)
 	}
 }

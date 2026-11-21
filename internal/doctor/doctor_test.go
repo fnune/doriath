@@ -52,7 +52,7 @@ func mustLoad(t *testing.T, opts Options, name string) *profile.Profile {
 
 func TestSecretsLeftOnDiskFailTheCheck(t *testing.T) {
 	state := t.TempDir()
-	p := config.Paths{State: state}
+	p := config.Paths{State: state, Cache: filepath.Join(state, "cache")}
 	if got := details(checkSecretsOnDisk(p)); got != "ok no secrets on disk: \n" {
 		t.Errorf("a clean state directory: %q", got)
 	}
@@ -60,7 +60,11 @@ func TestSecretsLeftOnDiskFailTheCheck(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(login), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{login, filepath.Join(state, "web-token")} {
+	agentLogin := filepath.Join(state, "cache", "agents", "work", "home", ".claude", ".credentials.json")
+	if err := os.MkdirAll(filepath.Dir(agentLogin), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{login, filepath.Join(state, "web-token"), agentLogin} {
 		if err := os.WriteFile(path, []byte("secret"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -72,6 +76,7 @@ func TestSecretsLeftOnDiskFailTheCheck(t *testing.T) {
 	got := details(results)
 	for _, want := range []string{
 		"problem secret on disk: " + login + " holds an OAuth login: run `doriath profiles login work` to move it into the keyring\n",
+		"problem secret on disk: " + agentLogin + " holds a Claude login: delete it, or start a session with the claude module, which deletes it. Then run `doriath profiles login PROFILE claude` to sign in once for every profile\n",
 		"problem secret on disk: " + filepath.Join(state, "web-token") + " holds the token of the approvals page: run `doriath web open`, which deletes it\n",
 	} {
 		if !strings.Contains(got, want) {

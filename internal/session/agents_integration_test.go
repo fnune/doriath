@@ -3,10 +3,13 @@
 package session_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/fnune/doriath/internal/keyringtest"
 )
 
 const remoteServer = "\n[[mcp]]\nname = \"remote\"\nurl = \"https://example.com/mcp\"\n"
@@ -80,5 +83,17 @@ func TestClaudeStartsInAWritableCheckoutWithoutProjectSettings(t *testing.T) {
 	code, out := e.run(e.profile(""), `echo started`, nil)
 	if code != 0 || !strings.Contains(out, "started") {
 		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
+
+func TestClaudeNeedsTheLoginBeforeTheAgentStarts(t *testing.T) {
+	e := agentEnv(t, "claude")
+	e.logins = keyringtest.New()
+	_, out, err := e.start(e.profile(""), `echo ran > "$PWD/ran"`, nil)
+	if err == nil || !strings.Contains(err.Error(), "not signed in: run `doriath profiles login it claude`") {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(e.work, "ran")); err == nil {
+		t.Error("the agent started without the login")
 	}
 }

@@ -2,6 +2,7 @@ package profile
 
 import (
 	"crypto/sha256"
+	"embed"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -264,7 +265,7 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		if done[name] {
 			continue
 		}
-		data, err := l.readModule(name)
+		data, shipped, err := l.readModule(name)
 		if err != nil {
 			return err
 		}
@@ -272,8 +273,13 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		if err != nil {
 			return err
 		}
-		if ly.Name != "" || len(ly.Secrets) > 0 {
+		if ly.Name != "" || len(ly.Secrets) > 0 && !shipped {
 			return fmt.Errorf("module %q: name and secrets belong in profiles", name)
+		}
+		for _, k := range slices.Sorted(maps.Keys(ly.Secrets)) {
+			if v := ly.Secrets[k]; v.OAuth == nil || len(v.Command) > 0 || v.Keyring || v.File != "" {
+				return fmt.Errorf("module %q: secret %q: a built-in module can define only a login with oauth", name, k)
+			}
 		}
 		for _, ref := range ly.secretRefs() {
 			if !slices.Contains(ly.UsesSecrets, ref) {
@@ -285,6 +291,7 @@ func (l *Loader) collect(names []string, out *[]layer, stack []string, done map[
 		}
 		done[name] = true
 		ly.source = name
+		ly.shipped = shipped
 		*out = append(*out, ly)
 	}
 	return nil
@@ -295,31 +302,49 @@ func (l *Loader) CheckModule(name string) error {
 	return l.collect([]string{name}, &layers, nil, map[string]bool{})
 }
 
-func (l *Loader) readModule(name string) ([]byte, error) {
+// ShippedSource is a source of modules that doriath ships, as opposed to the
+// modules in your folder. Only a shipped module can define a login. The
+// embedded modules count too, so only a copy of them needs the method.
+type ShippedSource interface {
+	fs.FS
+	Shipped()
+}
+
+func isShipped(src fs.FS) bool {
+	if _, ok := src.(embed.FS); ok {
+		return true
+	}
+	_, ok := src.(ShippedSource)
+	return ok
+}
+
+func (l *Loader) readModule(name string) ([]byte, bool, error) {
 	if strings.HasPrefix(name, RepoPrefix) {
-		return nil, fmt.Errorf("module %s: %s names a repository profile, so add it to the profile name instead, such as my-app+%s", name, RepoPrefix, name)
+		return nil, false, fmt.Errorf("module %s: %s names a repository profile, so add it to the profile name instead, such as my-app+%s", name, RepoPrefix, name)
 	}
 	if !namePattern.MatchString(name) {
-		return nil, fmt.Errorf("module name %q: use lowercase letters, digits and dashes", name)
+		return nil, false, fmt.Errorf("module name %q: use lowercase letters, digits and dashes", name)
 	}
 	var found [][]byte
+	shipped := false
 	for _, src := range l.Modules {
 		data, err := fs.ReadFile(src, path.Join(name+".toml"))
 		if err == nil {
 			found = append(found, data)
+			shipped = isShipped(src)
 			continue
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("read module %q: %w", name, err)
+			return nil, false, fmt.Errorf("read module %q: %w", name, err)
 		}
 	}
 	switch len(found) {
 	case 0:
-		return nil, fmt.Errorf("module %q not found", name)
+		return nil, false, fmt.Errorf("module %q not found", name)
 	case 1:
-		return found[0], nil
+		return found[0], shipped, nil
 	}
-	return nil, fmt.Errorf("module %q: your modules folder has a module with the name of a built-in module. Rename yours, such as my-%s, and list that name", name, name)
+	return nil, false, fmt.Errorf("module %q: your modules folder has a module with the name of a built-in module. Rename yours, such as my-%s, and list that name", name, name)
 }
 
 func (l *Loader) profileData(name string) ([]byte, error) {
@@ -570,8 +595,11 @@ func (b *builder) apply(l layer) {
 			continue
 		}
 		b.secrets[k] = v
-		if strings.HasPrefix(l.source, "profile") {
+		switch {
+		case strings.HasPrefix(l.source, "profile"):
 			b.secretOwner[k] = l.stateName
+		case l.shipped:
+			b.secretOwner[k] = SharedOwnerPrefix + l.source
 		}
 	}
 }

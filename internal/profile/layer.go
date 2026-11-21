@@ -39,6 +39,7 @@ type layer struct {
 	source      string
 	stateName   string
 	builtin     bool
+	shipped     bool
 }
 
 func (l layer) secretRefs() []string {

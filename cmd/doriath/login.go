@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/oauth"
@@ -64,6 +65,10 @@ func cmdLogin(p config.Paths, l *profile.Loader, args []string, in io.Reader, kr
 		fmt.Fprintf(w, "Signing in for %s.\n", s)
 		if err := oauth.Login(context.Background(), *prof.Secrets[s].OAuth, logins, owner, s, opener{}, w); err != nil {
 			return fmt.Errorf("login %s: %w", s, err)
+		}
+		if module, shared := strings.CutPrefix(owner, profile.SharedOwnerPrefix); shared {
+			fmt.Fprintf(w, "Signed in for %s. Every profile with the module %s shares this login.\n", s, module)
+			continue
 		}
 		fmt.Fprintf(w, "Signed in for %s in profile %s.\n", s, owner)
 	}

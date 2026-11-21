@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fnune/doriath/internal/agents/claude"
 	"github.com/fnune/doriath/internal/bundle"
 	"github.com/fnune/doriath/internal/cli"
 	"github.com/fnune/doriath/internal/config"
@@ -184,7 +185,7 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 				continue
 			}
 		}
-		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(opts.Logins, prof.SecretOwner)).WithGitHubApps(opts.Apps).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
+		store := secret.NewConfigured(prof.Secrets, opts.Runner).WithOAuth(oauth.NewTokensOwnedBy(opts.Logins, prof.SecretOwner).WithLoginProfile(prof.LoginProfile)).WithGitHubApps(opts.Apps).WithKeyring(opts.Keyring, prof.SecretOwner).WithAsker(opts.Asker)
 		for _, name := range slices.Sorted(maps.Keys(prof.Secrets)) {
 			secrets++
 			label := "secret " + prof.Name + "/" + name
@@ -229,6 +230,10 @@ func checkSecretsOnDisk(p config.Paths) []Result {
 	})
 	if _, err := os.Lstat(p.LegacyWebToken()); err == nil {
 		found = append(found, fmt.Sprintf("%s holds the token of the approvals page: run %s, which deletes it", p.LegacyWebToken(), cli.Code(cli.Line("web", "open"))))
+	}
+	agentLogins, _ := filepath.Glob(filepath.Join(p.Cache, "agents", "*", "home", ".claude", claude.CredentialsFile))
+	for _, path := range agentLogins {
+		found = append(found, fmt.Sprintf("%s holds a Claude login: delete it, or start a session with the claude module, which deletes it. Then run %s to sign in once for every profile", path, cli.Code(cli.Line("profiles", "login", "PROFILE", "claude"))))
 	}
 	if len(found) == 0 {
 		return []Result{{Name: "no secrets on disk", Level: OK}}
