@@ -79,9 +79,11 @@ In the copy, change `host = "gitlab.com"` to the host of your instance, and list
 
 The [`github` module](/reference/modules/#github) gives your token to `git`, `git-lfs` and `gh` on `github.com`, `api.github.com` and `uploads.github.com`.
 
-Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of the profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
+Give `[secrets.github]` one of these sources:
 
-Instead of a token of yours, the profile can use your own GitHub App. doriath then mints a token that reaches only the repository of the session, and renews it each hour. Give `[secrets.github]` the source `github_app`, as [GitHub App tokens](/reference/configuration/#github-app-tokens) shows.
+- Your own GitHub App, for repositories that you own. doriath mints a token that reaches only the repository of the session, and renews it each hour. This is the way that reaches least. [GitHub App tokens](/reference/configuration/#github-app-tokens) shows the profile and what the app needs.
+- A [fine-grained token](https://github.com/settings/personal-access-tokens/new), where an organization does not install your app. Create it for the repositories of the profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses. Keep it in your password manager.
+- `command = ["gh", "auth", "token"]`, to try doriath fast. The agent then acts with your whole login, on every repository that you can reach, so use it only for a first test.
 
 For verified commits, create an SSH key for the profile and add it to GitHub as a signing key. [Install](/install/#create-credentials-for-the-profile) shows the commands.
 

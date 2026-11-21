@@ -106,8 +106,8 @@ mode = "write"
 
 Make new credentials for each profile, so that a token reaches only the repositories of its profile, and you can revoke it alone. The agent never reads them, because the proxy adds them outside the jail. These steps are for GitHub, and [forges](/forges/) has the steps for the other forges.
 
-1. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) for the repositories of this profile. Give it an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
-2. Keep the token in your password manager under a name such as `github-my-app`.
+1. Create a token for the repositories of this profile. The recommended way for your own repositories is your own [GitHub App](/reference/configuration/#github-app-tokens), which gives a token for one repository at a time. Where an organization does not install your app, create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with an expiry, and read and write access to Contents, Pull requests, Actions and Commit statuses.
+2. Keep the token, or the private key of the app, in your password manager under a name such as `github-my-app`. To try doriath before that, `command = ["gh", "auth", "token"]` works, but the agent then acts with your whole login. [GitHub](/forges/#github) compares the three.
 3. Create an SSH key for commit signing, and add it to GitHub as a signing key. The commits of the agent then show as verified, with you as the author.
 
 ```sh

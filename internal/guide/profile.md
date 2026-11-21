@@ -76,6 +76,8 @@ Hide files with secrets that the agent does not need, such as `.env` files. Git 
 
 Each forge module needs a token in a secret with a fixed name, such as `github`. Tell the person to make a new token for this profile only, with the smallest scope that the work needs. https://doriath.fnune.com/forges/ gives the steps for each forge. A token of an organization can need an approval from its admins, so say this before the person starts.
 
+For GitHub, offer three sources for `[secrets.github]`. Recommend the person's own GitHub App for repositories that they own, with `github_app`: https://doriath.fnune.com/reference/configuration/#github-app-tokens shows the profile. Offer a fine-grained token where an organization does not install the app. For a first test, `command = ["gh", "auth", "token"]` works, and you tell the person that the agent then acts with their whole login.
+
 Do not add a rule that allows every request to a host that gets a credential. The agent can then do all that the token permits.
 
 Ask which password manager the person uses. `command -v rbw bw op secret-tool` shows the ones that are installed. These commands print a secret:
@@ -85,6 +87,7 @@ Ask which password manager the person uses. `command -v rbw bw op secret-tool` s
 - `op`: `["op", "read", "op://VAULT/ITEM/credential"]`
 - `secret-tool`: `["secret-tool", "lookup", "KEY", "VALUE"]`
 - the keyring of the desktop, without a command: `keyring = true`. doriath asks the person for the value in a dialog of the desktop at the start of the first session.
+- `gh`: `["gh", "auth", "token"]`, which gives the whole login of the person
 
 Run `command -v` for the program of the command. If the path is a shim of a version manager, such as mise or asdf, use the absolute path of the real program. A shim selects its tool from a config in the working folder, and the agent can write that config.
 
