@@ -3,10 +3,12 @@ package doctor
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
 	osuser "os/user"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -109,6 +111,7 @@ func Run(ctx context.Context, opts Options) []Result {
 		note("profiles", "none yet; see https://doriath.fnune.com/install/")
 	}
 
+	out = append(out, checkSecretsOnDisk(p)...)
 	secretResults, secrets := checkSecrets(ctx, opts, profiles)
 	out = append(out, secretResults...)
 	if !opts.FetchSecrets && secrets > 0 {
@@ -202,4 +205,30 @@ func checkSecrets(ctx context.Context, opts Options, profiles []*profile.Profile
 		}
 	}
 	return out, secrets
+}
+
+// checkSecretsOnDisk looks only for what earlier versions left behind, so it
+// stays cheap: doriath itself keeps no secret on disk.
+func checkSecretsOnDisk(p config.Paths) []Result {
+	var found []string
+	logins := filepath.Join(p.State, "oauth")
+	_ = filepath.WalkDir(logins, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		profileName := filepath.Base(filepath.Dir(path))
+		found = append(found, fmt.Sprintf("%s holds an OAuth login: run %s to move it into the keyring", path, cli.Code(cli.Line("profiles", "login", profileName))))
+		return nil
+	})
+	if _, err := os.Lstat(p.LegacyWebToken()); err == nil {
+		found = append(found, fmt.Sprintf("%s holds the token of the approvals page: run %s, which deletes it", p.LegacyWebToken(), cli.Code(cli.Line("web", "open"))))
+	}
+	if len(found) == 0 {
+		return []Result{{Name: "no secrets on disk", Level: OK}}
+	}
+	out := make([]Result, len(found))
+	for i, detail := range found {
+		out[i] = Result{Name: "secret on disk", Level: Problem, Detail: detail}
+	}
+	return out
 }

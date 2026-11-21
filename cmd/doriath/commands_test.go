@@ -232,6 +232,7 @@ keyring = true
 		t.Errorf("doctor exits %d with problems", code)
 	}
 	for _, want := range []string{
+		"  ✓ no secrets on disk\n",
 		"  ✓ secret app/private (keyring)\n",
 		"  ✓ profile app\n",
 		"  ✕ profile broken: ",

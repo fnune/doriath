@@ -153,6 +153,8 @@ doriath doctor [--secrets] [--profile NAME]
 
 Checks the machine. `--secrets` also reads each secret one time, and a password manager can ask you to unlock it. Before doctor runs the secret commands of a profile, it asks you as `run` does. See [allowed profiles](/reference/configuration/#allowed-profiles).
 
+Doctor fails when a secret is on your disk: a login file in `~/.local/state/doriath/oauth/` or a `web-token` file in `~/.local/state/doriath/`, which earlier versions wrote. It names the command that moves each one. See [OAuth logins](/reference/configuration/#oauth-logins).
+
 In a repository, doctor also checks the repository with a profile: the one in `--profile`, the one that `use doriath` names in `.envrc`, or a profile named `default`. It tells whether the jail shows the repository, whether the agent can commit there, and whether it can sign as your git or jj config asks.
 
 ### `doriath direnv`

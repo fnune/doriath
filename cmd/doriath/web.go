@@ -27,6 +27,7 @@ import (
 	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/control"
 	"github.com/fnune/doriath/internal/doctor"
+	"github.com/fnune/doriath/internal/keyring"
 	"github.com/fnune/doriath/internal/session"
 	"github.com/fnune/doriath/internal/web"
 )
@@ -238,7 +239,7 @@ func (d *doctorChecks) Checks() ([]web.Check, time.Time) {
 }
 
 func (d *doctorChecks) Refresh(ctx context.Context) {
-	results := doctor.Run(ctx, doctor.Options{Paths: d.paths, Loader: loader(d.paths, "")})
+	results := doctor.Run(ctx, doctor.Options{Paths: d.paths, Loader: loader(d.paths, ""), Keyring: keyring.Desktop{}, Logins: keyring.Logins{}})
 	checks := make([]web.Check, len(results))
 	for i, r := range results {
 		checks[i] = web.Check{Name: r.Name, Level: string(r.Level), Detail: r.Detail}

@@ -3,9 +3,12 @@ package doctor
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/fnune/doriath/internal/config"
 	"github.com/fnune/doriath/internal/profile"
 	"github.com/fnune/doriath/internal/secret"
 )
@@ -44,4 +47,34 @@ func mustLoad(t *testing.T, opts Options, name string) *profile.Profile {
 		t.Fatal(err)
 	}
 	return p
+}
+
+func TestSecretsLeftOnDiskFailTheCheck(t *testing.T) {
+	state := t.TempDir()
+	p := config.Paths{State: state}
+	if got := details(checkSecretsOnDisk(p)); got != "ok no secrets on disk: \n" {
+		t.Errorf("a clean state directory: %q", got)
+	}
+	login := filepath.Join(state, "oauth", "work", "linear.json")
+	if err := os.MkdirAll(filepath.Dir(login), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{login, filepath.Join(state, "web-token")} {
+		if err := os.WriteFile(path, []byte("secret"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	results := checkSecretsOnDisk(p)
+	if !Failed(results) {
+		t.Fatalf("results:\n%s", details(results))
+	}
+	got := details(results)
+	for _, want := range []string{
+		"problem secret on disk: " + login + " holds an OAuth login: run `doriath profiles login work` to move it into the keyring\n",
+		"problem secret on disk: " + filepath.Join(state, "web-token") + " holds the token of the approvals page: run `doriath web open`, which deletes it\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("results lack %q:\n%s", want, got)
+		}
+	}
 }
