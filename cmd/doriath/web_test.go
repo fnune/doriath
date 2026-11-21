@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestWebTokenIsCreatedPrivateAndReused(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state", "web-token")
+	path := filepath.Join(t.TempDir(), "run", "doriath", "web-token")
 	first, err := webToken(path)
 	if err != nil {
 		t.Fatal(err)
@@ -34,6 +35,35 @@ func TestWebTokenIsCreatedPrivateAndReused(t *testing.T) {
 	}
 	if _, err := webToken(path); err == nil {
 		t.Fatal("a short token must be refused")
+	}
+}
+
+func TestThePageTokenLivesInTheRuntimeDirectoryAndTheOldFileGoes(t *testing.T) {
+	p := testPaths(t)
+	if err := os.MkdirAll(p.State, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.LegacyWebToken(), []byte(strings.Repeat("a", 2*webTokenBytes)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	token, err := pageToken(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token == strings.Repeat("a", 2*webTokenBytes) {
+		t.Error("the token of the old file stays in use")
+	}
+	if _, err := os.Stat(p.LegacyWebToken()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the old token file stays: %v", err)
+	}
+	if info, err := os.Stat(p.WebToken()); err != nil || info.Mode().Perm() != 0o600 || filepath.Dir(p.WebToken()) != p.Runtime {
+		t.Errorf("token file: %v, %v", info, err)
+	}
+	if err := os.Remove(p.WebToken()); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := pageToken(p); err != nil || again == token {
+		t.Errorf("a token that is missing is made again: %q, %v", again, err)
 	}
 }
 

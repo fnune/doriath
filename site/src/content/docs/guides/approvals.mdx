@@ -73,7 +73,7 @@ doriath web open
 
 The page shows the requests of all running sessions and the answers of the last day. When nothing waits, it shows the checks of `doriath doctor`, and what the sessions of the last day blocked, with the profile lines to allow it. The page listens on `127.0.0.1:7341` and loads nothing from the network.
 
-`doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests.
+`doriath web open` opens the page with a link that works one time, for a minute. Then the browser keeps a cookie for 30 days. Other users and other sites cannot get a link, so they cannot read or answer requests. The token behind the link is in `$XDG_RUNTIME_DIR/doriath/web-token`, which is memory with mode 600, so it never reaches your disk. After a reboot doriath makes a new token, and you run `doriath web open` again.
 
 Each open shows the page in a new tab, and the page then closes its older tabs. The browser lets a page close only a tab that has not gone to another page, so such a tab stays open.
 

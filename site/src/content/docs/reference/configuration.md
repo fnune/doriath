@@ -723,8 +723,8 @@ bar = true
 | `~/.local/state/doriath/audit.jsonl`      | Every session, egress decision and approval. Read it with `doriath log`, or lnav with `contrib/lnav`. |
 | `~/.local/state/doriath/images/`          | Container image digests for each profile                                                              |
 | `~/.local/state/doriath/profiles/`        | What you allowed for each profile in each repository                                                  |
-| `~/.local/state/doriath/web-token`        | The token of the approvals page                                                                       |
 | `~/.local/state/doriath/backups/`         | The branches at the start of each session, and object hardlinks until the session ends                |
 | `~/.local/state/doriath/moved/<session>/` | What the agent created at a held path, which doriath moved out of the repository                      |
 | `~/.cache/doriath/agents/<profile>/`      | The caches, `/tmp`, home, agent state and container storage of the profile                            |
 | `$XDG_RUNTIME_DIR/doriath/sessions/<id>/` | Sockets and generated files of a running session                                                      |
+| `$XDG_RUNTIME_DIR/doriath/web-token`      | The token of the approvals page, which doriath makes again when it is missing                         |

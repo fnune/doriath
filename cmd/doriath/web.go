@@ -61,7 +61,7 @@ func serveWeb(ctx context.Context, p config.Paths, args []string, c clock, out i
 	if err != nil {
 		return fmt.Errorf("web: %w", err)
 	}
-	token, err := webToken(p.WebToken())
+	token, err := pageToken(p)
 	if err != nil {
 		return fmt.Errorf("web: %w", err)
 	}
@@ -112,7 +112,7 @@ func cmdWebOpen(ctx context.Context, p config.Paths, args []string, out io.Write
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	token, err := webToken(p.WebToken())
+	token, err := pageToken(p)
 	if err != nil {
 		return fmt.Errorf("web open: %w", err)
 	}
@@ -129,7 +129,7 @@ func servedAddr(p config.Paths) string {
 type webPage struct{ paths config.Paths }
 
 func (w webPage) Running() bool {
-	token, err := webToken(w.paths.WebToken())
+	token, err := pageToken(w.paths)
 	if err != nil {
 		return false
 	}
@@ -139,7 +139,7 @@ func (w webPage) Running() bool {
 }
 
 func (w webPage) Open(request, activation string) error {
-	token, err := webToken(w.paths.WebToken())
+	token, err := pageToken(w.paths)
 	if err != nil {
 		return err
 	}
@@ -248,6 +248,13 @@ func (d *doctorChecks) Refresh(ctx context.Context) {
 	d.results, d.at = checks, time.Now()
 }
 
+func pageToken(p config.Paths) (string, error) {
+	if err := os.Remove(p.LegacyWebToken()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("delete the page token of an earlier version: %w", err)
+	}
+	return webToken(p.WebToken())
+}
+
 func webToken(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -277,7 +284,7 @@ func newWebToken(path string) (string, error) {
 	}
 	token := hex.EncodeToString(raw)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return "", fmt.Errorf("create the state directory: %w", err)
+		return "", fmt.Errorf("create the runtime directory: %w", err)
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
