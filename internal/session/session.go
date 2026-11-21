@@ -587,6 +587,7 @@ func (s *Session) secretNotes(ctx context.Context) ([]string, error) {
 		_, err := s.deps.Secrets.Get(ctx, name)
 		switch {
 		case err == nil:
+		case errors.Is(err, secret.ErrNoTarget) && !p.Secrets[name].Required:
 		case p.Secrets[name].Required:
 			return notes, secret.Explained(err)
 		default:

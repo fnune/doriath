@@ -189,6 +189,9 @@ func TestWithoutAnInstallationTheErrorGivesTheInstallURL(t *testing.T) {
 	if err == nil || err.Error() != want {
 		t.Fatalf("err = %v", err)
 	}
+	if errors.Is(err, secret.ErrNoTarget) {
+		t.Error("a missing installation is a failure to show")
+	}
 }
 
 func TestATokenThatGitHubRefusesNamesThePermissions(t *testing.T) {
@@ -233,6 +236,12 @@ func TestWithoutAGitHubRemoteTheErrorSaysWhatToAdd(t *testing.T) {
 	}
 	if len(f.paths()) != 0 {
 		t.Errorf("GitHub was asked: %v", f.paths())
+	}
+	if _, _, err := f.minter("https://gitlab.com/o/r").Mint(context.Background(), app, pemKey); !errors.Is(err, secret.ErrNoTarget) {
+		t.Errorf("no GitHub remote is an expected state: %v", err)
+	}
+	if _, _, err := m.Mint(context.Background(), app, pemKey); !errors.Is(err, secret.ErrNoTarget) {
+		t.Errorf("no repository is an expected state: %v", err)
 	}
 }
 

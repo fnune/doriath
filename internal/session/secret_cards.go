@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,9 @@ func (c carding) Get(ctx context.Context, name string) (secret.Value, error) {
 	v, err := c.s.deps.Secrets.Get(ctx, name)
 	if err == nil {
 		return v, nil
+	}
+	if errors.Is(err, secret.ErrNoTarget) {
+		return v, err
 	}
 	if id := c.s.secretCard(name, err); id != "" {
 		return v, fmt.Errorf("%w. doriath asked the user to fix it on the approvals page. To wait for the answer, run %s", err, cli.Code(cli.Line("request", "wait", id)))
@@ -41,8 +45,8 @@ func (s *Session) secretCard(name string, cause error) string {
 		Kind:    approval.KindSecret,
 		Summary: "Secret " + name + " is unavailable",
 		Action:  "Secret unavailable",
-		Facts:   []approval.Fact{{Label: "Secret", Value: name}, {Label: "Cause", Value: secret.Explained(cause).Error()}},
-		Details: fmt.Sprintf("%v\n\nWithout it, these fail: %s.\n\nFix the source on the host, such as a login, then try again. Or give the session a value with the command below.", secret.Explained(cause), strings.Join(secretUsers(p, name), ", ")),
+		Facts:   []approval.Fact{{Label: "Secret", Value: name}, {Label: "Cause", Value: secret.WithoutName(secret.Explained(cause))}},
+		Details: fmt.Sprintf("%s\n\nWithout it, these fail: %s.\n\nFix the source on the host, such as a login, then try again. Or give the session a value with the command below.", secret.WithoutName(secret.Explained(cause)), strings.Join(secretUsers(p, name), ", ")),
 		Command: command,
 		Scope:   "secret " + name,
 	}

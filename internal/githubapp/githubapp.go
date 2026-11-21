@@ -104,7 +104,7 @@ func (m Minter) targets(ctx context.Context, app secret.GitHubApp) (string, []st
 		return owner, repos, nil
 	}
 	if m.Repository == "" || m.Remotes == nil {
-		return "", nil, errors.New("no repository, so no token")
+		return "", nil, secret.NoTarget("no repository, so no token")
 	}
 	urls, err := m.Remotes(ctx, m.Repository)
 	if err != nil {
@@ -115,7 +115,7 @@ func (m Minter) targets(ctx context.Context, app secret.GitHubApp) (string, []st
 			return owner, []string{repo}, nil
 		}
 	}
-	return "", nil, errors.New("no GitHub remote, so no token")
+	return "", nil, secret.NoTarget("no GitHub remote, so no token")
 }
 
 // SignJWT signs the token that proves to GitHub that you hold the key of the app.

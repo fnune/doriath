@@ -37,6 +37,19 @@ var ErrUnknown = errors.New("unknown secret")
 
 var ErrUnavailable = errors.New("unavailable")
 
+// ErrNoTarget marks a secret that has nothing to be made for, such as a GitHub
+// App token in a repository without a GitHub remote. It is an expected state,
+// so a session neither warns about it nor asks you to fix it.
+var ErrNoTarget = errors.New("no target")
+
+type noTarget struct{ msg string }
+
+// NoTarget is an error with this message that is ErrNoTarget.
+func NoTarget(msg string) error { return noTarget{msg} }
+
+func (e noTarget) Error() string        { return e.msg }
+func (e noTarget) Is(target error) bool { return target == ErrNoTarget }
+
 type Backend struct {
 	Command   []string
 	Keyring   bool

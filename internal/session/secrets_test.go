@@ -183,3 +183,68 @@ func TestASignedInOAuthLoginIsNotFetchedAtStart(t *testing.T) {
 		t.Errorf("a signed-in login was fetched at start %d times", logins.calls)
 	}
 }
+
+type appsFor struct{ err error }
+
+func (a appsFor) Mint(context.Context, secret.GitHubApp, secret.Value) (secret.Value, time.Time, error) {
+	return secret.Value{}, time.Time{}, a.err
+}
+
+func sessionWithApp(t *testing.T, mint error) *testSession {
+	t.Helper()
+	backends := map[string]secret.Backend{
+		"acme": {GitHubApp: &secret.GitHubApp{AppID: 1, Key: "key", Permissions: map[string]string{"contents": "read"}}},
+		"key":  {Command: []string{"cat-key"}},
+	}
+	s := sessionWithSecrets(t, backends)
+	s.deps.Secrets = secret.NewConfigured(backends, stdoutRunner("pem")).WithGitHubApps(appsFor{mint})
+	return s
+}
+
+type stdoutRunner string
+
+func (r stdoutRunner) Output(context.Context, secret.Command) ([]byte, []byte, error) {
+	return []byte(r), nil, nil
+}
+
+func TestAnAppSecretWithNoRepositoryIsQuietButShowsInTheStatus(t *testing.T) {
+	s := sessionWithApp(t, secret.NoTarget("no GitHub remote, so no token"))
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.notes) != 0 {
+		t.Errorf("the start says %v", s.notes)
+	}
+	if _, err := (carding{s.Session}).Get(context.Background(), "acme"); err == nil || strings.Contains(err.Error(), "asked the user") {
+		t.Errorf("err = %v", err)
+	}
+	if pending := s.manager.Pending(); len(pending) != 0 {
+		t.Errorf("cards = %+v", pending)
+	}
+	if st := s.status(); len(st.Unavailable) != 1 || st.Unavailable[0].Secret != "acme" || !strings.Contains(st.Unavailable[0].Error, "no GitHub remote, so no token") {
+		t.Errorf("status = %+v", st.Unavailable)
+	}
+}
+
+func TestARealFailureOfAnAppSecretStillWarnsAndAsks(t *testing.T) {
+	s := sessionWithApp(t, errors.New("GitHub refused the key (Bad credentials): check app_id, the key and the clock"))
+	if err := s.fetchSecrets(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.notes) != 1 || !strings.Contains(s.notes[0].text, "GitHub refused the key") {
+		t.Errorf("notes = %v", s.notes)
+	}
+	_, _ = carding{s.Session}.Get(context.Background(), "acme")
+	pending := s.manager.Pending()
+	if len(pending) != 1 {
+		t.Fatalf("cards = %+v", pending)
+	}
+	for _, f := range pending[0].Facts {
+		if f.Label == "Cause" && (strings.HasPrefix(f.Value, "secret ") || !strings.HasPrefix(f.Value, "GitHub refused the key")) {
+			t.Errorf("the cause repeats the name of the secret: %q", f.Value)
+		}
+	}
+	if strings.Contains(pending[0].Details, `secret "acme"`) {
+		t.Errorf("details repeat the name: %q", pending[0].Details)
+	}
+}
