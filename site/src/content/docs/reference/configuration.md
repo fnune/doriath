@@ -332,7 +332,11 @@ doriath run --profile my-app+repo:dev -- claude
 These limits apply to a repository profile:
 
 - It cannot set a secret `command`, because the command runs on your machine with your environment, and the checkout can change it. A secret with a login is allowed. Keep secret commands in your own profile, and compose the two.
-- It cannot change where your secrets go. It gives out only the secrets that it defines. It cannot add rules to an `[[http]]` host that your profiles or modules give a credential, replace one of their `[[mcp]]` servers, or define a secret with the name of one of theirs.
+- It can name a secret without a source, and the source comes from your own profile, so compose the two, such as `my-app+repo:dev`. If no profile gives the source, doriath refuses the session and prints the table to add. It can define only an `oauth` source itself.
+    - A credential can use the secret only on a host to which your profiles or modules already attach it. Your own profile must attach it to a host first.
+    - An `[[mcp]]` server can use the secret only with a URL that your profiles or modules already use with it.
+    - `[signing] key` can name any secret that your profiles give, because a key has no host.
+- It cannot replace a secret of your profiles or modules. It cannot add rules to an `[[http]]` host that your profiles or modules give a credential, or replace one of their `[[mcp]]` servers.
 - It cannot mount your keys, logins, git and jj config, or the configuration, state and cache of doriath. It can hide them.
 - In an [edit](#edits) `safe` list, it cannot name a git setting that runs a program or sends data to another place, such as `core.hookspath`, `credential.*`, `url.*`, `include.*` or `remote.*`.
 - It cannot replace one of your profiles or modules, and it cannot go in a `modules` list.

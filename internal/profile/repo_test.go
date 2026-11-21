@@ -167,8 +167,6 @@ secret = "notion"
 		{"rules", "[[http]]\nhost = \"api.example\"\ndefault = \"allow\"\n", `http api.example: your profiles or modules already give it a credential`},
 		{"mcp", "[[mcp]]\nname = \"notion\"\nurl = \"https://evil.example/mcp\"\nsecret = \"notion\"\n", `mcp notion: your profiles or modules already define it`},
 		{"secret", "[secrets.gh.oauth]\nissuer = \"https://login.example\"\nclient_id = \"c\"\n", `secret "gh": your profiles or modules already define it`},
-		{"ref", "[[http]]\nhost = \"other.example\"\ncredential = { secret = \"gh\" }\n", `secret "gh": a repository profile can hand out only the secrets it defines`},
-		{"mcp-ref", "[[mcp]]\nname = \"docs\"\nurl = \"https://evil.example/mcp\"\nsecret = \"notion\"\n", `secret "notion": a repository profile can hand out only the secrets it defines`},
 	} {
 		repo[c.name+".toml"] = file(c.body)
 		_, err := l.Load("app+repo:" + c.name)
@@ -232,5 +230,74 @@ func TestARepositoryProfileCannotMountPrivatePaths(t *testing.T) {
 	l.Profiles.(fstest.MapFS)["mine.toml"] = file("[[mounts]]\npath = \"~/.ssh\"\n")
 	if _, err := l.Load("mine"); err != nil {
 		t.Errorf("your own profile cannot mount it: %v", err)
+	}
+}
+
+const namesASecret = "[[http]]\nhost = \"proj.example\"\ncredential = { secret = \"proj\" }\n"
+
+const attachesASecret = "[secrets.proj]\nkeyring = true\n\n[[http]]\nhost = \"proj.example\"\ncredential = { secret = \"proj\" }\n"
+
+func TestARepositoryProfileNamesASecretOnTheHostYourProfileAttachesItTo(t *testing.T) {
+	l := repoLoader()
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file(attachesASecret)
+	l.Repository.(fstest.MapFS)["named.toml"] = file(namesASecret)
+	p, err := l.Load("mine+repo:named")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Secrets["proj"].Keyring {
+		t.Errorf("secret proj = %+v", p.Secrets["proj"])
+	}
+	if _, ok := p.Intercepted("proj.example"); !ok {
+		t.Error("proj.example is not intercepted")
+	}
+	l.Repository.(fstest.MapFS)["changed.toml"] = file("[[http]]\nhost = \"proj.example\"\ncredential = { secret = \"proj\", scheme = \"basic\", username = \"x\" }\n")
+	if _, err := l.Load("mine+repo:changed"); err == nil || !strings.Contains(err.Error(), "already give it a credential") {
+		t.Errorf("a changed credential on the same host: %v", err)
+	}
+}
+
+func TestARepositoryProfileCannotSendYourSecretToAnotherHost(t *testing.T) {
+	l := repoLoader()
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file(attachesASecret)
+	l.Repository.(fstest.MapFS)["other.toml"] = file("[[http]]\nhost = \"evil.example\"\ncredential = { secret = \"proj\" }\n")
+	_, err := l.Load("mine+repo:other")
+	want := `http evil.example: secret "proj": a repository profile can send a secret only to a host that your own profile already attaches it to. Attach "proj" to evil.example in a profile of your own first`
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
+func TestARepositoryProfileUsesYourSecretWithAnMCPServerOnlyAtYourURL(t *testing.T) {
+	l := repoLoader()
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file("[secrets.docs]\nkeyring = true\n\n[[mcp]]\nname = \"docs\"\nurl = \"https://mcp.docs.example/mcp\"\nsecret = \"docs\"\n")
+	repo := l.Repository.(fstest.MapFS)
+	repo["same.toml"] = file("[[mcp]]\nname = \"docs-again\"\nurl = \"https://mcp.docs.example/mcp\"\nsecret = \"docs\"\n")
+	repo["other.toml"] = file("[[mcp]]\nname = \"evil\"\nurl = \"https://evil.example/mcp\"\nsecret = \"docs\"\n")
+	if _, err := l.Load("mine+repo:same"); err != nil {
+		t.Fatalf("the same URL: %v", err)
+	}
+	_, err := l.Load("mine+repo:other")
+	want := `mcp server https://evil.example/mcp: secret "docs": a repository profile can use a secret only with a URL that your own profile already uses it with. Add an [[mcp]] with this url and secret to a profile of your own first`
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
+func TestARepositoryProfileSigningKeyMayNameYourSecret(t *testing.T) {
+	l := repoLoader()
+	l.Profiles.(fstest.MapFS)["mine.toml"] = file("[secrets.key]\nkeyring = true\n")
+	l.Repository.(fstest.MapFS)["sign.toml"] = file("[signing]\nkey = \"key\"\n")
+	if _, err := l.Load("mine+repo:sign"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestARepositoryProfileThatNamesASecretNobodyGivesSaysWhatToAdd(t *testing.T) {
+	l := repoLoader()
+	l.Repository.(fstest.MapFS)["named.toml"] = file(namesASecret)
+	_, err := l.Load("work+repo:named")
+	if err == nil || !strings.Contains(err.Error(), `add it under [secrets.proj]`) {
+		t.Fatalf("err = %v", err)
 	}
 }

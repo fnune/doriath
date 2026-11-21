@@ -390,6 +390,8 @@ type builder struct {
 	sources     map[string][]string
 
 	repositoryGrants map[string]RepositoryGrant
+
+	yourUses, repositoryUses []secretUse
 }
 
 func newBuilder(home string) *builder {
@@ -406,6 +408,11 @@ func (b *builder) apply(l layer) {
 		b.recordRepositoryGrant(l)
 	}
 	b.record(l)
+	if l.fromRepository() {
+		b.repositoryUses = append(b.repositoryUses, l.secretUses()...)
+	} else {
+		b.yourUses = append(b.yourUses, l.secretUses()...)
+	}
 	if l.fromRepository() {
 		b.errs = append(b.errs, b.repositoryOverrides(l)...)
 		b.errs = append(b.errs, b.repositoryMounts(l)...)
@@ -557,12 +564,70 @@ func (b *builder) apply(l layer) {
 	}
 }
 
+// secretUse is a secret sent to one place: a host for a credential, or the
+// URL of an MCP server.
+type secretUse struct {
+	secret, place string
+	mcp, defined  bool
+}
+
+func (l layer) secretUses() []secretUse {
+	var uses []secretUse
+	for _, h := range l.HTTP {
+		credentials := []*credentialLayer{h.Credential}
+		for _, r := range h.Rules {
+			credentials = append(credentials, r.Credential)
+		}
+		for _, c := range credentials {
+			if c != nil && c.Secret != "" {
+				_, own := l.Secrets[c.Secret]
+				uses = append(uses, secretUse{secret: c.Secret, place: strings.ToLower(h.Host), defined: own})
+			}
+		}
+	}
+	for _, m := range l.MCP {
+		if m.Secret != "" {
+			_, own := l.Secrets[m.Secret]
+			uses = append(uses, secretUse{secret: m.Secret, place: m.URL, mcp: true, defined: own})
+		}
+	}
+	return uses
+}
+
+func (b *builder) repositorySecretUses() []error {
+	var errs []error
+	seen := map[secretUse]bool{}
+	for _, use := range b.repositoryUses {
+		if seen[use] {
+			continue
+		}
+		seen[use] = true
+		if use.defined || slices.ContainsFunc(b.yourUses, func(y secretUse) bool {
+			return y.secret == use.secret && y.place == use.place && y.mcp == use.mcp
+		}) {
+			continue
+		}
+		if use.mcp {
+			errs = append(errs, fmt.Errorf("mcp server %s: secret %q: a repository profile can use a secret only with a URL that your own profile already uses it with. Add an [[mcp]] with this url and secret to a profile of your own first", use.place, use.secret))
+			continue
+		}
+		errs = append(errs, fmt.Errorf("http %s: secret %q: a repository profile can send a secret only to a host that your own profile already attaches it to. Attach %q to %s in a profile of your own first", use.place, use.secret, use.secret, use.place))
+	}
+	return errs
+}
+
+// repeatsCredential is a repository entry that only names the credential
+// your profiles already attach to the host, with nothing to change.
+func repeatsCredential(repo, yours httpLayer) bool {
+	return repo.Credential != nil && reflect.DeepEqual(*repo.Credential, *yours.Credential) && len(repo.Rules) == 0 && repo.Default == ""
+}
+
 func (b *builder) repositoryOverrides(l layer) []error {
 	var errs []error
 	yours := "your profiles or modules"
 	for _, h := range l.HTTP {
 		i := slices.IndexFunc(b.http, func(x httpLayer) bool { return strings.EqualFold(x.Host, h.Host) })
-		if i >= 0 && b.http[i].Credential != nil {
+		if i >= 0 && b.http[i].Credential != nil && !repeatsCredential(h, b.http[i]) {
 			errs = append(errs, fmt.Errorf("http %s: %s already give it a credential, and a repository profile cannot change what the credential reaches. Put the rules in a profile of your own", h.Host, yours))
 		}
 	}
@@ -578,11 +643,6 @@ func (b *builder) repositoryOverrides(l layer) []error {
 	}
 	for _, f := range l.Forward {
 		errs = append(errs, fmt.Errorf("forward %s: a repository profile cannot forward a port, because programs on your machine would reach the jail through it. Put the forward in a profile of your own", f.Port))
-	}
-	for _, ref := range l.secretRefs() {
-		if _, own := l.Secrets[ref]; !own {
-			errs = append(errs, fmt.Errorf("secret %q: a repository profile can hand out only the secrets it defines, and this one comes from %s", ref, yours))
-		}
 	}
 	return errs
 }
@@ -877,6 +937,7 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func (b *builder) build(top layer) (*Profile, error) {
 	errs := slices.Clone(b.errs)
+	errs = append(errs, b.repositorySecretUses()...)
 	p := &Profile{
 		Name:            top.Name,
 		Description:     top.Description,
