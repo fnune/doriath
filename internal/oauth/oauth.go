@@ -31,13 +31,17 @@ import (
 )
 
 type State struct {
-	ClientID        string        `json:"client_id"`
-	ClientSecret    string        `json:"client_secret,omitempty"`
-	AuthURL         string        `json:"auth_url"`
-	TokenURL        string        `json:"token_url"`
-	RegistrationURL string        `json:"registration_url,omitempty"`
-	Scopes          []string      `json:"scopes,omitempty"`
-	Token           *oauth2.Token `json:"token"`
+	ClientID        string   `json:"client_id"`
+	ClientSecret    string   `json:"client_secret,omitempty"`
+	AuthURL         string   `json:"auth_url"`
+	TokenURL        string   `json:"token_url"`
+	RegistrationURL string   `json:"registration_url,omitempty"`
+	Scopes          []string `json:"scopes,omitempty"`
+	// Explicit marks a login to endpoints that the profile names, which
+	// tokenClient serves. TokenBody is how that endpoint wants requests.
+	Explicit  bool          `json:"explicit,omitempty"`
+	TokenBody string        `json:"token_body,omitempty"`
+	Token     *oauth2.Token `json:"token"`
 }
 
 func (s State) config() *oauth2.Config {
@@ -108,7 +112,7 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 			t.mu.Unlock()
 			return secret.Value{}, fmt.Errorf("secret %q: %w", name, err)
 		}
-		src = oauth2.ReuseTokenSource(s.Token, &saving{src: s.config().TokenSource(context.Background(), s.Token), state: s, logins: t.logins, profile: profile, name: name})
+		src = oauth2.ReuseTokenSource(s.Token, &saving{src: s.tokenSource(), state: s, logins: t.logins, profile: profile, name: name})
 		t.sources[name] = src
 	}
 	t.mu.Unlock()
@@ -117,6 +121,13 @@ func (t *Tokens) Token(_ context.Context, name string, _ secret.OAuth) (secret.V
 		return secret.Value{}, fmt.Errorf("secret %q: refresh the login: %w; run %s again", name, err, cli.Code(cli.Line("profiles", "login", t.owner(name), name)))
 	}
 	return secret.NewValue([]byte(tok.AccessToken)), nil
+}
+
+func (s State) tokenSource() oauth2.TokenSource {
+	if s.Explicit {
+		return &refreshing{client: s.tokenClient(), refresh: s.Token.RefreshToken}
+	}
+	return s.config().TokenSource(context.Background(), s.Token)
 }
 
 type saving struct {
@@ -192,6 +203,9 @@ func moveLogin(path string, logins secret.Keyring, profile, name string) error {
 	return os.Remove(path)
 }
 
+// authFetcher sends you to the sign-in page and returns what the redirect carries.
+type authFetcher func(ctx context.Context, signIn string) (*auth.AuthorizationResult, error)
+
 type Browser interface {
 	Open(url string) error
 }
@@ -205,18 +219,28 @@ func Login(ctx context.Context, o secret.OAuth, logins secret.Keyring, profile, 
 		return err
 	}
 	defer l.Close()
-	redirect := fmt.Sprintf("http://127.0.0.1:%d/callback", l.Addr().(*net.TCPAddr).Port)
-	fetch := func(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
-		fmt.Fprintf(w, "Sign in at:\n  %s\n", args.URL)
-		if err := browser.Open(args.URL); err != nil {
+	host := "127.0.0.1"
+	if o.Explicit() {
+		host = "localhost"
+	}
+	redirect := fmt.Sprintf("http://%s:%d/callback", host, l.Addr().(*net.TCPAddr).Port)
+	fetchURL := func(ctx context.Context, signIn string) (*auth.AuthorizationResult, error) {
+		fmt.Fprintf(w, "Sign in at:\n  %s\n", signIn)
+		if err := browser.Open(signIn); err != nil {
 			fmt.Fprintln(w, "Open it in your browser on this machine.")
 		}
 		return awaitCallback(ctx, l)
 	}
+	fetch := func(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
+		return fetchURL(ctx, args.URL)
+	}
 	var s State
-	if o.MCP != "" {
+	switch {
+	case o.Explicit():
+		s, err = loginExplicit(ctx, o, redirect, fetchURL)
+	case o.MCP != "":
 		s, err = loginMCP(ctx, o.MCP, redirect, fetch)
-	} else {
+	default:
 		s, err = loginIssuer(ctx, o, redirect, fetch)
 	}
 	if err != nil {

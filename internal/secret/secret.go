@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -68,11 +69,23 @@ type AppTokens interface {
 }
 
 type OAuth struct {
-	MCP      string
-	Issuer   string
-	ClientID string
-	Scopes   []string
+	MCP          string
+	Issuer       string
+	AuthorizeURL string
+	TokenURL     string
+	// TokenBody is how the token endpoint wants its requests: "form" (the
+	// default, as RFC 6749 says) or "json".
+	TokenBody string
+	ClientID  string
+	Scopes    []string
 }
+
+const (
+	TokenBodyForm = "form"
+	TokenBodyJSON = "json"
+)
+
+func (o OAuth) Explicit() bool { return o.AuthorizeURL != "" || o.TokenURL != "" }
 
 func (b Backend) Validate() error {
 	set := 0
@@ -98,21 +111,65 @@ func (b Backend) Validate() error {
 		}
 	}
 	if o := b.OAuth; o != nil {
-		switch {
-		case (o.MCP == "") == (o.Issuer == ""):
-			return errors.New("oauth: set mcp or issuer")
-		case o.Issuer != "" && o.ClientID == "":
-			return errors.New("oauth: an issuer needs the client_id doriath signs in as")
-		case o.MCP != "" && o.ClientID != "":
-			return errors.New("oauth: an MCP server registers doriath itself; leave out client_id")
-		}
-		for _, u := range []string{o.MCP, o.Issuer} {
-			if u != "" && !strings.HasPrefix(u, "https://") {
-				return fmt.Errorf("oauth: %q: want an https URL", u)
-			}
+		if err := o.validate(); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (o OAuth) validate() error {
+	discovered := 0
+	for _, u := range []string{o.MCP, o.Issuer} {
+		if u != "" {
+			discovered++
+		}
+	}
+	switch {
+	case o.Explicit() && discovered > 0:
+		return errors.New("oauth: authorize_url and token_url replace mcp and issuer, so set one way to sign in")
+	case !o.Explicit() && discovered != 1:
+		return errors.New("oauth: set mcp, issuer, or authorize_url with token_url")
+	case o.Explicit() && (o.AuthorizeURL == "" || o.TokenURL == ""):
+		return errors.New("oauth: authorize_url and token_url go together")
+	case (o.Issuer != "" || o.Explicit()) && o.ClientID == "":
+		return errors.New("oauth: this sign-in needs the client_id doriath signs in as")
+	case o.MCP != "" && o.ClientID != "":
+		return errors.New("oauth: an MCP server registers doriath itself; leave out client_id")
+	case o.TokenBody != "" && !o.Explicit():
+		return errors.New("oauth: token_body goes with authorize_url and token_url")
+	case o.TokenBody != "" && o.TokenBody != TokenBodyForm && o.TokenBody != TokenBodyJSON:
+		return fmt.Errorf("oauth: token_body %q: want form or json", o.TokenBody)
+	}
+	for key, u := range map[string]string{"mcp": o.MCP, "issuer": o.Issuer} {
+		if u != "" && !strings.HasPrefix(u, "https://") {
+			return fmt.Errorf("oauth: %s %q: want an https URL", key, u)
+		}
+	}
+	for key, u := range map[string]string{"authorize_url": o.AuthorizeURL, "token_url": o.TokenURL} {
+		if u != "" && !httpsOrLoopback(u) {
+			return fmt.Errorf("oauth: %s %q: want an https URL, or http on the loopback address for a test server", key, u)
+		}
+	}
+	return nil
+}
+
+func httpsOrLoopback(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if u.Scheme == "https" {
+		return true
+	}
+	if u.Scheme != "http" {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
 }
 
 var (

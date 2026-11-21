@@ -27,13 +27,21 @@ type fakeServer struct {
 	mu        sync.Mutex
 	grants    []string
 	noRefresh bool
+	discovery int
 }
 
 func newFakeServer(t *testing.T) *fakeServer {
 	t.Helper()
 	f := &fakeServer{}
 	mux := http.NewServeMux()
-	f.Server = httptest.NewServer(mux)
+	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/.well-known/") {
+			f.mu.Lock()
+			f.discovery++
+			f.mu.Unlock()
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(f.Close)
 	writeJSON := func(w http.ResponseWriter, status int, v any) {
 		w.Header().Set("Content-Type", "application/json")
@@ -136,6 +144,11 @@ func TestLoginToAnMCPServerAndRefresh(t *testing.T) {
 	if err := Login(context.Background(), secret.OAuth{MCP: f.URL + "/mcp"}, logins, "work", "notion", browser{t}, &out); err != nil {
 		t.Fatalf("%v\n%s", err, out.String())
 	}
+	f.mu.Lock()
+	if f.discovery == 0 {
+		t.Error("an mcp login asked for no metadata")
+	}
+	f.mu.Unlock()
 	s, err := load(logins, "work", "notion")
 	if err != nil || s.ClientID != "registered-client" || s.Token.RefreshToken != "refresh-1" {
 		t.Fatalf("state = %+v, %v", s, err)
@@ -166,6 +179,11 @@ func TestLoginWithAnIssuer(t *testing.T) {
 	if err := Login(context.Background(), secret.OAuth{Issuer: f.URL, ClientID: "my-client", Scopes: []string{"read"}}, logins, "work", "google", browser{t}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
+	f.mu.Lock()
+	if f.discovery == 0 {
+		t.Error("an issuer login asked for no metadata")
+	}
+	f.mu.Unlock()
 	if s, err := load(logins, "work", "google"); err != nil || s.ClientID != "my-client" || s.Token.AccessToken != "access-1" {
 		t.Fatalf("state = %+v, %v", s, err)
 	}

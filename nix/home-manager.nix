@@ -80,6 +80,26 @@ let
                 default = null;
                 description = "The HTTPS URL of the OAuth issuer, when mcp is not set.";
               };
+              authorize_url = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "The sign-in page of a server that publishes no metadata. Set it with token_url, and doriath asks for no discovery.";
+              };
+              token_url = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "The token endpoint of a server that publishes no metadata. Set it with authorize_url.";
+              };
+              token_body = lib.mkOption {
+                type = lib.types.nullOr (
+                  lib.types.enum [
+                    "form"
+                    "json"
+                  ]
+                );
+                default = null;
+                description = "How the token endpoint wants its requests, with authorize_url and token_url. The default is form.";
+              };
               client_id = lib.mkOption {
                 type = lib.types.nullOr lib.types.str;
                 default = null;
@@ -97,7 +117,7 @@ let
         example = {
           mcp = "https://mcp.example.com/mcp";
         };
-        description = "An OAuth login. Set mcp, or set issuer and client_id. Complete the login with `doriath profiles login NAME`.";
+        description = "An OAuth login. Set mcp, or set issuer and client_id, or set authorize_url, token_url and client_id. Complete the login with `doriath profiles login NAME`.";
       };
       refresh = lib.mkOption {
         type = lib.types.nullOr lib.types.str;

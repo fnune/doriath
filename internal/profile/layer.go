@@ -315,8 +315,11 @@ type githubAppLayer struct {
 }
 
 type oauthLayer struct {
-	MCP      string   `toml:"mcp"`
-	Issuer   string   `toml:"issuer"`
-	ClientID string   `toml:"client_id"`
-	Scopes   []string `toml:"scopes"`
+	MCP          string   `toml:"mcp"`
+	Issuer       string   `toml:"issuer"`
+	AuthorizeURL string   `toml:"authorize_url"`
+	TokenURL     string   `toml:"token_url"`
+	TokenBody    string   `toml:"token_body"`
+	ClientID     string   `toml:"client_id"`
+	Scopes       []string `toml:"scopes"`
 }

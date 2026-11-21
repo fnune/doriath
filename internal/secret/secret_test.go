@@ -520,3 +520,41 @@ func TestWithoutNameStripsOnlyTheLeadingName(t *testing.T) {
 		}
 	}
 }
+
+func TestExplicitOAuthEndpointsAreValidated(t *testing.T) {
+	ok := OAuth{AuthorizeURL: "https://claude.com/cai/oauth/authorize", TokenURL: "https://platform.claude.com/v1/oauth/token", ClientID: "c", TokenBody: "json"}
+	with := func(change func(*OAuth)) Backend {
+		o := ok
+		change(&o)
+		return Backend{OAuth: &o}
+	}
+	if err := (Backend{OAuth: &ok}).Validate(); err != nil {
+		t.Fatalf("valid endpoints: %v", err)
+	}
+	for _, loopback := range []string{"http://localhost:8080/token", "http://127.0.0.1:1/token", "http://[::1]:1/token"} {
+		if err := with(func(o *OAuth) { o.TokenURL = loopback }).Validate(); err != nil {
+			t.Errorf("%s: %v", loopback, err)
+		}
+	}
+	for name, c := range map[string]struct {
+		b    Backend
+		want string
+	}{
+		"only the authorize url": {with(func(o *OAuth) { o.TokenURL = "" }), "authorize_url and token_url go together"},
+		"only the token url":     {with(func(o *OAuth) { o.AuthorizeURL = "" }), "authorize_url and token_url go together"},
+		"with an issuer":         {with(func(o *OAuth) { o.Issuer = "https://accounts.example.com" }), "replace mcp and issuer"},
+		"with an mcp server":     {with(func(o *OAuth) { o.MCP = "https://mcp.example.com/mcp"; o.ClientID = "" }), "replace mcp and issuer"},
+		"without a client id":    {with(func(o *OAuth) { o.ClientID = "" }), "needs the client_id"},
+		"plain http authorize":   {with(func(o *OAuth) { o.AuthorizeURL = "http://claude.com/authorize" }), `authorize_url "http://claude.com/authorize": want an https URL`},
+		"plain http token":       {with(func(o *OAuth) { o.TokenURL = "http://example.com/token" }), `token_url "http://example.com/token": want an https URL`},
+		"another scheme":         {with(func(o *OAuth) { o.TokenURL = "ftp://localhost/token" }), "want an https URL"},
+		"no host":                {with(func(o *OAuth) { o.TokenURL = "https:///token" }), "want an https URL"},
+		"unknown token body":     {with(func(o *OAuth) { o.TokenBody = "xml" }), `token_body "xml": want form or json`},
+		"token body alone":       {Backend{OAuth: &OAuth{Issuer: "https://a.example", ClientID: "c", TokenBody: "json"}}, "token_body goes with authorize_url and token_url"},
+		"nothing to sign in to":  {Backend{OAuth: &OAuth{ClientID: "c"}}, "set mcp, issuer, or authorize_url with token_url"},
+	} {
+		if err := c.b.Validate(); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", name, err, c.want)
+		}
+	}
+}

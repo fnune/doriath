@@ -123,6 +123,7 @@ func TestLoadRejects(t *testing.T) {
 		"undefined secret":         {profile: "[[http]]\nhost = \"a.com\"\ncredential = { secret = \"gh\", scheme = \"bearer\" }", want: `add it under [secrets.gh]`},
 		"undefined signing":        {profile: "[signing]\nkey = \"k\"", want: `add it under [secrets.k]`},
 		"secret both":              {profile: "[secrets.x]\nkeyring = true\ncommand = [\"b\"]", want: "exactly one of command, keyring, oauth or github_app"},
+		"oauth with one endpoint":  {profile: "[secrets.x.oauth]\nauthorize_url = \"https://a.example/authorize\"\nclient_id = \"c\"", want: "authorize_url and token_url go together"},
 		"secret from a file":       {profile: "[secrets.x]\nfile = \"/a\"", want: "keyring = true"},
 		"secret from a file named": {profile: "[secrets.x]\nfile = \"/a\"\nkeyring = true", want: "doriath profiles login PROFILE x"},
 		"writable nix store":       {profile: "[[mounts]]\npath = \"/nix/store/x\"\nmode = \"write\"", want: "must not be writable"},
@@ -778,5 +779,25 @@ func TestTheKeyOfAGitHubAppMustBeASecretThatHoldsAKey(t *testing.T) {
 		if _, err := load(t, c.profile, nil); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestAnOAuthSecretCanNameItsEndpoints(t *testing.T) {
+	p, err := loader(fstest.MapFS{"app.toml": file(`[secrets.claude.oauth]
+authorize_url = "https://claude.com/cai/oauth/authorize"
+token_url = "https://platform.claude.com/v1/oauth/token"
+token_body = "json"
+client_id = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+scopes = ["user:inference", "user:profile"]
+`)}, fstest.MapFS{}).Load("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := p.Secrets["claude"].OAuth
+	if o == nil || o.AuthorizeURL != "https://claude.com/cai/oauth/authorize" || o.TokenURL != "https://platform.claude.com/v1/oauth/token" || o.TokenBody != "json" || o.ClientID == "" || len(o.Scopes) != 2 {
+		t.Errorf("oauth = %+v", o)
+	}
+	if got := p.Sources["source claude: login at https://claude.com/cai/oauth/authorize"]; got == nil {
+		t.Errorf("sources = %v", p.Sources)
 	}
 }

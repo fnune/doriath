@@ -795,6 +795,8 @@ func describeSecretSource(v secretLayer) string {
 		return fmt.Sprintf("token of GitHub App %d", v.GitHubApp.AppID)
 	case v.OAuth != nil && v.OAuth.MCP != "":
 		return "login to MCP server " + v.OAuth.MCP
+	case v.OAuth != nil && v.OAuth.AuthorizeURL != "":
+		return "login at " + v.OAuth.AuthorizeURL
 	case v.OAuth != nil:
 		return "login at " + v.OAuth.Issuer
 	}
@@ -1224,7 +1226,7 @@ func (b *builder) build(top layer) (*Profile, error) {
 			backend.GitHubApp = &secret.GitHubApp{AppID: a.AppID, Key: a.Key, Permissions: a.Permissions, Repositories: a.Repositories}
 		}
 		if o := s.OAuth; o != nil {
-			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, ClientID: o.ClientID, Scopes: o.Scopes}
+			backend.OAuth = &secret.OAuth{MCP: o.MCP, Issuer: o.Issuer, AuthorizeURL: o.AuthorizeURL, TokenURL: o.TokenURL, TokenBody: o.TokenBody, ClientID: o.ClientID, Scopes: o.Scopes}
 		}
 		if err := backend.Validate(); err != nil {
 			errs = append(errs, fmt.Errorf("secret %q: %w", name, err))

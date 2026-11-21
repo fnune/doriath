@@ -61,7 +61,9 @@ required = true
 
 # An OAuth login. Run doriath profiles login NAME one time, on the host.
 # mcp names an MCP server, which tells doriath where to sign in.
-# Without mcp, give issuer, client_id and scopes. See "OAuth logins".
+# Without mcp, give issuer, client_id and scopes, or give authorize_url,
+# token_url, client_id and scopes for a server without metadata.
+# See "OAuth logins".
 [secrets.linear]
 oauth = { mcp = "https://mcp.linear.app/mcp" }
 
@@ -703,6 +705,20 @@ The command signs in to each OAuth secret of the profile that has no login, or t
 
 - With `mcp`, doriath finds the sign-in server from the MCP server, and registers itself as a client.
 - With `issuer`, doriath signs in as `client_id` with `scopes`.
+- With `authorize_url` and `token_url`, doriath signs in as `client_id` with `scopes`, and asks no server for metadata. Use this for a server that publishes none. Both URLs must use https. A test server on the loopback address can use http.
+
+For `authorize_url` and `token_url`, doriath sends a PKCE challenge with the method `S256`. The redirect goes to `http://localhost:PORT/callback`, and doriath listens for it on the loopback address of the host. The token request includes the `state`. If the server wants a JSON body, and not a form body, set `token_body = "json"`. A refresh uses `token_url` in the same way, and sends the `scopes`.
+
+For example, this is the login that Claude Code uses with a Claude.ai account:
+
+```toml
+[secrets.claude.oauth]
+authorize_url = "https://claude.com/cai/oauth/authorize"
+token_url = "https://platform.claude.com/v1/oauth/token"
+token_body = "json"
+client_id = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+scopes = ["user:inference", "user:profile"]
+```
 
 The proxy adds a fresh access token to each request that uses the secret, so the agent never holds a token. In a session, doriath refuses the sign-in of the agent to a server that doriath has a login for, because the agent can read a token that it gets in the jail. The metadata of the server stays readable.
 
