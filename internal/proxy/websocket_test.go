@@ -351,3 +351,70 @@ credential = { secret = "c", scheme = "bearer", field = "oauth_token" }`: "field
 		}
 	}
 }
+
+// reasonOf waits for the audit event that tells what the proxy did with the
+// first message, which it records when the connection ends.
+func (e *events) websocketReason(t *testing.T) string {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		e.mu.Lock()
+		for _, ev := range e.list {
+			if ev.Kind == "websocket" {
+				e.mu.Unlock()
+				return ev.Reason
+			}
+		}
+		e.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no websocket event")
+	return ""
+}
+
+func TestTheServerCannotAgreeToCompressMessages(t *testing.T) {
+	h, bridge := newBridgeHarness(t)
+	c := h.wsDial(t, "/chrome/u", http.Header{"Sec-WebSocket-Extensions": {"permessage-deflate; client_max_window_bits"}})
+	c.send(t, clientFrame(0x1, []byte(`{"type":"connect","oauth_token":"doriath-placeholder"}`)))
+	c.next(t)
+	bridge.mu.Lock()
+	got := bridge.headers.Get("Sec-WebSocket-Extensions")
+	bridge.mu.Unlock()
+	if got != "" {
+		t.Errorf("the server was offered %q", got)
+	}
+	_ = c.conn.Close()
+	if reason := h.events.websocketReason(t); reason != "set the field oauth_token in the first message" {
+		t.Errorf("the audit event says %q", reason)
+	}
+}
+
+func TestACompressedFirstMessageIsLeftAsItCameAndTheAuditLogSaysWhy(t *testing.T) {
+	h, bridge := newBridgeHarness(t)
+	c := h.wsDial(t, "/chrome/u", nil)
+	frame := clientFrame(0x1, []byte(`{"type":"echo"}`))
+	frame[0] |= 0x40
+	c.send(t, frame)
+	c.send(t, clientFrame(0x1, []byte(`{"type":"echo","after":true}`)))
+	c.next(t)
+	_ = c.conn.Close()
+	if reason := h.events.websocketReason(t); reason != "left the first message as it came: it is compressed by an extension" {
+		t.Errorf("the audit event says %q", reason)
+	}
+	bridge.mu.Lock()
+	defer bridge.mu.Unlock()
+	if len(bridge.received) < 2 || !bridge.received[0].rsv {
+		t.Errorf("the server saw %d frames, first compressed: %v", len(bridge.received), len(bridge.received) > 0 && bridge.received[0].rsv)
+	}
+}
+
+func TestTheAuditEventForAFirstMessageWithoutTheFieldSaysSo(t *testing.T) {
+	h, _ := newBridgeHarness(t)
+	c := h.wsDial(t, "/chrome/u", nil)
+	c.send(t, clientFrame(0x1, []byte(`{"type":"echo"}`)))
+	c.next(t)
+	_ = c.conn.Close()
+	if reason := h.events.websocketReason(t); reason != "left the first message as it came: it is not a JSON object with the field oauth_token" {
+		t.Errorf("the audit event says %q", reason)
+	}
+}

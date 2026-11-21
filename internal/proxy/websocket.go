@@ -43,7 +43,9 @@ func (s *Server) forwardWebSocket(w http.ResponseWriter, r *http.Request, target
 	}
 	out := r.Clone(context.WithoutCancel(r.Context()))
 	out.URL.Scheme, out.URL.Host, out.Host, out.RequestURI = "https", target, target, ""
-	for _, h := range []string{"Proxy-Authorization", "Proxy-Connection", "Authorization"} {
+	// A message that a WebSocket extension compresses cannot be edited, so the
+	// server must not agree to one.
+	for _, h := range []string{"Proxy-Authorization", "Proxy-Connection", "Authorization", "Sec-WebSocket-Extensions"} {
 		out.Header.Del(h)
 	}
 	resp, err := s.transport.RoundTrip(out)
@@ -77,7 +79,8 @@ func (s *Server) forwardWebSocket(w http.ResponseWriter, r *http.Request, target
 	}
 	done := make(chan struct{}, 2)
 	go func() {
-		_ = putTokenInFirstMessage(backend, brw.Reader, c.Field, string(v.Reveal()))
+		outcome, _ := putTokenInFirstMessage(backend, brw.Reader, c.Field, string(v.Reveal()))
+		s.record(Event{Kind: "websocket", Host: target, Path: r.URL.Path, Exe: exe, Reason: outcome})
 		done <- struct{}{}
 	}()
 	go func() {
@@ -92,6 +95,7 @@ func (s *Server) forwardWebSocket(w http.ResponseWriter, r *http.Request, target
 type wsFrame struct {
 	raw     []byte
 	fin     bool
+	rsv     bool
 	opcode  byte
 	masked  bool
 	payload []byte
@@ -106,7 +110,7 @@ func readFrame(r *bufio.Reader, limit int) (wsFrame, error) {
 	if _, err := io.ReadFull(r, head); err != nil {
 		return f, err
 	}
-	f.fin, f.opcode, f.masked = head[0]&0x80 != 0, head[0]&0x0f, head[1]&0x80 != 0
+	f.fin, f.rsv, f.opcode, f.masked = head[0]&0x80 != 0, head[0]&0x70 != 0, head[0]&0x0f, head[1]&0x80 != 0
 	length := uint64(head[1] & 0x7f)
 	switch length {
 	case 126:
@@ -177,36 +181,49 @@ func maskedTextFrame(payload []byte) []byte {
 // putTokenInFirstMessage copies what the client sends to the server. In the
 // first message, a text message that holds a JSON object with the field, the
 // field gets the token, whatever the client put there. Every other byte
-// passes as it came.
-func putTokenInFirstMessage(dst io.Writer, src *bufio.Reader, field, token string) error {
+// passes as it came. The outcome says what happened to that message, for the
+// audit log, and never holds the token.
+func putTokenInFirstMessage(dst io.Writer, src *bufio.Reader, field, token string) (string, error) {
+	outcome := "the client sent no message"
 	for range maxFramesBeforeMessage {
 		f, err := readFrame(src, maxLoginMessage)
 		if err != nil {
-			return err
+			return outcome, err
 		}
-		switch {
-		case f.opcode >= 0x8:
+		if f.opcode >= 0x8 {
 			if _, err := dst.Write(f.raw); err != nil {
-				return err
+				return outcome, err
 			}
 			continue
-		case f.opcode == 0x1 && f.fin && f.masked && f.payload != nil:
-			if rewritten, ok := withToken(f.payload, field, token); ok {
-				_, err := dst.Write(maskedTextFrame(rewritten))
-				if err != nil {
-					return err
-				}
-				_, err = io.Copy(dst, src)
-				return err
+		}
+		outcome = "left the first message as it came: "
+		switch {
+		case f.rsv:
+			outcome += "it is compressed by an extension"
+		case f.opcode != 0x1 || !f.fin || !f.masked:
+			outcome += "it is not one masked text frame"
+		case f.payload == nil:
+			outcome += fmt.Sprintf("it is larger than %d bytes", maxLoginMessage)
+		default:
+			rewritten, ok := withToken(f.payload, field, token)
+			if !ok {
+				outcome += "it is not a JSON object with the field " + field
+				break
 			}
+			if _, err := dst.Write(maskedTextFrame(rewritten)); err != nil {
+				return outcome, err
+			}
+			_, err = io.Copy(dst, src)
+			return "set the field " + field + " in the first message", err
 		}
 		if _, err := dst.Write(f.raw); err != nil {
-			return err
+			return outcome, err
 		}
-		break
+		_, err = io.Copy(dst, src)
+		return outcome, err
 	}
 	_, err := io.Copy(dst, src)
-	return err
+	return outcome, err
 }
 
 func withToken(message []byte, field, token string) ([]byte, bool) {
