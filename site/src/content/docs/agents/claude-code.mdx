@@ -19,6 +19,8 @@ doriath opens the Claude sign-in page in your browser, and keeps the login in th
 - Claude gets the placeholder `doriath-placeholder` in `CLAUDE_CODE_OAUTH_TOKEN`. The proxy replaces it with the real token on `api.anthropic.com` and `claude.ai`, for the `claude` program only.
 - The jail cannot open the sign-in pages, so Claude cannot sign in by itself.
 - Claude Code keeps its own login in `.credentials.json` in its config directory. The `claude` module deletes that file in the cache of the profile at each session start, because it would hold a refresh token that the agent can read. `doriath doctor` reports such files.
+- The login asks for the scopes of a claude.ai login, and the module gives Claude the same list in `CLAUDE_CODE_OAUTH_SCOPES`. A token from the environment has only `user:inference` otherwise, and Claude Code turns Claude in Chrome off without `user:profile`. After an upgrade from an earlier login, run `doriath profiles login PROFILE claude` again, so that the token has the new scopes.
+- Claude Code reads the plan of the account from its own login file, so with a placeholder the banner shows "Claude API". To show your plan, set `CLAUDE_CODE_SUBSCRIPTION_TYPE` in `[env]` of the profile to `pro`, `max`, `team` or `enterprise`.
 - To use another source for one profile, such as an API key from a password manager, give `[secrets.claude]` in the profile. It replaces the login of the module.
 
 Claude sends the token to `api.anthropic.com` and `claude.ai` in a header. Claude in Chrome sends it to `bridge.claudeusercontent.com` in the first message of a WebSocket, and the proxy replaces the placeholder there. Connectors reach `mcp-proxy.anthropic.com`, which stays refused, so they stay off.

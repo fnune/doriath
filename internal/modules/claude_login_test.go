@@ -167,3 +167,19 @@ func TestClaudeInChromeSignsInThroughTheProxy(t *testing.T) {
 		t.Error("the bridge is not allowed")
 	}
 }
+
+func TestClaudeCodeLearnsTheScopesOfTheLogin(t *testing.T) {
+	p, err := loadWithClaude(t, map[string]string{"app": `modules = ["claude"]`}, "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopes := p.Secrets["claude"].OAuth.Scopes
+	if got := p.Env.Set["CLAUDE_CODE_OAUTH_SCOPES"]; got != strings.Join(scopes, " ") {
+		t.Errorf("CLAUDE_CODE_OAUTH_SCOPES = %q, but the login asks for %q", got, scopes)
+	}
+	for _, want := range []string{"user:profile", "user:inference", "user:sessions:claude_code", "user:mcp_servers", "user:file_upload"} {
+		if !slices.Contains(scopes, want) {
+			t.Errorf("the login lacks the scope %s of a claude.ai login", want)
+		}
+	}
+}

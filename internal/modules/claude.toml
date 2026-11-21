@@ -13,10 +13,13 @@ authorize_url = "https://claude.com/cai/oauth/authorize"
 token_url = "https://platform.claude.com/v1/oauth/token"
 token_body = "json"
 client_id = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-scopes = ["user:inference", "user:profile"]
+scopes = ["user:profile", "user:inference", "user:sessions:claude_code", "user:mcp_servers", "user:file_upload", "user:plugins"]
 [env]
 # Claude Code sends this placeholder, and the proxy replaces it with the login.
-set = { CLAUDE_CODE_OAUTH_TOKEN = "doriath-placeholder", DISABLE_AUTOUPDATER = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
+# A token from the environment has the scope user:inference unless
+# CLAUDE_CODE_OAUTH_SCOPES says more, and without user:profile Claude Code
+# turns Claude in Chrome off. The scopes here are those of the login above.
+set = { CLAUDE_CODE_OAUTH_TOKEN = "doriath-placeholder", CLAUDE_CODE_OAUTH_SCOPES = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins", DISABLE_AUTOUPDATER = "1", DISABLE_ERROR_REPORTING = "1", DISABLE_FEEDBACK_COMMAND = "1" }
 
 [egress]
 allow = ["console.anthropic.com", "claude.ai", "platform.claude.com", "bridge.claudeusercontent.com"]
