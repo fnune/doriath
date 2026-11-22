@@ -566,6 +566,9 @@ func (g *guards) gitDir(srcGit, destGit string, depth int) {
 func (g *guards) packs(gitDir string) {
 	dir := filepath.Join(gitDir, "objects", "pack")
 	for _, name := range g.host.Entries(dir) {
+		if strings.HasPrefix(name, "tmp_") {
+			continue
+		}
 		if p := filepath.Join(dir, name); g.host.Kind(p) == "file" {
 			g.binds = append(g.binds, Bind{Source: p, Dest: p, ReadOnly: true})
 		}

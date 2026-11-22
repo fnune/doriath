@@ -108,3 +108,23 @@ func TestSubmoduleStoresWithSlashedNamesAreCovered(t *testing.T) {
 		foo + "/config":              "read",
 	})
 }
+
+func TestUnfinishedPacksStayWritable(t *testing.T) {
+	git := "/home/u/repo/.git"
+	pack := git + "/objects/pack"
+	h := fakeHost{
+		git:                    "dir",
+		git + "/objects":       "dir",
+		pack:                   "dir",
+		pack + "/p.pack":       "file",
+		pack + "/tmp_pack_abc": "file",
+		pack + "/tmp_idx_abc":  "file",
+	}
+	g := &guards{host: h}
+	g.store(git)
+	expectAccess(t, g.binds, map[string]string{
+		pack + "/p.pack":       "read",
+		pack + "/tmp_pack_abc": "write",
+		pack + "/tmp_idx_abc":  "write",
+	})
+}
