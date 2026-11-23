@@ -25,6 +25,14 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       version = "0.1.0";
 
+      bubblewrapFor =
+        pkgs:
+        pkgs.pkgsStatic.bubblewrap.overrideAttrs (old: {
+          postPatch = (old.postPatch or "") + ''
+            substituteInPlace bubblewrap.c --replace-fail "MAX_ARGS = 9000" "MAX_ARGS = 100000"
+          '';
+        });
+
       doriathFor =
         pkgs:
         pkgs.buildGo126Module {
@@ -44,7 +52,7 @@
           # any distribution and does not depend on the system's copy.
           preBuild = ''
             mkdir -p internal/bundle/assets
-            install -m 0644 ${pkgs.pkgsStatic.bubblewrap}/bin/bwrap internal/bundle/assets/bwrap
+            install -m 0644 ${bubblewrapFor pkgs}/bin/bwrap internal/bundle/assets/bwrap
           '';
           # Unit tests only. The integration tests need user namespaces, which
           # the build sandbox does not offer.
@@ -86,6 +94,7 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = [
+            (bubblewrapFor pkgs)
             pkgs.git
             pkgs.go_1_26
             pkgs.gopls
@@ -96,7 +105,7 @@
             pkgs.prettier
             pkgs.nodejs_24
           ];
-          DORIATH_STATIC_BWRAP = "${pkgs.pkgsStatic.bubblewrap}/bin/bwrap";
+          DORIATH_STATIC_BWRAP = "${bubblewrapFor pkgs}/bin/bwrap";
         };
       });
 

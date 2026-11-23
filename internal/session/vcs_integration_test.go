@@ -331,3 +331,32 @@ echo done
 		t.Errorf("request = %+v", asked)
 	}
 }
+
+func TestASessionStartsWhenItsGuardsTakeMoreThanNineThousandArguments(t *testing.T) {
+	e := newEnv(t)
+	repo := filepath.Join(e.work, "repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	for i := range 1000 {
+		admin := filepath.Join(repo, ".git", "worktrees", fmt.Sprintf("wt%d", i))
+		if err := os.MkdirAll(admin, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		files := map[string]string{
+			"commondir":       "../..\n",
+			"gitdir":          filepath.Join(e.home, fmt.Sprintf("wt%d", i), ".git") + "\n",
+			"config.worktree": "",
+		}
+		for name, content := range files {
+			if err := os.WriteFile(filepath.Join(admin, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	code, out := e.run(e.profile(""), `echo started`, nil)
+	if code != 0 || !strings.Contains(out, "started") {
+		t.Fatalf("code %d:\n%s", code, out)
+	}
+}
