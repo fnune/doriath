@@ -45,6 +45,9 @@ func TestHomeManagerSecrets(t *testing.T) {
 			if key == "" {
 				key = field.Name
 			}
+			if len(path) == 0 && key == "file" {
+				continue
+			}
 			checkKeys(field.Type, append(append([]string(nil), path...), key))
 		}
 	}

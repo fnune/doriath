@@ -96,6 +96,12 @@ let
             "write"
           ];
         };
+        bare.oauth = {
+          authorize_url = "https://login.bare.example/authorize";
+          token_url = "https://login.bare.example/token";
+          token_body = "json";
+          client_id = "doriath";
+        };
       };
       packages = [ pkgs.hello ];
       env.path_prepend = [ "/opt/team/bin" ];
@@ -218,6 +224,7 @@ pkgs.runCommand "doriath-home-manager-module"
     expect '.Secrets.github.Refresh == 2700000000000'
     expect '.Secrets.api.OAuth.MCP == "https://mcp.team.example/mcp"'
     expect '.Secrets.issuer.OAuth | .Issuer == "https://login.team.example" and .ClientID == "doriath" and .Scopes == ["read", "write"]'
+    expect '.Secrets.bare.OAuth | .AuthorizeURL == "https://login.bare.example/authorize" and .TokenURL == "https://login.bare.example/token" and .TokenBody == "json" and .ClientID == "doriath"'
     expect '.HTTP[] | select(.Host == "api.team.example") | .Credential.Secret == "api" and .Rules[0].Path == "/items"'
     expect '.MCP[0] | .Name == "team" and .Secret == "api"'
     expect '[.HTTP[].Rules[] | select(.MCPTools == ["read_items"] and .Action == "allow")] | length == 1'
