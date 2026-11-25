@@ -32,6 +32,7 @@ jobs:
           persist-credentials: false
       - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
         with:
+          apt-packages: bubblewrap openssh-client python3
           cache-paths: |
             .cache/go-build
             go/pkg/mod

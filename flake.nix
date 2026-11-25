@@ -103,6 +103,7 @@
             pkgs.govulncheck
             pkgs.just
             pkgs.prettier
+            pkgs.util-linux
             pkgs.nodejs_24
           ];
           DORIATH_STATIC_BWRAP = "${bubblewrapFor pkgs}/bin/bwrap";

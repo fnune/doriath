@@ -136,6 +136,7 @@ type env struct {
 	agent    string
 	modules  []string
 	open     func(string) error
+	shell    string
 }
 
 func newEnv(t *testing.T) *env {
@@ -259,7 +260,11 @@ func (e *env) start(p *profile.Profile, script string, while func()) (int, strin
 	if e.agent != "" {
 		scriptPath = filepath.Join(e.work, e.agent)
 	}
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"+script), 0o700); err != nil {
+	shell := "/bin/sh"
+	if e.shell != "" {
+		shell = e.shell
+	}
+	if err := os.WriteFile(scriptPath, []byte("#!"+shell+"\n"+script), 0o700); err != nil {
 		e.t.Fatal(err)
 	}
 	bwrap, err := bundle.Bwrap(e.paths.Bundle(), os.Getenv)
@@ -967,6 +972,7 @@ echo done
 
 func TestAConnectReachesAPortOfTheHostOnceAllowed(t *testing.T) {
 	e := newEnv(t)
+	e.shell = "/bin/bash"
 	e.hostWait = 30 * time.Second
 	host, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
