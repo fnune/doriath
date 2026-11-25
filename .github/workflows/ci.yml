@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           cache-paths: |
             .cache/go-build
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           apt-packages: bubblewrap openssh-client python3
           cache-paths: |
@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           cache-paths: |
             .cache/go-build
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           cache-paths: .npm
           cache-key-files: site/package-lock.json
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           dev-shell: ""
           command: nix build .#default
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+      - uses: fnune/ci@ae0a44678996b496016f25f0a2ae57fcfdbecec6
         with:
           dev-shell: ""
           command: nix flake check --print-build-logs
