@@ -26,6 +26,13 @@ func (r *restoredLinks) get(path string) string {
 	return r.found[path]
 }
 
+func (r *restoredLinks) reported(path string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.found[path]
+	return ok
+}
+
 func linkIn(t *testing.T) (dir, link, target string) {
 	t.Helper()
 	dir = t.TempDir()
@@ -152,8 +159,8 @@ func TestAKeptLinkOutsideEveryWritableFolderIsReportedAndNotRestoredByPlainPath(
 		t.Fatal(err)
 	}
 	k.Check()
-	if _, ok := r.found[link]; !ok {
-		t.Errorf("no report for %s: %v", link, r.found)
+	if !r.reported(link) {
+		t.Errorf("no report for %s", link)
 	}
 	if exists(link) {
 		t.Error("the link came back through a root that follows symlinks")
