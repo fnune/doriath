@@ -324,7 +324,12 @@ func TestARequestThatTouchesAWarnedPathAsksWithTheWarningAndOnlyOnce(t *testing.
 	if _, err := s.requestEdit(envrc, "use flake\necho hi\n", "add a line"); err != nil {
 		t.Fatal(err)
 	}
-	write, read, edit := <-notifier.seen, <-notifier.seen, <-notifier.seen
+	asked := map[approval.Kind]approval.Request{}
+	for range 3 {
+		req := <-notifier.seen
+		asked[req.Kind] = req
+	}
+	write, read, edit := asked[approval.KindPath], asked[approval.KindRead], asked[approval.KindEdit]
 	if write.Warning != "The request touches "+bin+". Your shells run programs from it." || write.Keep != "" || write.Offers(approval.AnswerSession) {
 		t.Errorf("write = %+v", write)
 	}
