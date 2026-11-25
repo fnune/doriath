@@ -10,23 +10,78 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
-      - name: Allow unprivileged user namespaces
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Check
-        run: nix develop --command just check
-      - name: Integration tests
-        run: nix develop --command just test-integration
-      - name: Vulnerabilities
-        run: nix develop --command just vuln
-      - name: Site
-        run: nix develop --command just site-build
-      - name: Package
-        run: nix build .#default
-      - name: Flake checks
-        run: nix flake check --print-build-logs
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          cache-paths: |
+            .cache/go-build
+            .cache/golangci-lint
+            go/pkg/mod
+          cache-key-files: go.sum
+          command: just check
+
+  integration:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          cache-paths: |
+            .cache/go-build
+            go/pkg/mod
+          cache-key-files: go.sum
+          command: just test-integration
+
+  vulnerabilities:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          cache-paths: |
+            .cache/go-build
+            go/pkg/mod
+          cache-key-files: go.sum
+          command: just vuln
+
+  site:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          cache-paths: .npm
+          cache-key-files: site/package-lock.json
+          command: just site-build
+
+  package:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          dev-shell: ""
+          command: nix build .#default
+
+  flake-checks:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fnune/ci@efd9d3202653a8ff8e41995ad8225c9f77a19a98
+        with:
+          dev-shell: ""
+          command: nix flake check --print-build-logs

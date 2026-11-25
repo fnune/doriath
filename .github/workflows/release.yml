@@ -5,11 +5,13 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   draft:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Draft the release
         env:
@@ -26,8 +28,10 @@ jobs:
           - runner: ubuntu-24.04-arm
             arch: arm64
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
@@ -47,6 +51,8 @@ jobs:
   publish:
     needs: binary
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Publish the release
         env:
